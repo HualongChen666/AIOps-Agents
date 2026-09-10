@@ -1,4 +1,6 @@
 [flake8]
-max-line-length = 120
-extend-ignore = E203, W503, E402
+max-line-length = 100
+# E501 is owned by black (line-length = 100 in pyproject.toml); black cannot
+# split long strings/comments, so flake8 must not re-flag them.
+extend-ignore = E203, W503, E402, E501
 exclude = .git, __pycache__, .venv, venv, build, dist, .eggs, *.egg-info, .pytest_cache, .mypy_cache, .tox, .hg, temp, temp_*.py, verify_logs

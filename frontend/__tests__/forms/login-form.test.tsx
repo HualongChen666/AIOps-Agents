@@ -4,23 +4,18 @@ import LoginPage from '@/app/login/page';
 
 // Mock Next.js router
 jest.mock('next/navigation', () => ({
-  useRouter() {
-    return {
-      push: jest.fn(),
-      replace: jest.fn(),
-      prefetch: jest.fn(),
-      back: jest.fn(),
-      pathname: '/login',
-      query: {},
-      asPath: '/login',
-    };
-  },
-  usePathname() {
-    return '/login';
-  },
-  useSearchParams() {
-    return new URLSearchParams();
-  },
+  // jest.fn so suites can call `.mockReturnValue(...)` on useRouter.
+  useRouter: jest.fn(() => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    prefetch: jest.fn(),
+    back: jest.fn(),
+    pathname: '/login',
+    query: {},
+    asPath: '/login',
+  })),
+  usePathname: jest.fn(() => '/login'),
+  useSearchParams: jest.fn(() => new URLSearchParams()),
 }));
 
 // Mock react-hot-toast
@@ -57,12 +52,16 @@ beforeEach(() => {
   // Mock authentication status
   (isAuthenticated as jest.Mock).mockReturnValue(false);
 
-  // Mock login function
-  (login as jest.Mock).mockImplementation(() => {
-    return Promise.resolve({
-      access_token: 'mock-jwt-token-12345',
-      user: { id: 1, username: 'admin', email: 'admin@example.com', role: 'admin' },
-    });
+  // Mock login: the real lib/api login() rejects on bad credentials and, on
+  // success, persists the non-sensitive user profile (the access token lives in
+  // an HttpOnly cookie and is never written to storage).
+  (login as jest.Mock).mockImplementation(async (username: string, password: string) => {
+    if (username === 'admin' && password === 'password') {
+      const user = { id: 1, username: 'admin', email: 'admin@example.com', role: 'admin' };
+      localStorage.setItem('user', JSON.stringify(user));
+      return { user };
+    }
+    throw { response: { status: 401, data: { detail: 'Invalid username or password' } } };
   });
 });
 
@@ -157,7 +156,7 @@ describe('Login Form Validation Tests', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/登录失败/)).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toHaveTextContent('Invalid username or password');
       });
     });
 
@@ -174,7 +173,7 @@ describe('Login Form Validation Tests', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/登录失败/)).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toBeInTheDocument();
       });
 
       // Then, succeed login
@@ -183,7 +182,7 @@ describe('Login Form Validation Tests', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.queryByText(/登录失败/)).not.toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       });
     });
   });
@@ -282,7 +281,7 @@ describe('Login Form Validation Tests', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(localStorage.getItem('auth_token')).toBe('mock-jwt-token-12345');
+        expect(login).toHaveBeenCalledWith('admin', 'password');
       });
     });
 
@@ -344,7 +343,7 @@ describe('Login Form Validation Tests', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/登录失败/)).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toBeInTheDocument();
       });
     });
 
@@ -360,7 +359,7 @@ describe('Login Form Validation Tests', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(localStorage.getItem('auth_token')).toBeNull();
+        expect(localStorage.getItem('user')).toBeNull();
       });
     });
 
@@ -394,11 +393,7 @@ describe('Login Form Validation Tests', () => {
 
   describe('Error Handling', () => {
     it('should handle network errors', async () => {
-      server.use(
-        http.post('/api/v1/auth/login', () => {
-          return HttpResponse.error();
-        })
-      );
+      (login as jest.Mock).mockRejectedValueOnce(new Error('Network Error'));
 
       render(<LoginPage />);
 
@@ -416,12 +411,7 @@ describe('Login Form Validation Tests', () => {
     });
 
     it('should handle timeout errors', async () => {
-      server.use(
-        http.post('/api/v1/auth/login', async () => {
-          await new Promise(resolve => setTimeout(resolve, 20000));
-          return HttpResponse.json({ access_token: 'token' });
-        })
-      );
+      (login as jest.Mock).mockRejectedValueOnce(new Error('timeout of 15000ms exceeded'));
 
       render(<LoginPage />);
 
@@ -439,11 +429,9 @@ describe('Login Form Validation Tests', () => {
     });
 
     it('should handle 500 server errors', async () => {
-      server.use(
-        http.post('/api/v1/auth/login', () => {
-          return HttpResponse.json({ detail: 'Server error' }, { status: 500 });
-        })
-      );
+      (login as jest.Mock).mockRejectedValueOnce({
+        response: { status: 500, data: { detail: 'Server error' } },
+      });
 
       render(<LoginPage />);
 
@@ -456,7 +444,7 @@ describe('Login Form Validation Tests', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/登录失败/)).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toHaveTextContent('Server error');
       });
     });
   });
@@ -580,7 +568,7 @@ describe('Login Form Validation Tests', () => {
       fireEvent.click(submitButton);
 
       await waitFor(() => {
-        expect(screen.getByText(/登录失败/)).toBeInTheDocument();
+        expect(screen.getByRole('alert')).toBeInTheDocument();
       });
 
       // Change input
@@ -588,14 +576,16 @@ describe('Login Form Validation Tests', () => {
 
       // Error should be cleared
       await waitFor(() => {
-        expect(screen.queryByText(/登录失败/)).not.toBeInTheDocument();
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
       });
     });
   });
 
   describe('Authentication State', () => {
     it('should redirect if already authenticated', () => {
-      localStorage.setItem('auth_token', 'existing-token');
+      // An existing session is represented by isAuthenticated() === true.
+      (isAuthenticated as jest.Mock).mockReturnValue(true);
+      localStorage.setItem('user', JSON.stringify({ username: 'admin' }));
 
       const mockReplace = jest.fn();
       (jest.requireMock('next/navigation').useRouter as jest.Mock).mockReturnValue({

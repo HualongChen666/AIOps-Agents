@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DataTable } from '@/components/ui/DataTable';
 
@@ -30,8 +30,9 @@ describe('DataTable Component', () => {
   describe('Rendering', () => {
     it('should render table with data', () => {
       render(<DataTable data={mockData} columns={mockColumns} />);
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+      const table = within(screen.getByRole('table'));
+      expect(table.getByText('John Doe')).toBeInTheDocument();
+      expect(table.getByText('Jane Smith')).toBeInTheDocument();
     });
 
     it('should render table headers', () => {
@@ -94,8 +95,9 @@ describe('DataTable Component', () => {
       const searchInput = screen.getByPlaceholderText('搜索...');
       await user.type(searchInput, 'John');
       
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.queryByText('Jane Smith')).not.toBeInTheDocument();
+      const table = within(screen.getByRole('table'));
+      expect(table.getByText('John Doe')).toBeInTheDocument();
+      expect(table.queryByText('Jane Smith')).not.toBeInTheDocument();
     });
 
     it('should filter data case-insensitively', async () => {
@@ -105,7 +107,7 @@ describe('DataTable Component', () => {
       const searchInput = screen.getByPlaceholderText('搜索...');
       await user.type(searchInput, 'john');
       
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('John Doe')).toBeInTheDocument();
     });
 
     it('should show empty message when search has no results', async () => {
@@ -124,10 +126,10 @@ describe('DataTable Component', () => {
       
       const searchInput = screen.getByPlaceholderText('搜索...');
       await user.type(searchInput, 'John');
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('John Doe')).toBeInTheDocument();
       
       await user.clear(searchInput);
-      expect(screen.getByText('Jane Smith')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('Jane Smith')).toBeInTheDocument();
     });
   });
 
@@ -141,8 +143,8 @@ describe('DataTable Component', () => {
         await user.selectOptions(statusFilter, 'Active');
       }
       
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.queryByText('Jane Smith')).not.toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('John Doe')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).queryByText('Jane Smith')).not.toBeInTheDocument();
     });
 
     it('should reset to page 1 when filter changes', async () => {
@@ -173,8 +175,8 @@ describe('DataTable Component', () => {
       if (nameFilter) await user.selectOptions(nameFilter, 'John Doe');
       if (statusFilter) await user.selectOptions(statusFilter, 'Active');
       
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
-      expect(screen.queryByText('Jane Smith')).not.toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('John Doe')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).queryByText('Jane Smith')).not.toBeInTheDocument();
     });
   });
 
@@ -358,7 +360,7 @@ describe('DataTable Component', () => {
     it('should handle single row', () => {
       const singleRow = [mockData[0]];
       render(<DataTable data={singleRow} columns={mockColumns} />);
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('John Doe')).toBeInTheDocument();
     });
 
     it('should handle large page size', () => {
@@ -410,7 +412,7 @@ describe('DataTable Component', () => {
       const ageHeader = screen.getByText('Age');
       await user.click(ageHeader);
       
-      expect(screen.getByText('John Doe')).toBeInTheDocument();
+      expect(within(screen.getByRole('table')).getByText('John Doe')).toBeInTheDocument();
     });
 
     it('should maintain state when switching pages with filters', async () => {
@@ -427,7 +429,7 @@ describe('DataTable Component', () => {
       if (nextButton) await user.click(nextButton);
       
       // Filter should still be active
-      expect(screen.queryByText('Jane Smith')).not.toBeInTheDocument();
+      expect(within(screen.getByRole('table')).queryByText('Jane Smith')).not.toBeInTheDocument();
     });
   });
 
@@ -435,18 +437,21 @@ describe('DataTable Component', () => {
     it('should have proper table structure', () => {
       render(<DataTable data={mockData} columns={mockColumns} />);
       expect(screen.getByRole('table')).toBeInTheDocument();
-      expect(screen.getByRole('columnheader')).toBeInTheDocument();
+      expect(screen.getAllByRole('columnheader').length).toBe(mockColumns.length);
     });
 
     it('should support keyboard navigation for sortable headers', async () => {
       const user = userEvent.setup();
       render(<DataTable data={mockData} columns={mockColumns} />);
       
-      const ageHeader = screen.getByText('Age');
+      const ageHeader = screen.getByText('Age').closest('th') as HTMLTableCellElement;
+      expect(ageHeader).toHaveAttribute('tabindex', '0');
       ageHeader.focus();
+      expect(ageHeader).toHaveFocus();
       await user.keyboard('{Enter}');
       
       expect(screen.getByText('↑')).toBeInTheDocument();
+      expect(ageHeader).toHaveAttribute('aria-sort', 'ascending');
     });
   });
 });

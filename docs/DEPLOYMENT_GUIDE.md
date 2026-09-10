@@ -55,7 +55,7 @@
 
 #### 依赖软件
 
-- **Python**: 3.8+ (推荐3.10+)
+- **Python**: 3.12（最低 3.12；多行 f-string 语法要求 ≥3.12）
 - **PostgreSQL**: 13+
 - **Redis**: 6+
 - **Qdrant**: 1.6+
@@ -68,7 +68,7 @@
 
 ### 1. Python环境设置
 
-#### 安装Python 3.10+
+#### 安装Python 3.12+
 
 ```bash
 # Ubuntu/Debian

@@ -23,11 +23,9 @@ router = APIRouter(prefix="/api/v1/security", tags=["安全管理高级API"])
 
 
 def _verify_access(request: Request, x_internal_key: Optional[str] = None) -> None:
-    try:
-        from config import ALLOWED_LOCAL_IPS, INTERNAL_API_KEY
-    except ImportError:
-        INTERNAL_API_KEY = ""
-        ALLOWED_LOCAL_IPS = ["127.0.0.1", "::1"]
+    # Wave2 #25: no silent fallback that disables the access check on import
+    # failure — let an ImportError propagate instead.
+    from config import ALLOWED_LOCAL_IPS, INTERNAL_API_KEY
     source_ip = request.client.host if request.client else "unknown"
     if INTERNAL_API_KEY:
         if x_internal_key != INTERNAL_API_KEY:
@@ -1267,12 +1265,12 @@ async def delete_command_rewrite_rule(rule_id: str) -> Dict[str, Any]:
 
 
 # 24. Command Check
-class CommandCheckRequest(BaseModel):
+class SecurityAdvancedCommandCheckRequest(BaseModel):
     command: str = Field(..., min_length=1, max_length=2000)
 
 
 @router.post("/command-check/check")
-async def check_command(req: CommandCheckRequest) -> Dict[str, Any]:
+async def check_command(req: SecurityAdvancedCommandCheckRequest) -> Dict[str, Any]:
     result = analyze_command(req.command)
     return {
         "command": req.command,

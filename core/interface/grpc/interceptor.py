@@ -2,35 +2,36 @@
 """
 gRPC Interceptors
 Implements authentication and logging interceptors
+
+These are **asyncio** server interceptors (``grpc.aio.ServerInterceptor``) to
+match the asyncio server in :mod:`core.interface.grpc.server`.
 """
 
-from typing import Callable
+from typing import Any, Callable
 
 import grpc
 from loguru import logger
 
 
-class LoggingInterceptor(grpc.ServerInterceptor):
+class LoggingInterceptor(grpc.aio.ServerInterceptor):
     """Logging interceptor for gRPC calls"""
 
-    def intercept_service(
+    async def intercept_service(
         self, continuation: Callable, handler_call_details: grpc.HandlerCallDetails
-    ):
+    ) -> Any:
         """Intercept service call for logging"""
         method = handler_call_details.method
-
         logger.info(f"gRPC call: {method}")
-
         try:
-            response = continuation(handler_call_details)
-            logger.info(f"gRPC response: {method} - success")
-            return response
-        except Exception as e:
-            logger.error(f"gRPC error: {method} - {e}")
+            handler = await continuation(handler_call_details)
+        except Exception as exc:
+            logger.error(f"gRPC error: {method} - {exc}")
             raise
+        logger.info(f"gRPC response: {method} - success")
+        return handler
 
 
-class AuthInterceptor(grpc.ServerInterceptor):
+class AuthInterceptor(grpc.aio.ServerInterceptor):
     """Authentication interceptor for gRPC calls"""
 
     def __init__(self, api_key: str):
@@ -42,44 +43,40 @@ class AuthInterceptor(grpc.ServerInterceptor):
         """
         self.api_key = api_key
 
-    def intercept_service(
+    async def intercept_service(
         self, continuation: Callable, handler_call_details: grpc.HandlerCallDetails
-    ):
-        """Intercept service call for authentication"""
-        # Get metadata
-        metadata = dict(handler_call_details.invocation_metadata)
+    ) -> Any:
+        """Intercept service call for authentication.
 
-        # Check API key
-        client_key = metadata.get("api-key")
-        if client_key != self.api_key:
+        Rejects the call with ``UNAUTHENTICATED`` when the ``api-key`` metadata
+        entry is missing or wrong; otherwise forwards to the real handler.
+        """
+        metadata = dict(handler_call_details.invocation_metadata or ())
+        if metadata.get("api-key") != self.api_key:
             logger.warning("Invalid API key in gRPC request")
-            context = grpc.ServicerContext()
-            context.set_code(grpc.StatusCode.UNAUTHENTICATED)
-            context.set_details("Invalid API key")
-            return context
 
-        # Continue with call
-        return continuation(handler_call_details)
+            async def _deny(request: Any, context: grpc.aio.ServicerContext) -> None:
+                await context.abort(grpc.StatusCode.UNAUTHENTICATED, "Invalid API key")
+
+            return grpc.unary_unary_rpc_method_handler(_deny)
+
+        return await continuation(handler_call_details)
 
 
-class MetricsInterceptor(grpc.ServerInterceptor):
+class MetricsInterceptor(grpc.aio.ServerInterceptor):
     """Metrics interceptor for gRPC calls"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize metrics interceptor"""
-        self._call_counts = {}
+        self._call_counts: dict[str, int] = {}
 
-    def intercept_service(
+    async def intercept_service(
         self, continuation: Callable, handler_call_details: grpc.HandlerCallDetails
-    ):
+    ) -> Any:
         """Intercept service call for metrics collection"""
         method = handler_call_details.method
-
-        # Increment call count
         self._call_counts[method] = self._call_counts.get(method, 0) + 1
-
-        # Continue with call
-        return continuation(handler_call_details)
+        return await continuation(handler_call_details)
 
     def get_metrics(self) -> dict:
         """Get call metrics"""

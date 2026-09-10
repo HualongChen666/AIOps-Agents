@@ -8,7 +8,7 @@ Provides data access methods for integrations, webhooks, webhook events, and not
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -162,7 +162,7 @@ class IntegrationRepository:
         if integration_metadata is not None:
             integration.integration_metadata = integration_metadata
         
-        integration.updated_at = datetime.utcnow()
+        integration.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         
         self.db.commit()
         self.db.refresh(integration)
@@ -351,7 +351,7 @@ class WebhookRepository:
         if webhook_metadata is not None:
             webhook.webhook_metadata = webhook_metadata
         
-        webhook.updated_at = datetime.utcnow()
+        webhook.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         
         self.db.commit()
         self.db.refresh(webhook)
@@ -552,7 +552,7 @@ class WebhookEventRepository:
         Returns:
             Number of events deleted
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
         
         deleted = self.db.query(WebhookEventDB).filter(
             WebhookEventDB.timestamp < cutoff_date
@@ -711,7 +711,7 @@ class NotificationChannelRepository:
         if description is not None:
             channel.description = description
         
-        channel.updated_at = datetime.utcnow()
+        channel.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         
         self.db.commit()
         self.db.refresh(channel)
@@ -903,7 +903,7 @@ class NotificationMessageRepository:
         Returns:
             Number of messages deleted
         """
-        cutoff_date = datetime.utcnow() - timedelta(days=days)
+        cutoff_date = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=days)
         
         deleted = self.db.query(IntegrationNotificationMessageDB).filter(
             IntegrationNotificationMessageDB.timestamp < cutoff_date

@@ -14,8 +14,8 @@ from api.change_advanced_router import (
     ApprovalRequest,
     ApprovalResponse,
     ApprovalStatus,
-    ChangeRequestCreate,
-    ChangeRequestUpdate,
+    ChangeAdvancedChangeRequestCreate,
+    ChangeAdvancedChangeRequestUpdate,
     ChangeStatus,
     ImpactAnalysisRequest,
     ImpactAnalysisResponse,
@@ -96,7 +96,7 @@ def sample_change_request():
 @pytest.fixture
 def sample_request_create():
     """Sample change request creation data."""
-    return ChangeRequestCreate(
+    return ChangeAdvancedChangeRequestCreate(
         title="Test Change",
         description="Test change description",
         requester="admin",
@@ -260,7 +260,7 @@ class TestUpdateChangeRequest:
                 with pytest.raises(HTTPException) as exc_info:
                     await router.routes[3].endpoint(
                         request_id="CR-NOTFOUND",
-                        update=ChangeRequestUpdate(title="Updated"),
+                        update=ChangeAdvancedChangeRequestUpdate(title="Updated"),
                         current_user=mock_admin_user,
                     )
             assert exc_info.value.status_code == 404

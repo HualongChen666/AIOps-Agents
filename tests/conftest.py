@@ -13,6 +13,17 @@ import pytest
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# --- Wave2 #25: endpoints protected by X-Internal-Key now fail closed when
+# INTERNAL_API_KEY is unset.  The suite needs a configured key
+# (tests/test_security_audit.py already asserts INTERNAL_API_KEY != "").
+try:
+    import config as _config
+
+    if not _config.INTERNAL_API_KEY:
+        _config.INTERNAL_API_KEY = "test-internal-key"
+except Exception:  # pragma: no cover - config problems surface elsewhere
+    pass
+
 
 @pytest.fixture(scope="session")
 def event_loop():

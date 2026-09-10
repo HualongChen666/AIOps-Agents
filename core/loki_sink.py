@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``loki_sink`` module.
+
+Top-level functions: push_to_loki"""
+
 # core/loki_sink.py
 # component module for Loki log aggregation
 

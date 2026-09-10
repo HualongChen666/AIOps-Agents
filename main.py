@@ -241,7 +241,6 @@ import core.ai.langgraph.executor  # noqa: F401
 import core.ai.langgraph.nodes  # noqa: F401
 import core.ai.langgraph.visualizer  # noqa: F401
 import core.ai.langgraph.workflow  # noqa: F401
-import core.ai.langgraph._core  # noqa: F401
 from core.ai.llm_router.capability_evaluator import CapabilityEvaluator  # noqa: F401
 from core.ai.llm_router.cost_optimizer import CostOptimizer  # noqa: F401
 import core.ai.llm_router.enhanced_router  # noqa: F401
@@ -483,17 +482,14 @@ from api.tenant_advanced_router import router as tenant_advanced_router
 from api.topology_advanced_router import (
     router as topology_advanced_router,
     router_alt as topology_advanced_router_alt,
-    router_v1 as topology_advanced_router_v1,
 )
 from api.tracing_advanced_router import (
     router as tracing_advanced_router,
     router_alt as tracing_advanced_router_alt,
-    router_v1 as tracing_advanced_router_v1,
 )
 from api.unified_repair_advanced_router import (
     router as unified_repair_advanced_router,
     router_alt as unified_repair_advanced_router_alt,
-    router_v1 as unified_repair_advanced_router_v1,
 )
 from api.unified_repair_router import router as unified_repair_router
 from api.user_router import router as user_router
@@ -650,7 +646,6 @@ if ENABLE_ADDONS:
         from api.release_management_router import router as release_management_router
     if INTEGRATIONS_ENABLED:
         from api.dashboard_router import router as dashboard_router
-        from api.dashboard_advanced_router import router as dashboard_advanced_router
         from api.integration_router import router as integration_router
         from api.itsm_router import router as itsm_router
     if SECURITY_SCANNING_ENABLED:
@@ -1150,7 +1145,6 @@ CORE_ROUTERS = [
     approvals_router,
     unified_repair_router,
     unified_repair_advanced_router,
-    unified_repair_advanced_router_v1,
     windows_repair_router,
     guard_router,
     security_router,
@@ -1191,11 +1185,8 @@ CORE_ROUTERS = [
     team_collaboration_router,
     integration_providers_router,
     topology_advanced_router_alt,
-    topology_advanced_router_v1,
     tracing_advanced_router_alt,
-    tracing_advanced_router_v1,
     unified_repair_advanced_router_alt,
-    unified_repair_advanced_router_v1,
 ]
 
 ADDON_ROUTERS = [
@@ -1215,7 +1206,6 @@ ADDON_ROUTERS = [
     (topology_router, TOPOLOGY_ENABLED),
     (topology_simple_router, TOPOLOGY_ENABLED),
     (topology_advanced_router, TOPOLOGY_ENABLED),
-    (topology_advanced_router_v1, TOPOLOGY_ENABLED),
     (topology_view_router, TOPOLOGY_ENABLED),
     (service_mesh_router, TOPOLOGY_ENABLED),
     (service_mesh_advanced_router, TOPOLOGY_ENABLED),
@@ -1227,7 +1217,6 @@ ADDON_ROUTERS = [
     (realtime_advanced_router, TOPOLOGY_ENABLED),
     (tracing_router, TRACING_ENABLED),
     (tracing_advanced_router, TRACING_ENABLED),
-    (tracing_advanced_router_v1, TRACING_ENABLED),
     (apm_router, TRACING_ENABLED),
     (log_router, LOG_AGGREGATION_ENABLED),
     # SRE Operations Pack
@@ -1246,7 +1235,7 @@ ADDON_ROUTERS = [
     (itsm_router, INTEGRATIONS_ENABLED),
     (itsm_advanced_router, INTEGRATIONS_ENABLED),
     (dashboard_router, INTEGRATIONS_ENABLED),
-    (dashboard_advanced_router, INTEGRATIONS_ENABLED),
+    (dashboard_advanced_router, INTEGRATIONS_ENABLED or PLUGINS_ENABLED),
     # Security & Compliance Pack
     (enterprise_router, SECURITY_SCANNING_ENABLED),
     (enterprise_router_append, SECURITY_SCANNING_ENABLED),
@@ -1278,7 +1267,6 @@ ADDON_ROUTERS = [
     (test_automation_router, PLUGINS_ENABLED),
     (test_automation_advanced_router, PLUGINS_ENABLED),
     (maturity_advanced_router, PLUGINS_ENABLED),
-    (dashboard_advanced_router, PLUGINS_ENABLED),
     # I18n & Localization
     (i18n_router, I18N_ENABLED),
     (i18n_router_append, I18N_ENABLED),
@@ -1293,75 +1281,10 @@ ADDON_ROUTERS = [
     (frontend_advanced_router, DOC_GENERATION_ENABLED),
 ]
 
-# Add a special route for admin registration that bypasses all middleware
-# This must be registered BEFORE any other routes to ensure it takes precedence
-from fastapi import Request as FastAPIRequest
-from fastapi.responses import JSONResponse as FastAPIJSONResponse
-from core.auth_db import User, SessionLocal
-from core.auth_service import hash_password, max_admin_check
-from pydantic import BaseModel
-
-class AdminRegisterRequest(BaseModel):
-    username: str
-    password: str
-
-@app.post("/api/v1/auth/register-admin-bypass")
-async def register_admin_bypass(req: AdminRegisterRequest, request: FastAPIRequest):
-    """Bypass route for admin registration to avoid middleware issues."""
-    import logging
-    logger = logging.getLogger(__name__)
-    logger.info(f"BYPASS ROUTE CALLED: {request.url.path}")
-    
-    db = SessionLocal()
-    try:
-        logger.info(f"BYPASS ROUTE: Attempting to create user {req.username}")
-        # Check if username already exists
-        existing_user = db.query(User).filter(User.username == req.username).first()
-        if existing_user:
-            logger.warning(f"BYPASS ROUTE: Username {req.username} already exists")
-            return FastAPIJSONResponse(
-                status_code=400,
-                content={"detail": "Username already exists"}
-            )
-        
-        # Bypass route allows creating additional admins without max_admin_check
-        user = User(
-            username=req.username,
-            hashed_password=hash_password(req.password),
-            role="admin",
-            disabled=False,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        logger.info(f"BYPASS ROUTE: Successfully created user {user.username} with id {user.id}")
-        return FastAPIJSONResponse(
-            content={
-                "id": user.id,
-                "username": user.username,
-                "role": user.role,
-                "is_active": not user.disabled,
-                "created_at": user.created_at.isoformat() if user.created_at else None
-            }
-        )
-    except HTTPException as e:
-        db.rollback()
-        logger.error(f"BYPASS ROUTE: Registration failed with HTTP error: {str(e)}")
-        return FastAPIJSONResponse(
-            status_code=e.status_code,
-            content={"detail": e.detail}
-        )
-    except Exception as e:
-        db.rollback()
-        logger.error(f"BYPASS ROUTE: Registration failed with error: {str(e)}")
-        return FastAPIJSONResponse(
-            status_code=500,
-            content={"detail": f"Registration failed: {str(e)}"}
-        )
-    finally:
-        db.close()
+# NOTE (Wave0 #21): the unauthenticated /api/v1/auth/register-admin-bypass endpoint
+# was removed. It created admin users with no max_admin_check and no auth guard.
+# Admin bootstrap must go through api/auth_router.register_admin (self-guarded:
+# only allowed when no users exist, and enforces max_admin_check).
 
 # Include the new GraphQL subscription router
 if graphql_router:

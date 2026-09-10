@@ -47,9 +47,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
-from core.auth import get_current_user, require_role
+from core.auth import check_rate_limit, get_current_user, parse_rate_limit_per_minute, require_role
 from core.models import User
-from core.rate_limiter import get_limiter
+from core.rate_limiter import get_rate_limit_for_endpoint
 from core.models import (
     AlertConfiguration,
     NotificationChannel,
@@ -67,10 +67,20 @@ from core.models import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/alerts", tags=["告警管理高级功能"])
 
-# Initialize rate limiter
-limiter = get_limiter()
+
+def _check_rate_limit(request: Request) -> None:
+    """Enforce the endpoint rate limit (raises HTTPException 429 when exceeded)."""
+    identifier = request.client.host if request.client else "unknown"
+    limit = get_rate_limit_for_endpoint(request.url.path)
+    check_rate_limit(identifier, requests_per_minute=parse_rate_limit_per_minute(limit))
+
+
+router = APIRouter(
+    prefix="/api/v1/alerts",
+    tags=["告警管理高级功能"],
+    dependencies=[Depends(_check_rate_limit)],
+)
 
 # ============================================================================
 # Database Storage Migration
@@ -179,7 +189,7 @@ class EscalationRule(BaseModel):
     priority: int = 0
 
 
-class SuppressionRule(BaseModel):
+class AlertsAdvancedSuppressionRule(BaseModel):
     """抑制规则模型"""
 
     name: str
@@ -456,8 +466,7 @@ async def update_configuration(
         return {"status": "success", "configuration": config.dict()}
     except Exception as e:
         logger.error(f"Error updating alert configuration: {e}")
-        # Fallback to in-memory update (simulated)
-        return {"status": "success", "configuration": config.dict()}
+        raise HTTPException(status_code=500, detail=f"更新告警配置失败: {str(e)[:200]}")
 
 
 @router.get("/notification/channels", summary="获取通知通道列表")
@@ -930,7 +939,7 @@ async def get_suppression_rules(db: Session = Depends(get_db)) -> Dict[str, Any]
 
 @router.post("/suppression/rules", summary="创建抑制规则")
 async def create_suppression_rule(
-    rule: SuppressionRule, 
+    rule: AlertsAdvancedSuppressionRule, 
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("operator"))
 ) -> Dict[str, Any]:
@@ -975,7 +984,7 @@ async def create_suppression_rule(
 @router.put("/suppression/rules/{rule_id}", summary="更新抑制规则")
 async def update_suppression_rule(
     rule_id: str, 
-    rule: SuppressionRule, 
+    rule: AlertsAdvancedSuppressionRule, 
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role("operator"))
 ) -> Dict[str, Any]:
@@ -2338,10 +2347,52 @@ async def send_to_pagerduty(alert: Dict[str, Any], db: Session = Depends(get_db)
         
         if not integration:
             raise HTTPException(status_code=400, detail="PagerDuty integration not configured or disabled")
-        
-        # TODO: Implement actual PagerDuty API call
-        logger.info(f"Sending alert to PagerDuty: {alert}")
-        return {"status": "success", "message": "告警已发送到PagerDuty"}
+
+        config = integration.config or {}
+        routing_key = config.get("routing_key") or config.get("integration_key")
+        if not routing_key:
+            raise HTTPException(
+                status_code=400, detail="PagerDuty routing key is not configured"
+            )
+
+        # Real PagerDuty Events API v2 delivery.
+        import httpx
+
+        payload = {
+            "routing_key": routing_key,
+            "event_action": "trigger",
+            "payload": {
+                "summary": str(alert.get("title") or alert.get("message") or "AIOps alert")[
+                    :1024
+                ],
+                "source": str(alert.get("host") or alert.get("source") or "aiops-agent"),
+                "severity": str(alert.get("level") or alert.get("severity") or "warning").lower(),
+                "custom_details": alert,
+            },
+        }
+
+        async with httpx.AsyncClient(timeout=10) as http_client:
+            response = await http_client.post(
+                "https://events.pagerduty.com/v2/enqueue", json=payload
+            )
+
+        if response.status_code != 202:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"PagerDuty rejected the event ({response.status_code}): "
+                    f"{response.text[:200]}"
+                ),
+            )
+
+        result = response.json()
+        logger.info(f"Alert delivered to PagerDuty: dedup_key={result.get('dedup_key')}")
+        return {
+            "status": "success",
+            "message": "告警已发送到PagerDuty",
+            "dedup_key": result.get("dedup_key"),
+            "http_status": response.status_code,
+        }
     except HTTPException:
         raise
     except Exception as e:

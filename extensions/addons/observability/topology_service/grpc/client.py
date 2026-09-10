@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import httpx
 
-from services.topology_service.grpc.server import TopologyRPCServer
+from .server import TopologyRPCServer
 
 
 class TopologyRPCClient:

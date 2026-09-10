@@ -173,7 +173,7 @@ export default function PrometheusMetricsPage() {
                     </td>
                     <td className="px-4 py-2">{metric.value?.toFixed(4)}</td>
                     <td className="px-4 py-2">
-                      {metric.timestamp ? new Date(metric.timestamp * 1000).toLocaleString() : '-'}
+                      {metric.timestamp ? new Date(Number(metric.timestamp) * 1000).toLocaleString() : '-'}
                     </td>
                   </tr>
                 ))}

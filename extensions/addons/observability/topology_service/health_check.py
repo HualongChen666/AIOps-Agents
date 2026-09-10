@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import time
 
-from services.topology_service.schemas import ServiceHealth
+from .schemas import ServiceHealth
 
 _START_TIME = time.time()
 

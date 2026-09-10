@@ -9,9 +9,9 @@ from typing import Any, Dict, List, Set
 
 from loguru import logger
 
-from services.topology_service.dependency import DependencyGraph
-from services.topology_service.metrics import TOPOLOGY_IMPACT_ANALYSIS_DURATION
-from services.topology_service.schemas import ImpactRequest, ImpactResult
+from .dependency import DependencyGraph
+from .metrics import TOPOLOGY_IMPACT_ANALYSIS_DURATION
+from .schemas import ImpactRequest, ImpactResult
 
 
 class ImpactAnalyzer:

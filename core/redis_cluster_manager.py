@@ -138,8 +138,8 @@ class RedisClusterManager:
         if self._client:
             try:
                 return bool(self._client.expire(key, ttl))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("Redis EXPIRE failed for key %s, using local store: %s", key, exc)
         if key in self._data_store:
             self._data_store[key]["expires_at"] = time.time() + ttl
             return True

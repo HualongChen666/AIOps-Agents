@@ -14,7 +14,7 @@ interface UserInfo {
 
 export function isPathActive(currentPath: string, href: string) {
   try {
-    const normalize = (p: string) => (p || '').replace(/\/+$, '') || '/';
+    const normalize = (p: string) => (p || '').replace(/\/+$/, '') || '/';
     const cur = normalize(currentPath);
     const target = normalize(href);
     if (target === '/') return cur === '/';

@@ -64,7 +64,7 @@ export default function InputValidationPage() {
   const [newRule, setNewRule] = useState({
     name: '',
     field: '',
-    type: 'string' as const,
+    type: 'string',
     pattern: '',
     minLength: 0,
     maxLength: 1000,

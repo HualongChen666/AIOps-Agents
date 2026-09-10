@@ -6,9 +6,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional
 
-from services.user_service.config import settings
-from services.user_service.repository import UserRepository
-from services.user_service.schemas import Session
+from .config import settings
+from .repository import UserRepository
+from .schemas import Session
 
 
 class SessionManager:

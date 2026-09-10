@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import Dict, List, Optional
 
-from services.user_service.repository import UserRepository
-from services.user_service.schemas import Permission, Role, User
+from .repository import UserRepository
+from .schemas import Permission, Role, User
 
 
 class RBACManager:

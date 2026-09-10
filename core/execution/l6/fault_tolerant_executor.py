@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-import logging
-
 """
 L6 Execution Layer - Fault Tolerant Executor (Phase 2)
 Enhanced execution engine with comprehensive fault tolerance and recovery mechanisms
 """
+
+import logging
 
 import asyncio
 import time

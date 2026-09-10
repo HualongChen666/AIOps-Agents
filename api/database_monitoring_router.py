@@ -20,23 +20,32 @@ from typing import Any, Dict, List, Optional
 from datetime import datetime
 from enum import Enum
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_engine import async_get_session
 from core.repositories.database_monitoring_repository import DatabaseMonitoringRepository
 from core.authentication import get_current_active_user
+from core.auth import check_rate_limit, parse_rate_limit_per_minute
 from core.rbac import Permission, require_permission
-from core.rate_limiter import get_limiter
-from slowapi import Limiter
-from slowapi.util import get_remote_address
+from core.rate_limiter import get_rate_limit_for_endpoint
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/database-monitoring", tags=["数据库监控"])
 
-# Rate limiter
-limiter = get_limiter()
+
+def _check_rate_limit(request: Request) -> None:
+    """Enforce the endpoint rate limit (raises HTTPException 429 when exceeded)."""
+    identifier = request.client.host if request.client else "unknown"
+    limit = get_rate_limit_for_endpoint(request.url.path)
+    check_rate_limit(identifier, requests_per_minute=parse_rate_limit_per_minute(limit))
+
+
+router = APIRouter(
+    prefix="/api/v1/database-monitoring",
+    tags=["数据库监控"],
+    dependencies=[Depends(_check_rate_limit)],
+)
 
 
 # ============================================================================

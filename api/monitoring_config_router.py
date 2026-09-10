@@ -32,7 +32,7 @@ router = APIRouter(prefix="/api/v1/monitoring", tags=["监控配置"])
 # ============================================================================
 
 
-class MonitoringConfig(BaseModel):
+class MonitoringConfigMonitoringConfig(BaseModel):
     """监控配置模型"""
 
     enabled: bool = Field(True, description="监控是否启用")
@@ -166,7 +166,7 @@ async def get_monitoring_config() -> Dict[str, Any]:
 
 
 @router.put("/config", summary="更新监控配置")
-async def update_monitoring_config(config: MonitoringConfig) -> Dict[str, Any]:
+async def update_monitoring_config(config: MonitoringConfigMonitoringConfig) -> Dict[str, Any]:
     """更新监控配置"""
     global _monitoring_config
     _monitoring_config = config.dict()

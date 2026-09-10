@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``metadata_engine`` module.
+
+Top-level functions: register_dataset, register_lineage, amundsen_register_table
+
+Module-level constants: AMUNDSEN_METADATA_DB, DATAHUB_TOKEN"""
+
 # core/metadata_engine.py
 # ------------------------------------------------------------
 # 元数据 & 数据血缘（DataHub / Amundsen） 简易包装。

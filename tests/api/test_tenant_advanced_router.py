@@ -12,7 +12,6 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from api.tenant_advanced_router import (
-    FAKE_ADMIN,
     AuditLogEntry,
     AuditLogQuery,
     BillingInfo,
@@ -129,6 +128,8 @@ def client():
 
     app = FastAPI()
     app.include_router(router)
+    # Wave2 #24: routers now require auth; tests run authenticated.
+    app.dependency_overrides[get_current_user] = lambda: _TEST_AUTH_USER
     return TestClient(app)
 
 
@@ -539,11 +540,11 @@ class TestAuthentication:
 
     @pytest.mark.asyncio
     async def test_get_current_user_no_token(self):
-        """Test get_current_user with no token returns fake admin"""
-        result = await get_current_user(token=None)
+        """get_current_user must reject a missing token with 401 (no FAKE_ADMIN fallback)."""
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(token=None)
 
-        assert result.username == "dev-admin"
-        assert result.role == "admin"
+        assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_require_admin_success(self, mock_admin_user):
@@ -944,3 +945,17 @@ class TestTenantExportEndpoints:
 
             assert isinstance(result, TenantExportResponse)
             assert result.status == "processing"
+
+
+# Wave2 #24: production routers now require authentication (no FAKE_ADMIN
+# fallback for unauthenticated requests).  Tests exercise endpoint logic with
+# an authenticated identity via dependency_overrides.
+_TEST_AUTH_USER = UserInDB(
+    id=1,
+    username="test_admin",
+    full_name="Test Admin",
+    email="test@example.com",
+    role="admin",
+    disabled=False,
+    hashed_password="hashed",
+)

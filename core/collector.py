@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``collector`` module.
+
+Top-level functions: get_cached_snapshot, invalidate_collect_cache, get_collect_metrics, get_cpu_metrics, get_memory_metrics, get_disk_metrics, get_network_metrics, get_top_processes, get_system_info, collect_host_metrics, … (+4 more)"""
+
 # core/collector.py — Windows 系统指标采集探针
 #
 # ──────────────────────────────────────────────────────────────

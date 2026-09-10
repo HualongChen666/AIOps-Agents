@@ -211,7 +211,7 @@ def test_slack_events_block_actions_ignored(client, admin_headers, monkeypatch):
         },
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "ok"
         assert resp.json()["action"] == "ignored"
@@ -233,7 +233,7 @@ def test_slack_events_block_actions_empty_list(client, admin_headers, monkeypatc
         },
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "ok"
         assert resp.json()["action"] == "ignored"
@@ -299,7 +299,7 @@ def test_slack_events_no_event_field(client, admin_headers, monkeypatch):
         json={"type": "event_callback", "other_field": "value"},
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "ok"
 
@@ -324,7 +324,7 @@ def test_slack_message_with_blocks(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={"text": "hello", "channel": "#test", "blocks": blocks},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is True
     # Verify post_message was called with blocks
@@ -345,7 +345,7 @@ def test_slack_message_with_thread_ts(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={"text": "reply", "channel": "#test", "thread_ts": "123.456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is True
     # Verify post_message was called with thread_ts
@@ -366,7 +366,7 @@ def test_slack_message_minimal(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={"text": "minimal message"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is True
         mock_post.assert_called_once()
@@ -395,7 +395,7 @@ def test_slack_interactive_minimal(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={"text": "Interactive", "actions": actions},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is True
         mock_post.assert_called_once()
@@ -428,7 +428,7 @@ def test_slack_events_message_without_mention(client, admin_headers, monkeypatch
         },
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "ok"
     # Verify the text was cleaned (no mention to remove)
@@ -460,7 +460,7 @@ def test_slack_events_message_with_multiple_mentions(client, admin_headers, monk
         },
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
     # Verify all mentions were removed
         assert received_text["text"] == "hello there"
@@ -492,7 +492,7 @@ def test_slack_events_app_mention(client, admin_headers, monkeypatch):
         },
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "ok"
         assert received_event["user_id"] == "U999"
@@ -504,7 +504,7 @@ def test_slack_health_not_configured(client, admin_headers, monkeypatch):
     monkeypatch.setattr(config, "SLACK_DEFAULT_CHANNEL", "#default")
 
     resp = client.get("/api/slack/health", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "not_configured"
         assert resp.json()["token_configured"] is False
@@ -516,7 +516,7 @@ def test_slack_health_configured(client, admin_headers, monkeypatch):
     monkeypatch.setattr(config, "SLACK_DEFAULT_CHANNEL", "#production")
 
     resp = client.get("/api/slack/health", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "healthy"
         assert resp.json()["token_configured"] is True
@@ -543,7 +543,7 @@ def test_slack_events_block_actions_mixed(client, admin_headers, monkeypatch):
         },
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
     # Should match approve_123 and return early
         assert resp.json()["action"]["type"] == "approve"
@@ -568,7 +568,7 @@ def test_slack_events_block_actions_reject_first(client, admin_headers, monkeypa
         },
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["action"]["type"] == "reject"
         assert resp.json()["action"]["target"] == "incident-999"
@@ -599,7 +599,7 @@ def test_slack_events_message_empty_text(client, admin_headers, monkeypatch):
         },
         headers={**admin_headers, "X-Slack-Signature": "sig", "X-Slack-Timestamp": "123456"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert received_text["text"] == ""
 

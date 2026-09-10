@@ -95,7 +95,7 @@ router = APIRouter(prefix="/api/cost-management", tags=["cost-management"])
 
 
 # Pydantic models for request/response validation
-class BudgetCreate(BaseModel):
+class CostManagementBudgetCreate(BaseModel):
     name: str = Field(..., description="Budget name")
     service: str = Field(..., description="Service name")
     amount: float = Field(..., gt=0, description="Budget amount")
@@ -104,7 +104,7 @@ class BudgetCreate(BaseModel):
     alerts_enabled: bool = Field(default=True, description="Enable alerts")
 
 
-class BudgetUpdate(BaseModel):
+class CostManagementBudgetUpdate(BaseModel):
     name: Optional[str] = None
     amount: Optional[float] = Field(None, gt=0)
     period: Optional[str] = None
@@ -219,7 +219,7 @@ async def get_budget(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_new_budget(
-    budget_data: BudgetCreate,
+    budget_data: CostManagementBudgetCreate,
     user=Depends(role_required("admin")) if role_required else None,
 ):
     """Create a new budget configuration"""
@@ -252,7 +252,7 @@ async def create_new_budget(
 )
 async def update_budget(
     budget_id: str,
-    budget_data: BudgetUpdate,
+    budget_data: CostManagementBudgetUpdate,
     user=Depends(role_required("admin")) if role_required else None,
 ):
     """Update an existing budget configuration"""

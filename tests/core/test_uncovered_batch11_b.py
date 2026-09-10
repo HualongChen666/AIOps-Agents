@@ -15,6 +15,21 @@ import pytest  # noqa: F401  # Imported for test setup
 import core.db_engine
 import core.dr_scenarios as dr_scenarios
 import core.rag_engine as rag_engine
+
+
+class _RecordingInjector:
+    """Chaos Mesh double that records the experiments it is asked to inject."""
+
+    def __init__(self):
+        self.applied = []
+        self.deleted = []
+
+    async def apply(self, kind, name, spec):
+        self.applied.append((kind, name, spec))
+
+    async def delete(self, kind, name):
+        self.deleted.append((kind, name))
+
 from core.causal.graph import CausalEdge, CausalGraph, CausalStrength
 from core.causal.inference import RootCauseInference
 from core.exceptions.base import ErrorCategory, ErrorSeverity
@@ -553,7 +568,8 @@ def test_dr_check_api(external_deps):
 
 
 def test_dr_simulate_failure():
-    scenario = dr_scenarios.DRScenario("fail", "", [])
+    injector = _RecordingInjector()
+    scenario = dr_scenarios.DRScenario("fail", "", [], injector=injector)
     result = asyncio.run(  # noqa: F841  # Variable for test verification
         scenario._execute_step(
             {
@@ -563,8 +579,27 @@ def test_dr_simulate_failure():
             }
         )
     )
-    assert result["status"] == "simulated"
+    assert result["status"] == "injected"
     assert result["failure_type"] == "disk_full"
+    assert result["chaos_kind"] == "IOChaos"
+    # A real Chaos Mesh experiment was submitted with the ENOSPC errno.
+    kind, name, spec = injector.applied[0]
+    assert kind == "IOChaos"
+    assert spec["action"] == "fault"
+    assert spec["errno"] == 28
+
+
+def test_dr_inject_failure_disabled_without_opt_in(monkeypatch):
+    monkeypatch.delenv("DR_EXECUTE_ENABLED", raising=False)
+    scenario = dr_scenarios.DRScenario("fail", "", [])
+    result = asyncio.run(scenario._execute_step({"type": "inject_failure", "failure_type": "db_down"}))
+    assert result["status"] == "disabled"
+
+
+def test_dr_inject_failure_unknown_type():
+    scenario = dr_scenarios.DRScenario("fail", "", [], injector=_RecordingInjector())
+    with pytest.raises(ValueError):
+        asyncio.run(scenario._execute_step({"type": "inject_failure", "failure_type": "nope"}))
 
 
 def test_dr_simulate_failure_missing_type():
@@ -577,11 +612,27 @@ def test_dr_simulate_failure_missing_type():
 
 
 def test_dr_restore_backup():
-    scenario = dr_scenarios.DRScenario("restore", "", [])
+    injector = _RecordingInjector()
+    scenario = dr_scenarios.DRScenario("restore", "", [], injector=injector)
     result = asyncio.run(
         scenario._execute_step({"type": "restore_backup"})
     )  # noqa: F841  # Variable for test verification
     assert result["status"] == "restored"
+
+
+def test_dr_restore_backup_recovers_injected_experiments():
+    injector = _RecordingInjector()
+    scenario = dr_scenarios.DRScenario("restore", "", [], injector=injector)
+
+    injected = asyncio.run(
+        scenario._execute_step({"type": "inject_failure", "failure_type": "redis_down"})
+    )
+    assert injected["status"] == "injected"
+
+    recovered = asyncio.run(scenario._execute_step({"type": "restore_backup"}))
+    assert recovered["status"] == "restored"
+    assert recovered["recovered_experiments"] == [f"PodChaos/{injected['experiment']}"]
+    assert injector.deleted == [("PodChaos", injected["experiment"])]
 
 
 def test_dr_unknown_step():

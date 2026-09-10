@@ -9,8 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from services.workflow_service.metrics import WORKFLOW_TEMPLATE_RENDERS
-from services.workflow_service.schemas import WorkflowTemplate
+from .metrics import WORKFLOW_TEMPLATE_RENDERS
+from .schemas import WorkflowTemplate
 
 
 class TemplateManager:

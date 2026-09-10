@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``stats_engine`` module.
+
+Top-level functions: record_ingestion, record_alert_noise, query_alert_stats, query_hourly_stats, query_daily_stats, query_repair_stats, query_repair_history, query_system_stats, insert_repair_record, get_alert_stats, … (+11 more)
+
+Module-level constants: SUMMARY_CACHE_TTL_SECONDS"""
+
 # Compatibility functions for alert_engine
 from __future__ import annotations
 

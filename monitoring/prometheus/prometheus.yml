@@ -130,37 +130,48 @@ scrape_configs:
           component: 'vector-db'
           environment: 'production'
 
-  # Performance Monitoring Service
-  - job_name: 'performance-monitoring-service'
+  # Alert Service — collector / processor / notifier
+  # Ports come from services/alert_service/config.py (8001/8002/8003).
+  - job_name: 'alert-service'
     scrape_interval: 10s
     metrics_path: '/metrics'
     static_configs:
       - targets: ['host.docker.internal:8001']
         labels:
-          service: 'performance-monitoring'
-          component: 'monitoring'
+          service: 'alert-service'
+          component: 'collector'
           environment: 'production'
-
-  # Alert Service
-  - job_name: 'alert-service'
-    scrape_interval: 10s
-    metrics_path: '/metrics'
-    static_configs:
       - targets: ['host.docker.internal:8002']
         labels:
           service: 'alert-service'
-          component: 'alerting'
+          component: 'processor'
+          environment: 'production'
+      - targets: ['host.docker.internal:8003']
+        labels:
+          service: 'alert-service'
+          component: 'notifier'
           environment: 'production'
 
-  # Repair Service
+  # Repair Service — orchestrator / executor / verifier
+  # Ports come from services/repair_service/config.py (9001/9002/9003).
   - job_name: 'repair-service'
     scrape_interval: 10s
     metrics_path: '/metrics'
     static_configs:
-      - targets: ['host.docker.internal:8003']
+      - targets: ['host.docker.internal:9001']
         labels:
           service: 'repair-service'
-          component: 'repair'
+          component: 'orchestrator'
+          environment: 'production'
+      - targets: ['host.docker.internal:9002']
+        labels:
+          service: 'repair-service'
+          component: 'executor'
+          environment: 'production'
+      - targets: ['host.docker.internal:9003']
+        labels:
+          service: 'repair-service'
+          component: 'verifier'
           environment: 'production'
 
 # Storage configuration

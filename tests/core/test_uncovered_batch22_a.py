@@ -5,8 +5,8 @@ import asyncio  # noqa: F401  # Imported for test setup
 import gzip
 import json  # noqa: F401  # Imported for test setup
 import os  # noqa: F401  # Imported for test setup
-import secrets
 import shutil
+import subprocess
 import types
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -689,21 +689,36 @@ def test_get_statistics(opt):
 # ---------------------------------------------------------------------------
 # core.security_testing_system
 # ---------------------------------------------------------------------------
+# Genuine bandit JSON report format emitted by ``bandit -f json``.
+_BANDIT_OUTPUT = json.dumps(
+    {
+        "results": [
+            {
+                "test_id": "B105",
+                "issue_text": "Possible hardcoded password",
+                "filename": "app.py",
+                "line_number": 42,
+                "issue_severity": "HIGH",
+                "issue_cwe": {"id": 259, "link": "https://cwe.mitre.org/data/definitions/259.html"},
+                "more_info": "https://bandit.readthedocs.io/en/latest/plugins/b105.html",
+            }
+        ]
+    }
+)
+
+
 @pytest.fixture
 def security_system(monkeypatch):
-    class FakeRandom:
-        def randint(self, a, b):
-            return 2
+    """SecurityTestingSystem wired to a stub ``bandit`` binary on PATH."""
 
-        def choice(self, seq):
-            return seq[0] if seq else None
+    def _fake_run(argv, **kwargs):
+        assert kwargs.get("shell") is False
+        return subprocess.CompletedProcess(argv, 0, stdout=_BANDIT_OUTPUT, stderr="")
 
-    monkeypatch.setattr(secrets, "SystemRandom", FakeRandom)
-    fake_asyncio = types.SimpleNamespace(
-        sleep=AsyncMock(),
-        create_task=asyncio.create_task,
+    monkeypatch.setattr(sts, "shutil", types.SimpleNamespace(which=lambda name: f"/fake/{name}"))
+    monkeypatch.setattr(
+        sts, "subprocess", types.SimpleNamespace(run=_fake_run, CompletedProcess=subprocess.CompletedProcess)
     )
-    monkeypatch.setattr(sts, "asyncio", fake_asyncio)
     return SecurityTestingSystem()
 
 

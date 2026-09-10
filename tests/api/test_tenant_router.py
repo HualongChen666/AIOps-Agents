@@ -12,9 +12,9 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from api.tenant_router import (
-    TenantCreate,
+    TenantTenantCreate,
     TenantResponse,
-    TenantUpdate,
+    TenantTenantUpdate,
     create_new_tenant,
     delete_existing_tenant,
     get_all_tenants,
@@ -156,7 +156,7 @@ class TestCreateTenant:
     @pytest.mark.asyncio
     async def test_create_tenant_success(self, mock_admin_user, mock_tenant):
         """Test successful tenant creation"""
-        payload = TenantCreate(
+        payload = TenantTenantCreate(
             name="New Tenant",
             plan="basic",
             status="active",
@@ -173,7 +173,7 @@ class TestCreateTenant:
     @pytest.mark.asyncio
     async def test_create_tenant_with_defaults(self, mock_admin_user, mock_tenant):
         """Test tenant creation with default values"""
-        payload = TenantCreate(name="Default Tenant")
+        payload = TenantTenantCreate(name="Default Tenant")
 
         with patch("api.tenant_router.create_tenant", return_value=mock_tenant):
             result = await create_new_tenant(payload, user=mock_admin_user)
@@ -185,7 +185,7 @@ class TestCreateTenant:
     @pytest.mark.asyncio
     async def test_create_tenant_free_plan(self, mock_admin_user, mock_tenant):
         """Test tenant creation with free plan"""
-        payload = TenantCreate(name="Free Tenant", plan="free")
+        payload = TenantTenantCreate(name="Free Tenant", plan="free")
 
         with patch("api.tenant_router.create_tenant", return_value=mock_tenant):
             result = await create_new_tenant(payload, user=mock_admin_user)
@@ -195,7 +195,7 @@ class TestCreateTenant:
     @pytest.mark.asyncio
     async def test_create_tenant_enterprise_plan(self, mock_admin_user, mock_tenant):
         """Test tenant creation with enterprise plan"""
-        payload = TenantCreate(name="Enterprise Tenant", plan="enterprise")
+        payload = TenantTenantCreate(name="Enterprise Tenant", plan="enterprise")
 
         with patch("api.tenant_router.create_tenant", return_value=mock_tenant):
             result = await create_new_tenant(payload, user=mock_admin_user)
@@ -206,31 +206,31 @@ class TestCreateTenant:
     async def test_create_tenant_validation_name_too_short(self):
         """Test tenant creation with name too short"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantCreate(name="")
+            TenantTenantCreate(name="")
 
     @pytest.mark.asyncio
     async def test_create_tenant_validation_name_too_long(self):
         """Test tenant creation with name too long"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantCreate(name="a" * 101)
+            TenantTenantCreate(name="a" * 101)
 
     @pytest.mark.asyncio
     async def test_create_tenant_validation_invalid_plan(self):
         """Test tenant creation with invalid plan"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantCreate(name="Test", plan="invalid_plan")
+            TenantTenantCreate(name="Test", plan="invalid_plan")
 
     @pytest.mark.asyncio
     async def test_create_tenant_validation_invalid_status(self):
         """Test tenant creation with invalid status"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantCreate(name="Test", status="invalid_status")
+            TenantTenantCreate(name="Test", status="invalid_status")
 
     @pytest.mark.asyncio
     async def test_create_tenant_validation_contact_too_long(self):
         """Test tenant creation with contact too long"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantCreate(name="Test", contact="a" * 201)
+            TenantTenantCreate(name="Test", contact="a" * 201)
 
 
 # ============ GET /api/tenant/{tenant_id} Tests ============
@@ -283,7 +283,7 @@ class TestUpdateTenant:
     @pytest.mark.asyncio
     async def test_update_tenant_name(self, mock_admin_user, mock_tenant):
         """Test updating tenant name"""
-        payload = TenantUpdate(name="Updated Name")
+        payload = TenantTenantUpdate(name="Updated Name")
 
         with patch("api.tenant_router.update_tenant", return_value=mock_tenant):
             result = await update_existing_tenant("tenant-123", payload, user=mock_admin_user)
@@ -293,7 +293,7 @@ class TestUpdateTenant:
     @pytest.mark.asyncio
     async def test_update_tenant_status(self, mock_admin_user, mock_tenant):
         """Test updating tenant status"""
-        payload = TenantUpdate(status="suspended")
+        payload = TenantTenantUpdate(status="suspended")
 
         with patch("api.tenant_router.update_tenant", return_value=mock_tenant):
             result = await update_existing_tenant("tenant-123", payload, user=mock_admin_user)
@@ -303,7 +303,7 @@ class TestUpdateTenant:
     @pytest.mark.asyncio
     async def test_update_tenant_plan(self, mock_admin_user, mock_tenant):
         """Test updating tenant plan"""
-        payload = TenantUpdate(plan="pro")
+        payload = TenantTenantUpdate(plan="pro")
 
         with patch("api.tenant_router.update_tenant", return_value=mock_tenant):
             result = await update_existing_tenant("tenant-123", payload, user=mock_admin_user)
@@ -313,7 +313,7 @@ class TestUpdateTenant:
     @pytest.mark.asyncio
     async def test_update_tenant_contact(self, mock_admin_user, mock_tenant):
         """Test updating tenant contact"""
-        payload = TenantUpdate(contact="updated@example.com")
+        payload = TenantTenantUpdate(contact="updated@example.com")
 
         with patch("api.tenant_router.update_tenant", return_value=mock_tenant):
             result = await update_existing_tenant("tenant-123", payload, user=mock_admin_user)
@@ -323,7 +323,7 @@ class TestUpdateTenant:
     @pytest.mark.asyncio
     async def test_update_tenant_quota(self, mock_admin_user, mock_tenant):
         """Test updating tenant quota"""
-        payload = TenantUpdate(quota={"cpu": 50.0, "memory": 100.0})
+        payload = TenantTenantUpdate(quota={"cpu": 50.0, "memory": 100.0})
 
         with patch("api.tenant_router.update_tenant", return_value=mock_tenant):
             result = await update_existing_tenant("tenant-123", payload, user=mock_admin_user)
@@ -333,7 +333,7 @@ class TestUpdateTenant:
     @pytest.mark.asyncio
     async def test_update_tenant_usage(self, mock_admin_user, mock_tenant):
         """Test updating tenant usage"""
-        payload = TenantUpdate(usage={"cpu": 25.0, "users": 3})
+        payload = TenantTenantUpdate(usage={"cpu": 25.0, "users": 3})
 
         with patch("api.tenant_router.update_tenant", return_value=mock_tenant):
             result = await update_existing_tenant("tenant-123", payload, user=mock_admin_user)
@@ -343,7 +343,7 @@ class TestUpdateTenant:
     @pytest.mark.asyncio
     async def test_update_tenant_multiple_fields(self, mock_admin_user, mock_tenant):
         """Test updating multiple tenant fields"""
-        payload = TenantUpdate(
+        payload = TenantTenantUpdate(
             name="New Name",
             status="suspended",
             contact="new@example.com",
@@ -358,7 +358,7 @@ class TestUpdateTenant:
     @pytest.mark.asyncio
     async def test_update_tenant_not_found(self, mock_admin_user):
         """Test updating non-existent tenant"""
-        payload = TenantUpdate(name="Updated Name")
+        payload = TenantTenantUpdate(name="Updated Name")
 
         with patch("api.tenant_router.update_tenant", return_value=None):
             with pytest.raises(HTTPException) as exc_info:
@@ -371,25 +371,25 @@ class TestUpdateTenant:
     async def test_update_tenant_validation_invalid_plan(self):
         """Test tenant update with invalid plan"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantUpdate(plan="invalid_plan")
+            TenantTenantUpdate(plan="invalid_plan")
 
     @pytest.mark.asyncio
     async def test_update_tenant_validation_invalid_status(self):
         """Test tenant update with invalid status"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantUpdate(status="invalid_status")
+            TenantTenantUpdate(status="invalid_status")
 
     @pytest.mark.asyncio
     async def test_update_tenant_validation_name_too_short(self):
         """Test tenant update with name too short"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantUpdate(name="")
+            TenantTenantUpdate(name="")
 
     @pytest.mark.asyncio
     async def test_update_tenant_validation_name_too_long(self):
         """Test tenant update with name too long"""
         with pytest.raises(Exception):  # Pydantic validation error
-            TenantUpdate(name="a" * 101)
+            TenantTenantUpdate(name="a" * 101)
 
 
 # ============ DELETE /api/tenant/{tenant_id} Tests ============
@@ -435,7 +435,7 @@ class TestTenantRouterIntegration:
     async def test_full_crud_lifecycle(self, mock_admin_user, mock_tenant):
         """Test full CRUD lifecycle"""
         # Create
-        payload = TenantCreate(name="Lifecycle Tenant", plan="basic")
+        payload = TenantTenantCreate(name="Lifecycle Tenant", plan="basic")
         with patch("api.tenant_router.create_tenant", return_value=mock_tenant):
             created = await create_new_tenant(payload, user=mock_admin_user)
             assert created.id == "tenant-123"
@@ -446,7 +446,7 @@ class TestTenantRouterIntegration:
             assert retrieved.id == "tenant-123"
 
         # Update
-        update_payload = TenantUpdate(name="Updated Tenant")
+        update_payload = TenantTenantUpdate(name="Updated Tenant")
         with patch("api.tenant_router.update_tenant", return_value=mock_tenant):
             updated = await update_existing_tenant("tenant-123", update_payload, user=mock_admin_user)
             assert updated.id == "tenant-123"
@@ -463,7 +463,7 @@ class TestTenantRouterIntegration:
         basic_tenant = Tenant(id="tenant-1", name="Basic Tenant", plan="basic")
 
         # Upgrade to pro
-        update_payload = TenantUpdate(plan="pro")
+        update_payload = TenantTenantUpdate(plan="pro")
         with patch("api.tenant_router.update_tenant", return_value=mock_tenant):
             updated = await update_existing_tenant("tenant-1", update_payload, user=mock_admin_user)
             assert updated.id == "tenant-123"
@@ -481,7 +481,7 @@ class TestTenantRouterIntegration:
             assert len(tenants) == 3
 
         # Update multiple tenants (simulated)
-        update_payload = TenantUpdate(status="active")
+        update_payload = TenantTenantUpdate(status="active")
         with patch("api.tenant_router.update_tenant", return_value=tenant1):
             updated1 = await update_existing_tenant("tenant-1", update_payload, user=mock_admin_user)
             assert updated1.id == "tenant-1"
@@ -534,7 +534,7 @@ class TestTenantRouterSecurity:
     @pytest.mark.asyncio
     async def test_create_tenant_requires_admin(self, mock_regular_user):
         """Test that tenant creation requires admin role"""
-        payload = TenantCreate(name="Test Tenant")
+        payload = TenantTenantCreate(name="Test Tenant")
 
         # This should fail because regular_user is not admin
         # The actual role check is done by role_required("admin") dependency
@@ -544,7 +544,7 @@ class TestTenantRouterSecurity:
     @pytest.mark.asyncio
     async def test_update_tenant_requires_admin(self, mock_regular_user):
         """Test that tenant update requires admin role"""
-        payload = TenantUpdate(name="Updated Name")
+        payload = TenantTenantUpdate(name="Updated Name")
 
         # This should fail because regular_user is not admin
         assert mock_regular_user.role != "admin"
@@ -570,9 +570,9 @@ class TestTenantRouterDataValidation:
     """Data validation tests for tenant router"""
 
     def test_tenant_create_model_validation(self):
-        """Test TenantCreate model validation"""
+        """Test TenantTenantCreate model validation"""
         # Valid data
-        valid = TenantCreate(
+        valid = TenantTenantCreate(
             name="Valid Tenant",
             plan="basic",
             status="active",
@@ -582,9 +582,9 @@ class TestTenantRouterDataValidation:
         assert valid.plan == "basic"
 
     def test_tenant_update_model_validation(self):
-        """Test TenantUpdate model validation"""
+        """Test TenantTenantUpdate model validation"""
         # Valid partial update
-        valid = TenantUpdate(name="Updated Name")
+        valid = TenantTenantUpdate(name="Updated Name")
         assert valid.name == "Updated Name"
         assert valid.plan is None  # Unchanged
 

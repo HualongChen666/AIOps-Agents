@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useTenantStore, type Tenant } from '@/store/tenant';
+import api from '@/lib/api';
 
 const API_BASE = '/api/v1/tenants';
 
@@ -34,9 +35,8 @@ export default function TenantPage() {
   const loadTenants = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/`);
-      if (!res.ok) throw new Error('Failed to load tenants');
-      const data: Tenant[] = await res.json();
+      const res = await api.get<Tenant[]>(`${API_BASE}/`);
+      const data = res.data;
       setTenants(data);
       if (data.length > 0) {
         setCurrentTenant(data[0]);
@@ -91,19 +91,13 @@ export default function TenantPage() {
   const handleCreateTenant = async () => {
     if (!newTenant.name.trim()) return;
     try {
-      const res = await fetch(`${API_BASE}/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newTenant.name,
-          contact: newTenant.contact,
-          plan: newTenant.plan,
-          status: 'active',
-        }),
+      const res = await api.post<Tenant>(`${API_BASE}/`, {
+        name: newTenant.name,
+        contact: newTenant.contact,
+        plan: newTenant.plan,
+        status: 'active',
       });
-      if (!res.ok) throw new Error('Create tenant failed');
-      const data = await res.json();
-      addTenant(data as Tenant);
+      addTenant(res.data);
       setShowCreateDialog(false);
       setNewTenant({ name: '', contact: '', plan: 'basic' });
     } catch (err) {
@@ -124,14 +118,9 @@ export default function TenantPage() {
   const handleUpdateTenant = async () => {
     if (!editingTenant) return;
     try {
-      const res = await fetch(`${API_BASE}/${editingTenant.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
-      });
-      if (!res.ok) throw new Error('Update tenant failed');
-      const data = await res.json();
-      updateTenant(data.id, data as Partial<Tenant>);
+      const res = await api.put<Tenant>(`${API_BASE}/${editingTenant.id}`, editForm);
+      const data = res.data;
+      updateTenant(data.id, data);
       setEditingTenant(null);
     } catch (err) {
       console.error('update tenant error', err);
@@ -141,8 +130,7 @@ export default function TenantPage() {
   const handleDeleteTenant = async (id: string) => {
     if (!confirm('确认删除该租户？')) return;
     try {
-      const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Delete tenant failed');
+      await api.delete(`${API_BASE}/${id}`);
       removeTenant(id);
     } catch (err) {
       console.error('delete tenant error', err);
@@ -154,14 +142,8 @@ export default function TenantPage() {
     const plan = window.prompt('选择新套餐 (free/basic/pro/enterprise):', currentTenant.plan);
     if (!plan || !['free', 'basic', 'pro', 'enterprise'].includes(plan)) return;
     try {
-      const res = await fetch(`${API_BASE}/${currentTenant.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan }),
-      });
-      if (!res.ok) throw new Error('Upgrade failed');
-      const data: Tenant = await res.json();
-      updateTenant(data.id, data);
+      const res = await api.put<Tenant>(`${API_BASE}/${currentTenant.id}`, { plan });
+      updateTenant(res.data.id, res.data);
     } catch (err) {
       console.error('upgrade plan error', err);
     }

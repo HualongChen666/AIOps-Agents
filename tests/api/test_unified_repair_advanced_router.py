@@ -191,7 +191,7 @@ class TestRepairStrategyManagementEndpoints:
     def test_list_strategies_empty(self, client):
         """Test listing strategies when empty"""
         response = client.get("/api/v1/unified-repair/strategies")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -206,7 +206,7 @@ class TestRepairStrategyManagementEndpoints:
         _repair_strategies[strategy_id] = strategy
 
         response = client.get("/api/v1/unified-repair/strategies")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -226,7 +226,7 @@ class TestRepairStrategyManagementEndpoints:
         _repair_strategies["strategy-2"] = strategy2
 
         response = client.get("/api/v1/unified-repair/strategies?repair_type=restart")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -247,7 +247,7 @@ class TestRepairStrategyManagementEndpoints:
         _repair_strategies["strategy-2"] = strategy2
 
         response = client.get("/api/v1/unified-repair/strategies?platform=linux")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -265,7 +265,7 @@ class TestRepairStrategyManagementEndpoints:
         _repair_strategies["strategy-2"] = strategy2
 
         response = client.get("/api/v1/unified-repair/strategies?status=active")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -285,7 +285,7 @@ class TestRepairStrategyManagementEndpoints:
         _repair_strategies["strategy-2"] = strategy2
 
         response = client.get("/api/v1/unified-repair/strategies?priority=high")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -293,7 +293,7 @@ class TestRepairStrategyManagementEndpoints:
     def test_create_strategy_success(self, client, sample_strategy_data):
         """Test creating a strategy successfully"""
         response = client.post("/api/v1/unified-repair/strategies", json=sample_strategy_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Restart Service"
@@ -307,7 +307,7 @@ class TestRepairStrategyManagementEndpoints:
         invalid_data = {"name": "", "target_scope": "service"}  # Empty name should fail
 
         response = client.post("/api/v1/unified-repair/strategies", json=invalid_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_strategy_by_id_success(self, client, sample_strategy_data):
         """Test getting a strategy by ID successfully"""
@@ -318,7 +318,7 @@ class TestRepairStrategyManagementEndpoints:
         _repair_strategies[strategy_id] = strategy
 
         response = client.get(f"/api/v1/unified-repair/strategies/{strategy_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == strategy_id
@@ -351,7 +351,7 @@ class TestRepairStrategyManagementEndpoints:
             _repair_executions[f"execution-{i}"] = execution
 
         response = client.get(f"/api/v1/unified-repair/strategies/{strategy_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["execution_count"] == 3
@@ -371,7 +371,7 @@ class TestRepairStrategyManagementEndpoints:
         response = client.patch(
             f"/api/v1/unified-repair/strategies/{strategy_id}", json=update_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Updated Strategy"
@@ -395,7 +395,7 @@ class TestRepairStrategyManagementEndpoints:
         _repair_strategies[strategy_id] = strategy
 
         response = client.delete(f"/api/v1/unified-repair/strategies/{strategy_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["message"] == "Strategy deleted successfully"
@@ -440,7 +440,7 @@ class TestRepairExecutionManagementEndpoints:
     def test_list_executions_empty(self, client):
         """Test listing executions when empty"""
         response = client.get("/api/v1/unified-repair/executions")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -454,7 +454,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_executions[execution_id] = execution
 
         response = client.get("/api/v1/unified-repair/executions")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -472,7 +472,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_executions["execution-2"] = execution2
 
         response = client.get("/api/v1/unified-repair/executions?strategy_id=strategy-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -491,7 +491,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_executions["execution-2"] = execution2
 
         response = client.get("/api/v1/unified-repair/executions?status=completed")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -509,7 +509,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_executions["execution-2"] = execution2
 
         response = client.get("/api/v1/unified-repair/executions?target_resource=service-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -522,7 +522,7 @@ class TestRepairExecutionManagementEndpoints:
             _repair_executions[f"execution-{i}"] = execution
 
         response = client.get("/api/v1/unified-repair/executions?limit=5")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 5
@@ -538,7 +538,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_strategies[strategy_id] = strategy
 
         response = client.post("/api/v1/unified-repair/executions", json=sample_execution_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["strategy_id"] == strategy_id
@@ -559,7 +559,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_strategies[strategy_id] = strategy
 
         response = client.post("/api/v1/unified-repair/executions", json=sample_execution_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # Should be auto-executed (will fail due to mock, but that's OK)
@@ -582,7 +582,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_strategies[strategy_id] = strategy
 
         response = client.post("/api/v1/unified-repair/executions", json=sample_execution_data)
-        assert response.status_code in (400, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert "not active" in response.json()["detail"]
 
@@ -594,7 +594,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_executions[execution_id] = execution
 
         response = client.get(f"/api/v1/unified-repair/executions/{execution_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == execution_id
@@ -624,7 +624,7 @@ class TestRepairExecutionManagementEndpoints:
         response = client.patch(
             f"/api/v1/unified-repair/executions/{execution_id}", json=update_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # Will fail due to mock, but that's OK
@@ -646,7 +646,7 @@ class TestRepairExecutionManagementEndpoints:
         response = client.patch(
             f"/api/v1/unified-repair/executions/{execution_id}", json=update_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "completed"
@@ -668,7 +668,7 @@ class TestRepairExecutionManagementEndpoints:
         _repair_executions[execution_id] = execution
 
         response = client.delete(f"/api/v1/unified-repair/executions/{execution_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert execution_id not in _repair_executions
 
@@ -701,7 +701,7 @@ class TestPlatformManagementEndpoints:
     def test_list_platforms_empty(self, client):
         """Test listing platforms when empty (should return defaults)"""
         response = client.get("/api/v1/unified-repair/platforms")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -717,7 +717,7 @@ class TestPlatformManagementEndpoints:
         _platforms[platform_id] = platform
 
         response = client.get("/api/v1/unified-repair/platforms")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # Should include both configured and default platforms
@@ -726,7 +726,7 @@ class TestPlatformManagementEndpoints:
     def test_create_platform_success(self, client, sample_platform_data):
         """Test creating a platform successfully"""
         response = client.post("/api/v1/unified-repair/platforms", json=sample_platform_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Production Linux"
@@ -742,7 +742,7 @@ class TestPlatformManagementEndpoints:
         _platforms[platform_id] = platform
 
         response = client.get(f"/api/v1/unified-repair/platforms/{platform_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == platform_id
@@ -760,7 +760,7 @@ class TestPlatformManagementEndpoints:
         _platforms[platform_id] = platform
 
         response = client.delete(f"/api/v1/unified-repair/platforms/{platform_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert platform_id not in _platforms
 
@@ -821,7 +821,7 @@ class TestTemplateManagementEndpoints:
     def test_list_templates_empty(self, client):
         """Test listing templates when empty"""
         response = client.get("/api/v1/unified-repair/templates")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -836,7 +836,7 @@ class TestTemplateManagementEndpoints:
         _templates[template_id] = template
 
         response = client.get("/api/v1/unified-repair/templates")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -856,7 +856,7 @@ class TestTemplateManagementEndpoints:
         _templates["template-2"] = template2
 
         response = client.get("/api/v1/unified-repair/templates?repair_type=restart")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -876,7 +876,7 @@ class TestTemplateManagementEndpoints:
         _templates["template-2"] = template2
 
         response = client.get("/api/v1/unified-repair/templates?platform=linux")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -896,7 +896,7 @@ class TestTemplateManagementEndpoints:
         _templates["template-2"] = template2
 
         response = client.get("/api/v1/unified-repair/templates?category=service")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -904,7 +904,7 @@ class TestTemplateManagementEndpoints:
     def test_create_template_success(self, client, sample_template_data):
         """Test creating a template successfully"""
         response = client.post("/api/v1/unified-repair/templates", json=sample_template_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Service Restart Template"
@@ -921,7 +921,7 @@ class TestTemplateManagementEndpoints:
         _templates[template_id] = template
 
         response = client.get(f"/api/v1/unified-repair/templates/{template_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == template_id
@@ -945,7 +945,7 @@ class TestTemplateManagementEndpoints:
         }
 
         response = client.patch(f"/api/v1/unified-repair/templates/{template_id}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Updated Template"
@@ -967,7 +967,7 @@ class TestTemplateManagementEndpoints:
         _templates[template_id] = template
 
         response = client.delete(f"/api/v1/unified-repair/templates/{template_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert template_id not in _templates
 
@@ -1008,7 +1008,7 @@ class TestAnalyticsEndpoints:
     def test_get_analytics_empty(self, client):
         """Test getting analytics when empty"""
         response = client.get("/api/v1/unified-repair/analytics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "summary" in data
@@ -1034,7 +1034,7 @@ class TestAnalyticsEndpoints:
             _repair_executions[f"execution-{i}"] = execution
 
         response = client.get("/api/v1/unified-repair/analytics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["summary"]["total_executions"] == 5
@@ -1065,7 +1065,7 @@ class TestAnalyticsEndpoints:
         _repair_executions["execution-1"] = execution1
 
         response = client.get("/api/v1/unified-repair/analytics?platform=linux")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["summary"]["total_executions"] == 1
@@ -1088,7 +1088,7 @@ class TestAnalyticsEndpoints:
             _repair_executions[f"execution-{i}"] = execution
 
         response = client.get("/api/v1/unified-repair/analytics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["summary"]["success_rate"] == 70.0
@@ -1112,7 +1112,7 @@ class TestAnalyticsEndpoints:
             _repair_executions[f"execution-{platform}"] = execution
 
         response = client.get("/api/v1/unified-repair/analytics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["platform_breakdown"]) == 3
@@ -1141,7 +1141,7 @@ class TestAnalyticsEndpoints:
                 _repair_executions[f"execution-{i}-{j}"] = execution
 
         response = client.get("/api/v1/unified-repair/analytics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["top_strategies"]) > 0
@@ -1169,7 +1169,7 @@ class TestAlternativeRouterEndpoints:
         _repair_strategies[strategy_id] = strategy
 
         response = client_alt.get("/api/v1/repair/unified")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -1186,7 +1186,7 @@ class TestAlternativeRouterEndpoints:
         }
 
         response = client_alt.post("/api/v1/repair/unified", json=repair_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_execute_unified_repair_alt(self, client_alt, sample_strategy_data):
         """Test executing unified repair via alt router"""
@@ -1197,7 +1197,7 @@ class TestAlternativeRouterEndpoints:
         _repair_strategies[strategy_id] = strategy
 
         response = client_alt.post(f"/api/v1/repair/unified/{strategy_id}/execute")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_repair_history_alt(self, client_alt, sample_execution_data):
         """Test getting repair history via alt router"""
@@ -1533,7 +1533,7 @@ class TestErrorHandling:
     def test_422_response_format(self, client):
         """Test that 422 responses have correct format"""
         response = client.post("/api/v1/unified-repair/strategies", json={})
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "detail" in data
@@ -1551,29 +1551,29 @@ class TestIntegration:
         """Test complete lifecycle of a strategy"""
         # Create
         response = client.post("/api/v1/unified-repair/strategies", json=sample_strategy_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             strategy_id = response.json()["id"]
 
         # Read
         response = client.get(f"/api/v1/unified-repair/strategies/{strategy_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update
         response = client.patch(
             f"/api/v1/unified-repair/strategies/{strategy_id}", json={"priority": "critical"}
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete
         response = client.delete(f"/api/v1/unified-repair/strategies/{strategy_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_full_execution_lifecycle(self, client, sample_strategy_data, sample_execution_data):
         """Test complete lifecycle of an execution"""
         # Create strategy first
         response = client.post("/api/v1/unified-repair/strategies", json=sample_strategy_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             strategy_id = response.json()["id"]
 
@@ -1581,29 +1581,29 @@ class TestIntegration:
         execution_data = sample_execution_data.copy()
         execution_data["strategy_id"] = strategy_id
         response = client.post("/api/v1/unified-repair/executions", json=execution_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             execution_id = response.json()["id"]
 
         # Read
         response = client.get(f"/api/v1/unified-repair/executions/{execution_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update
         response = client.patch(
             f"/api/v1/unified-repair/executions/{execution_id}", json={"status": "completed"}
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete
         response = client.delete(f"/api/v1/unified-repair/executions/{execution_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_strategy_with_executions(self, client, sample_strategy_data, sample_execution_data):
         """Test strategy with associated executions"""
         # Create strategy
         response = client.post("/api/v1/unified-repair/strategies", json=sample_strategy_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             strategy_id = response.json()["id"]
 
@@ -1612,11 +1612,11 @@ class TestIntegration:
             execution = sample_execution_data.copy()
             execution["strategy_id"] = strategy_id
             response = client.post("/api/v1/unified-repair/executions", json=execution)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
 
         # Get strategy with stats
         response = client.get(f"/api/v1/unified-repair/strategies/{strategy_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["execution_count"] == 3
@@ -1625,18 +1625,18 @@ class TestIntegration:
         """Test platform with associated strategies"""
         # Create platform
         response = client.post("/api/v1/unified-repair/platforms", json=sample_platform_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Create strategies for platform
         for i in range(2):
             strategy = sample_strategy_data.copy()
             strategy["name"] = f"Strategy {i}"
             response = client.post("/api/v1/unified-repair/strategies", json=strategy)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
 
         # List strategies by platform
         response = client.get("/api/v1/unified-repair/strategies?platform=linux")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) >= 2

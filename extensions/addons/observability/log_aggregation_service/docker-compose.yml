@@ -6,11 +6,11 @@ services:
 
   log-aggregation:
     build:
-      context: ../..
-      dockerfile: services/log_aggregation_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/observability/log_aggregation_service/Dockerfile
     command: [
       "uvicorn",
-      "services.log_aggregation_service.main_app:app",
+      "extensions.addons.observability.log_aggregation_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9567",
     ]

@@ -34,7 +34,7 @@ _AUDIT_STATS_QUERY_LIMIT = 5000
 _VALID_HOST_PATTERN = re.compile("^[a-zA-Z0-9._\\-:]+$")
 
 
-class CommandCheckRequest(BaseModel):
+class GuardCommandCheckRequest(BaseModel):
     """
     🔧 BUG-FIX-7+8(中危):兼容旧字段 + 防止客户端伪造
     🔧 GR5 [P2]:target_host 字符过滤
@@ -131,11 +131,9 @@ def _verify_audit_access(request: Request, x_internal_key: Optional[str] = None)
     Raises:
         HTTPException(403) 不满足条件
     """
-    try:
-        from config import INTERNAL_API_KEY, TRUST_PROXY_HEADER
-    except ImportError:
-        INTERNAL_API_KEY = ""
-        TRUST_PROXY_HEADER = ""
+    # Wave2 #25: never fall back to an empty key when the import fails — that
+    # silently disabled the check.  Let an ImportError propagate instead.
+    from config import INTERNAL_API_KEY, TRUST_PROXY_HEADER
     _, source_ip = _get_executor_info(request)
     if INTERNAL_API_KEY:
         if x_internal_key != INTERNAL_API_KEY:
@@ -221,7 +219,7 @@ def _build_check_response(
         (500): {"description": "指令风险检查失败"},
     },
 )
-async def check_command(req: CommandCheckRequest, request: Request) -> dict[str, Any]:
+async def check_command(req: GuardCommandCheckRequest, request: Request) -> dict[str, Any]:
     """
     分析命令的风险等级,返回风险评估结果
 
@@ -274,7 +272,7 @@ async def check_command(req: CommandCheckRequest, request: Request) -> dict[str,
         (500): {"description": "指令检查失败"},
     },
 )
-async def check_allowed(req: CommandCheckRequest) -> dict[str, Any]:
+async def check_allowed(req: GuardCommandCheckRequest) -> dict[str, Any]:
     """
     快速判断:BLOCKED → False,其他 → True
     适用于前端输入框实时校验
@@ -346,7 +344,7 @@ async def rewrite_command(req: CommandRewriteRequest) -> dict[str, Any]:
         (500): {"description": "Dry-run预览生成失败"},
     },
 )
-async def dryrun_command(req: CommandCheckRequest) -> dict[str, Any]:
+async def dryrun_command(req: GuardCommandCheckRequest) -> dict[str, Any]:
     """生成命令预览版本(不实际执行),用于确认影响范围"""
     logger.debug(f"Dry-run 预览: {req.command[:80]}")
     try:

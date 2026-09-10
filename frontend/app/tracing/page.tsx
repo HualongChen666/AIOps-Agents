@@ -30,16 +30,7 @@ interface Trace {
 
 interface TraceDetail {
   trace_id: string;
-  spans: Array<{
-    span_id: string;
-    parent_id: string | null;
-    service: string;
-    operation: string;
-    start_time: string;
-    duration_ms: number;
-    status: string;
-    tags: Record<string, any>;
-  }>;
+  spans: Span[];
   services: string[];
   total_duration_ms: number;
   error_count: number;
@@ -409,9 +400,9 @@ export default function TracingPage() {
   // Data Extraction
   // ============================================================
 
-  const traces = tracesData?.items || [];
-  const traceDetail = traceDetailData || null;
-  const spans = spansData?.items || [];
+  const traces: Trace[] = tracesData?.items || [];
+  const traceDetail: TraceDetail | null = traceDetailData || null;
+  const spans: Span[] = spansData?.items || [];
   const services = servicesData?.items || [];
   const operations = operationsData?.items || [];
   const analytics = analyticsData?.items || [];
@@ -506,11 +497,11 @@ export default function TracingPage() {
 
   const handleExportData = useCallback(async (format: 'json' | 'csv') => {
     try {
-      const dataToExport = activeTab === 'traces' ? traces :
+      const dataToExport: Array<Record<string, any>> = (activeTab === 'traces' ? traces :
         activeTab === 'spans' ? spans :
           activeTab === 'services' ? services :
             activeTab === 'operations' ? operations :
-              activeTab === 'analytics' ? analytics : [];
+              activeTab === 'analytics' ? analytics : []) as Array<Record<string, any>>;
 
       if (format === 'json') {
         const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
@@ -573,7 +564,7 @@ export default function TracingPage() {
         <StatusBadge status={value === 'ok' ? 'success' : value === 'error' ? 'error' : 'warning'} text={value} />
       )
     },
-    { key: 'start_time' as const, label: '时间', render: (value: string) => new Date(value).toLocaleString() },
+    { key: 'timestamp' as const, label: '时间', render: (value: string) => new Date(value).toLocaleString() },
   ];
 
   const spanColumns = [

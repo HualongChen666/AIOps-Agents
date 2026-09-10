@@ -8,12 +8,12 @@ services:
 
   llm-router:
     build:
-      context: ../..
-      dockerfile: services/llm_router_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/ai-plus/llm_router_service/Dockerfile
     command:
       [
         "uvicorn",
-        "services.llm_router_service.main_app:app",
+        "extensions.addons.ai-plus.llm_router_service.main_app:app",
         "--host",
         "0.0.0.0",
         "--port",

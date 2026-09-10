@@ -270,7 +270,10 @@ export default function FrontendAdvancedPage() {
       } else if (activeTab === 'layouts') {
         await createLayoutMutation.mutateAsync(formData)
       } else if (activeTab === 'localization') {
-        await updateLocalizationMutation.mutateAsync(formData)
+        await updateLocalizationMutation.mutateAsync({
+          language: String(formData.language ?? ''),
+          translations: (formData.translations ?? {}) as Record<string, string>,
+        })
       }
     } catch (error) {
       // Error handled in mutation callbacks

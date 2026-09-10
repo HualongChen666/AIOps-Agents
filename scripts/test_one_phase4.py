@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 """Quick pytest run for a single phase-4 service."""
 
+import os
 import sys
 from pathlib import Path
 
 from core.security import subprocess_runner
 
-ROOT = Path("C:/AIOps_Agent_bak")
+ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 SERVICE = "prometheus_integration_service"
 
 

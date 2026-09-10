@@ -38,14 +38,14 @@ def test_get_collect_with_auth(client, admin_user):
     """Test GET /api/cost/collect with authorization"""
     with patch("core.authentication.get_current_active_user", return_value=admin_user):
         response = client.get("/api/cost/collect")
-        assert response.status_code in [200, 401, 403, 404]
+        assert response.status_code != 404, response.text
 
 
 def test_get_forecast_with_auth(client, admin_user):
     """Test GET /api/cost/forecast with authorization"""
     with patch("core.authentication.get_current_active_user", return_value=admin_user):
         response = client.get("/api/cost/forecast")
-        assert response.status_code in [200, 401, 403, 404]
+        assert response.status_code != 404, response.text
 
 
 def test_get_budget_with_auth(client, admin_user):

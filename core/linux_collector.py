@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``linux_collector`` module.
+
+Top-level functions: get_last_snapshot, get_host_cooldown_status, collect_linux_host, collect_all_linux, get_available_metrics, get_configured_hosts"""
+
 # core/linux_collector.py
 # Linux 远程监控:10 维度 SSH 采集引擎
 # 采集方式:SSH 远程执行 Shell 命令,目标机器无需安装任何软件

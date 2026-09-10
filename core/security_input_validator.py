@@ -511,7 +511,7 @@ class SecurityInputValidatorMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # Skip validation for certain paths (health checks, static files, etc.)
-        skip_paths = ["/health", "/api/v1/health", "/metrics", "/docs", "/openapi.json", "/static", "/api/v1/auth/register-admin-bypass", "/api/v1/auth/login", "/api/v1/auth/register", "/api/ai"]
+        skip_paths = ["/health", "/api/v1/health", "/metrics", "/docs", "/openapi.json", "/static", "/api/v1/auth/login", "/api/v1/auth/register"]
         if any(request.url.path.startswith(path) for path in skip_paths):
             return await call_next(request)
 

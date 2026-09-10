@@ -8,18 +8,14 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-from sqlalchemy import engine_from_config, pool
-
-from alembic import context
-from config import POSTGRES_URL
-from core.models import Base
-
-# 添加项目根目录到Python路径
+# 添加项目根目录到Python路径（必须在导入本地模块之前完成）
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# 导入配置
+from sqlalchemy import engine_from_config, pool  # noqa: E402
 
-# 导入ORM模型Base
+from alembic import context  # noqa: E402
+from config import POSTGRES_URL  # noqa: E402
+from core.models import Base  # noqa: E402
 
 # Alembic Config对象
 config = context.config

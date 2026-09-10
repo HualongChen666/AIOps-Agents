@@ -203,12 +203,12 @@ describe('TopologyGraph Component', () => {
     it('should apply correct container styles', async () => {
       mockedApi.get.mockResolvedValue({ data: { nodes: [], edges: [] } });
       
-      renderWithQueryClient(<TopologyGraph />);
+      const { container } = renderWithQueryClient(<TopologyGraph />);
       
       await waitFor(() => {
-        const container = document.querySelector('div');
-        expect(container).toHaveClass('w-full');
-        expect(container).toHaveClass('h-[600px]');
+        const root = container.firstElementChild as HTMLElement;
+        expect(root).toHaveClass('w-full');
+        expect(root).toHaveClass('h-[600px]');
       });
     });
   });

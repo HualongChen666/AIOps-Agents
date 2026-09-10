@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``linux_repair`` module.
+
+Top-level functions: execute_linux_repair, get_linux_repair_scripts, get_linux_repair_history, clear_linux_repair_history"""
+
 # core/linux_repair.py
 # Linux Bash 修复脚本库(集成高危指令护栏 + AI 自杀防护)
 #

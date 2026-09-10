@@ -1,6 +1,15 @@
 version: "3.8"
 
 services:
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
+      - POSTGRES_DB=${POSTGRES_DB:-aiops}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
   redis:
     image: redis:7-alpine
     ports:
@@ -14,11 +23,12 @@ services:
     ports:
       - "9001:9001"
     environment:
-      - REPAIR_SERVICE_USE_IN_MEMORY=true
+      - REPAIR_SERVICE_USE_IN_MEMORY=false
+      - "REPAIR_SERVICE_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-aiops}"
       - REPAIR_SERVICE_ORCHESTRATOR_PORT=9001
     depends_on:
       - redis
-
+      - postgres
   repair-executor:
     build:
       context: ../..
@@ -27,10 +37,12 @@ services:
     ports:
       - "9002:9002"
     environment:
-      - REPAIR_SERVICE_USE_IN_MEMORY=true
+      - REPAIR_SERVICE_USE_IN_MEMORY=false
+      - "REPAIR_SERVICE_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-aiops}"
       - REPAIR_SERVICE_EXECUTOR_PORT=9002
     depends_on:
       - redis
+      - postgres
       - repair-orchestrator
 
   repair-verifier:
@@ -41,10 +53,12 @@ services:
     ports:
       - "9003:9003"
     environment:
-      - REPAIR_SERVICE_USE_IN_MEMORY=true
+      - REPAIR_SERVICE_USE_IN_MEMORY=false
+      - "REPAIR_SERVICE_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-aiops}"
       - REPAIR_SERVICE_VERIFIER_PORT=9003
     depends_on:
       - redis
+      - postgres
       - repair-orchestrator
 
   prometheus:

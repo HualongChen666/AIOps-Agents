@@ -10,13 +10,13 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
-from services.topology_service.metrics import (
+from .metrics import (
     TOPOLOGY_ACTIVE_DISCOVERIES,
     TOPOLOGY_DISCOVERED_EDGES,
     TOPOLOGY_DISCOVERED_NODES,
     TOPOLOGY_DISCOVERY_DURATION,
 )
-from services.topology_service.schemas import (
+from .schemas import (
     DiscoveryRequest,
     ServiceTopology,
     TopologyEdge,

@@ -3,6 +3,8 @@
 core.capacity_engine, core.data_lifecycle_operations and core.compliance."""
 
 import asyncio  # noqa: F401  # Imported for test setup
+import gzip
+import json
 import os  # noqa: F401  # Imported for test setup
 import sys  # noqa: F401  # Imported for test setup
 import time  # noqa: F401  # Imported for test setup
@@ -373,15 +375,41 @@ def test_generate_scaling_recommendations():
 # ---------------------------------------------------------------------------
 # core.data_lifecycle_operations
 # ---------------------------------------------------------------------------
-def _fake_sqlalchemy(text_value=lambda s: s):
-    return types.SimpleNamespace(text=text_value)
+def _fake_sqlalchemy():
+    return types.SimpleNamespace(text=lambda s: s)
+
+
+class _Row:
+    """Minimal stand-in for a SQLAlchemy Row exposing ``_mapping``."""
+
+    def __init__(self, mapping):
+        self._mapping = mapping
+
+
+class _FakeResult:
+    def __init__(self, rows=None, rowcount=0):
+        self._rows = list(rows or [])
+        self.rowcount = rowcount
+
+    def fetchall(self):
+        return [_Row(r) for r in self._rows]
 
 
 class _FakeAsyncSession:
-    def __init__(self, rowcount=5, fail_enter=False, fail_execute=False):
+    """Async session stub that records executed statements.
+
+    ``SELECT`` statements return the configured ``rows`` while everything else
+    reports ``rowcount`` -- mirroring the real engine closely enough to assert
+    that archival reads before it deletes.
+    """
+
+    def __init__(self, rows=None, rowcount=5, fail_enter=False, fail_execute=False):
+        self.rows = list(rows or [])
         self.rowcount = rowcount
         self.fail_enter = fail_enter
         self.fail_execute = fail_execute
+        self.executed = []
+        self.committed = False
 
     async def __aenter__(self):
         if self.fail_enter:
@@ -391,50 +419,111 @@ class _FakeAsyncSession:
     async def __aexit__(self, *args):
         return False
 
-    async def execute(self, *args, **kwargs):
+    async def execute(self, statement, params=None):
         if self.fail_execute:
             raise RuntimeError("execute failed")
-        return MagicMock(rowcount=self.rowcount)
+        self.executed.append((statement, params))
+        if isinstance(statement, str) and statement.strip().upper().startswith("SELECT"):
+            return _FakeResult(rows=self.rows)
+        return _FakeResult(rowcount=self.rowcount)
 
     async def commit(self):
-        return None
+        self.committed = True
 
 
-def _set_lifecycle_db_mocks(monkeypatch, rowcount=5, fail_enter=False, fail_execute=False):
-    fake_db = types.SimpleNamespace(
-        AsyncSessionLocal=lambda: _FakeAsyncSession(
-            rowcount=rowcount, fail_enter=fail_enter, fail_execute=fail_execute
-        )
+def _set_lifecycle_db_mocks(
+    monkeypatch, rows=None, rowcount=5, fail_enter=False, fail_execute=False
+):
+    session = _FakeAsyncSession(
+        rows=rows, rowcount=rowcount, fail_enter=fail_enter, fail_execute=fail_execute
     )
+    fake_db = types.SimpleNamespace(AsyncSessionLocal=lambda: session)
     monkeypatch.setitem(sys.modules, "sqlalchemy", _fake_sqlalchemy())
     monkeypatch.setitem(sys.modules, "core.db_engine", fake_db)
+    return session
 
 
-def test_archive_alerts_success(monkeypatch):
-    _set_lifecycle_db_mocks(monkeypatch, rowcount=12)
-    cutoff = datetime(2024, 1, 1, 0, 0, 0)
-    assert asyncio.run(dlo.archive_alerts(cutoff)) == 12
+def test_archive_alerts_success(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_ARCHIVE_DIR", str(tmp_path))
+    rows = [{"id": "a1", "title": "disk full"}, {"id": "a2", "title": "cpu hot"}]
+    session = _set_lifecycle_db_mocks(monkeypatch, rows=rows, rowcount=2)
+
+    assert asyncio.run(dlo.archive_alerts(datetime(2024, 1, 1))) == 2
+
+    select_sql, _ = session.executed[0]
+    # Regression guard for the removed ``archived`` column bug: the archival
+    # must filter on the real business timestamp column and never touch a
+    # non-existent "archived" column.
+    assert "FROM alerts" in select_sql
+    assert "detected_at < :cutoff" in select_sql
+    assert "archived" not in select_sql
+    delete_sql, _ = session.executed[1]
+    assert delete_sql.strip().upper().startswith("DELETE FROM ALERTS")
+    assert session.committed is True
+
+    archives = list((tmp_path / "alerts").glob("*.jsonl.gz"))
+    assert len(archives) == 1
+    with gzip.open(archives[0], "rt", encoding="utf-8") as handle:
+        archived = [json.loads(line) for line in handle if line.strip()]
+    assert archived == rows
 
 
-def test_archive_metrics_success(monkeypatch):
-    _set_lifecycle_db_mocks(monkeypatch, rowcount=7)
-    cutoff = datetime(2024, 1, 1, 0, 0, 0)
-    assert asyncio.run(dlo.archive_metrics(cutoff)) == 7
+def test_archive_metrics_success(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_ARCHIVE_DIR", str(tmp_path))
+    session = _set_lifecycle_db_mocks(monkeypatch, rows=[{"id": 1, "value": 91.2}], rowcount=1)
+
+    assert asyncio.run(dlo.archive_metrics(datetime(2024, 1, 1))) == 1
+
+    select_sql, _ = session.executed[0]
+    assert "FROM metrics" in select_sql and "timestamp < :cutoff" in select_sql
+    assert list((tmp_path / "metrics").glob("*.jsonl.gz"))
 
 
-def test_archive_alerts_failure(monkeypatch):
+def test_archive_audit_logs_success(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_ARCHIVE_DIR", str(tmp_path))
+    session = _set_lifecycle_db_mocks(monkeypatch, rows=[{"id": 7, "action": "login"}], rowcount=1)
+
+    assert asyncio.run(dlo.archive_audit_logs(datetime(2024, 1, 1))) == 1
+
+    select_sql, _ = session.executed[0]
+    assert "FROM audit_logs" in select_sql and "created_at < :cutoff" in select_sql
+    assert list((tmp_path / "audit_logs").glob("*.jsonl.gz"))
+
+
+def test_archive_alerts_no_rows(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_ARCHIVE_DIR", str(tmp_path))
+    session = _set_lifecycle_db_mocks(monkeypatch, rows=[])
+
+    assert asyncio.run(dlo.archive_alerts(datetime(2024, 1, 1))) == 0
+    # Nothing to archive => no archive file, no DELETE issued.
+    assert not (tmp_path / "alerts").exists()
+    assert len(session.executed) == 1
+
+
+def test_archive_alerts_failure(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_ARCHIVE_DIR", str(tmp_path))
     _set_lifecycle_db_mocks(monkeypatch, fail_enter=True)
-    cutoff = datetime(2024, 1, 1, 0, 0, 0)
-    assert asyncio.run(dlo.archive_alerts(cutoff)) == 0
+    assert asyncio.run(dlo.archive_alerts(datetime(2024, 1, 1))) == 0
+
+
+def test_archive_metrics_failure(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_ARCHIVE_DIR", str(tmp_path))
+    _set_lifecycle_db_mocks(monkeypatch, fail_execute=True)
+    assert asyncio.run(dlo.archive_metrics(datetime(2024, 1, 1))) == 0
+
+
+def test_archive_audit_logs_failure(monkeypatch, tmp_path):
+    monkeypatch.setenv("DATA_ARCHIVE_DIR", str(tmp_path))
+    _set_lifecycle_db_mocks(monkeypatch, fail_enter=True)
+    assert asyncio.run(dlo.archive_audit_logs(datetime(2024, 1, 1))) == 0
 
 
 def test_cleanup_temporary_files_success(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
-    os.makedirs("temp", exist_ok=True)
-    old_file = os.path.join("temp", "old.log")
-    new_file = os.path.join("temp", "new.log")
-    open(old_file, "w").close()
-    open(new_file, "w").close()
+    monkeypatch.setenv("TEMPORARY_DATA_DIR", str(tmp_path))
+    old_file = tmp_path / "old.log"
+    new_file = tmp_path / "new.log"
+    old_file.write_text("old")
+    new_file.write_text("new")
     now = time.time()
     os.utime(old_file, (now - 86400, now - 86400))
     os.utime(new_file, (now, now))
@@ -442,21 +531,19 @@ def test_cleanup_temporary_files_success(monkeypatch, tmp_path):
     cutoff = datetime.fromtimestamp(now - 3600)
     deleted = asyncio.run(dlo.cleanup_temporary_files(cutoff))
     assert deleted == 1
-    assert not os.path.exists(old_file)
-    assert os.path.exists(new_file)
+    assert not old_file.exists()
+    assert new_file.exists()
 
 
 def test_cleanup_temporary_files_missing_dir(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("TEMPORARY_DATA_DIR", str(tmp_path / "does-not-exist"))
     assert asyncio.run(dlo.cleanup_temporary_files(datetime.now())) == 0
 
 
 def test_cleanup_temporary_files_error(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
-    os.makedirs("temp", exist_ok=True)
-    bad = os.path.join("temp", "bad.log")
-    open(bad, "w").close()
-    monkeypatch.setattr(os, "remove", Mock(side_effect=RuntimeError("denied")))
+    monkeypatch.setenv("TEMPORARY_DATA_DIR", str(tmp_path))
+    (tmp_path / "bad.log").write_text("x")
+    monkeypatch.setattr("pathlib.Path.unlink", Mock(side_effect=RuntimeError("denied")))
     cutoff = datetime.now() + timedelta(days=1)
     assert asyncio.run(dlo.cleanup_temporary_files(cutoff)) == 0
 
@@ -495,6 +582,7 @@ def test_cleanup_temporary_cache_empty(monkeypatch):
 def test_cleanup_temporary_cache_failure(monkeypatch):
     _set_redis_mocks(monkeypatch, raise_on_call=True)
     assert asyncio.run(dlo.cleanup_temporary_cache(datetime.now())) is False
+
 
 
 # ---------------------------------------------------------------------------

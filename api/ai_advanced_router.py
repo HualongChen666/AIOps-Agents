@@ -104,50 +104,23 @@ async def get_current_user_optional(token: Optional[str] = Depends(oauth2_scheme
 
 
 async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> UserInDB:
-    """获取当前用户；无 token 时返回开发占位 admin。"""
+    """获取当前用户；token 缺失/无效/用户不存在时返回 401（AGENTS.md §5：禁止占位放行）。"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     if not token:
-        # Development fallback - return admin user
-        return UserInDB(
-            username="dev-admin",
-            full_name="Dev Admin",
-            email="dev@example.com",
-            role="admin",
-            disabled=False,
-            hashed_password="",
-        )
+        raise credentials_exception
     payload = verify_token(token)
     if not payload:
-        # Development fallback
-        return UserInDB(
-            username="dev-admin",
-            full_name="Dev Admin",
-            email="dev@example.com",
-            role="admin",
-            disabled=False,
-            hashed_password="",
-        )
+        raise credentials_exception
     username = payload.get("sub")
     if not username:
-        # Development fallback
-        return UserInDB(
-            username="dev-admin",
-            full_name="Dev Admin",
-            email="dev@example.com",
-            role="admin",
-            disabled=False,
-            hashed_password="",
-        )
+        raise credentials_exception
     user = await get_user(username)
     if not user:
-        # Development fallback
-        return UserInDB(
-            username="dev-admin",
-            full_name="Dev Admin",
-            email="dev@example.com",
-            role="admin",
-            disabled=False,
-            hashed_password="",
-        )
+        raise credentials_exception
     if user.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled"
@@ -235,7 +208,7 @@ class RunbookResponse(BaseModel):
 
 
 # Intelligent Analysis Models
-class AnalyzeRequest(BaseModel):
+class AiAdvancedAnalyzeRequest(BaseModel):
     name: str = Field(..., description="Analysis name")
     type: str = Field(..., description="Analysis type")
     data_sources: List[str] = Field(default_factory=list)
@@ -289,7 +262,7 @@ class ExecutionResponse(BaseModel):
     duration_ms: Optional[int] = None
 
 
-class WorkflowCreate(BaseModel):
+class AiAdvancedWorkflowCreate(BaseModel):
     name: str = Field(..., description="Workflow name")
     description: str = Field(default="")
 
@@ -343,7 +316,7 @@ class AdvancedFeatureResponse(BaseModel):
 
 
 # Model Optimization Models
-class OptimizationRequest(BaseModel):
+class AiAdvancedOptimizationRequest(BaseModel):
     model_id: str = Field(..., description="Model ID")
     optimization_type: str = Field(..., description="Optimization type")
 
@@ -405,7 +378,7 @@ class DocumentIndexJobResponse(BaseModel):
     created_at: str
 
 
-class DocumentResponse(BaseModel):
+class AiAdvancedDocumentResponse(BaseModel):
     """Response model for knowledge base documents"""
     id: str
     kb_id: str
@@ -415,15 +388,15 @@ class DocumentResponse(BaseModel):
     created_at: str
 
 
-class DocumentListResponse(BaseModel):
+class AiAdvancedDocumentListResponse(BaseModel):
     """Response model for a list of documents"""
-    documents: List[DocumentResponse]
+    documents: List[AiAdvancedDocumentResponse]
     total: int
     kb_id: str
 
 
 # Semantic Search Models
-class SearchRequest(BaseModel):
+class AiAdvancedSearchRequest(BaseModel):
     config_id: str = Field(..., description="Config ID")
     query: str = Field(..., description="Search query")
 
@@ -469,7 +442,7 @@ class TopologyAnalysisResponse(BaseModel):
 
 
 # Root Cause Analysis Models
-class RootCauseAnalysisRequest(BaseModel):
+class AiAdvancedRootCauseAnalysisRequest(BaseModel):
     incident_id: str = Field(..., description="Incident ID")
 
 
@@ -713,38 +686,6 @@ class KnowledgeBaseResponse(BaseModel):
 
 
 # Cross-Layer Tracking Config Models
-class CrossLayerTrackingConfigCreate(BaseModel):
-    name: str = Field(..., description="Configuration name")
-    description: str = Field(default="", description="Configuration description")
-    layers: List[str] = Field(default_factory=list, description="List of layers to track (e.g., ['application', 'database', 'cache'])")
-    sampling_rate: float = Field(default=1.0, ge=0.0, le=1.0, description="Sampling rate (0.0 to 1.0)")
-    retention_days: int = Field(default=30, ge=1, le=365, description="Retention period in days")
-    enabled: bool = Field(default=True, description="Whether the configuration is enabled")
-
-
-class CrossLayerTrackingConfigResponse(BaseModel):
-    id: str
-    name: str
-    description: str
-    layers: List[str]
-    sampling_rate: float
-    retention_days: int
-    enabled: bool
-    status: str
-    created_at: str
-    updated_at: str
-
-
-class CrossLayerTrackingConfigUpdate(BaseModel):
-    name: Optional[str] = Field(None, description="Configuration name")
-    description: Optional[str] = Field(None, description="Configuration description")
-    layers: Optional[List[str]] = Field(None, description="List of layers to track")
-    sampling_rate: Optional[float] = Field(None, ge=0.0, le=1.0, description="Sampling rate")
-    retention_days: Optional[int] = Field(None, ge=1, le=365, description="Retention period in days")
-    enabled: Optional[bool] = Field(None, description="Whether the configuration is enabled")
-    status: Optional[str] = Field(None, description="Configuration status")
-
-
 # Load Balancer Models
 class LoadBalancerConfigCreate(BaseModel):
     name: str = Field(..., description="Config name")
@@ -845,7 +786,7 @@ _root_cause_analyses: Dict[str, RootCauseAnalysisResponse] = {}
 _fine_tuned_models: Dict[str, FineTunedModelResponse] = {}
 _datasets: Dict[str, Dict[str, Any]] = {}
 _deployments: Dict[str, Dict[str, Any]] = {}
-_kb_documents: Dict[str, Dict[str, DocumentResponse]] = {}  # kb_id -> {doc_id -> DocumentResponse}
+_kb_documents: Dict[str, Dict[str, AiAdvancedDocumentResponse]] = {}  # kb_id -> {doc_id -> AiAdvancedDocumentResponse}
 
 
 # ============================================================================
@@ -1062,7 +1003,7 @@ def _set_knowledge_base(kb: KnowledgeBaseResponse, db: Session) -> None:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 
-def _get_kb_documents(kb_id: str, db: Session) -> Dict[str, DocumentResponse]:
+def _get_kb_documents(kb_id: str, db: Session) -> Dict[str, AiAdvancedDocumentResponse]:
     """Get knowledge base documents from database."""
     try:
         # Check if knowledge base exists
@@ -1088,7 +1029,7 @@ def _get_kb_documents(kb_id: str, db: Session) -> Dict[str, DocumentResponse]:
         return _kb_documents[kb_id]
 
 
-def _set_kb_document(kb_id: str, doc: DocumentResponse, db: Session) -> None:
+def _set_kb_document(kb_id: str, doc: AiAdvancedDocumentResponse, db: Session) -> None:
     """Set knowledge base document in database."""
     try:
         # Check if knowledge base exists
@@ -1185,36 +1126,79 @@ def get_timestamp() -> str:
     return datetime.utcnow().isoformat() + "Z"
 
 
-async def simulate_training(job_id: str, total_epochs: int, db_core: Optional[Session] = None) -> None:
-    """Simulate training progress for fine-tuning jobs"""
-    for epoch in range(total_epochs + 1):
+async def run_fine_tuning_job(
+    job_id: str, job_request: "FineTuningJobCreate", db_core: Optional[Session] = None
+) -> None:
+    """Run a real fine-tuning job through ``core.model_fine_tuner.ModelFineTuner``.
+
+    The job progress (epoch / loss / percent) is mirrored from the fine-tuner's
+    actual training state — there is no synthetic loss curve.
+    """
+    from core.model_fine_tuner import (
+        FineTuningMethod,
+        ModelFineTuner,
+        ModelType,
+        TrainingConfig,
+        TrainingDataset,
+    )
+
+    tuner = ModelFineTuner()
+    config = TrainingConfig(
+        model_name=job_request.base_model,
+        model_type=ModelType.LANGUAGE_MODEL,
+        fine_tuning_method=FineTuningMethod.LORA,
+        learning_rate=job_request.learning_rate,
+        num_epochs=job_request.epochs,
+    )
+    dataset = TrainingDataset(
+        dataset_id=job_request.dataset_id,
+        dataset_path=job_request.dataset_id,
+    )
+
+    tuner_job_id = await tuner.start_fine_tuning(config, dataset)
+
+    while True:
+        progress = tuner.get_training_progress(tuner_job_id)
         jobs = _get_fine_tuning_jobs(db_core)
-        if job_id not in jobs:
-            break
-        job = jobs[job_id]
-        job.epoch = epoch
-        job.progress = (epoch / total_epochs) * 100
-        job.loss = 2.0 * (1 - epoch / total_epochs) + 0.1
-        if epoch == total_epochs:
+        job = jobs.get(job_id)
+        if job is None:
+            await tuner.cancel_training(tuner_job_id)
+            return
+
+        status = (progress or {}).get("status", "pending")
+        if progress:
+            total_epochs = int(progress.get("total_epochs") or job_request.epochs or 1)
+            current_epoch = int(progress.get("current_epoch") or 0)
+            job.epoch = current_epoch
+            job.progress = min(100.0, (current_epoch / total_epochs) * 100)
+            job.loss = float(progress.get("training_loss") or 0.0)
+
+        if status == "completed":
             job.status = JobStatus.COMPLETED
             job.completed_at = get_timestamp()
-            # Create a fine-tuned model when training completes
             model_id = generate_id()
-            model = FineTunedModelResponse(
-            id=model_id,
-            name=job.model_name,
-            base_model=job.base_model,
-            job_id=job_id,
-            accuracy=0.92,
-            file_size=500000000,
-            created_at=get_timestamp(),
-            deployed=False,
+            metrics = (progress or {}).get("metrics", {}) or {}
+            _fine_tuned_models[model_id] = FineTunedModelResponse(
+                id=model_id,
+                name=job.model_name,
+                base_model=job.base_model,
+                job_id=job_id,
+                accuracy=float(metrics.get("train_loss", 0.0)),
+                file_size=0,
+                created_at=get_timestamp(),
+                deployed=False,
             )
-            _fine_tuned_models[model_id] = model
+        elif status in ("failed", "cancelled"):
+            job.status = JobStatus.FAILED
+            job.completed_at = get_timestamp()
         else:
             job.status = JobStatus.RUNNING
+
         _set_fine_tuning_job(job, db_core)
-        await asyncio.sleep(0.5)
+
+        if status in ("completed", "failed", "cancelled"):
+            break
+        await asyncio.sleep(2)
 
 
 # ============================================================================
@@ -1252,8 +1236,8 @@ async def create_fine_tuning_job(
     )
     _set_fine_tuning_job(job_response, db_core)
 
-    # Start training simulation
-    asyncio.create_task(simulate_training(job_id, job.epochs, db_core))
+    # Start the real fine-tuning job (core.model_fine_tuner)
+    asyncio.create_task(run_fine_tuning_job(job_id, job, db_core))
 
     return job_response
 
@@ -1355,7 +1339,7 @@ async def generate_runbook(
 
 
 @router.post("/intelligent-analysis/analyze", response_model=AnalysisReportResponse)
-async def run_intelligent_analysis(req: AnalyzeRequest, db: Session = Depends(get_db)) -> AnalysisReportResponse:
+async def run_intelligent_analysis(req: AiAdvancedAnalyzeRequest, db: Session = Depends(get_db)) -> AnalysisReportResponse:
     """Run intelligent analysis on data sources"""
     try:
         from core.ai_engine import analyze
@@ -1632,22 +1616,12 @@ async def create_execution(req: ExecutionCreate) -> ExecutionResponse:
         _executions[execution_id] = execution
         return execution
     except Exception as e:
-        logger.warning(f"LangGraph executor not available, using simulation: {e}")
-        # Fallback to simulation
-        execution_id = generate_id()
-        execution = ExecutionResponse(
-            id=execution_id,
-            workflow_id=req.workflow_id,
-            workflow_name=f"Workflow {req.workflow_id}",
-            status=JobStatus.COMPLETED,
-            input=req.input,
-            output={"status": "success", "result": "simulated"},
-            started_at=get_timestamp(),
-            completed_at=get_timestamp(),
-            duration_ms=1000,
+        # Do not fabricate a successful execution: surface the failure.
+        logger.error(f"LangGraph executor failed for workflow {req.workflow_id}: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"LangGraph workflow executor unavailable: {e}",
         )
-        _executions[execution_id] = execution
-        return execution
 
 
 # ============================================================================
@@ -1662,7 +1636,7 @@ async def get_workflows() -> Dict[str, List[WorkflowResponse]]:
 
 
 @router.post("/langgraph-workflow/workflows", response_model=WorkflowResponse)
-async def create_workflow(req: WorkflowCreate) -> WorkflowResponse:
+async def create_workflow(req: AiAdvancedWorkflowCreate) -> WorkflowResponse:
     """Create a new workflow"""
     try:
         from core.ai.langgraph.workflow import create_workflow
@@ -1958,7 +1932,7 @@ async def update_advanced_feature(
 
 
 @router.post("/model-optimization/optimize")
-async def optimize_model(req: OptimizationRequest) -> Dict[str, Any]:
+async def optimize_model(req: AiAdvancedOptimizationRequest) -> Dict[str, Any]:
     """Optimize a model (quantization, pruning, distillation)"""
     try:
         from core.ai.llm_router.cost_optimizer import optimize_model_cost
@@ -2171,7 +2145,7 @@ async def get_document_index_jobs(
 
 
 @router.post("/semantic-search/search")
-async def semantic_search(req: SearchRequest) -> Dict[str, Any]:
+async def semantic_search(req: AiAdvancedSearchRequest) -> Dict[str, Any]:
     """Perform semantic search"""
     try:
         from core.rag_engine import search_similar
@@ -2559,7 +2533,7 @@ async def analyze_topology(req: TopologyAnalysisRequest) -> TopologyAnalysisResp
 
 
 @router.post("/root-cause-analysis/analyze", response_model=RootCauseAnalysisResponse)
-async def analyze_root_cause(req: RootCauseAnalysisRequest) -> RootCauseAnalysisResponse:
+async def analyze_root_cause(req: AiAdvancedRootCauseAnalysisRequest) -> RootCauseAnalysisResponse:
     """Analyze root cause of an incident"""
     try:
         from core.ai_engine import analyze
@@ -3436,13 +3410,13 @@ async def get_kb_documents(
         raise HTTPException(status_code=500, detail=f"Failed to retrieve documents")
 
 
-@router.post("/rag-knowledge-base/bases/{kb_id}/documents", response_model=DocumentResponse)
+@router.post("/rag-knowledge-base/bases/{kb_id}/documents", response_model=AiAdvancedDocumentResponse)
 async def upload_kb_document(
     kb_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> DocumentResponse:
+) -> AiAdvancedDocumentResponse:
     """
     Upload a document to a knowledge base.
     
@@ -3453,7 +3427,7 @@ async def upload_kb_document(
         db: Database session
         
     Returns:
-        DocumentResponse: Uploaded document information
+        AiAdvancedDocumentResponse: Uploaded document information
         
     Raises:
         HTTPException: If knowledge base not found (404) or upload fails (500)
@@ -3494,7 +3468,7 @@ async def upload_kb_document(
             logger.warning(f"RAG engine not available, using fallback: {e}")
 
         # Create document response
-        document = DocumentResponse(
+        document = AiAdvancedDocumentResponse(
             id=doc_id,
             kb_id=kb_id,
             title=file.filename or "Untitled",

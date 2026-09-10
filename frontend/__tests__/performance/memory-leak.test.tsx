@@ -3,11 +3,10 @@
  * 测试组件卸载清理、事件监听器清理
  */
 
-import { render, unmountComponentAtNode } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import React, { useEffect, useState, useRef } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act } from 'react-dom/test-utils';
 
 // Mock performance API
 const mockPerformance = {

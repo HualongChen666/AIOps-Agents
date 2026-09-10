@@ -101,7 +101,7 @@ class ImpactLevel(str, Enum):
 # ============================================================================
 
 
-class ChangeRequestCreate(BaseModel):
+class ChangeAdvancedChangeRequestCreate(BaseModel):
     """Model for creating a change request."""
 
     title: str = Field(..., min_length=1, max_length=255, description="Change title")
@@ -126,7 +126,7 @@ class ChangeRequestCreate(BaseModel):
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
-class ChangeRequestUpdate(BaseModel):
+class ChangeAdvancedChangeRequestUpdate(BaseModel):
     """Model for updating a change request."""
 
     title: Optional[str] = Field(None, min_length=1, max_length=255)
@@ -548,7 +548,7 @@ async def list_change_requests(
 
 @router.post("/requests", response_model=ChangeRequest, status_code=status.HTTP_201_CREATED)
 async def create_change_request(
-    request: ChangeRequestCreate,
+    request: ChangeAdvancedChangeRequestCreate,
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """
@@ -628,7 +628,7 @@ async def get_change_request(
 @router.patch("/requests/{request_id}", response_model=ChangeRequest)
 async def update_change_request(
     request_id: str,
-    update: ChangeRequestUpdate,
+    update: ChangeAdvancedChangeRequestUpdate,
     current_user=Depends(require_roles("admin", "operator")),
 ):
     """

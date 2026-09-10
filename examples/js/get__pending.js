@@ -1,6 +1,9 @@
+
+const authToken = process.env.AIOPS_TOKEN || 'YOUR_TOKEN';
 // 示例：GET /pending
-fetch('http://localhost:8080/api/v1/pending', {
-    method: 'GET'
+fetch(`http://localhost:8000/api/v1/pending`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${authToken}` }
 })
 .then(res => res.json())
 .then(data => console.log(data))

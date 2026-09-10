@@ -2,13 +2,17 @@ version: '3.8'
 
 services:
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.45.0
     container_name: aiops-prometheus
     ports:
       - "9090:9090"
+    # The AIOps API and the standalone services run on the host, so make
+    # host.docker.internal resolvable on Linux as well as Docker Desktop.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - ./prometheus/alerts:/etc/prometheus/alerts
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/prometheus/alerts:/etc/prometheus/alerts:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -21,17 +25,18 @@ services:
       - monitoring
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.2.0
     container_name: aiops-grafana
     ports:
       - "3001:3000"
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
+      # Provisioning + dashboards come from the repository-level grafana/ tree.
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     depends_on:
@@ -41,12 +46,12 @@ services:
       - monitoring
 
   alertmanager:
-    image: prom/alertmanager:latest
+    image: prom/alertmanager:v0.26.0
     container_name: aiops-alertmanager
     ports:
       - "9093:9093"
     volumes:
-      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+      - ../monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
@@ -56,7 +61,7 @@ services:
       - monitoring
 
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.6.0
     container_name: aiops-node-exporter
     ports:
       - "9100:9100"
@@ -73,7 +78,7 @@ services:
       - monitoring
 
   postgres-exporter:
-    image: prometheuscommunity/postgres-exporter:latest
+    image: prometheuscommunity/postgres-exporter:v0.12.0
     container_name: aiops-postgres-exporter
     ports:
       - "9187:9187"
@@ -86,7 +91,7 @@ services:
       - monitoring
 
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.55.0
     container_name: aiops-redis-exporter
     ports:
       - "9121:9121"

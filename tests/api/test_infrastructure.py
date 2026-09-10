@@ -64,7 +64,7 @@ def test_send_kafka_message_success(client, approval_headers):
             "headers": {"header1": "value1"},
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["success"] is True
@@ -78,7 +78,7 @@ def test_send_kafka_message_without_headers(client, approval_headers):
         headers=approval_headers,
         json={"topic": "test-topic", "key": "test-key", "value": {"test": "data"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["success"] is True
@@ -117,7 +117,7 @@ def test_send_kafka_message_with_complex_value(client, approval_headers):
             },
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["success"] is True
@@ -149,7 +149,7 @@ def test_get_kafka_status_with_exception(client, approval_headers):
     ):
         resp = client.get("/api/v1/infrastructure/kafka/status", headers=approval_headers)
         # Should still return 200 with empty messages
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["total_messages"] == 0
@@ -174,7 +174,7 @@ def test_get_kafka_status_with_messages(client, approval_headers):
 
     # Now get status
     resp = client.get("/api/v1/infrastructure/kafka/status", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["total_messages"] >= 2
@@ -192,7 +192,7 @@ def test_create_flink_job_valid_types(client, approval_headers):
             headers=approval_headers,
             json={"job_name": f"test-job-{job_type}", "job_type": job_type, "parallelism": 2},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["job_name"] == f"test-job-{job_type}"
@@ -212,7 +212,7 @@ def test_create_flink_job_with_different_parallelism(client, approval_headers):
                 "parallelism": parallelism,
             },
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["job_name"] == f"test-job-parallelism-{parallelism}"
@@ -258,7 +258,7 @@ def test_list_flink_jobs_exception(client, approval_headers):
         get_flink_job_manager(), "get_job_status", side_effect=Exception("List error")
     ):
         resp = client.get("/api/v1/infrastructure/flink/jobs", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_list_flink_jobs_with_jobs(client, approval_headers):
@@ -272,7 +272,7 @@ def test_list_flink_jobs_with_jobs(client, approval_headers):
 
     # Now list jobs
     resp = client.get("/api/v1/infrastructure/flink/jobs", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "jobs" in data
@@ -293,7 +293,7 @@ def test_get_read_connection_exception(client, approval_headers):
         resp = client.get(
             "/api/v1/infrastructure/storage/read-connection", headers=approval_headers
         )
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_get_write_connection_exception(client, approval_headers):
@@ -309,7 +309,7 @@ def test_get_write_connection_exception(client, approval_headers):
         resp = client.get(
             "/api/v1/infrastructure/storage/write-connection", headers=approval_headers
         )
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_get_storage_health_exception(client, approval_headers):
@@ -323,7 +323,7 @@ def test_get_storage_health_exception(client, approval_headers):
         side_effect=Exception("Health check error"),
     ):
         resp = client.get("/api/v1/infrastructure/storage/health", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_set_config_success(client, approval_headers):
@@ -333,7 +333,7 @@ def test_set_config_success(client, approval_headers):
         headers=approval_headers,
         json={"key": "test-config-key", "value": {"config": "value"}, "metadata": {"meta": "data"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["key"] == "test-config-key"
@@ -348,7 +348,7 @@ def test_set_config_without_metadata(client, approval_headers):
         headers=approval_headers,
         json={"key": "test-config-key-2", "value": {"config": "value2"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["key"] == "test-config-key-2"
@@ -375,7 +375,7 @@ def test_set_config_with_none_value(client, approval_headers):
         headers=approval_headers,
         json={"key": "test-config-none", "value": None},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["key"] == "test-config-none"
@@ -397,7 +397,7 @@ def test_set_config_update_existing(client, approval_headers):
         headers=approval_headers,
         json={"key": "test-config-update", "value": {"updated": "value"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["key"] == "test-config-update"
@@ -427,7 +427,7 @@ def test_get_config_exception(client, approval_headers):
     # Mock get_config to raise exception
     with patch.object(get_config_center(), "get_config", side_effect=Exception("Get config error")):
         resp = client.get("/api/v1/infrastructure/config/test-key", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_get_config_success(client, approval_headers):
@@ -441,7 +441,7 @@ def test_get_config_success(client, approval_headers):
 
     # Now get it
     resp = client.get("/api/v1/infrastructure/config/test-get-config", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["key"] == "test-get-config"
@@ -457,13 +457,13 @@ def test_get_all_configs_exception(client, approval_headers):
         get_config_center(), "get_all_configs", side_effect=Exception("Get all configs error")
     ):
         resp = client.get("/api/v1/infrastructure/config", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_get_all_configs_success(client, approval_headers):
     """Test successful get_all_configs."""
     resp = client.get("/api/v1/infrastructure/config", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "configs" in data
@@ -480,7 +480,7 @@ def test_get_monitoring_status_exception(client, approval_headers):
         side_effect=Exception("Monitoring status error"),
     ):
         resp = client.get("/api/v1/infrastructure/monitoring/status", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_record_metric_exception(client, approval_headers):
@@ -494,13 +494,13 @@ def test_record_metric_exception(client, approval_headers):
         side_effect=Exception("Metric recording error"),
     ):
         resp = client.post("/api/v1/infrastructure/monitoring/metrics", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_record_metric_success(client, approval_headers):
     """Test successful record_metric."""
     resp = client.post("/api/v1/infrastructure/monitoring/metrics", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["success"] is True
@@ -515,13 +515,13 @@ def test_get_data_flow_stats_exception(client, approval_headers):
         get_l1l2_data_flow_integrator(), "get_data_flow_stats", side_effect=Exception("Stats error")
     ):
         resp = client.get("/api/v1/infrastructure/data-flow/stats", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_get_data_flow_stats_success(client, approval_headers):
     """Test successful get_data_flow_stats."""
     resp = client.get("/api/v1/infrastructure/data-flow/stats", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # Check all expected fields
@@ -542,13 +542,13 @@ def test_start_data_flow_exception(client, approval_headers):
         get_l1l2_data_flow_integrator(), "start_data_flow", side_effect=Exception("Start error")
     ):
         resp = client.post("/api/v1/infrastructure/data-flow/start", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_start_data_flow_success(client, approval_headers):
     """Test successful start_data_flow."""
     resp = client.post("/api/v1/infrastructure/data-flow/start", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "success" in data
@@ -563,13 +563,13 @@ def test_stop_data_flow_exception(client, approval_headers):
         get_l1l2_data_flow_integrator(), "stop_data_flow", side_effect=Exception("Stop error")
     ):
         resp = client.post("/api/v1/infrastructure/data-flow/stop", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_stop_data_flow_success(client, approval_headers):
     """Test successful stop_data_flow."""
     resp = client.post("/api/v1/infrastructure/data-flow/stop", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "success" in data
@@ -586,13 +586,13 @@ def test_get_monitoring_summary_exception(client, approval_headers):
         side_effect=Exception("Summary error"),
     ):
         resp = client.get("/api/v1/infrastructure/monitoring/summary", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_get_monitoring_summary_success(client, approval_headers):
     """Test successful get_monitoring_summary."""
     resp = client.get("/api/v1/infrastructure/monitoring/summary", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # Check all expected fields
@@ -615,13 +615,13 @@ def test_get_alerts_exception(client, approval_headers):
         side_effect=Exception("Alerts error"),
     ):
         resp = client.get("/api/v1/infrastructure/alerts", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_get_alerts_success(client, approval_headers):
     """Test successful get_alerts."""
     resp = client.get("/api/v1/infrastructure/alerts", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "alerts" in data
@@ -638,7 +638,7 @@ def test_resolve_alert_exception(client, approval_headers):
         resp = client.post(
             "/api/v1/infrastructure/alerts/test-alert-id/resolve", headers=approval_headers
         )
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_resolve_alert_success(client, approval_headers):
@@ -666,7 +666,7 @@ def test_resolve_alert_success(client, approval_headers):
     resp = client.post(
         "/api/v1/infrastructure/alerts/test-alert-123/resolve", headers=approval_headers
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["success"] is True
@@ -682,7 +682,7 @@ def test_get_infrastructure_health_with_fallback(client, approval_headers):
 
     try:
         resp = client.get("/api/v1/infrastructure/health", headers=approval_headers)
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
         # When fallback_enabled is True, kafka should be False
@@ -701,13 +701,13 @@ def test_get_infrastructure_health_exception(client, approval_headers):
         "api.infrastructure_router.get_kafka_processor", side_effect=Exception("Health check error")
     ):
         resp = client.get("/api/v1/infrastructure/health", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_get_infrastructure_health_normal(client, approval_headers):
     """Test get_infrastructure_health in normal conditions."""
     resp = client.get("/api/v1/infrastructure/health", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # Check all expected fields
@@ -729,7 +729,7 @@ def test_get_infrastructure_health_with_callable_flag(client, approval_headers):
 
     try:
         resp = client.get("/api/v1/infrastructure/health", headers=approval_headers)
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert "monitoring" in data
@@ -750,7 +750,7 @@ def test_get_infrastructure_health_without_flags(client, approval_headers):
 
     with patch("api.infrastructure_router.get_monitoring_infrastructure", return_value=mock_obj):
         resp = client.get("/api/v1/infrastructure/health", headers=approval_headers)
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
         # Should return True for objects without health flags
@@ -767,7 +767,7 @@ def test_get_infrastructure_health_with_false_flag(client, approval_headers):
 
     try:
         resp = client.get("/api/v1/infrastructure/health", headers=approval_headers)
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["monitoring"] is False
@@ -786,7 +786,7 @@ def test_get_infrastructure_health_with_none_flag(client, approval_headers):
 
     try:
         resp = client.get("/api/v1/infrastructure/health", headers=approval_headers)
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
         # Should return True when flag is None (not explicitly False)

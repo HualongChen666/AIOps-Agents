@@ -69,7 +69,7 @@ def test_validate_path_node_id_empty(client, approval_headers):
 def test_validate_path_node_id_whitespace(client, approval_headers):
     """Test _validate_path_node_id with whitespace-only node_id (line 65)."""
     resp = client.get("/api/v1/topologies/node/%20/timeline", headers=approval_headers)
-    assert resp.status_code in (422, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         resp_data = resp.json()
         assert "node_id 不能为纯空白" in str(resp_data) or "detail" in resp_data or "error" in resp_data
@@ -106,7 +106,7 @@ def test_get_topo_status_exception(client, approval_headers):
     """Test get_topo_status non-HTTPException exception handling (lines 123-125)."""
     with patch("api.topology_router.get_topology_status", side_effect=RuntimeError("Test error")):
         resp = client.get("/api/v1/topologies/status/test-topo", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "拓扑状态查询失败" in str(resp_data) or "detail" in resp_data or "error" in resp_data
@@ -120,7 +120,7 @@ def test_set_node_health_exception(client, approval_headers):
             headers=approval_headers,
             json={"node_id": "test-node", "status": "healthy"},
         )
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "节点状态更新失败" in str(resp_data) or "detail" in resp_data or "error" in resp_data
@@ -134,7 +134,7 @@ def test_set_node_health_value_error(client, approval_headers):
             headers=approval_headers,
             json={"node_id": "test-node", "status": "healthy"},
         )
-        assert resp.status_code in (400, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "Invalid node" in str(resp_data) or "detail" in resp_data or "error" in resp_data
@@ -157,7 +157,7 @@ def test_get_full_link_exception(client, approval_headers):
     client.post("/api/v1/topologies/cache/clear", headers=approval_headers)
     with patch("api.topology_router.get_full_link_topology", side_effect=Exception("Test error")):
         resp = client.get("/api/v1/topologies/full-link", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert (
@@ -169,7 +169,7 @@ def test_get_node_timeline_exception(client, approval_headers):
     """Test get_node_timeline exception handling (lines 243-245)."""
     with patch("api.topology_router.get_node_timeline", side_effect=Exception("Test error")):
         resp = client.get("/api/v1/topologies/node/test-node/timeline", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert (
@@ -194,7 +194,7 @@ def test_clear_topology_cache_when_empty(client, approval_headers):
     """Test clear_topology_cache when cache is already empty."""
     # Clear cache when it's already empty
     resp = client.post("/api/v1/topologies/cache/clear", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "ok"
     # cleared should be False since cache was already empty
@@ -217,7 +217,7 @@ def test_get_topo_status_invalid_topo_key(client, approval_headers):
 def test_get_topo_status_success(client, approval_headers):
     """Test get_topo_status successful path (lines 113-120)."""
     resp = client.get("/api/v1/topologies/status/default", headers=approval_headers)
-    assert resp.status_code in (200, 404)  # May return 404 if topology doesn't exist
+    assert resp.status_code != 404  # May return 404 if topology doesn't exist
 
 
 def test_get_topo_status_404(client, approval_headers):
@@ -238,7 +238,7 @@ def test_set_node_health_success(client, approval_headers):
         headers=approval_headers,
         json={"node_id": "agent", "status": "warning"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         resp_data = resp.json()
         assert resp_data["status"] == "ok"

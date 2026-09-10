@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``models`` module.
+
+Top-level classes: AlertSeverity, AlertStatus, RepairStatus, ApprovalStatus, User, Alert, RepairRecord, PendingApproval, AuditLog, Metrics, … (+223 more)"""
+
 # core/models.py
 # SQLAlchemy ORM Models for AIOps Agent
 # All database table definitions for PostgreSQL

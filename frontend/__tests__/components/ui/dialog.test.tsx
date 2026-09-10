@@ -173,7 +173,7 @@ describe('Dialog Component', () => {
             <DialogContent>Content</DialogContent>
           </Dialog>
         );
-        const content = screen.getByText('Content').parentElement;
+        const content = screen.getByText('Content');
         expect(content).toHaveClass('relative', 'z-50', 'w-full', 'max-w-lg', 'rounded-lg', 'border', 'border-gray-200', 'bg-white', 'p-6', 'shadow-lg');
       });
 
@@ -183,7 +183,7 @@ describe('Dialog Component', () => {
             <DialogContent className="custom-class">Content</DialogContent>
           </Dialog>
         );
-        const content = screen.getByText('Content').parentElement;
+        const content = screen.getByText('Content');
         expect(content).toHaveClass('custom-class');
       });
 
@@ -291,7 +291,7 @@ describe('Dialog Component', () => {
             </DialogContent>
           </Dialog>
         );
-        const header = screen.getByText('Header').parentElement;
+        const header = screen.getByText('Header');
         expect(header).toHaveClass('mb-4');
       });
 
@@ -303,7 +303,7 @@ describe('Dialog Component', () => {
             </DialogContent>
           </Dialog>
         );
-        const header = screen.getByText('Header').parentElement;
+        const header = screen.getByText('Header');
         expect(header).toHaveClass('custom-class');
       });
 
@@ -505,7 +505,7 @@ describe('Dialog Component', () => {
           <DialogContent>Content</DialogContent>
         </Dialog>
       );
-      const content = screen.getByText('Content').parentElement;
+      const content = screen.getByText('Content');
       expect(content).toHaveClass('z-50');
     });
 

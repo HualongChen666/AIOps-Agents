@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``database`` module.
+
+Top-level functions: get_db"""
+
 # core/database.py
 # Database base and configuration
 # This module provides the SQLAlchemy Base to avoid circular imports

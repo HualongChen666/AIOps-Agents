@@ -4,18 +4,20 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from core.auth_db import User, get_session
 from core.auth_service import (
+    clear_auth_cookie,
     create_access_token,
     decode_token,
     get_current_user,
     hash_password,
     max_admin_check,
-    oauth2_scheme,
+    set_auth_cookie,
+    token_from_request,
     verify_password,
 )
 from core.token_blacklist import blacklist_jti
@@ -64,12 +66,18 @@ def _user_dict(user: User) -> _UserOut:
 @router.post("/login")
 def login(
     req: _LoginRequest,
+    response: Response,
     db: Session = Depends(get_session),
 ) -> dict[str, Any]:
     """Authenticate user and return access token.
 
+    The token is also written to an HttpOnly ``access_token`` cookie so browser
+    clients never need to keep it in JavaScript-accessible storage. The JSON body
+    still contains ``access_token`` for non-browser API clients.
+
     Args:
         req: Login request containing username and password
+        response: Response object used to set the session cookie
         db: Database session dependency
 
     Returns:
@@ -85,6 +93,7 @@ def login(
             detail="Invalid username or password",
         )
     token = create_access_token({"sub": user.username, "role": user.role})
+    set_auth_cookie(response, token)
     return {
         "access_token": token,
         "token_type": "bearer",
@@ -191,26 +200,33 @@ def change_password(
 
 @router.post("/logout")
 def logout(
+    response: Response,
+    request: Request,
     current_user: User = Depends(get_current_user),
-    token: str = Depends(oauth2_scheme),
 ) -> dict[str, str]:
     """Logout current user and invalidate token.
 
-    Adds the token's JTI (JWT ID) to the blacklist to prevent reuse.
+    Blacklists the token's JTI (JWT ID) and clears the HttpOnly session cookie.
+    The token may arrive either via ``Authorization: Bearer`` or the cookie.
 
     Args:
+        response: Response object used to clear the session cookie
+        request: Incoming request, used to resolve the token
         current_user: Current authenticated user dependency
-        token: Bearer token from authorization header
 
     Returns:
         Dictionary with success message
     """
-    payload = decode_token(token)
-    jti = payload.get("jti")
-    exp = payload.get("exp")
-    if jti:
-        from datetime import datetime
-
-        expires_at = datetime.utcfromtimestamp(exp) if exp else None
-        blacklist_jti(jti, expires_at)
+    token = token_from_request(request)
+    if token:
+        try:
+            payload = decode_token(token)
+        except HTTPException:
+            payload = {}
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if jti:
+            expires_at = datetime.utcfromtimestamp(exp) if exp else None
+            blacklist_jti(jti, expires_at)
+    clear_auth_cookie(response)
     return {"detail": "Logged out"}

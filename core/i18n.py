@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``i18n`` module.
+
+Top-level functions: set_locale, get_locale, msg, get_supported_locales, get_messages_stats, reload_messages"""
+
 # core/i18n.py — AIOps Agent 后端国际化引擎(v2.2)
 #
 # 设计要点:

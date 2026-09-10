@@ -11,7 +11,7 @@ thresholds, baselines, alert rules, and status tracking.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import select, update, delete
@@ -239,7 +239,7 @@ class DatabaseMonitoringRepository:
         """Create a new performance baseline"""
         baseline = DatabasePerformanceBaselineDB(
             baseline_name=baseline_name,
-            established_at=datetime.utcnow(),
+            established_at=datetime.now(timezone.utc).replace(tzinfo=None),
             avg_query_time=avg_query_time,
             p95_query_time=p95_query_time,
             p99_query_time=p99_query_time,
@@ -390,7 +390,7 @@ class DatabaseMonitoringRepository:
         """Create a new monitoring status"""
         status = DatabaseMonitoringStatusDB(
             monitoring_enabled=monitoring_enabled,
-            last_collection_time=datetime.utcnow(),
+            last_collection_time=datetime.now(timezone.utc).replace(tzinfo=None),
             active_alerts=active_alerts,
             total_metrics_collected=total_metrics_collected,
             database_health=database_health,

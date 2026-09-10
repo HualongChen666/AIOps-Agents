@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``windows_repair`` module.
+
+Top-level functions: execute_windows_repair, get_windows_repair_history"""
+
 # core/windows_repair.py
 # component module for Windows repair functionality
 

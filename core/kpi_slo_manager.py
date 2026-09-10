@@ -199,6 +199,12 @@ class KPISLOManager:
         self._lock = threading.Lock()
         self._max_history_points = 10000
 
+        # Real-time monitoring state (see start_realtime_monitoring)
+        self._monitor_thread: Optional[threading.Thread] = None
+        self._monitor_stop: Optional[threading.Event] = None
+        self._monitor_interval: int = 60
+        self._monitor_cycles: int = 0
+
         self._load_config()
         self._initialize_kpis()
         self._initialize_slos()
@@ -358,7 +364,7 @@ class KPISLOManager:
             metadata: Additional metadata
         """
         if timestamp is None:
-            timestamp = datetime.datetime.utcnow()
+            timestamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
         data_point = KPIDataPoint(
             timestamp=timestamp,
@@ -544,7 +550,7 @@ class KPISLOManager:
 
         # Get historical data for the SLO window
         window_hours = self._parse_window(slo.window)
-        end_time = datetime.datetime.utcnow()
+        end_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         start_time = end_time - datetime.timedelta(hours=window_hours)
 
         history = self.get_kpi_history(slo.metric, slo.service, start_time, end_time)
@@ -561,7 +567,7 @@ class KPISLOManager:
                 status="healthy",
                 alert=False,
                 window=slo.window,
-                timestamp=datetime.datetime.utcnow(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
             )
 
         # Calculate current value based on aggregation method
@@ -592,7 +598,7 @@ class KPISLOManager:
             status=status,
             alert=alert,
             window=slo.window,
-            timestamp=datetime.datetime.utcnow(),
+            timestamp=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
         )
 
     def _parse_window(self, window) -> int:
@@ -736,12 +742,12 @@ class KPISLOManager:
         else:
             overall_compliance = ComplianceStatus.COMPLIANT
 
-        report_id = f"SLA-{datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+        report_id = f"SLA-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y%m%d-%H%M%S')}"
 
         report = SLAComplianceReport(
             report_id=report_id,
             period=period,
-            generated_at=datetime.datetime.utcnow(),
+            generated_at=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
             slo_results=results,
             overall_compliance=overall_compliance,
             total_slos=len(results),
@@ -790,11 +796,11 @@ class KPISLOManager:
                     continue
 
                 alert = Alert(
-                    alert_id=f"ALERT-{datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S-%f')}",
+                    alert_id=f"ALERT-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y%m%d-%H%M%S-%f')}",
                     severity=severity,
                     kpi_slo_id=kpi_id,
                     message=message,
-                    timestamp=datetime.datetime.utcnow(),
+                    timestamp=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
                 )
                 alerts.append(alert)
 
@@ -811,11 +817,11 @@ class KPISLOManager:
                 continue
 
             alert = Alert(
-                alert_id=f"ALERT-{datetime.datetime.utcnow().strftime('%Y%m%d-%H%M%S-%f')}",
+                alert_id=f"ALERT-{datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).strftime('%Y%m%d-%H%M%S-%f')}",
                 severity=severity,
                 kpi_slo_id=result.slo_id,
                 message=message,
-                timestamp=datetime.datetime.utcnow(),
+                timestamp=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None),
             )
             alerts.append(alert)
 
@@ -887,7 +893,7 @@ class KPISLOManager:
             Trend analysis result or None
         """
         window_hours = self._parse_window(period)
-        end_time = datetime.datetime.utcnow()
+        end_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         start_time = end_time - datetime.timedelta(hours=window_hours)
 
         history = self.get_kpi_history(metric, service, start_time, end_time)
@@ -1020,13 +1026,13 @@ class KPISLOManager:
 
         # Recent alerts
         recent_alerts = self.get_alerts(
-            since=datetime.datetime.utcnow() - datetime.timedelta(hours=24)
+            since=datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - datetime.timedelta(hours=24)
         )
 
         report = {
             "report_id": sla_report.report_id,
             "period": period,
-            "generated_at": datetime.datetime.utcnow().isoformat(),
+            "generated_at": datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(),
             "executive_summary": {
                 "overall_compliance": sla_report.overall_compliance.value,
                 "total_slos": sla_report.total_slos,
@@ -1201,20 +1207,68 @@ class KPISLOManager:
 
     def start_realtime_monitoring(self, interval_seconds: int = 60) -> None:
         """
-        Start real-time monitoring (placeholder for future implementation).
+        Start the real-time monitoring loop.
+
+        Spawns a daemon thread that periodically evaluates every SLO and checks
+        the alert thresholds, so breaches are detected without an explicit
+        request.  Calling this again while the loop is running is a no-op.
 
         Args:
             interval_seconds: Monitoring interval
         """
-        logger.info(f"Real-time monitoring would start with {interval_seconds}s interval")
-        # This would be implemented with a background thread or async task
-        # For now, it's a placeholder
+        with self._lock:
+            if self._monitor_thread is not None and self._monitor_thread.is_alive():
+                logger.info("Real-time monitoring already running")
+                return
+            self._monitor_interval = max(1, int(interval_seconds))
+            self._monitor_stop = threading.Event()
+            self._monitor_cycles = 0
+            self._monitor_thread = threading.Thread(
+                target=self._realtime_monitoring_loop,
+                name="kpi-slo-realtime-monitor",
+                daemon=True,
+            )
+            self._monitor_thread.start()
+        logger.info(f"Real-time monitoring started (interval={self._monitor_interval}s)")
 
     def stop_realtime_monitoring(self) -> None:
-        """Stop real-time monitoring (placeholder)."""
-        logger.info("Real-time monitoring would stop")
-        # This would be implemented with a background thread or async task
-        # For now, it's a placeholder
+        """Stop the real-time monitoring loop started by start_realtime_monitoring."""
+        thread = self._monitor_thread
+        stop_event = self._monitor_stop
+        if thread is None or stop_event is None:
+            logger.info("Real-time monitoring is not running")
+            return
+        stop_event.set()
+        thread.join(timeout=self._monitor_interval + 5)
+        with self._lock:
+            self._monitor_thread = None
+            self._monitor_stop = None
+        logger.info(f"Real-time monitoring stopped after {self._monitor_cycles} cycle(s)")
+
+    def _realtime_monitoring_loop(self) -> None:
+        """Background loop: evaluate all SLOs and check alert thresholds."""
+        stop_event = self._monitor_stop
+        if stop_event is None:  # pragma: no cover - defensive
+            return
+        while not stop_event.wait(self._monitor_interval):
+            try:
+                results = self.evaluate_all_slos()
+                new_alerts = self.check_alert_thresholds()
+                self._monitor_cycles += 1
+                logger.info(
+                    "Real-time monitoring cycle %d: %d SLO(s) evaluated, %d alert(s)",
+                    self._monitor_cycles,
+                    len(results),
+                    len(new_alerts),
+                )
+            except Exception as exc:
+                logger.error(f"Real-time monitoring cycle failed: {exc}", exc_info=True)
+
+    @property
+    def is_realtime_monitoring(self) -> bool:
+        """Whether the real-time monitoring loop is currently running."""
+        thread = self._monitor_thread
+        return thread is not None and thread.is_alive()
 
     @property
     def size(self) -> int:

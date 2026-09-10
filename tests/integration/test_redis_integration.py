@@ -426,12 +426,12 @@ class TestRedisCacheWithAPI:
         """Test that API endpoints use cache"""
         # Make first request (cache miss)
         resp1 = api_client.get("/api/v1/stats/summary")
-        assert resp1.status_code in (200, 404)
+        assert resp1.status_code != 404, resp1.text
         
         if resp1.status_code != 404:
             # Make second request (cache hit)
             resp2 = api_client.get("/api/v1/stats/summary")
-            assert resp2.status_code in (200, 404)
+            assert resp2.status_code != 404, resp2.text
 
     def test_cache_invalidation_on_data_update(self, api_client, redis_client):
         """Test cache invalidation when data is updated"""

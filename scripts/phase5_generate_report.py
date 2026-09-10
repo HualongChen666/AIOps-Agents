@@ -5,12 +5,14 @@ import logging
 """Generate Phase-5 (tasks 70-78) verification report in Chinese."""
 
 import json
+import os
 import re
+import sys
 from pathlib import Path
 
 from core.security import subprocess_runner
 
-ROOT = Path("C:/AIOps_Agent_bak")
+ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 JSON_FILE = ROOT / "temp" / "phase5_remaining.json"
 REPORT_MD = ROOT / "temp" / "phase5_70_78_verification_report.md"
 SUMMARY_TXT = ROOT / "temp" / "phase5_70_78_verification_summary.txt"
@@ -39,12 +41,14 @@ def run_coverage_report(svc: str) -> tuple[str, str]:
         f"[report]\ninclude = services/{svc}/*\nskip_covered = False\n",
         encoding="utf-8",
     )
+    # Prefer the project virtualenv interpreter on either platform.
+    _venv_python = (
+        ROOT / ".venv" / "bin" / "python"
+        if (ROOT / ".venv" / "bin" / "python").exists()
+        else ROOT / ".venv" / "Scripts" / "python.exe"
+    )
     cmd = [
-        (
-            str(ROOT / ".venv" / "Scripts" / "python.exe")
-            if (ROOT / ".venv" / "Scripts" / "python.exe").exists()
-            else "python"
-        ),
+        str(_venv_python) if _venv_python.exists() else sys.executable,
         "-m",
         "coverage",
         "report",

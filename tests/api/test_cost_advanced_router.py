@@ -12,12 +12,12 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.cost_advanced_router import (
-    AlertCreate,
-    AlertUpdate,
+    CostAdvancedAlertCreate,
+    CostAdvancedAlertUpdate,
     AnalyticsRequest,
-    BudgetCreate,
-    BudgetUpdate,
-    OptimizationRequest,
+    CostAdvancedBudgetCreate,
+    CostAdvancedBudgetUpdate,
+    CostAdvancedOptimizationRequest,
     ReportRequest,
     router,
 )
@@ -214,7 +214,7 @@ class TestCostOptimization:
         """Test applying an optimization suggestion"""
         from api.cost_advanced_router import handle_optimization
 
-        request = OptimizationRequest(resource_id="opt-1", action="apply")
+        request = CostAdvancedOptimizationRequest(resource_id="opt-1", action="apply")
         result = await handle_optimization(request)
 
         assert result["success"] == True
@@ -246,7 +246,7 @@ class TestBudgets:
         """Test successful creation of budget"""
         from api.cost_advanced_router import create_budget
 
-        budget = BudgetCreate(**sample_budget)
+        budget = CostAdvancedBudgetCreate(**sample_budget)
         # Router may have implementation issues
         try:
             result = await create_budget(budget)
@@ -263,7 +263,7 @@ class TestBudgets:
         """Test updating non-existent budget"""
         from api.cost_advanced_router import update_budget
 
-        budget_update = BudgetUpdate(name="Updated Budget")
+        budget_update = CostAdvancedBudgetUpdate(name="Updated Budget")
 
         with pytest.raises(HTTPException) as exc_info:
             await update_budget("non-existent", budget_update)

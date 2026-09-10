@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``approval_store`` module.
+
+Top-level functions: upsert_approval, get_approval, is_pending, approval_count, update_approval_field, update_approval_status, remove_approval, get_all_approvals_snapshot, get_pending_only_snapshot, clear_all_approvals"""
+
 # core/approval_store.py
 # ──────────────────────────────────────────────────────────────
 # 🔧 BUG-FIX-24(中危):审批存储统一封装

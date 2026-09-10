@@ -40,12 +40,15 @@ from sqlalchemy.orm import Session
 from loguru import logger
 
 from core.database import get_db
-from core.auth import get_current_user, require_role, verify_token
-from core.rate_limiter import get_limiter
+from core.auth import (
+    check_rate_limit,
+    get_current_user,
+    parse_rate_limit_per_minute,
+    require_role,
+    verify_token,
+)
+from core.rate_limiter import get_rate_limit_for_endpoint
 from core.models import User
-
-# Initialize rate limiter
-limiter = get_limiter()
 
 router = APIRouter(prefix="/api/v1/incident-management", tags=["事件管理"])
 
@@ -375,11 +378,10 @@ def _validate_incident_exists(incident_id: str):
 
 
 def _check_rate_limit(request: Request):
-    """Check rate limit"""
-    try:
-        limiter.check_request(request)
-    except Exception as e:
-        logger.warning(f"Rate limit check failed: {e}")
+    """Enforce the endpoint rate limit (raises HTTPException 429 when exceeded)."""
+    identifier = request.client.host if request.client else "unknown"
+    limit = get_rate_limit_for_endpoint(request.url.path)
+    check_rate_limit(identifier, requests_per_minute=parse_rate_limit_per_minute(limit))
 
 
 def _process_batch(items: List, process_func, batch_size: int = BATCH_SIZE):

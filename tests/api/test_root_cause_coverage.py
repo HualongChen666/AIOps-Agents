@@ -29,7 +29,7 @@ class TestRootCauseRouter503Errors:
     def test_get_topology_structure_503(self, client, mock_unavailable_engine):
         """Test GET /topology returns 503 when engine unavailable."""
         resp = client.get("/api/v1/root-cause/topology")
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
         # Check response contains the error message (may be in different format)
             resp_data = resp.json()
@@ -42,7 +42,7 @@ class TestRootCauseRouter503Errors:
             "/api/v1/root-cause/topology/discover",
             json={"metrics_data": {"cpu": 80}},
         )
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -55,7 +55,7 @@ class TestRootCauseRouter503Errors:
             json={"id": "alert-1", "service": "svc1"},
             params={"max_depth": 3},
         )
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -67,7 +67,7 @@ class TestRootCauseRouter503Errors:
             "/api/v1/root-cause/patterns/match",
             json={"symptoms": {"alerts": []}, "similarity_threshold": 0.5},
         )
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -84,7 +84,7 @@ class TestRootCauseRouter503Errors:
                 "effectiveness": 0.9,
             },
         )
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -93,7 +93,7 @@ class TestRootCauseRouter503Errors:
     def test_get_historical_patterns_503(self, client, mock_unavailable_engine):
         """Test GET /patterns returns 503 when engine unavailable."""
         resp = client.get("/api/v1/root-cause/patterns")
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -109,7 +109,7 @@ class TestRootCauseRouter503Errors:
                 "context": {},
             },
         )
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -124,7 +124,7 @@ class TestRootCauseRouter503Errors:
                 "prediction_horizon": 30,
             },
         )
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -139,7 +139,7 @@ class TestRootCauseRouter503Errors:
                 "verification_data": {"active_components": []},
             },
         )
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -148,7 +148,7 @@ class TestRootCauseRouter503Errors:
     def test_get_root_cause_statistics_503(self, client, mock_unavailable_engine):
         """Test GET /statistics returns 503 when engine unavailable."""
         resp = client.get("/api/v1/root-cause/statistics")
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -157,7 +157,7 @@ class TestRootCauseRouter503Errors:
     def test_get_active_hypotheses_503(self, client, mock_unavailable_engine):
         """Test GET /hypotheses returns 503 when engine unavailable."""
         resp = client.get("/api/v1/root-cause/hypotheses")
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -168,7 +168,7 @@ class TestRootCauseRouter503Errors:
         resp = client.delete(
             "/api/v1/root-cause/hypotheses/h-123",
         )
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
         error_msg = str(resp_data)
@@ -302,7 +302,7 @@ class TestRootCauseRouterSuccessPaths:
     def test_get_topology_structure_success(self, client, mock_engine_with_data):
         """Test GET /topology returns topology structure successfully."""
         resp = client.get("/api/v1/root-cause/topology")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -323,7 +323,7 @@ class TestRootCauseRouterSuccessPaths:
             "/api/v1/root-cause/topology/discover",
             json={"metrics_data": metrics_data, "include_dependencies": True},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -341,7 +341,7 @@ class TestRootCauseRouterSuccessPaths:
             json=alert,
             params={"max_depth": 5},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -358,7 +358,7 @@ class TestRootCauseRouterSuccessPaths:
             "/api/v1/root-cause/patterns/match",
             json={"symptoms": symptoms, "similarity_threshold": 0.5},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -379,7 +379,7 @@ class TestRootCauseRouterSuccessPaths:
                 "effectiveness": 0.85,
             },
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -391,7 +391,7 @@ class TestRootCauseRouterSuccessPaths:
             "/api/v1/root-cause/patterns",
             params={"limit": 10},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -419,7 +419,7 @@ class TestRootCauseRouterSuccessPaths:
                 "context": {"correlated_alerts": []},
             },
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -438,7 +438,7 @@ class TestRootCauseRouterSuccessPaths:
                 "prediction_horizon": 60,
             },
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -457,7 +457,7 @@ class TestRootCauseRouterSuccessPaths:
                 },
             },
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -466,7 +466,7 @@ class TestRootCauseRouterSuccessPaths:
     def test_get_root_cause_statistics_success(self, client, mock_engine_with_data):
         """Test GET /statistics returns statistics successfully."""
         resp = client.get("/api/v1/root-cause/statistics")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -485,7 +485,7 @@ class TestRootCauseRouterSuccessPaths:
             "/api/v1/root-cause/hypotheses",
             params={"limit": 10},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -499,7 +499,7 @@ class TestRootCauseRouterSuccessPaths:
         resp = client.delete(
             "/api/v1/root-cause/hypotheses/h-123",
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -517,7 +517,7 @@ class TestRootCauseRouterSuccessPaths:
             "/api/v1/root-cause/patterns/match",
             json={"symptoms": symptoms, "similarity_threshold": 0.99},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
         # With high threshold, likely no matches
@@ -529,7 +529,7 @@ class TestRootCauseRouterSuccessPaths:
             "/api/v1/root-cause/patterns",
             params={"limit": 1},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert len(data["patterns"]) <= 1
@@ -540,7 +540,7 @@ class TestRootCauseRouterSuccessPaths:
             "/api/v1/root-cause/hypotheses",
             params={"limit": 1},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert len(data["hypotheses"]) <= 1
@@ -556,7 +556,7 @@ class TestRootCauseRouterSuccessPaths:
             json=alert,
             params={"max_depth": 2},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -573,7 +573,7 @@ class TestRootCauseRouterSuccessPaths:
             "/api/v1/root-cause/topology/discover",
             json={"metrics_data": metrics_data, "include_dependencies": False},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"

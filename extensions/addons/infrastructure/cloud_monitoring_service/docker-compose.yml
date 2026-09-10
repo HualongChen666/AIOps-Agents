@@ -6,11 +6,11 @@ services:
 
   cloud-monitoring:
     build:
-      context: ../..
-      dockerfile: services/cloud_monitoring_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/cloud_monitoring_service/Dockerfile
     command: [
       "uvicorn",
-      "services.cloud_monitoring_service.main_app:app",
+      "extensions.addons.infrastructure.cloud_monitoring_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9534",
     ]

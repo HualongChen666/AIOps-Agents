@@ -22,7 +22,7 @@ from core.tenant_engine import (
 router = APIRouter(prefix="/api/tenant", tags=["tenants"])
 
 
-class TenantCreate(BaseModel):
+class TenantTenantCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     plan: str = Field(default="basic", pattern="^(free|basic|pro|enterprise)$")
     status: str = Field(default="active", pattern="^(active|suspended|expired)$")
@@ -31,7 +31,7 @@ class TenantCreate(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-class TenantUpdate(BaseModel):
+class TenantTenantUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=100)
     plan: Optional[str] = Field(None, pattern="^(free|basic|pro|enterprise)$")
     status: Optional[str] = Field(None, pattern="^(active|suspended|expired)$")
@@ -62,7 +62,7 @@ async def get_all_tenants(user=Depends(get_current_active_user)) -> List[TenantR
 
 
 @router.post("/", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
-async def create_new_tenant(payload: TenantCreate, user=Depends(role_required("admin"))) -> TenantResponse:
+async def create_new_tenant(payload: TenantTenantCreate, user=Depends(role_required("admin"))) -> TenantResponse:
     tenant = create_tenant(
         name=payload.name,
         plan=payload.plan,
@@ -81,7 +81,7 @@ async def get_one_tenant(tenant_id: str, user=Depends(get_current_active_user)) 
 
 
 @router.put("/{tenant_id}", response_model=TenantResponse)
-async def update_existing_tenant(tenant_id: str, payload: TenantUpdate, user=Depends(role_required("admin"))) -> TenantResponse:
+async def update_existing_tenant(tenant_id: str, payload: TenantTenantUpdate, user=Depends(role_required("admin"))) -> TenantResponse:
     updates = payload.model_dump(exclude_unset=True)
     tenant = update_tenant(tenant_id, **updates)
     if not tenant:

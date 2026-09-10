@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Token blacklist management for JWT revocation."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from core.auth_db import SessionLocal, TokenBlacklist
@@ -35,7 +35,7 @@ def cleanup_expired() -> int:
     """Remove blacklist entries whose expires_at is in the past."""
     db = SessionLocal()
     try:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         rows = (
             db.query(TokenBlacklist)
             .filter(TokenBlacklist.expires_at < now)

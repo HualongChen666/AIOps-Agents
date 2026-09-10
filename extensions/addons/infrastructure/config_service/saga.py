@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict
 
-from services.config_service.repository import ConfigRepository
-from services.config_service.schemas import SagaTransaction
+from .repository import ConfigRepository
+from .schemas import SagaTransaction
 
 
 class ConfigSagaOrchestrator:

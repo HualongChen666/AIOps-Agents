@@ -10,14 +10,14 @@ import pytest  # noqa: F401  # Imported for test setup
 def test_list_business_impact_services(client, approval_headers):
     """The services list returns a 200 response or a valid server error."""
     resp = client.get("/api/v1/business-impact/services", headers=approval_headers)
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
 
 @pytest.mark.smoke
 def test_ux_metrics(client, approval_headers):
     """The UX metrics endpoint returns a 200 response or a valid error."""
     resp = client.get("/api/v1/business-impact/ux-metrics", headers=approval_headers)
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
 
 @pytest.mark.smoke
@@ -27,7 +27,7 @@ def test_assess_service(client, approval_headers):
         "/api/v1/business-impact/assess/test-service",
         headers=approval_headers,
     )
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
 
 def test_assess_service_with_none_service_name():
@@ -123,7 +123,7 @@ def test_ux_metrics_with_exception(client, approval_headers):
     ) as mock_ux:
         mock_ux.side_effect = Exception("Test exception")
         resp = client.get("/api/v1/business-impact/ux-metrics", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
         # The error is handled by api_error middleware, check the message
             resp_data = resp.json()
@@ -137,7 +137,7 @@ def test_list_services_with_exception(client, approval_headers):
     ) as mock_services:
         mock_services.side_effect = Exception("Test exception")
         resp = client.get("/api/v1/business-impact/services", headers=approval_headers)
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
         # The error is handled by api_error middleware, check the message
             resp_data = resp.json()
@@ -154,7 +154,7 @@ def test_assess_service_with_engine_exception(client, approval_headers):
             "/api/v1/business-impact/assess/test-service",
             headers=approval_headers,
         )
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
         # The error is handled by api_error middleware, check the message
             resp_data = resp.json()

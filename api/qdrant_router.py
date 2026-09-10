@@ -86,7 +86,7 @@ class UpsertPointsRequest(BaseModel):
     }
 
 
-class SearchRequest(BaseModel):
+class QdrantSearchRequest(BaseModel):
     collection: str = Field(..., description="目标集合名称")
     query_vector: List[float] = Field(..., description="查询向量")
     top_k: int = Field(5, gt=0, description="返回最近邻的数量")
@@ -135,7 +135,7 @@ class BatchUpsertRequest(BaseModel):
     }
 
 
-class BatchDeleteRequest(BaseModel):
+class QdrantBatchDeleteRequest(BaseModel):
     collection: str = Field(..., description="目标集合名称")
     ids: List[Any]
     batch_size: int = Field(100, gt=0, le=1000, description="批量处理大小")
@@ -391,7 +391,7 @@ async def upsert_points_endpoint(
         (500): {"description": "搜索失败"},
     },
 )
-async def search_endpoint(payload: SearchRequest, user=Depends(get_current_active_user)):
+async def search_endpoint(payload: QdrantSearchRequest, user=Depends(get_current_active_user)):
     try:
         return search(
             collection=payload.collection,
@@ -467,7 +467,7 @@ async def batch_upsert_points_endpoint(
     },
 )
 async def batch_delete_points_endpoint(
-    payload: BatchDeleteRequest,
+    payload: QdrantBatchDeleteRequest,
     user=Depends(get_current_active_user),
     admin=Depends(role_required("admin")),
 ):

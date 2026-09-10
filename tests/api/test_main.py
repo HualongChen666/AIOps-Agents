@@ -30,7 +30,7 @@ def test_service_worker_register_script(client):
 def test_list_dr_scenarios(client, admin_headers):
     """The DR scenarios list returns a 200 JSON list for an authorized user."""
     resp = client.get("/api/v1/dr/scenarios", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert isinstance(data, list)

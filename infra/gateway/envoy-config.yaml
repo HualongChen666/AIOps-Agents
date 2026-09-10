@@ -37,9 +37,6 @@ data:
                       body:
                         inline_string: "OK"
               http_filters:
-              - name: envoy.filters.http.router
-                typed_config:
-                  "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
               - name: envoy.filters.http.cors
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.filters.http.cors.v3.Cors
@@ -60,6 +57,9 @@ data:
                           uri: https://keycloak.aiops.example.com/realms/aiops/protocol/openid-connect/certs
                           cluster: keycloak
                       forward: true
+              - name: envoy.filters.http.router
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
       clusters:
       - name: aiops_api
         connect_timeout: 5s

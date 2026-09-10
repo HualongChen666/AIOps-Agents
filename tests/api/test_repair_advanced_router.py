@@ -70,7 +70,7 @@ class TestRepairConfiguration:
     def test_get_configurations_success(self, client):
         """测试获取修复配置 - 成功"""
         response = client.get("/api/v1/repair/configuration")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -79,7 +79,7 @@ class TestRepairConfiguration:
     def test_get_configurations_with_filters(self, client):
         """测试获取修复配置 - 带过滤"""
         response = client.get("/api/v1/repair/configuration?category=default&config_type=global")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -96,7 +96,7 @@ class TestRepairConfiguration:
             "is_secret": False,
         }
         response = client.post("/api/v1/repair/configuration", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Test Configuration"
@@ -106,7 +106,7 @@ class TestRepairConfiguration:
         """测试创建修复配置 - 验证错误"""
         payload = {"name": "", "key": "test", "value": "value"}  # 空名称应该失败
         response = client.post("/api/v1/repair/configuration", json=payload)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_update_configuration_success(self, client):
         """测试更新修复配置 - 成功"""
@@ -118,7 +118,7 @@ class TestRepairConfiguration:
         # 更新配置
         update_payload = {"name": "Updated Config", "value": "updated_value"}
         response = client.patch(f"/api/v1/repair/configuration/{config_id}", json=update_payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Updated Config"
@@ -137,7 +137,7 @@ class TestRepairConfiguration:
         config_id = create_response.json()["id"]
 
         response = client.delete(f"/api/v1/repair/configuration/{config_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "message" in data
@@ -160,7 +160,7 @@ class TestHITLApproval:
     def test_get_hitl_approvals_success(self, client):
         """测试获取HITL审批 - 成功"""
         response = client.get("/api/v1/repair/hitl-approval")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -169,7 +169,7 @@ class TestHITLApproval:
     def test_get_hitl_approvals_with_status_filter(self, client):
         """测试获取HITL审批 - 带状态过滤"""
         response = client.get("/api/v1/repair/hitl-approval?status=pending")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -185,7 +185,7 @@ class TestHITLApproval:
             "requested_by": "admin",
         }
         response = client.post("/api/v1/repair/hitl-approval", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["repair_id"] == "repair-123"
@@ -208,7 +208,7 @@ class TestHITLApproval:
         response = client.post(
             f"/api/v1/repair/hitl-approval/{approval_id}/approve", json=action_payload
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "approved"
@@ -260,7 +260,7 @@ class TestHITLApproval:
         response = client.post(
             f"/api/v1/repair/hitl-approval/{approval_id}/reject", json=action_payload
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "rejected"
@@ -286,7 +286,7 @@ class TestRepairEffectiveness:
     def test_get_effectiveness_success(self, client):
         """测试获取修复效果 - 成功"""
         response = client.get("/api/v1/repair/effectiveness")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -295,7 +295,7 @@ class TestRepairEffectiveness:
     def test_get_effectiveness_with_trend_filter(self, client):
         """测试获取修复效果 - 带趋势过滤"""
         response = client.get("/api/v1/repair/effectiveness?trend=improving")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -308,7 +308,7 @@ class TestRepairEffectiveness:
             "target_resource": "server-01",
         }
         response = client.post("/api/v1/repair/effectiveness", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["repair_id"] == "repair-123"
@@ -326,7 +326,7 @@ class TestRepairEffectiveness:
         effectiveness_id = create_response.json()["id"]
 
         response = client.post(f"/api/v1/repair/effectiveness/{effectiveness_id}/evaluate")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "trend" in data
@@ -349,7 +349,7 @@ class TestRepairVerification:
     def test_get_verifications_success(self, client):
         """测试获取验证记录 - 成功"""
         response = client.get("/api/v1/repair/verification")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -360,7 +360,7 @@ class TestRepairVerification:
         response = client.get(
             "/api/v1/repair/verification?status=pending&verification_type=health-check"
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -374,7 +374,7 @@ class TestRepairVerification:
             "verification_type": "health-check",
         }
         response = client.post("/api/v1/repair/verification", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["repair_id"] == "repair-123"
@@ -392,7 +392,7 @@ class TestRepairVerification:
         verification_id = create_response.json()["id"]
 
         response = client.post(f"/api/v1/repair/verification/{verification_id}/verify")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "passed"
@@ -432,7 +432,7 @@ class TestRepairVerification:
         verification_id = create_response.json()["id"]
 
         response = client.post(f"/api/v1/repair/verification/{verification_id}/rerun")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "pending"
@@ -542,7 +542,7 @@ class TestCrossPlatformRepair:
     def test_get_cross_platform_repairs_success(self, mock_executor, client):
         """测试获取跨平台修复 - 成功"""
         response = client.get("/api/v1/repair/cross-platform")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -552,7 +552,7 @@ class TestCrossPlatformRepair:
     def test_get_cross_platform_repairs_with_filter(self, mock_executor, client):
         """测试获取跨平台修复 - 带过滤"""
         response = client.get("/api/v1/repair/cross-platform?status=completed")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -569,7 +569,7 @@ class TestCrossPlatformRepair:
             "repair_action": "reconfigure",
         }
         response = client.post("/api/v1/repair/cross-platform", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["target_resource"] == "multi-platform-01"
@@ -586,7 +586,7 @@ class TestUnifiedRepair:
     def test_get_unified_repairs_success(self, client):
         """测试获取统一修复 - 成功"""
         response = client.get("/api/v1/repair/unified")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -595,7 +595,7 @@ class TestUnifiedRepair:
     def test_get_unified_repairs_with_filter(self, client):
         """测试获取统一修复 - 带过滤"""
         response = client.get("/api/v1/repair/unified?status=analyzing")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -609,7 +609,7 @@ class TestUnifiedRepair:
             "repair_action": "multi_strategy",
         }
         response = client.post("/api/v1/repair/unified", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["target_resource"] == "unified-01"

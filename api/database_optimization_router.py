@@ -46,7 +46,7 @@ class IndexType(str, Enum):
     PARTIAL = "partial"
 
 
-class Priority(str, Enum):
+class DatabaseOptimizationPriority(str, Enum):
     """优先级"""
     LOW = "low"
     MEDIUM = "medium"
@@ -82,7 +82,7 @@ class IndexRecommendation(BaseModel):
     index_type: IndexType = Field(..., description="索引类型")
     estimated_improvement: float = Field(..., description="预计性能提升百分比")
     current_query_impact: int = Field(0, description="当前受影响的查询数量")
-    priority: Priority = Field(..., description="优先级")
+    priority: DatabaseOptimizationPriority = Field(..., description="优先级")
     creation_cost: str = Field(..., description="创建成本")
     description: str = Field(..., description="推荐描述")
     enabled: bool = Field(True, description="是否启用")
@@ -125,7 +125,7 @@ class PerformanceTuningRecommendation(BaseModel):
     description: str = Field(..., description="建议描述")
     impact: str = Field(..., description="影响程度")
     effort: str = Field(..., description="实施难度")
-    priority: Priority = Field(..., description="优先级")
+    priority: DatabaseOptimizationPriority = Field(..., description="优先级")
     estimated_benefit: str = Field(..., description="预计收益")
     implementation_steps: List[str] = Field(default_factory=list, description="实施步骤")
 
@@ -184,7 +184,7 @@ def _initialize_sample_data():
             index_type=IndexType.BTREE,
             estimated_improvement=35.0,
             current_query_impact=150,
-            priority=Priority.HIGH,
+            priority=DatabaseOptimizationPriority.HIGH,
             creation_cost="low",
             description="Add index on assets.status to improve query performance",
             enabled=True
@@ -196,7 +196,7 @@ def _initialize_sample_data():
             index_type=IndexType.BTREE,
             estimated_improvement=55.0,
             current_query_impact=80,
-            priority=Priority.CRITICAL,
+            priority=DatabaseOptimizationPriority.CRITICAL,
             creation_cost="medium",
             description="Add composite index on capacity_plans(service, created_at)",
             enabled=True
@@ -316,7 +316,7 @@ async def generate_index_recommendations(table_name: str) -> Dict[str, IndexReco
             index_type=IndexType.BTREE,
             estimated_improvement=20.0,
             current_query_impact=50,
-            priority=Priority.MEDIUM,
+            priority=DatabaseOptimizationPriority.MEDIUM,
             creation_cost="low",
             description=f"Sample index recommendation for {table_name}",
             enabled=True
@@ -417,7 +417,7 @@ async def generate_tuning_recommendations() -> Dict[str, PerformanceTuningRecomm
             description="Increase shared_buffers parameter to improve caching",
             impact="high",
             effort="low",
-            priority=Priority.HIGH,
+            priority=DatabaseOptimizationPriority.HIGH,
             estimated_benefit="10-15% performance improvement",
             implementation_steps=["Edit postgresql.conf", "Set shared_buffers to 2GB", "Restart PostgreSQL"]
         ),
@@ -428,7 +428,7 @@ async def generate_tuning_recommendations() -> Dict[str, PerformanceTuningRecomm
             description="Schedule regular VACUUM operations to prevent table bloat",
             impact="medium",
             effort="medium",
-            priority=Priority.MEDIUM,
+            priority=DatabaseOptimizationPriority.MEDIUM,
             estimated_benefit="5-10% performance improvement",
             implementation_steps=["Create VACUUM schedule", "Configure autovacuum parameters", "Monitor bloat metrics"]
         ),

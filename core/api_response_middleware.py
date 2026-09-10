@@ -38,10 +38,8 @@ class APIResponseMiddleware(BaseHTTPMiddleware):
             "/health",
             "/api/v1/health",
             "/metrics",
-            "/api/v1/auth/register-admin-bypass",
             "/api/v1/auth/login",
             "/api/v1/auth/register",
-            "/api/ai",
         ]
 
     async def dispatch(self, request: Request, call_next):

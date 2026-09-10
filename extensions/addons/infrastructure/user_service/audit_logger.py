@@ -6,8 +6,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict
 
-from services.user_service.repository import UserRepository
-from services.user_service.schemas import AuditLogEntry
+from .repository import UserRepository
+from .schemas import AuditLogEntry
 
 
 class UserAuditLogger:

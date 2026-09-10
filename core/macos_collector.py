@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``macos_collector`` module.
+
+Top-level functions: collect_macos_metrics"""
+
 import asyncio
 import logging
 import platform

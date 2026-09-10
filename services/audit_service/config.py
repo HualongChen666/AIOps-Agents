@@ -20,14 +20,15 @@ class AuditServiceSettings(BaseSettings):
     reporter_port: int = 9303
 
     redis_url: str = "redis://localhost:6379/4"
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/aiops"  # noqa: E501
-    use_in_memory: bool = True
+    database_url: str = "postgresql+asyncpg://postgres@localhost:5432/aiops"  # noqa: E501 - no embedded password
+    use_in_memory: bool = False
 
     enable_prometheus: bool = True
     default_execution_timeout: int = 120
     max_concurrent_events: int = 10000
 
-    encryption_key: str = "00000000000000000000000000000000"  # noqa: S105 - dev only
+    # Must be provided via AUDIT_SERVICE_ENCRYPTION_KEY; never ship a default key.
+    encryption_key: str = ""  # noqa: S105
 
     class Config:  # type: ignore[misc]
         env_prefix = "AUDIT_SERVICE_"
@@ -36,3 +37,9 @@ class AuditServiceSettings(BaseSettings):
 
 
 settings = AuditServiceSettings()
+
+if settings.environment.strip().lower() == "production" and not settings.encryption_key.strip():
+    raise RuntimeError(
+        "AUDIT_SERVICE_ENCRYPTION_KEY must be set in production environment. "
+        "Audit data must not be encrypted with an implicit/empty key."
+    )

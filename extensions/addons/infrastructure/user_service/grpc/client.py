@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import httpx
 
-from services.user_service.grpc.server import UserRPCServer
+from .server import UserRPCServer
 
 
 class UserRPCClient:

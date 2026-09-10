@@ -179,7 +179,8 @@ describe('ThemeToggle Component', () => {
       await user.click(button);
       await user.click(button);
 
-      expect(screen.getByText('☾')).toBeInTheDocument();
+      // light -> dark -> light -> dark
+      expect(screen.getByText('☀')).toBeInTheDocument();
     });
 
     it('should work when used without ThemeProvider (should throw)', () => {

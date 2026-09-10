@@ -27,6 +27,37 @@ const renderWithQueryClient = (component: React.ReactElement) => {
   );
 };
 
+// Shared fixture. Declared at module scope because several suites
+// (Risk Level Styling, Approve Action, Reject Action, Data Refresh,
+// Styling, Edge Cases, Accessibility) reference it outside the
+// `Data Rendering` describe where it used to be declared.
+const mockApprovals = [
+  {
+    id: '1',
+    alert_id: 'ALT-001',
+    alert_json: '{}',
+    rule_name: 'CPU High',
+    script_key: 'fix_cpu',
+    proposal: 'Reduce CPU usage',
+    status: 'pending' as const,
+    risk_level: 'high' as const,
+    submitted_at: '2024-01-01T00:00:00Z',
+    host: 'server1',
+    platform: 'linux',
+  },
+  {
+    id: '2',
+    alert_id: 'ALT-002',
+    alert_json: '{}',
+    rule_name: 'Memory Low',
+    script_key: 'fix_memory',
+    proposal: 'Free memory',
+    status: 'pending' as const,
+    risk_level: 'medium' as const,
+    submitted_at: '2024-01-02T00:00:00Z',
+  },
+];
+
 describe('ApprovalList Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -97,33 +128,6 @@ describe('ApprovalList Component', () => {
   });
 
   describe('Data Rendering', () => {
-    const mockApprovals = [
-      {
-        id: '1',
-        alert_id: 'ALT-001',
-        alert_json: '{}',
-        rule_name: 'CPU High',
-        script_key: 'fix_cpu',
-        proposal: 'Reduce CPU usage',
-        status: 'pending' as const,
-        risk_level: 'high' as const,
-        submitted_at: '2024-01-01T00:00:00Z',
-        host: 'server1',
-        platform: 'linux',
-      },
-      {
-        id: '2',
-        alert_id: 'ALT-002',
-        alert_json: '{}',
-        rule_name: 'Memory Low',
-        script_key: 'fix_memory',
-        proposal: 'Free memory',
-        status: 'pending' as const,
-        risk_level: 'medium' as const,
-        submitted_at: '2024-01-02T00:00:00Z',
-      },
-    ];
-
     it('should render approval list with data', async () => {
       mockedApi.get.mockResolvedValue({ data: { items: mockApprovals } });
       
@@ -411,7 +415,7 @@ describe('ApprovalList Component', () => {
       renderWithQueryClient(<ApprovalList />);
       
       await waitFor(() => {
-        expect(screen.getByText(/A+/)).toBeInTheDocument();
+        expect(screen.getByText(/^A+$/)).toBeInTheDocument();
       });
     });
   });

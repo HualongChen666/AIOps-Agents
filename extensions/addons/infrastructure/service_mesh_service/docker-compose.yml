@@ -6,11 +6,11 @@ services:
 
   service-mesh:
     build:
-      context: ../..
-      dockerfile: services/service_mesh_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/service_mesh_service/Dockerfile
     command: [
       "uvicorn",
-      "services.service_mesh_service.main_app:app",
+      "extensions.addons.infrastructure.service_mesh_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9520",
     ]

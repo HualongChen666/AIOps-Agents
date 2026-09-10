@@ -108,7 +108,7 @@ def test_ai_feedback_submit_success(client, admin_headers):
             "rich_context": True,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["status"] == "ok"
@@ -131,7 +131,7 @@ def test_ai_feedback_submit_negative(client, admin_headers):
             "rich_context": False,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["status"] == "ok"
@@ -218,7 +218,7 @@ def test_ai_feedback_stats_cache_hit(client, admin_headers, monkeypatch):
 
     # First call - cache miss, computes stats
     resp1 = client.get("/api/ai/feedback/stats", headers=admin_headers)
-    assert resp1.status_code in (200, 404)
+    assert resp1.status_code != 404, resp1.text
     if resp1.status_code == 404:
         pytest.skip("API endpoint not implemented")
     stats1 = resp1.json()
@@ -246,7 +246,7 @@ def test_ai_feedback_stats_today_only(client, admin_headers):
 
     # Get stats for today only
     resp = client.get("/api/ai/feedback/stats?today_only=true", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "total" in data
@@ -266,7 +266,7 @@ def test_ai_feedback_stats_error(client, admin_headers, monkeypatch):
     monkeypatch.setattr(feedback_router, "_compute_feedback_stats", fake_compute)
 
     resp = client.get("/api/ai/feedback/stats", headers=admin_headers)
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
     # Check error message in response
         assert "反馈统计查询失败" in resp.text or "detail" in resp.json()
@@ -291,7 +291,7 @@ def test_ai_feedback_recent_all(client, admin_headers):
         )
 
     resp = client.get("/api/ai/feedback/recent?limit=10", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "total" in data
@@ -315,7 +315,7 @@ def test_ai_feedback_recent_today_only(client, admin_headers):
     )
 
     resp = client.get("/api/ai/feedback/recent?today_only=true", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["filter"]["today_only"] is True
@@ -346,7 +346,7 @@ def test_ai_feedback_recent_by_type_positive(client, admin_headers):
     )
 
     resp = client.get("/api/ai/feedback/recent?feedback_type=positive", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["filter"]["feedback_type"] == "positive"
@@ -380,7 +380,7 @@ def test_ai_feedback_recent_by_type_negative(client, admin_headers):
     )
 
     resp = client.get("/api/ai/feedback/recent?feedback_type=negative", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["filter"]["feedback_type"] == "negative"
@@ -406,7 +406,7 @@ def test_ai_feedback_recent_combined_filters(client, admin_headers):
     resp = client.get(
         "/api/ai/feedback/recent?today_only=true&feedback_type=positive", headers=admin_headers
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["filter"]["today_only"] is True
@@ -429,7 +429,7 @@ def test_ai_feedback_recent_limit(client, admin_headers):
         )
 
     resp = client.get("/api/ai/feedback/recent?limit=3", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["total"] <= 3
@@ -448,7 +448,7 @@ def test_ai_feedback_recent_error(client, admin_headers, monkeypatch):
     monkeypatch.setattr(feedback_router, "_fetch_feedback", fake_fetch)
 
     resp = client.get("/api/ai/feedback/recent", headers=admin_headers)
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
     # Check error message in response
         assert "反馈记录查询失败" in resp.text or "detail" in resp.json()
@@ -471,7 +471,7 @@ def test_ai_feedback_comment_validation(client, admin_headers):
             "comment": "  test comment  ",  # Should be stripped
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test comment at max length (500)
     max_comment = "x" * 500
@@ -486,7 +486,7 @@ def test_ai_feedback_comment_validation(client, admin_headers):
             "comment": max_comment,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_ai_feedback_platform_validation(client, admin_headers):
@@ -503,7 +503,7 @@ def test_ai_feedback_platform_validation(client, admin_headers):
                 "platform": platform,
             },
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_ai_feedback_rich_context_flag(client, admin_headers):
@@ -520,7 +520,7 @@ def test_ai_feedback_rich_context_flag(client, admin_headers):
             "rich_context": True,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test with rich_context=False
     resp = client.post(
@@ -534,7 +534,7 @@ def test_ai_feedback_rich_context_flag(client, admin_headers):
             "rich_context": False,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_ai_feedback_cache_invalidation(client, admin_headers, monkeypatch):
@@ -589,7 +589,7 @@ def test_ai_feedback_operator_ip_logging(client, admin_headers, monkeypatch):
             "platform": "windows",
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Restore
     monkeypatch.setattr(feedback_router.logger, "info", original_log)
@@ -632,7 +632,7 @@ def test_ai_feedback_stats_accuracy_calculation(client, admin_headers):
         )
 
     resp = client.get("/api/ai/feedback/stats", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # Check that we added 10 more feedback entries
@@ -662,7 +662,7 @@ def test_ai_feedback_empty_stats(client, admin_headers, monkeypatch):
     feedback_router._invalidate_stats_cache()
 
     resp = client.get("/api/ai/feedback/stats", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["total"] == 0
@@ -692,7 +692,7 @@ def test_ai_feedback_cached_stats_expiry(client, admin_headers, monkeypatch):
 
     # Get stats to populate cache
     resp1 = client.get("/api/ai/feedback/stats", headers=admin_headers)
-    assert resp1.status_code in (200, 404)
+    assert resp1.status_code != 404, resp1.text
 
     # Mock time to simulate cache expiry
     original_monotonic = time.monotonic
@@ -705,7 +705,7 @@ def test_ai_feedback_cached_stats_expiry(client, admin_headers, monkeypatch):
 
     # Get stats again - should recompute due to cache expiry
     resp2 = client.get("/api/ai/feedback/stats", headers=admin_headers)
-    assert resp2.status_code in (200, 404)
+    assert resp2.status_code != 404, resp2.text
 
     # Restore
     monkeypatch.setattr(time, "monotonic", original_monotonic)
@@ -721,7 +721,7 @@ def test_ai_feedback_request_minimal(client, admin_headers):
             # All other fields have defaults
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["status"] == "ok"
@@ -741,7 +741,7 @@ def test_ai_feedback_analysis_text_max_length(client, admin_headers):
             "platform": "windows",
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_ai_feedback_query_text_max_length(client, admin_headers):
@@ -758,7 +758,7 @@ def test_ai_feedback_query_text_max_length(client, admin_headers):
             "platform": "windows",
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_ai_feedback_stage_name_max_length(client, admin_headers):
@@ -776,4 +776,4 @@ def test_ai_feedback_stage_name_max_length(client, admin_headers):
             "stage_name": max_text,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text

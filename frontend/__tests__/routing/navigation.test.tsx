@@ -180,17 +180,20 @@ describe('Navigation Tests', () => {
   });
 
   describe('Navigation State', () => {
-    it('should navigate with state object', () => {
+    // Next.js App Router's push/replace take (href, NavigateOptions); arbitrary
+    // state objects are not part of that signature. These tests assert that the
+    // router mock forwards whatever arguments it is given.
+    it('should forward navigation arguments to the router', () => {
       const router = useRouter();
       const state = { from: '/login', timestamp: Date.now() };
-      router.push('/dashboard', state);
+      (router.push as unknown as (href: string, state: unknown) => void)('/dashboard', state);
       expect(mockPush).toHaveBeenCalledWith('/dashboard', state);
     });
 
-    it('should replace with state object', () => {
+    it('should forward replace arguments to the router', () => {
       const router = useRouter();
       const state = { referrer: '/settings' };
-      router.replace('/dashboard', state);
+      (router.replace as unknown as (href: string, state: unknown) => void)('/dashboard', state);
       expect(mockReplace).toHaveBeenCalledWith('/dashboard', state);
     });
   });

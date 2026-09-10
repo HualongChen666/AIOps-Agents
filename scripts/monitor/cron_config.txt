@@ -24,4 +24,4 @@
 # 4. 操作：启动程序
 #    - 程序：python.exe
 #    - 参数：scripts\monitor\tech_debt_monitor.py
-#    - 起始于：C:\AIOps_Agent_bak
+#    - 起始于：<repository root>

@@ -43,7 +43,7 @@ export default function WorkflowManagementPage() {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    status: 'draft' as const,
+    status: 'draft',
   });
 
   const loadWorkflows = async () => {

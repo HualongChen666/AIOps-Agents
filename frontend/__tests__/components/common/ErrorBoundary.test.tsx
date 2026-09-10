@@ -213,13 +213,14 @@ describe('ErrorBoundary Component', () => {
   });
 
   describe('Refresh Button', () => {
-    it('should call window.location.reload when clicked', () => {
+    it('should call the reload handler when clicked', () => {
       const ThrowError = () => {
         throw new Error('Test error');
       };
+      const reloadPage = jest.fn();
 
       render(
-        <ErrorBoundary>
+        <ErrorBoundary reloadPage={reloadPage}>
           <ThrowError />
         </ErrorBoundary>
       );
@@ -227,8 +228,7 @@ describe('ErrorBoundary Component', () => {
       const refreshButton = screen.getByText('刷新页面');
       refreshButton.click();
 
-      // window.location.reload is mocked in jest.setup.js
-      expect(window.location.reload).toHaveBeenCalled();
+      expect(reloadPage).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -492,11 +492,18 @@ describe('ErrorBoundary Component', () => {
       );
 
       const button = screen.getByText('Click me');
-      // Event handler errors are not caught by ErrorBoundary in React
-      // They need to be caught with try-catch or error boundaries in the handler
-      button.click();
-      // The error will be logged to console but not caught by ErrorBoundary
+      // Event-handler errors are not caught by error boundaries; React reports them
+      // to the window. jsdom turns that into an unhandled exception which would fail
+      // the test, so we swallow it while asserting the boundary did not fire.
+      const swallow = (e: ErrorEvent) => e.preventDefault();
+      window.addEventListener('error', swallow);
+      try {
+        button.click();
+      } finally {
+        window.removeEventListener('error', swallow);
+      }
       expect(screen.getByText('Click me')).toBeInTheDocument();
+      expect(screen.queryByText('出错了')).not.toBeInTheDocument();
     });
   });
 

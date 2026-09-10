@@ -34,10 +34,23 @@ print("[OK] alerts_advanced_router - GET /dashboard works")
 
 # Test ai_advanced_router
 print("Testing ai_advanced_router...")
+from api.ai_advanced_router import get_current_user as _ai_get_current_user
 from api.ai_advanced_router import router as ai_router
+from core.authentication import UserInDB
 
 app2 = FastAPI()
 app2.include_router(ai_router)
+# Wave2 #24: routers now require auth (no FAKE_ADMIN fallback).
+_TEST_AUTH_USER = UserInDB(
+    id=1,
+    username="test_admin",
+    full_name="Test Admin",
+    email="test@example.com",
+    role="admin",
+    disabled=False,
+    hashed_password="hashed",
+)
+app2.dependency_overrides[_ai_get_current_user] = lambda: _TEST_AUTH_USER
 app2.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

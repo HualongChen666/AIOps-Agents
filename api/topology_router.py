@@ -219,7 +219,7 @@ class BatchEdgeCreateRequest(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-class BatchDeleteRequest(BaseModel):
+class TopologyBatchDeleteRequest(BaseModel):
     """批量删除请求模型"""
 
     ids: list[str] = Field(..., min_length=1, max_length=_BATCH_SIZE_LIMIT)
@@ -234,7 +234,7 @@ class BatchDeleteRequest(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-class TopologyViewCreateRequest(BaseModel):
+class TopologyTopologyViewCreateRequest(BaseModel):
     """创建拓扑视图的请求模型"""
 
     name: str = Field(..., min_length=1, max_length=100, description="视图名称")
@@ -265,7 +265,7 @@ class TopologyViewCreateRequest(BaseModel):
     }
 
 
-class TopologyViewUpdateRequest(BaseModel):
+class TopologyTopologyViewUpdateRequest(BaseModel):
     """更新拓扑视图的请求模型"""
 
     name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -625,7 +625,7 @@ async def get_topology_by_id(topology_id: str) -> dict[str, Any]:
         (500): {"description": "创建失败"},
     },
 )
-async def create_topology_view_endpoint(payload: TopologyViewCreateRequest) -> dict[str, Any]:
+async def create_topology_view_endpoint(payload: TopologyTopologyViewCreateRequest) -> dict[str, Any]:
     """
     创建新的拓扑视图
 
@@ -731,7 +731,7 @@ async def get_topology_view_by_id_endpoint(view_id: str) -> dict[str, Any]:
         (500): {"description": "更新失败"},
     },
 )
-async def update_topology_view_endpoint(view_id: str, payload: TopologyViewUpdateRequest) -> dict[str, Any]:
+async def update_topology_view_endpoint(view_id: str, payload: TopologyTopologyViewUpdateRequest) -> dict[str, Any]:
     """
     更新拓扑视图
 
@@ -1649,7 +1649,7 @@ async def batch_create_edges(payload: BatchEdgeCreateRequest) -> dict[str, Any]:
         (500): {"description": "批量删除失败"},
     },
 )
-async def batch_delete_nodes(payload: BatchDeleteRequest) -> dict[str, Any]:
+async def batch_delete_nodes(payload: TopologyBatchDeleteRequest) -> dict[str, Any]:
     """
     批量删除节点（分批处理以避免速率限制）
 

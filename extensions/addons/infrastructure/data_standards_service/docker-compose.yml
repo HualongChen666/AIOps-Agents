@@ -6,11 +6,11 @@ services:
 
   data-standards:
     build:
-      context: ../..
-      dockerfile: services/data_standards_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/data_standards_service/Dockerfile
     command: [
       "uvicorn",
-      "services.data_standards_service.main_app:app",
+      "extensions.addons.infrastructure.data_standards_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9559",
     ]

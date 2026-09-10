@@ -166,7 +166,7 @@ class TestIntegrationRouterAuthentication:
                 )
                 
                 # Should return 200 with valid auth
-                assert response.status_code in [200, 404]  # 404 if not found
+                assert response.status_code != 404  # 404 if not found
 
 
 class TestIntegrationRouterRateLimiting:

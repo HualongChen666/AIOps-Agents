@@ -142,7 +142,7 @@ class TestTeamEndpoints:
         """Test getting teams when none exist"""
         # Database is cleaned up by autouse fixture
         response = client.get("/api/v1/collaboration/teams")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -168,7 +168,7 @@ class TestTeamEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/collaboration/teams")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -201,7 +201,7 @@ class TestTeamEndpoints:
         }
 
         response = client.post("/api/v1/collaboration/teams", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_team_success(self, client, db_session, sample_team):
         """Test getting a specific team"""
@@ -222,7 +222,7 @@ class TestTeamEndpoints:
         db_session.commit()
 
         response = client.get(f"/api/v1/collaboration/teams/{sample_team['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -300,7 +300,7 @@ class TestTeamEndpoints:
         db_session.commit()
 
         response = client.delete(f"/api/v1/collaboration/teams/{sample_team['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -326,7 +326,7 @@ class TestMemberEndpoints:
     def test_get_members_empty(self, client):
         """Test getting members when none exist"""
         response = client.get("/api/v1/collaboration/members")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -372,7 +372,7 @@ class TestMemberEndpoints:
         }
 
         response = client.post("/api/v1/collaboration/members", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
 
 # Permission endpoints tests
@@ -382,7 +382,7 @@ class TestPermissionEndpoints:
     def test_get_permissions_empty(self, client):
         """Test getting permissions when none exist"""
         response = client.get("/api/v1/collaboration/permissions")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -437,7 +437,7 @@ class TestActivityEndpoints:
     def test_get_activities_empty(self, client):
         """Test getting activities when none exist"""
         response = client.get("/api/v1/collaboration/activities")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -522,7 +522,7 @@ class TestIntegration:
 
             # Verify deletion
             final_get = client.get(f"/api/v1/collaboration/teams/{team_id}")
-            assert final_get.status_code in [200, 404]
+            assert final_get.status_code != 404, final_get.text
             if final_get.status_code == 200:
                 assert not final_get.json().get("success", True)
 

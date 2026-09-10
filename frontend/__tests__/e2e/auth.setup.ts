@@ -1,10 +1,10 @@
-import { test as base } from '@playwright/test';
+import { test as base, type Page } from '@playwright/test';
 
 /**
  * 认证扩展 - 为需要认证的测试提供登录功能
  */
 export const test = base.extend<{
-  authenticatedPage: typeof base['page'];
+  authenticatedPage: Page;
 }>({
   authenticatedPage: async ({ page }, use) => {
     // 导航到登录页面

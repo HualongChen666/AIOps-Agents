@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``log_collector`` module.
+
+Top-level functions: get_event_logs, get_system_errors, get_application_errors, search_logs, get_linux_logs, get_linux_errors, search_linux_logs"""
+
 # core/log_collector.py
 # 日志采集引擎(Windows 事件日志 + Linux 远程日志)
 #

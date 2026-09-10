@@ -62,7 +62,7 @@ export default function CICDPipelinePage() {
     description: '',
     repository: '',
     branch: 'main',
-    trigger: 'push' as const,
+    trigger: 'push',
   });
 
   const loadPipelines = async () => {

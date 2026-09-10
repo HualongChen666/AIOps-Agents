@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``constants`` module.
+
+Module-level constants: DEFAULT_BASE_DELAY, DEFAULT_CACHE_TTL, DEFAULT_MAX_CACHE_SIZE, DEFAULT_MAX_DELAY, DEFAULT_MAX_MEMORY_MB, DEFAULT_MAX_RETRIES, DEFAULT_RETENTION_DAYS, DEFAULT_WARNING_THRESHOLD"""
+
 # Core Constants
 # 核心常量
 

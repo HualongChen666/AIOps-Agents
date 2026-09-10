@@ -17,6 +17,7 @@ Endpoints:
 """
 
 import asyncio
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict
@@ -25,6 +26,23 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from loguru import logger
 
 router = APIRouter(prefix="/api/v1/backup", tags=["备份和恢复"])
+
+
+def _backup_dir() -> Path:
+    """Resolve the backup directory from configuration (no hardcoded paths).
+
+    ``AIOPS_BACKUP_DIR`` takes precedence; otherwise ``config.BACKUP_LOCATION``
+    is used.
+    """
+    override = os.getenv("AIOPS_BACKUP_DIR")
+    if override:
+        return Path(override)
+    try:
+        from config import BACKUP_LOCATION
+
+        return Path(BACKUP_LOCATION or "/backups")
+    except Exception:
+        return Path("/backups")
 
 
 @router.post(
@@ -314,7 +332,7 @@ async def list_backups() -> Dict[str, Any]:
         备份文件列表
     """
     try:
-        backup_dir = Path("C:/AIOps_Agent_bak/backups")
+        backup_dir = _backup_dir()
         if not backup_dir.exists():
             return {"status": "success", "backups": [], "message": "No backups found"}
 

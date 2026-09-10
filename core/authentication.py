@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import logging
-
 """
 Authentication Module
 =====================
@@ -21,6 +19,8 @@ P2 Enhancement:
 - SSO (Single Sign-On) enhancements
 - Compliance certification support
 """
+
+import logging
 
 import asyncio
 import inspect

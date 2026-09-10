@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select } from '@/components/ui/select';
 import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
@@ -33,7 +34,7 @@ interface DashboardData {
 
 export default function AlertDashboardPage() {
   const [timeRange, setTimeRange] = useState('24h');
-  const { isLoading, error, refetch } = useLoadingState();
+  const { isLoading, error } = useLoadingState();
   const toast = useToast();
   const showError = toast.error;
 

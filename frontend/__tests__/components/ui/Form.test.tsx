@@ -120,7 +120,7 @@ describe('Form Component', () => {
   describe('Form Validation', () => {
     it('should validate form on submit', async () => {
       const handleSubmit = jest.fn();
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         if (!values.name) return { name: 'Name is required' };
         return {};
       };
@@ -137,7 +137,7 @@ describe('Form Component', () => {
 
     it('should call onSubmit when validation passes', async () => {
       const handleSubmit = jest.fn();
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         if (!values.name) return { name: 'Name is required' };
         return {};
       };
@@ -158,7 +158,7 @@ describe('Form Component', () => {
         return <div>Error: {errors.name}</div>;
       };
 
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         if (!values.name) return { name: 'Name is required' };
         return {};
       };
@@ -316,7 +316,7 @@ describe('Form Component', () => {
         );
       };
 
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         if (!values.name) return { name: 'Name is required' };
         return {};
       };
@@ -584,7 +584,7 @@ describe('Form Component', () => {
   describe('Integration Tests', () => {
     it('should handle complete form workflow', async () => {
       const handleSubmit = jest.fn();
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         if (!values.name) return { name: 'Name is required' };
         return {};
       };

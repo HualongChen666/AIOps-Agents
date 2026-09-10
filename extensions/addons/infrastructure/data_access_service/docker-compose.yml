@@ -8,12 +8,12 @@ services:
 
   data_access_service:
     build:
-      context: ../..
-      dockerfile: services/data_access_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/data_access_service/Dockerfile
     command:
       [
         "uvicorn",
-        "services.data_access_service.main_app:app",
+        "extensions.addons.infrastructure.data_access_service.main_app:app",
         "--host",
         "0.0.0.0",
         "--port",

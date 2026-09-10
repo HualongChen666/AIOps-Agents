@@ -48,7 +48,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.get("/api/system-resources/status")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -63,7 +63,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.get("/api/system-resources/status")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
         # The error response may have different formats, check for the error message
             resp_data = resp.json()
@@ -77,7 +77,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.get("/api/system-resources/summary")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -92,7 +92,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.get("/api/system-resources/summary")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -105,7 +105,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.get("/api/system-resources/memory")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -120,7 +120,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.get("/api/system-resources/memory")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -133,7 +133,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.post("/api/system-resources/memory/optimize")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -148,7 +148,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.post("/api/system-resources/memory/optimize")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -161,7 +161,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.get("/api/system-resources/cpu")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -176,7 +176,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.get("/api/system-resources/cpu")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -189,7 +189,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.post("/api/system-resources/cpu/optimize")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -204,7 +204,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.post("/api/system-resources/cpu/optimize")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -217,7 +217,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.get("/api/system-resources/network")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -232,7 +232,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.get("/api/system-resources/network")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -245,7 +245,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.post("/api/system-resources/network/optimize")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -260,7 +260,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.post("/api/system-resources/network/optimize")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -273,7 +273,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer()),
         )
         resp = client.post("/api/system-resources/optimize")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -295,7 +295,7 @@ class TestSystemResourceRouterCoverage:
                 "network_optimization": False,
             },
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -310,7 +310,7 @@ class TestSystemResourceRouterCoverage:
             MagicMock(return_value=_fake_sysres_optimizer(fail=True)),
         )
         resp = client.post("/api/system-resources/optimize")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -334,7 +334,7 @@ class TestSystemResourceRouterCoverage:
 
         for endpoint in get_endpoints:
             resp = client.get(endpoint)
-            assert resp.status_code in (200, 404), f"GET {endpoint} failed"
+            assert resp.status_code != 404, f"GET {endpoint} failed"
             if resp.status_code != 404:
                 assert resp.json()["status"] == "success"
 
@@ -348,7 +348,7 @@ class TestSystemResourceRouterCoverage:
 
         for endpoint in post_endpoints:
             resp = client.post(endpoint)
-            assert resp.status_code in (200, 404), f"POST {endpoint} failed"
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert resp.json()["status"] == "success"
 

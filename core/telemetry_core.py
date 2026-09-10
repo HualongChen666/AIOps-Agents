@@ -8,9 +8,11 @@ for AIOps Agent components using OpenTelemetry.
 Phase 1 P1-5: Add OpenTelemetry instrumentation to collector layer
 """
 
+import asyncio
 import logging
 from contextlib import contextmanager
-from typing import Any, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -324,6 +326,43 @@ def reset_apm_metrics() -> None:
     }
 
 
+def _run_async(coro: Any) -> Any:
+    """Run ``coro`` to completion from synchronous code.
+
+    Works both when no event loop is running and when called from inside one
+    (the coroutine is then executed on a dedicated worker loop).
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
+def _tempo_trace_to_dict(trace: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalise a Tempo search hit into the API trace shape."""
+    start_ns = trace.get("startTimeUnixNano")
+    start_iso: Optional[str] = None
+    if start_ns:
+        try:
+            start_iso = datetime.fromtimestamp(int(start_ns) / 1e9, tz=timezone.utc).isoformat()
+        except (TypeError, ValueError, OSError):
+            start_iso = None
+    return {
+        "trace_id": trace.get("traceID"),
+        "operation_name": trace.get("rootTraceName"),
+        "service_name": trace.get("rootServiceName"),
+        "start_time": start_iso,
+        "duration_ms": trace.get("durationMs"),
+        "tags": {},
+        "logs": [],
+    }
+
+
 def get_traces(
     service_name: Optional[str] = None,
     operation_name: Optional[str] = None,
@@ -333,6 +372,9 @@ def get_traces(
     page_size: int = 20,
 ) -> dict[str, Any]:
     """🔧 P1 Enhancement: Get performance traces data.
+
+    Queries the configured Tempo tracing backend (TempoClient).  There is no
+    fabricated fallback: when tracing is not configured the call fails loudly.
 
     Args:
         service_name: Service name filter
@@ -344,54 +386,44 @@ def get_traces(
 
     Returns:
         Dictionary with traces data
+
+    Raises:
+        RuntimeError: when the tracing backend is not enabled/configured.
     """
-    # Mock traces data for now - in production, this would query OpenTelemetry backend
-    mock_traces = [
-        {
-            "trace_id": "trace-123",
-            "span_id": "span-456",
-            "parent_span_id": "span-789",
-            "operation_name": "GET /api/v1/alerts",
-            "service_name": "aiops-agent",
-            "start_time": "2026-06-12T00:00:00Z",
-            "duration_ms": 150,
-            "status": "success",
-            "tags": {"http.method": "GET", "http.status_code": "200"},
-            "logs": [],
-        },
-        {
-            "trace_id": "trace-124",
-            "span_id": "span-457",
-            "parent_span_id": "span-790",
-            "operation_name": "POST /api/v1/alerts",
-            "service_name": "aiops-agent",
-            "start_time": "2026-06-12T00:01:00Z",
-            "duration_ms": 200,
-            "status": "success",
-            "tags": {"http.method": "POST", "http.status_code": "201"},
-            "logs": [],
-        },
-    ]
+    from config import TEMPO_ENABLED
 
-    # Apply filters
-    filtered_traces = mock_traces
+    if not TEMPO_ENABLED:
+        raise RuntimeError(
+            "Tracing backend is not enabled: set TEMPO_ENABLED=true "
+            "(TEMPO_HOST/TEMPO_PORT) to query traces."
+        )
+
+    from core.tempo_client import get_tempo_client
+
+    selectors: List[str] = []
     if service_name:
-        filtered_traces = [t for t in filtered_traces if t.get("service_name") == service_name]
+        selectors.append(f'resource.service.name = "{service_name}"')
     if operation_name:
-        filtered_traces = [t for t in filtered_traces if t.get("operation_name") == operation_name]
-    if min_duration:
-        filtered_traces = [t for t in filtered_traces if t.get("duration_ms", 0) >= min_duration]
-    if max_duration:
-        filtered_traces = [t for t in filtered_traces if t.get("duration_ms", 0) <= max_duration]
+        selectors.append(f'name = "{operation_name}"')
+    if min_duration is not None:
+        selectors.append(f"duration >= {int(min_duration)}ms")
+    if max_duration is not None:
+        selectors.append(f"duration <= {int(max_duration)}ms")
+    query = "{ " + " && ".join(selectors) + " }" if selectors else "{}"
 
-    # Apply pagination
-    total = len(filtered_traces)
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(hours=1)
+    limit = max(1, int(page) * int(page_size))
+
+    client = get_tempo_client()
+    result = _run_async(client.search_traces(query, start, end, limit=limit))
+
+    traces = [_tempo_trace_to_dict(t) for t in (getattr(result, "traces", None) or [])]
+    total = getattr(result, "totalTraces", 0) or len(traces)
+
     start_idx = (page - 1) * page_size
-    end_idx = start_idx + page_size
-    paginated_traces = filtered_traces[start_idx:end_idx]
-
     return {
-        "traces": paginated_traces,
+        "traces": traces[start_idx : start_idx + page_size],
         "total": total,
     }
 

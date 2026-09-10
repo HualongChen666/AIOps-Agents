@@ -71,7 +71,7 @@ class DocumentCreateRequest(BaseModel):
     }
 
 
-class DocumentResponse(BaseModel):
+class KnowledgeBaseDocumentResponse(BaseModel):
     """Response model for document"""
     document_id: str
     content: str
@@ -134,7 +134,7 @@ class BatchDocumentResponse(BaseModel):
     }
 
 
-class SearchRequest(BaseModel):
+class KnowledgeBaseSearchRequest(BaseModel):
     """Request model for document search"""
     query: str = Field(..., description="Search query")
     top_k: int = Field(default=5, ge=1, le=100, description="Number of results to return")
@@ -169,7 +169,7 @@ class SearchResponse(BaseModel):
     }
 
 
-class DocumentListResponse(BaseModel):
+class KnowledgeBaseDocumentListResponse(BaseModel):
     """Response model for document list"""
     document_ids: List[str]
     total_count: int
@@ -196,7 +196,7 @@ class DeleteResponse(BaseModel):
 
 @router.post(
     "/documents",
-    response_model=DocumentResponse,
+    response_model=KnowledgeBaseDocumentResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Add document to knowledge base",
     description="Add a single document to the knowledge base with vectorization",
@@ -210,7 +210,7 @@ class DeleteResponse(BaseModel):
 async def add_document(
     req: DocumentCreateRequest,
     current_user: Any = Depends(get_current_active_user),
-) -> DocumentResponse:
+) -> KnowledgeBaseDocumentResponse:
     """
     Add a document to the knowledge base
 
@@ -226,7 +226,7 @@ async def add_document(
             f"User {current_user.username} added document {req.document_id} to knowledge base"
         )
 
-        return DocumentResponse(
+        return KnowledgeBaseDocumentResponse(
             document_id=document.id,
             content=document.content,
             metadata=document.metadata,
@@ -239,7 +239,7 @@ async def add_document(
 
 @router.get(
     "/documents/{document_id}",
-    response_model=DocumentResponse,
+    response_model=KnowledgeBaseDocumentResponse,
     summary="Get document by ID",
     description="Retrieve a specific document from the knowledge base",
     responses={
@@ -251,7 +251,7 @@ async def add_document(
 async def get_document(
     document_id: str,
     current_user: Any = Depends(get_current_active_user),
-) -> DocumentResponse:
+) -> KnowledgeBaseDocumentResponse:
     """
     Get a document by its ID
 
@@ -269,7 +269,7 @@ async def get_document(
 
         logger.info(f"User {current_user.username} retrieved document {document_id}")
 
-        return DocumentResponse(
+        return KnowledgeBaseDocumentResponse(
             document_id=document.id,
             content=document.content,
             metadata=document.metadata,
@@ -328,7 +328,7 @@ async def delete_document(
 
 @router.get(
     "/documents",
-    response_model=DocumentListResponse,
+    response_model=KnowledgeBaseDocumentListResponse,
     summary="List all documents",
     description="List all document IDs in the knowledge base",
     responses={
@@ -338,7 +338,7 @@ async def delete_document(
 )
 async def list_documents(
     current_user: Any = Depends(get_current_active_user),
-) -> DocumentListResponse:
+) -> KnowledgeBaseDocumentListResponse:
     """
     List all documents in the knowledge base
 
@@ -350,7 +350,7 @@ async def list_documents(
 
         logger.info(f"User {current_user.username} listed {len(document_ids)} documents")
 
-        return DocumentListResponse(document_ids=document_ids, total_count=len(document_ids))
+        return KnowledgeBaseDocumentListResponse(document_ids=document_ids, total_count=len(document_ids))
     except Exception as e:
         logger.error(f"Failed to list documents: {e}")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
@@ -440,7 +440,7 @@ async def add_documents_batch(
     },
 )
 async def search_documents(
-    req: SearchRequest,
+    req: KnowledgeBaseSearchRequest,
     current_user: Any = Depends(get_current_active_user),
 ) -> SearchResponse:
     """

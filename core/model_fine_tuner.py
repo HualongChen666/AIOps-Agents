@@ -144,6 +144,12 @@ class ModelFineTuner:
         self.completed_jobs = 0
         self.failed_jobs = 0
 
+        # Per-job runtime state (loaded model/tokenizer)
+        self._training_state: Dict[str, Dict[str, Any]] = {}
+
+        # Estimated optimizer steps per epoch (used for progress reporting)
+        self.steps_per_epoch = int(self.config.get("steps_per_epoch", 1000))
+
         logger.info("Model fine-tuner initialized")
 
     async def start_fine_tuning(
@@ -204,10 +210,10 @@ class ModelFineTuner:
 
             # Update status to training
             progress.status = TrainingStatus.TRAINING
-            progress.total_steps = config.num_epochs * 1000  # Estimate
+            progress.total_steps = config.num_epochs * self.steps_per_epoch
 
-            # Simulate training (in real implementation, would use actual training)
-            await self._simulate_training(job_id, config)
+            # Run the real training loop
+            await self._train_model(job_id, config)
 
             # Update status to completed
             progress.status = TrainingStatus.COMPLETED
@@ -223,63 +229,157 @@ class ModelFineTuner:
             self.failed_jobs += 1
             logger.error(f"Fine-tuning job failed: {job_id}, error: {e}")
 
+    def _load_base_model(self, config: TrainingConfig) -> tuple[Any, Any]:
+        """Load the base model and tokenizer for fine-tuning.
+
+        Raises:
+            RuntimeError: when the ``transformers`` package is unavailable.
+        """
+        try:
+            from transformers import AutoModelForCausalLM, AutoTokenizer
+        except ImportError as exc:  # pragma: no cover - depends on environment
+            raise RuntimeError(
+                "transformers is required for model fine-tuning; install it to run jobs"
+            ) from exc
+
+        tokenizer = AutoTokenizer.from_pretrained(config.model_name, use_fast=True)
+        model = AutoModelForCausalLM.from_pretrained(config.model_name)
+        return model, tokenizer
+
     async def _prepare_training(
         self, job_id: str, config: TrainingConfig, dataset: TrainingDataset
     ) -> None:
         """
-        Prepare training resources
+        Prepare training resources: validate the dataset and load the base model.
 
         Args:
             job_id: Job ID
             config: Training configuration
             dataset: Training dataset
+
+        Raises:
+            FileNotFoundError: when the dataset path does not exist.
+            RuntimeError: when the training stack is unavailable.
         """
-        # In real implementation, would:
-        # 1. Load base model
-        # 2. Prepare dataset
-        # 3. Setup training environment
-        # 4. Validate configuration
-        await asyncio.sleep(2)  # Simulate preparation
+        dataset_path = Path(dataset.dataset_path)
+        if not dataset_path.exists():
+            raise FileNotFoundError(f"training dataset not found: {dataset_path}")
+
+        model, tokenizer = await asyncio.to_thread(self._load_base_model, config)
+        self._training_state[job_id] = {"model": model, "tokenizer": tokenizer}
         logger.info(f"Training preparation completed for job: {job_id}")
 
-    async def _simulate_training(self, job_id: str, config: TrainingConfig) -> None:
+    def _run_trainer(
+        self,
+        job_id: str,
+        model: Any,
+        tokenizer: Any,
+        dataset: TrainingDataset,
+        config: TrainingConfig,
+    ) -> Dict[str, Any]:
+        """Run ``transformers.Trainer`` and return the final metrics.
+
+        Raises:
+            RuntimeError: when the datasets/transformers stack is unavailable.
         """
-        Simulate training process
+        try:
+            from datasets import load_dataset
+            from transformers import (
+                DataCollatorForLanguageModeling,
+                Trainer,
+                TrainingArguments,
+            )
+        except ImportError as exc:  # pragma: no cover - depends on environment
+            raise RuntimeError(
+                "datasets and transformers are required to run fine-tuning jobs"
+            ) from exc
+
+        raw = load_dataset(dataset.dataset_type, data_files=dataset.dataset_path, split="train")
+        text_column = dataset.metadata.get("text_column", "text")
+        if text_column not in raw.column_names:
+            text_column = raw.column_names[0]
+
+        def _tokenize(batch: Dict[str, Any]) -> Dict[str, Any]:
+            return tokenizer(
+                batch[text_column],
+                truncation=True,
+                max_length=config.max_sequence_length,
+                padding="max_length",
+            )
+
+        tokenized = raw.map(_tokenize, batched=True, remove_columns=raw.column_names)
+
+        training_args = TrainingArguments(
+            output_dir=str(self.checkpoints_dir / job_id),
+            learning_rate=config.learning_rate,
+            num_train_epochs=config.num_epochs,
+            per_device_train_batch_size=config.batch_size,
+            gradient_accumulation_steps=config.gradient_accumulation_steps,
+            warmup_steps=config.warmup_steps,
+            weight_decay=config.weight_decay,
+            logging_steps=config.logging_steps,
+            save_steps=config.save_steps,
+            eval_steps=config.eval_steps,
+            max_grad_norm=config.max_grad_norm,
+            fp16=config.fp16,
+            bf16=config.bf16,
+            gradient_checkpointing=config.gradient_checkpointing,
+            report_to=[],
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=tokenized,
+            data_collator=DataCollatorForLanguageModeling(
+                tokenizer=tokenizer, mlm=False
+            ),
+        )
+        train_output = trainer.train()
+        metrics = dict(getattr(train_output, "metrics", {}) or {})
+        metrics["global_step"] = trainer.state.global_step
+        return metrics
+
+    async def _train_model(self, job_id: str, config: TrainingConfig) -> None:
+        """
+        Run the real fine-tuning loop, recording the actual loss/metrics.
 
         Args:
             job_id: Job ID
             config: Training configuration
         """
+        state = self._training_state.get(job_id)
+        if not state:
+            raise RuntimeError(f"model for job {job_id} was not prepared")
+        dataset = self.job_datasets[job_id]
         progress = self.training_jobs[job_id]
 
-        for epoch in range(config.num_epochs):
-            progress.current_epoch = epoch + 1
+        metrics = await asyncio.to_thread(
+            self._run_trainer,
+            job_id,
+            state["model"],
+            state["tokenizer"],
+            dataset,
+            config,
+        )
 
-            # Simulate training steps
-            for step in range(100):
-                progress.current_step += 1
-                progress.training_loss = max(0.1, 2.0 - (step * 0.01) - (epoch * 0.2))
-                progress.learning_rate = config.learning_rate * (0.95**epoch)
-                if progress.started_at is not None:
-                    progress.elapsed_time = (
-                        datetime.now(timezone.utc) - progress.started_at
-                    ).total_seconds()
+        progress.current_epoch = config.num_epochs
+        progress.current_step = int(metrics.get("global_step", 0))
+        if "train_loss" in metrics:
+            progress.training_loss = float(metrics["train_loss"])
+        progress.metrics = {
+            k: float(v) for k, v in metrics.items() if isinstance(v, (int, float))
+        }
+        if progress.started_at is not None:
+            progress.elapsed_time = (
+                datetime.now(timezone.utc) - progress.started_at
+            ).total_seconds()
 
-                # Simulate validation
-                if step % 20 == 0:
-                    progress.status = TrainingStatus.VALIDATING
-                    progress.validation_loss = progress.training_loss + 0.1
-                    await asyncio.sleep(0.1)
-                    progress.status = TrainingStatus.TRAINING
-
-                await asyncio.sleep(0.05)
-
-            # Save checkpoint
-            await self._save_checkpoint(job_id, epoch)
+        await self._save_checkpoint(job_id, config.num_epochs)
 
     async def _save_checkpoint(self, job_id: str, epoch: int) -> None:
         """
-        Save training checkpoint
+        Save the fine-tuned model checkpoint.
 
         Args:
             job_id: Job ID
@@ -288,8 +388,16 @@ class ModelFineTuner:
         checkpoint_path = self.checkpoints_dir / job_id / f"checkpoint_epoch_{epoch}"
         checkpoint_path.mkdir(parents=True, exist_ok=True)
 
-        # In real implementation, would save actual model weights
-        logger.info(f"Checkpoint saved for job {job_id}, epoch {epoch}")
+        state = self._training_state.get(job_id)
+        model = state.get("model") if state else None
+        tokenizer = state.get("tokenizer") if state else None
+        if model is None:
+            raise RuntimeError(f"cannot save checkpoint for job {job_id}: model not loaded")
+
+        saved = await asyncio.to_thread(model.save_pretrained, str(checkpoint_path))
+        if tokenizer is not None:
+            await asyncio.to_thread(tokenizer.save_pretrained, str(checkpoint_path))
+        logger.info(f"Checkpoint saved for job {job_id}, epoch {epoch} at {saved or checkpoint_path}")
 
     def get_training_progress(self, job_id: str) -> Optional[Dict[str, Any]]:
         """

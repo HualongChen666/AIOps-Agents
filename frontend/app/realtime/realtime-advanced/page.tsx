@@ -25,6 +25,11 @@ interface RealtimeStream {
   meta_data: Record<string, any> | null
 }
 
+/**
+ * 编辑态：config 在表单中以 JSON 文本编辑，提交前再 JSON.parse。
+ */
+type RealtimeStreamEdit = Omit<RealtimeStream, 'config'> & { config: string }
+
 interface RealtimeEvent {
   id: number
   stream_id: string | null
@@ -50,7 +55,7 @@ export default function RealtimeAdvancedPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('streams')
   const [isCreating, setIsCreating] = useState(false)
-  const [editingStream, setEditingStream] = useState<RealtimeStream | null>(null)
+  const [editingStream, setEditingStream] = useState<RealtimeStreamEdit | null>(null)
   const [newStream, setNewStream] = useState({
     name: '',
     description: '',
@@ -202,7 +207,7 @@ export default function RealtimeAdvancedPage() {
   const handleUpdateStream = () => {
     if (!editingStream) return
     try {
-      const config = JSON.parse(editingStream.config as any)
+      const config = JSON.parse(editingStream.config)
       updateStreamMutation.mutate({
         streamId: editingStream.id,
         data: {
@@ -343,7 +348,7 @@ export default function RealtimeAdvancedPage() {
                             placeholder="数据源"
                           />
                           <textarea
-                            value={editingStream.config as any}
+                            value={editingStream.config}
                             onChange={(e) => setEditingStream({ ...editingStream, config: e.target.value })}
                             className="w-full px-3 py-2 border rounded-md"
                             rows={3}
@@ -368,7 +373,7 @@ export default function RealtimeAdvancedPage() {
                               </span>
                             </div>
                             <div className="flex gap-2">
-                              <Button onClick={() => setEditingStream(stream)} variant="ghost" size="sm">
+                              <Button onClick={() => setEditingStream({ ...stream, config: JSON.stringify(stream.config ?? {}, null, 2) })} variant="ghost" size="sm">
                                 编辑
                               </Button>
                               <Button

@@ -362,7 +362,7 @@ describe('HistorySearch Component', () => {
             id: '1', 
             script_name: 'Test', 
             script_key: 'test',
-            output: 'Test',
+            output: 'Test output',
             time: '2024-01-01T00:00:00Z',
             success: true
           }] 
@@ -387,7 +387,6 @@ describe('HistorySearch Component', () => {
           total: 1, 
           records: [{ 
             id: '1',
-            script_key: 'test',
             output: 'Test',
             time: '2024-01-01T00:00:00Z',
             success: true
@@ -423,7 +422,7 @@ describe('HistorySearch Component', () => {
             id: '1', 
             script_name: 'Test', 
             script_key: 'test',
-            output: 'Test',
+            output: 'Test output',
             time: '2024-01-01T00:00:00Z',
             success: true
           }] 
@@ -433,7 +432,7 @@ describe('HistorySearch Component', () => {
       renderWithQueryClient(<HistorySearch />);
       
       await waitFor(() => {
-        const record = screen.getByText('Test').closest('div');
+        const record = screen.getByText('Test').closest('div.cursor-pointer');
         expect(record).toHaveClass('cursor-pointer');
       });
     });

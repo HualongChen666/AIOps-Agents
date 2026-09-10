@@ -6,11 +6,11 @@ services:
 
   security-scanning:
     build:
-      context: ../..
-      dockerfile: services/security_scanning_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/security/security_scanning_service/Dockerfile
     command: [
       "uvicorn",
-      "services.security_scanning_service.main_app:app",
+      "extensions.addons.security.security_scanning_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9563",
     ]

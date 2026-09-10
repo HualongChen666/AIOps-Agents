@@ -6,11 +6,11 @@ services:
 
   velero-backup:
     build:
-      context: ../..
-      dockerfile: services/velero_backup_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/velero_backup_service/Dockerfile
     command: [
       "uvicorn",
-      "services.velero_backup_service.main_app:app",
+      "extensions.addons.infrastructure.velero_backup_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9543",
     ]

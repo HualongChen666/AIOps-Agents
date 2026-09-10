@@ -149,14 +149,15 @@ def _classify_action(text: str) -> tuple[ActionType, dict[str, Any]]:
             # In production, this should be async
             import asyncio
             try:
-                loop = asyncio.get_event_loop()
-                allowed = loop.run_until_complete(rate_limiter.acquire())
+                asyncio.get_running_loop()
+                # Inside a running event loop we cannot block on the limiter;
+                # the async caller performs rate limiting itself.
+            except RuntimeError:
+                # Synchronous context: drive the limiter to completion.
+                allowed = asyncio.run(rate_limiter.acquire())
                 if not allowed:
                     logger.warning("Rate limit exceeded for chat command processing")
                     return _keyword_classify_action(text)
-            except RuntimeError:
-                # No event loop, skip rate limiting for now
-                pass
             
             nlp_processor = get_enhanced_nlp_processor()
             intent_analysis = nlp_processor.analyze_intent(text)

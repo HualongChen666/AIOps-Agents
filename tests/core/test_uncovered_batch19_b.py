@@ -290,45 +290,70 @@ async def test_audit_auto_collection_and_handlers(audit_instance, monkeypatch):
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def fake_grpc_server(monkeypatch):
-    """Replace grpc.server and ThreadPoolExecutor with fakes."""
-    monkeypatch.setattr(grpc_server.futures, "ThreadPoolExecutor", MagicMock())
-
+    """Replace grpc.aio.server with a fake and stub the servicer registration."""
     fake_server = MagicMock()
-    fake_server.add_insecure_port = MagicMock(return_value=None)
-    fake_server.start = MagicMock(return_value=None)
-    fake_server.stop = MagicMock(return_value=None)
+    fake_server.add_insecure_port = MagicMock(return_value=1234)
+    fake_server.start = AsyncMock(return_value=None)
+    fake_server.stop = AsyncMock(return_value=None)
     fake_server.wait_for_termination = AsyncMock(return_value=None)
 
     fake_grpc = MagicMock()
-    fake_grpc.server = MagicMock(return_value=fake_server)
+    fake_grpc.aio.server = MagicMock(return_value=fake_server)
     monkeypatch.setattr(grpc_server, "grpc", fake_grpc)
+    monkeypatch.setattr(
+        grpc_server.aiops_pb2_grpc,
+        "add_AIOpsServiceServicer_to_server",
+        MagicMock(),
+    )
     return fake_server
 
 
 @pytest.mark.asyncio
-async def test_grpc_server_start_stop_wait(fake_grpc_server):
+async def test_grpc_server_start_stop_wait(fake_grpc_server, monkeypatch):
+    registered = MagicMock()
+    monkeypatch.setattr(
+        grpc_server.aiops_pb2_grpc,
+        "add_AIOpsServiceServicer_to_server",
+        registered,
+    )
+
     server = grpc_server.AIOpsGrpcServer(host="0.0.0.0", port=1234, max_workers=4)
     await server.start()
+
     assert server._server is fake_grpc_server
+    registered.assert_called_once()
     fake_grpc_server.add_insecure_port.assert_called_once_with("0.0.0.0:1234")
-    fake_grpc_server.start.assert_called_once()
+    fake_grpc_server.start.assert_awaited_once()
 
     await server.wait_for_termination()
     fake_grpc_server.wait_for_termination.assert_awaited_once()
 
     await server.stop()
-    fake_grpc_server.stop.assert_called_once_with(grace=5)
+    fake_grpc_server.stop.assert_awaited_once_with(5.0)
+
+
+@pytest.mark.asyncio
+async def test_grpc_server_start_is_idempotent(fake_grpc_server, capsys):
+    server = grpc_server.AIOpsGrpcServer(host="0.0.0.0", port=1234)
+    await server.start()
+    await server.start()  # second call is a no-op
+    assert fake_grpc_server.start.await_count == 1
 
 
 @pytest.mark.asyncio
 async def test_grpc_server_start_failure(monkeypatch):
-    monkeypatch.setattr(grpc_server.futures, "ThreadPoolExecutor", MagicMock())
+    """Binding to a port that yields 0 must raise."""
+    fake_server = MagicMock()
+    fake_server.add_insecure_port = MagicMock(return_value=0)
     fake_grpc = MagicMock()
-    fake_grpc.server = MagicMock(side_effect=RuntimeError("bind failed"))
+    fake_grpc.aio.server = MagicMock(return_value=fake_server)
     monkeypatch.setattr(grpc_server, "grpc", fake_grpc)
+    monkeypatch.setattr(
+        grpc_server.aiops_pb2_grpc, "add_AIOpsServiceServicer_to_server", MagicMock()
+    )
 
-    server = grpc_server.AIOpsGrpcServer()
-    with pytest.raises(RuntimeError, match="bind failed"):
+    server = grpc_server.AIOpsGrpcServer(host="0.0.0.0", port=1)
+    with pytest.raises(RuntimeError, match="Failed to bind"):
         await server.start()
 
 

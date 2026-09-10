@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``integration_helpers`` module.
+
+Top-level functions: apply_enhanced_retry_to_function, enhance_notify_engine, enhance_ai_engine, enhance_db_engine, apply_all_enhancements"""
+
 # core/integration_helpers.py
 # P0/P1/P2增强功能集成辅助模块
 #

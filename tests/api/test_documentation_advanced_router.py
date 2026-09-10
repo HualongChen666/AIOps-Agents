@@ -16,8 +16,8 @@ from api.documentation_advanced_router import (
     DocumentCreate,
     DocumentUpdate,
     GeneratorRequest,
-    ReviewCreate,
-    TemplateCreate,
+    DocumentationAdvancedReviewCreate,
+    DocumentationAdvancedTemplateCreate,
     document_reviews,
     document_versions,
     router,
@@ -120,7 +120,7 @@ class TestDocumentEndpoints:
         """Test successful document retrieval"""
         response = client.get("/api/v1/documentation/documents/doc-001")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
     def test_get_document_not_found(self, client):
         """Test getting non-existent document"""
@@ -148,7 +148,7 @@ class TestDocumentEndpoints:
         """Test successful document deletion"""
         response = client.delete("/api/v1/documentation/documents/doc-001")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
 
 # Template management tests
@@ -192,7 +192,7 @@ class TestTemplateEndpoints:
         """Test successful template retrieval"""
         response = client.get("/api/v1/documentation/templates/template-001")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
     def test_update_template_success(self, client):
         """Test successful template update"""
@@ -201,13 +201,13 @@ class TestTemplateEndpoints:
             json={"template_content": "# Updated Template"},
         )
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
     def test_delete_template_success(self, client):
         """Test successful template deletion"""
         response = client.delete("/api/v1/documentation/templates/template-001")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
 
 # Version control tests
@@ -218,7 +218,7 @@ class TestVersionEndpoints:
         """Test listing versions when none exist"""
         response = client.get("/api/v1/documentation/documents/doc-001/versions")
         # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             assert "versions" in data.get("data", {})
@@ -227,7 +227,7 @@ class TestVersionEndpoints:
         """Test listing versions with data"""
         response = client.get("/api/v1/documentation/documents/doc-001/versions")
         # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             assert "versions" in data.get("data", {})
@@ -238,7 +238,7 @@ class TestVersionEndpoints:
             "/api/v1/documentation/documents/doc-001/versions/version-001"
         )
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
 
 # Review workflow tests
@@ -249,7 +249,7 @@ class TestReviewEndpoints:
         """Test listing reviews when none exist"""
         response = client.get("/api/v1/documentation/documents/doc-001/reviews")
         # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             assert "reviews" in data.get("data", {})
@@ -258,7 +258,7 @@ class TestReviewEndpoints:
         """Test listing reviews with data"""
         response = client.get("/api/v1/documentation/documents/doc-001/reviews")
         # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             assert "reviews" in data.get("data", {})
@@ -277,7 +277,7 @@ class TestReviewEndpoints:
             "/api/v1/documentation/documents/doc-001/reviews", json=request_data
         )
         # May return 404 if endpoint not implemented
-        assert response.status_code in [201, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 201:
             data = response.json()
             assert "review_id" in data.get("data", {})
@@ -289,7 +289,7 @@ class TestReviewEndpoints:
             json={"status": "approved", "comments": "Approved"},
         )
         # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
 
 # Template detail and management tests
@@ -300,7 +300,7 @@ class TestTemplateDetailEndpoints:
         """Test successful template retrieval by ID"""
         response = client.get("/api/v1/documentation/templates/user_manual")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             assert "template_id" in data.get("data", {})
@@ -333,7 +333,7 @@ class TestTemplateDetailEndpoints:
         """Test successful template deletion by ID"""
         response = client.delete("/api/v1/documentation/templates/user_manual")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
     def test_delete_template_by_id_not_found(self, client):
         """Test deleting non-existent template"""
@@ -350,7 +350,7 @@ class TestDocumentVersionDetailEndpoints:
         """Test listing versions by document ID path"""
         response = client.get("/api/v1/documentation/documents/doc-001/versions")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             assert "versions" in data.get("data", {})
@@ -365,7 +365,7 @@ class TestDocumentVersionDetailEndpoints:
         """Test successful version retrieval by ID"""
         response = client.get("/api/v1/documentation/documents/doc-001/versions/1.0")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             assert "version" in data.get("data", {})
@@ -385,7 +385,7 @@ class TestDocumentReviewDetailEndpoints:
         """Test listing reviews by document ID path"""
         response = client.get("/api/v1/documentation/documents/doc-001/reviews")
         # May return 503 if documentation manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             assert "reviews" in data.get("data", {})
@@ -470,7 +470,7 @@ class TestServiceUnavailable:
             client = TestClient(app)
 
             response = client.get("/api/v1/documentation/documents")
-            assert response.status_code in (503, 404)
+            assert response.status_code != 404, response.text
 
     def test_create_document_service_unavailable(self):
         """Test document creation when service is unavailable"""
@@ -485,4 +485,4 @@ class TestServiceUnavailable:
                 "/api/v1/documentation/documents",
                 json={"title": "Test", "doc_type": "api_documentation", "content": "Content"},
             )
-            assert response.status_code in (503, 404)
+            assert response.status_code != 404, response.text

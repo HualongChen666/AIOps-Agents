@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select-shadcn';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -135,6 +135,27 @@ interface RepairAnalytics {
     execution_count: number;
   }>;
   generated_at: string;
+}
+
+// ============================================================
+// Shared platform icon renderer (used by the page and its forms)
+// ============================================================
+
+function getPlatformIcon(type: string) {
+  switch (type) {
+    case 'linux':
+      return <Server className="h-4 w-4" />;
+    case 'windows':
+      return <Cpu className="h-4 w-4" />;
+    case 'docker':
+      return <Zap className="h-4 w-4" />;
+    case 'kubernetes':
+      return <Globe className="h-4 w-4" />;
+    case 'cloud':
+      return <Globe className="h-4 w-4" />;
+    default:
+      return <Server className="h-4 w-4" />;
+  }
 }
 
 // ============================================================
@@ -511,23 +532,6 @@ export default function UnifiedRepairAdvancedPage() {
         return 'bg-red-100 text-red-800';
       default:
         return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getPlatformIcon = (type: string) => {
-    switch (type) {
-      case 'linux':
-        return <Server className="h-4 w-4" />;
-      case 'windows':
-        return <Cpu className="h-4 w-4" />;
-      case 'docker':
-        return <Zap className="h-4 w-4" />;
-      case 'kubernetes':
-        return <Globe className="h-4 w-4" />;
-      case 'cloud':
-        return <Globe className="h-4 w-4" />;
-      default:
-        return <Server className="h-4 w-4" />;
     }
   };
 

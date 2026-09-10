@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``auth_middleware`` module.
+
+Top-level classes: Permission
+
+Top-level functions: get_current_user, require_permission, require_role, require_admin, check_permission, check_role"""
+
 # core/middleware/auth_middleware.py
 # JWT认证中间件和RBAC权限控制系统
 

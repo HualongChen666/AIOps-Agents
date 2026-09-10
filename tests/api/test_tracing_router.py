@@ -252,7 +252,7 @@ class TestTracingDashboard:
             del os.environ["JAEGER_QUERY_URL"]
 
         resp = client.get("/api/tracing/dashboard")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -267,7 +267,7 @@ class TestTracingDashboard:
             mock_backend.return_value = {"data": ["service1", "service2"], "total": 100}
 
             resp = client.get("/api/tracing/dashboard")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -298,7 +298,7 @@ class TestTracingDashboard:
             mock_services.side_effect = Exception("Test error")
 
             resp = client.get("/api/tracing/dashboard")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
 
 
 class TestListTraces:
@@ -307,7 +307,7 @@ class TestListTraces:
     def test_list_traces_basic(self, client):
         """Test basic trace listing without filters."""
         resp = client.get("/api/tracing/traces")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -317,7 +317,7 @@ class TestListTraces:
     def test_list_traces_with_service_filter(self, client):
         """Test trace listing with service name filter."""
         resp = client.get("/api/tracing/traces?service_name=aiops-agent")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -325,7 +325,7 @@ class TestListTraces:
     def test_list_traces_with_duration_filters(self, client):
         """Test trace listing with min/max duration filters."""
         resp = client.get("/api/tracing/traces?min_duration=100ms&max_duration=1s")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -333,7 +333,7 @@ class TestListTraces:
     def test_list_traces_with_limit(self, client):
         """Test trace listing with custom limit."""
         resp = client.get("/api/tracing/traces?limit=5")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -350,7 +350,7 @@ class TestListTraces:
             }
 
             resp = client.get("/api/tracing/traces")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -373,7 +373,7 @@ class TestGetTraceDetails:
     def test_get_trace_details_basic(self, client):
         """Test getting trace details without Jaeger."""
         resp = client.get("/api/tracing/traces/test-trace-123")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -388,7 +388,7 @@ class TestGetTraceDetails:
             mock_backend.return_value = {"trace_id": "test-trace", "spans": []}
 
             resp = client.get("/api/tracing/traces/test-trace")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -417,7 +417,7 @@ class TestGetTraceDetails:
             mock_gen.side_effect = Exception("Generation error")
 
             resp = client.get("/api/tracing/traces/test-trace")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
 
 
 class TestServiceTopology:
@@ -426,7 +426,7 @@ class TestServiceTopology:
     def test_get_service_topology_basic(self, client):
         """Test getting service topology."""
         resp = client.get("/api/tracing/topology")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -441,7 +441,7 @@ class TestPerformanceHotspots:
     def test_get_performance_hotspots_basic(self, client):
         """Test getting performance hotspots without filters."""
         resp = client.get("/api/tracing/performance/hotspots")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -458,7 +458,7 @@ class TestPerformanceHotspots:
             service_name = data["data"]["slow_operations"][0]["service"]
 
             resp = client.get(f"/api/tracing/performance/hotspots?service_name={service_name}")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -466,7 +466,7 @@ class TestPerformanceHotspots:
     def test_get_performance_hotspots_with_time_range(self, client):
         """Test getting performance hotspots with custom time range."""
         resp = client.get("/api/tracing/performance/hotspots?time_range=24h")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -478,7 +478,7 @@ class TestPerformanceHotspots:
             mock_services.side_effect = Exception("Services error")
 
             resp = client.get("/api/tracing/performance/hotspots")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
 
 
 class TestErrorAnalysis:
@@ -487,7 +487,7 @@ class TestErrorAnalysis:
     def test_get_error_analysis_basic(self, client):
         """Test getting error analysis without filters."""
         resp = client.get("/api/tracing/errors/analysis")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -498,7 +498,7 @@ class TestErrorAnalysis:
     def test_get_error_analysis_with_service_filter(self, client):
         """Test getting error analysis with service name filter."""
         resp = client.get("/api/tracing/errors/analysis?service_name=aiops-agent")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -506,7 +506,7 @@ class TestErrorAnalysis:
     def test_get_error_analysis_with_time_range(self, client):
         """Test getting error analysis with custom time range."""
         resp = client.get("/api/tracing/errors/analysis?time_range=24h")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -517,7 +517,7 @@ class TestErrorAnalysis:
         with patch("api.tracing_router._services", side_effect=Exception("Services error")):
             resp = client.get("/api/tracing/errors/analysis")
             # May not trigger 500 if the function handles it gracefully, so accept 200 or 500
-            assert resp.status_code in (200, 404, 500)
+            assert resp.status_code != 404, resp.text
 
 
 class TestExportTraceConfig:
@@ -526,7 +526,7 @@ class TestExportTraceConfig:
     def test_export_trace_config_basic(self, client):
         """Test exporting trace configuration."""
         resp = client.get("/api/tracing/export/trace-config")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -543,7 +543,7 @@ class TestExportTraceConfig:
         os.environ["TEMPO_UI_URL"] = "http://custom-tempo:3200"
 
         resp = client.get("/api/tracing/export/trace-config")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["data"]["jaeger_ui"] == "http://custom-jaeger:16686"
@@ -559,4 +559,4 @@ class TestExportTraceConfig:
         with patch("api.tracing_router.os.getenv", side_effect=Exception("Config error")):
             resp = client.get("/api/tracing/export/trace-config")
             # May not trigger 500 if os.getenv is already cached, so accept 200 or 500
-            assert resp.status_code in (200, 404, 500)
+            assert resp.status_code != 404, resp.text

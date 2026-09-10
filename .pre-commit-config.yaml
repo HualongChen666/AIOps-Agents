@@ -19,7 +19,7 @@
 
 # Default configuration for all hooks
 default_language_version:
-  python: python3.10
+  python: python3.12
 
 # Exclude patterns for all hooks
 exclude: |
@@ -84,8 +84,8 @@ repos:
       - id: black
         name: Black - Python Code Formatter
         description: The uncompromising Python code formatter
-        # language_version is set to python3.10 to match project requirement
-        language_version: python3.10
+        # language_version is set to python3.12 to match project requirement
+        language_version: python3.12
         # Black will automatically read configuration from pyproject.toml
         # No args needed - it will use line-length=100 from pyproject.toml
         # To explicitly use config file, uncomment the line below:

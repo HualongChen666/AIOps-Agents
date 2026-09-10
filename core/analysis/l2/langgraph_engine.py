@@ -6,7 +6,7 @@ Provides advanced AI orchestration using LangGraph for stateful, multi-step anal
 
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, TypedDict
 
@@ -122,7 +122,7 @@ class LangGraphAnalysisEngine:
 
         try:
             # Align time window across all observability sources and account for scrape/index delay.
-            end = datetime.utcnow()
+            end = datetime.now(timezone.utc).replace(tzinfo=None)
             start, end = align_time_window(
                 end=end,
                 duration_seconds=3600.0,

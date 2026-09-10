@@ -12,8 +12,8 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from api.service_monitoring_advanced_router import (
-    AlertCreate,
-    AlertUpdate,
+    ServiceMonitoringAdvancedAlertCreate,
+    ServiceMonitoringAdvancedAlertUpdate,
     DashboardCreate,
     DashboardUpdate,
     router,
@@ -139,7 +139,7 @@ class TestListMonitoredServices:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/services")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -157,7 +157,7 @@ class TestListMonitoredServices:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/services?status=active")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -171,7 +171,7 @@ class TestListMonitoredServices:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/services?limit=2&offset=0")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert len(data["data"]["services"]) <= 2
@@ -196,7 +196,7 @@ class TestListMonitoredServices:
             mock_get_manager.side_effect = Exception("Manager error")
 
             response = client.get("/api/v1/service-monitoring/services")
-            assert response.status_code in (500, 404)
+            assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -215,7 +215,7 @@ class TestGetMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/metrics")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -230,7 +230,7 @@ class TestGetMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/metrics?service_name=service-1")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -243,7 +243,7 @@ class TestGetMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/metrics?metric_name=cpu_usage")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -256,7 +256,7 @@ class TestGetMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/metrics?time_range_hours=24")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["data"]["time_range_hours"] == 24
@@ -269,7 +269,7 @@ class TestGetMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/metrics?aggregation=avg")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["data"]["aggregation"] == "avg"
@@ -284,7 +284,7 @@ class TestGetMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/metrics?aggregation=min")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["data"]["aggregation"] == "min"
@@ -297,7 +297,7 @@ class TestGetMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/metrics?aggregation=max")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["data"]["aggregation"] == "max"
@@ -310,7 +310,7 @@ class TestGetMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/metrics?aggregation=sum")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["data"]["aggregation"] == "sum"
@@ -333,7 +333,7 @@ class TestGetMetrics:
             mock_get_manager.side_effect = Exception("Manager error")
 
             response = client.get("/api/v1/service-monitoring/metrics")
-            assert response.status_code in (500, 404)
+            assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -352,7 +352,7 @@ class TestGetHealthStatus:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/health")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -366,7 +366,7 @@ class TestGetHealthStatus:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/health?service_name=service-1")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -379,7 +379,7 @@ class TestGetHealthStatus:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/health?include_details=true")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -395,7 +395,7 @@ class TestGetHealthStatus:
             mock_get_manager.side_effect = Exception("Manager error")
 
             response = client.get("/api/v1/service-monitoring/health")
-            assert response.status_code in (500, 404)
+            assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -414,7 +414,7 @@ class TestGetSlaMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/sla")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -428,7 +428,7 @@ class TestGetSlaMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/sla?service_name=service-1")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -441,7 +441,7 @@ class TestGetSlaMetrics:
             mock_get_manager.return_value = mock_service_monitoring_manager
 
             response = client.get("/api/v1/service-monitoring/sla?time_range_hours=48")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["data"]["sla_metrics"][0]["time_range_hours"] == 48
@@ -464,7 +464,7 @@ class TestGetSlaMetrics:
             mock_get_manager.side_effect = Exception("Manager error")
 
             response = client.get("/api/v1/service-monitoring/sla")
-            assert response.status_code in (500, 404)
+            assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -490,14 +490,14 @@ class TestAlertCRUD:
 
         response = client.post("/api/v1/service-monitoring/alerts", json=request_data)
         # API might not have this endpoint, just verify response
-        assert response.status_code in [200, 201, 404, 405]
+        assert response.status_code != 404, response.text
 
     def test_get_alerts_empty(self, client):
         """Test getting alerts when none exist"""
         # Database is cleaned up by autouse fixture
         response = client.get("/api/v1/service-monitoring/alerts")
         # API might not have this endpoint
-        assert response.status_code in [200, 404, 405]
+        assert response.status_code != 404, response.text
 
     def test_get_alerts_with_data(self, client, db_session, sample_alert):
         """Test getting alerts with data"""
@@ -520,7 +520,7 @@ class TestAlertCRUD:
 
         response = client.get("/api/v1/service-monitoring/alerts")
         # API might not have this endpoint
-        assert response.status_code in [200, 404, 405]
+        assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -545,14 +545,14 @@ class TestDashboardCRUD:
 
         response = client.post("/api/v1/service-monitoring/dashboards", json=request_data)
         # API might not have this endpoint
-        assert response.status_code in [200, 201, 404, 405]
+        assert response.status_code != 404, response.text
 
     def test_get_dashboards_empty(self, client):
         """Test getting dashboards when none exist"""
         # Database is cleaned up by autouse fixture
         response = client.get("/api/v1/service-monitoring/dashboards")
         # API might not have this endpoint
-        assert response.status_code in [200, 404, 405]
+        assert response.status_code != 404, response.text
 
     def test_get_dashboards_with_data(self, client, db_session, sample_dashboard):
         """Test getting dashboards with data"""
@@ -571,4 +571,4 @@ class TestDashboardCRUD:
 
         response = client.get("/api/v1/service-monitoring/dashboards")
         # API might not have this endpoint
-        assert response.status_code in [200, 404, 405]
+        assert response.status_code != 404, response.text

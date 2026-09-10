@@ -37,8 +37,6 @@ router = APIRouter(prefix="/api/v1/topology", tags=["Advanced Topology Managemen
 # Additional router for /api/topology prefix (for frontend compatibility)
 router_alt = APIRouter(prefix="/api/topology", tags=["Topology"])
 
-# Additional router for /api/v1/topology prefix (exact match for requirements)
-router_v1 = APIRouter(prefix="/api/v1/topology", tags=["Topology V1"])
 
 # ============================================================
 # In-memory data stores (in production, use database)
@@ -1397,8 +1395,6 @@ async def delete_topology_alt(topology_id: str) -> Dict[str, Any]:
 # V1 Router - Exact API paths as required
 # ============================================================
 
-
-@router_v1.get("/graph", summary="Get topology graph (V1)")
 async def get_topology_graph_v1(
     layer: Optional[str] = Query(None, description="Filter by layer"),
     status: Optional[str] = Query(None, description="Filter by status"),
@@ -1406,8 +1402,6 @@ async def get_topology_graph_v1(
     """Retrieve the complete topology graph with nodes and edges"""
     return await get_topology_graph(layer=layer, status=status)
 
-
-@router_v1.get("/nodes", summary="Get all topology nodes (V1)")
 async def get_nodes_v1(
     layer: Optional[str] = Query(None, description="Filter by layer"),
     status: Optional[str] = Query(None, description="Filter by status"),
@@ -1416,8 +1410,6 @@ async def get_nodes_v1(
     """Retrieve all topology nodes with optional filtering"""
     return await get_nodes(layer=layer, status=status, type=type)
 
-
-@router_v1.get("/edges", summary="Get all topology edges (V1)")
 async def get_edges_v1(
     source: Optional[str] = Query(None, description="Filter by source node"),
     target: Optional[str] = Query(None, description="Filter by target node"),
@@ -1426,14 +1418,10 @@ async def get_edges_v1(
     """Retrieve all topology edges with optional filtering"""
     return await get_edges(source=source, target=target, type=type)
 
-
-@router_v1.get("/layers", summary="Get all topology layers (V1)")
 async def get_layers_v1() -> Dict[str, Any]:
     """Retrieve all topology layers"""
     return await get_layers()
 
-
-@router_v1.get("/dependencies", summary="Get all dependencies (V1)")
 async def get_dependencies_v1(
     source: Optional[str] = Query(None, description="Filter by source"),
     target: Optional[str] = Query(None, description="Filter by target"),
@@ -1442,8 +1430,12 @@ async def get_dependencies_v1(
     """Retrieve all dependency relationships with optional filtering"""
     return await get_dependencies(source=source, target=target, type=type)
 
-
-@router_v1.get("/visualization", summary="Get visualization configuration (V1)")
 async def get_visualization_config_v1() -> Dict[str, Any]:
     """Retrieve the current visualization configuration"""
     return await get_visualization_config()
+
+
+# Wave2 #23: ``router_v1`` used to register the SAME paths as ``router``
+# under an identical prefix.  The duplicate routes were merged into
+# ``router``; the export is preserved as an alias to avoid double mounting.
+router_v1 = router

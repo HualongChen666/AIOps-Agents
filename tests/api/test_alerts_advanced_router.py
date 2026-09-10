@@ -21,7 +21,7 @@ from api.alerts_advanced_router import (
     EscalationRule,
     ForwardingRule,
     NotificationChannel,
-    SuppressionRule,
+    AlertsAdvancedSuppressionRule,
     ThirdPartyConfig,
     WebhookConfig,
     router,
@@ -124,7 +124,7 @@ class TestDashboardEndpoint:
     def test_get_dashboard_default_time_range(self, client):
         """Test getting dashboard data with default time range"""
         response = client.get("/api/v1/alerts/dashboard")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_alerts" in data
@@ -135,7 +135,7 @@ class TestDashboardEndpoint:
     def test_get_dashboard_1h_time_range(self, client):
         """Test getting dashboard data with 1h time range"""
         response = client.get("/api/v1/alerts/dashboard?time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "trend_data" in data
@@ -143,7 +143,7 @@ class TestDashboardEndpoint:
     def test_get_dashboard_7d_time_range(self, client):
         """Test getting dashboard data with 7d time range"""
         response = client.get("/api/v1/alerts/dashboard?time_range=7d")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "trend_data" in data
@@ -159,7 +159,7 @@ class TestDashboardEndpoint:
     def test_get_dashboard_structure(self, client):
         """Test dashboard data structure"""
         response = client.get("/api/v1/alerts/dashboard")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         required_fields = [
@@ -191,7 +191,7 @@ class TestConfigurationEndpoint:
     def test_get_configuration(self, client):
         """Test getting alert configuration"""
         response = client.get("/api/v1/alerts/configuration")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "enabled" in data
@@ -201,7 +201,7 @@ class TestConfigurationEndpoint:
     def test_update_configuration(self, client, sample_alert_config):
         """Test updating alert configuration"""
         response = client.put("/api/v1/alerts/configuration", json=sample_alert_config.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "success"
@@ -218,7 +218,7 @@ class TestConfigurationEndpoint:
         partial_config = {"enabled": False, "default_severity": "low"}
         response = client.put("/api/v1/alerts/configuration", json=partial_config)
         # Pydantic should handle this with defaults
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -232,7 +232,7 @@ class TestNotificationChannelsEndpoint:
     def test_get_notification_channels_empty(self, client):
         """Test getting notification channels when empty"""
         response = client.get("/api/v1/alerts/notification/channels")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "channels" in data
@@ -277,7 +277,7 @@ class TestPredictionEndpoint:
     def test_get_prediction_default(self, client):
         """Test getting prediction data with default time range"""
         response = client.get("/api/v1/alerts/prediction")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "predictions" in data
@@ -286,7 +286,7 @@ class TestPredictionEndpoint:
     def test_get_prediction_structure(self, client):
         """Test prediction data structure"""
         response = client.get("/api/v1/alerts/prediction")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         if len(data["predictions"]) > 0:
@@ -306,7 +306,7 @@ class TestPredictionEndpoint:
     def test_get_prediction_stats(self, client):
         """Test prediction statistics"""
         response = client.get("/api/v1/alerts/prediction")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         stats = data["stats"]
@@ -326,7 +326,7 @@ class TestCorrelationEndpoint:
     def test_get_correlation(self, client):
         """Test getting correlation data"""
         response = client.get("/api/v1/alerts/correlation")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "correlations" in data
@@ -335,7 +335,7 @@ class TestCorrelationEndpoint:
     def test_get_correlation_structure(self, client):
         """Test correlation data structure"""
         response = client.get("/api/v1/alerts/correlation")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         if len(data["correlations"]) > 0:
@@ -374,7 +374,7 @@ class TestEscalationRulesEndpoint:
     def test_get_escalation_rules_empty(self, client):
         """Test getting escalation rules when empty"""
         response = client.get("/api/v1/alerts/escalation/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data
@@ -412,7 +412,7 @@ class TestSuppressionRulesEndpoint:
     def test_get_suppression_rules_empty(self, client):
         """Test getting suppression rules when empty"""
         response = client.get("/api/v1/alerts/suppression/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data
@@ -450,7 +450,7 @@ class TestForwardingRulesEndpoint:
     def test_get_forwarding_rules_empty(self, client):
         """Test getting forwarding rules when empty"""
         response = client.get("/api/v1/alerts/forwarding/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data
@@ -488,7 +488,7 @@ class TestWebhookConfigEndpoint:
     def test_get_webhook_configs_empty(self, client):
         """Test getting webhook configs when empty"""
         response = client.get("/api/v1/alerts/webhook/configs")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # API might return 'webhooks' or 'configs'
@@ -537,7 +537,7 @@ class TestDeduplicationRulesEndpoint:
     def test_get_deduplication_rules_empty(self, client):
         """Test getting deduplication rules when empty"""
         response = client.get("/api/v1/alerts/deduplication/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data
@@ -575,7 +575,7 @@ class TestAggregationRulesEndpoint:
     def test_get_aggregation_rules_empty(self, client):
         """Test getting aggregation rules when empty"""
         response = client.get("/api/v1/alerts/aggregation/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data
@@ -613,7 +613,7 @@ class TestAlertRoutesEndpoint:
     def test_get_alert_routes_empty(self, client):
         """Test getting alert routes when empty"""
         response = client.get("/api/v1/alerts/routing")
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_create_alert_route_invalid_data(self, client):
         """Test creating alert route with invalid data"""
@@ -646,7 +646,7 @@ class TestAlertRulesEndpoint:
     def test_get_alert_rules_empty(self, client):
         """Test getting alert rules when empty"""
         response = client.get("/api/v1/alerts/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data

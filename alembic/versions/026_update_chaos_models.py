@@ -23,7 +23,7 @@ def upgrade():
     with op.batch_alter_table('chaos_scenarios') as batch_op:
         # Add new columns
         batch_op.add_column(sa.Column('experiments', sa.JSON(), nullable=True))
-        batch_op.add_column(sa.Column('enabled', sa.Boolean(), nullable=True, server_default='true'))
+        batch_op.add_column(sa.Column('enabled', sa.Boolean(), nullable=True, server_default=sa.text('true')))
         batch_op.add_column(sa.Column('schedule', sa.String(100), nullable=True))
         
         # Make old columns nullable for backward compatibility
@@ -59,7 +59,7 @@ def upgrade():
     op.execute("""
         UPDATE chaos_scenarios
         SET experiments = '[]',
-            enabled = COALESCE(enabled, 1)
+            enabled = COALESCE(enabled, true)
         WHERE experiments IS NULL
     """)
     

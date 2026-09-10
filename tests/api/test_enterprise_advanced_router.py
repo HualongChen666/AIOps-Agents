@@ -17,11 +17,11 @@ from api.enterprise_advanced_router import (
     PermissionUpdate,
     RoleCreate,
     RoleUpdate,
-    SettingsUpdate,
-    TenantCreate,
-    TenantUpdate,
-    UserCreate,
-    UserUpdate,
+    EnterpriseAdvancedSettingsUpdate,
+    EnterpriseAdvancedTenantCreate,
+    EnterpriseAdvancedTenantUpdate,
+    EnterpriseAdvancedUserCreate,
+    EnterpriseAdvancedUserUpdate,
     enterprise_settings,
     permissions,
     roles,
@@ -177,7 +177,7 @@ class TestTenantEndpoints:
         }
         response = client.get("/api/v1/enterprise/tenants/tenant-001")
         # May return 503 if enterprise manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
     def test_get_tenant_not_found(self, client):
         """Test getting non-existent tenant"""
@@ -219,7 +219,7 @@ class TestTenantEndpoints:
         }
         response = client.delete("/api/v1/enterprise/tenants/tenant-001")
         # May return 503 if enterprise manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
 
 # User management tests

@@ -19,7 +19,11 @@ const customJestConfig = {
   ],
   cache: false,
   clearMocks: true,
-  resetMocks: true,
+  // NOTE: `resetMocks` must stay false. It calls `.mockReset()` on every mock
+  // before each test, which *removes the implementation* of mocks created at
+  // module scope (e.g. `jest.fn(() => ({...}))` in a test file) and made those
+  // factories return `undefined`. `clearMocks` still isolates call history.
+  resetMocks: false,
   restoreMocks: true,
   collectCoverageFrom: [
     'components/**/*.{js,jsx,ts,tsx}',
@@ -32,8 +36,21 @@ const customJestConfig = {
     '!**/jest.setup.js',
     '!**/__tests__/**',
   ],
+  // Measured baseline (2026-09-10, after backfilling component/lib tests):
+  // lines 97.63% / statements 96.7% / functions 97.18% / branches 90.65% over
+  // components/** + lib/** (merged from module batches — see
+  // scripts/run-coverage-batched.js + scripts/merge-coverage.js, because this
+  // host (~1.4 GB RAM, no swap) OOM-kills a single full-suite run).
+  // Thresholds sit ~1.5pt under the measured values so the gate catches real
+  // regressions without failing on run-to-run noise. Previously the object
+  // enforced 43/43/48/50 (baseline lines 44.6%).
   coverageThreshold: {
-    // Remove global threshold, will set per-file thresholds
+    global: {
+      lines: 96,
+      statements: 95,
+      functions: 95,
+      branches: 89,
+    },
   },
   testMatch: [
     '**/__tests__/**/*.[jt]s?(x)',
@@ -42,6 +59,13 @@ const customJestConfig = {
   testPathIgnorePatterns: [
     '/node_modules/',
     '/.next/',
+    // Playwright suites (run via `npm run test:e2e` / `test:visual`).
+    '/__tests__/e2e/',
+    '/__tests__/visual/',
+    '/tests/e2e/',
+    // Shared test fixtures/helpers, not test suites themselves.
+    '/__tests__/mocks/',
+    '/__tests__/setup\\.ts$',
   ],
 }
 

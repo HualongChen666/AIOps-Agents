@@ -52,11 +52,11 @@ export default function ChangeManagementPage() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    type: 'standard' as const,
-    priority: 'medium' as const,
+    type: 'standard',
+    priority: 'medium',
     scheduledStart: '',
     scheduledEnd: '',
-    riskLevel: 'medium' as const,
+    riskLevel: 'medium',
     rollbackPlan: '',
   });
 

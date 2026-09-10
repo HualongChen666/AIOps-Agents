@@ -4,7 +4,7 @@ import AnomalyPage from '@/app/anomaly/page';
 
 // Mock localStorage
 const localStorageMock = {
-  getItem: jest.fn(() => 'test-token'),
+  getItem: jest.fn<string | null, [string]>(() => 'test-token'),
   setItem: jest.fn(),
   removeItem: jest.fn(),
   clear: jest.fn(),

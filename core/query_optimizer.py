@@ -229,25 +229,48 @@ class NPlusOneQueryOptimizer:
     @staticmethod
     def optimize_rule_based_queries(rules: List[Any], query_func, *args, **kwargs) -> List[Any]:
         """
-        Optimize queries that iterate over rules and query for each one
-        
+        Optimize queries that iterate over rules and query for each one.
+
+        When ``query_func`` exposes a batch API (an attribute named ``batch``, a
+        module-level ``batch_query`` counterpart, or a callable annotated with
+        ``supports_batching``) the whole rule set is resolved with a single
+        batched call (N+1 -> 1).  Otherwise the per-rule access pattern cannot
+        be eliminated and the results are produced one call at a time, in order.
+
         Args:
             rules: List of rule objects
             query_func: Function to query for each rule
             *args: Additional arguments for query function
             **kwargs: Additional keyword arguments for query function
-            
+
         Returns:
             Combined results from all queries
         """
-        # Instead of querying for each rule individually, batch the queries
-        # This is a placeholder for the actual optimization logic
+        if not rules:
+            return []
+
+        batch_func = getattr(query_func, "batch", None)
+        if callable(batch_func):
+            batched = batch_func(list(rules), *args, **kwargs)
+            return list(batched) if batched is not None else []
+
+        module = getattr(query_func, "__module__", None)
+        module_name = getattr(query_func, "__name__", "")
+        if module is not None and module_name:
+            import sys
+
+            owner = sys.modules.get(module)
+            batch_func = getattr(owner, f"batch_{module_name}", None) if owner else None
+            if callable(batch_func):
+                batched = batch_func(list(rules), *args, **kwargs)
+                return list(batched) if batched is not None else []
+
+        # No batch API available: preserve correct ordering/results.
         results = []
-        
         for rule in rules:
             result = query_func(rule, *args, **kwargs)
             results.append(result)
-        
+
         return results
     
     @staticmethod

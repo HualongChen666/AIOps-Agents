@@ -6,11 +6,11 @@ services:
 
   api-standards:
     build:
-      context: ../..
-      dockerfile: services/api_standards_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/api_standards_service/Dockerfile
     command: [
       "uvicorn",
-      "services.api_standards_service.main_app:app",
+      "extensions.addons.infrastructure.api_standards_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9558",
     ]

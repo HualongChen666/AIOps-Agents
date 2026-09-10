@@ -6,11 +6,11 @@ services:
 
   datacenter-visualization:
     build:
-      context: ../..
-      dockerfile: services/datacenter_visualization_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/datacenter_visualization_service/Dockerfile
     command: [
       "uvicorn",
-      "services.datacenter_visualization_service.main_app:app",
+      "extensions.addons.infrastructure.datacenter_visualization_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9545",
     ]

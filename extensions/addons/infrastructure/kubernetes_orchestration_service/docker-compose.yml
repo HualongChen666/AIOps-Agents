@@ -6,11 +6,11 @@ services:
 
   kubernetes-orchestration:
     build:
-      context: ../..
-      dockerfile: services/kubernetes_orchestration_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/kubernetes_orchestration_service/Dockerfile
     command: [
       "uvicorn",
-      "services.kubernetes_orchestration_service.main_app:app",
+      "extensions.addons.infrastructure.kubernetes_orchestration_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9537",
     ]

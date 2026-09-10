@@ -20,7 +20,7 @@ def test_login_success(client):
         "/api/v1/auth/login",
         json={"username": "admin", "password": "admin123"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["token_type"] == "bearer"
@@ -49,7 +49,7 @@ def test_me_returns_current_user(client, admin_token):
         "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {admin_token}"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["username"] == "admin"
         assert resp.json()["role"] == "admin"
@@ -70,7 +70,7 @@ def test_user(client, admin_headers):
         },
         headers=admin_headers,
     )
-    assert resp.status_code in (201, 404)
+    assert resp.status_code != 404, resp.text
     user = resp.json()
     yield user
     # Cleanup is best-effort; ignore 404 if already deleted.
@@ -83,7 +83,7 @@ def test_change_password(client, test_user):
         "/api/v1/auth/login",
         json={"username": test_user["username"], "password": "testpass"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         token = resp.json()["access_token"]
 
@@ -92,13 +92,13 @@ def test_change_password(client, test_user):
         json={"old_password": "testpass", "new_password": "newpass123"},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/auth/login",
         json={"username": test_user["username"], "password": "newpass123"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "access_token" in resp.json()
 
@@ -109,7 +109,7 @@ def test_logout_revokes_token(client, test_user):
         "/api/v1/auth/login",
         json={"username": test_user["username"], "password": "testpass"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         token = resp.json()["access_token"]
 
@@ -117,13 +117,13 @@ def test_logout_revokes_token(client, test_user):
         "/api/v1/auth/me",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/auth/logout",
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(
         "/api/v1/auth/me",
@@ -141,7 +141,7 @@ def test_list_users_requires_admin(client):
 def test_list_users(client, admin_headers):
     """Admin can list users and the known admin is present."""
     resp = client.get("/api/v1/users/", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     usernames = {u["username"] for u in resp.json()}
     assert "admin" in usernames
 
@@ -166,7 +166,7 @@ def test_create_user_invalid_role(client, admin_headers):
 def test_get_user(client, admin_headers, test_user):
     """A user can be retrieved by id with an admin token."""
     resp = client.get(f"/api/v1/users/{test_user['id']}", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["username"] == test_user["username"]
 
@@ -178,7 +178,7 @@ def test_update_user_role(client, admin_headers, test_user):
         json={"role": "viewer"},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["role"] == "viewer"
 
@@ -197,12 +197,12 @@ def test_delete_user(client, admin_headers):
         },
         headers=admin_headers,
     )
-    assert resp.status_code in (201, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         user_id = resp.json()["id"]
 
     resp = client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(f"/api/v1/users/{user_id}", headers=admin_headers)
     assert resp.status_code == 404
@@ -251,7 +251,7 @@ def test_logout_without_jti_in_token(client, test_user):
         "/api/v1/auth/login",
         json={"username": test_user["username"], "password": "testpass"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         token = resp.json()["access_token"]
 
@@ -284,6 +284,6 @@ def test_logout_without_jti_in_token(client, test_user):
         "/api/v1/auth/logout",
         headers={"Authorization": f"Bearer {malformed_token}"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["detail"] == "Logged out"

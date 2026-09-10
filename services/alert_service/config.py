@@ -18,8 +18,8 @@ class AlertServiceSettings(BaseSettings):
 
     # Infrastructure
     redis_url: str = "redis://localhost:6379/0"
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/aiops"  # noqa: E501
-    use_in_memory: bool = True
+    database_url: str = "postgresql+asyncpg://postgres@localhost:5432/aiops"  # noqa: E501 - no embedded password
+    use_in_memory: bool = False
 
     # Aggregation
     aggregator_window_seconds: int = 30

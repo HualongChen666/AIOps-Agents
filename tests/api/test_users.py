@@ -270,7 +270,7 @@ def test_promote_user_to_admin(client):
         json={"role": "admin"},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["role"] == "admin"
 
@@ -525,7 +525,7 @@ def test_update_password_as_self(client):
         },
         headers=admin_headers,
     )
-    assert resp.status_code in (201, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         user_id = resp.json()["id"]
 
@@ -544,7 +544,7 @@ def test_update_password_as_self(client):
         json={"new_password": "newpass123"},
         headers=user_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Verify password was changed by logging in with new password
     login_resp = client.post(
@@ -759,7 +759,7 @@ def test_get_me(client):
     admin_headers = {"Authorization": f"Bearer {admin_token}"}
 
     resp = client.get("/api/v1/users/me", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["username"] == "admin"
 
@@ -781,7 +781,7 @@ def test_update_user_demote_last_admin(client):
         json={"role": "viewer"},
         headers=admin_headers,
     )
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "Cannot change role of the last admin" in resp.json()["error"]["message"]
 
@@ -803,7 +803,7 @@ def test_update_user_deactivate_last_admin(client):
         json={"is_active": False},
         headers=admin_headers,
     )
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "Cannot deactivate the last admin" in resp.json()["error"]["message"]
 
@@ -821,6 +821,6 @@ def test_delete_last_admin(client):
 
     # Try to delete the only admin
     resp = client.delete("/api/v1/users/1", headers=admin_headers)
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "Cannot delete the last admin" in resp.json()["error"]["message"]

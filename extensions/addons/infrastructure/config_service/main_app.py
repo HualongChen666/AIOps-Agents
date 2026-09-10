@@ -10,12 +10,12 @@ from fastapi import FastAPI, HTTPException, WebSocket
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from services.config_service.config import settings
-from services.config_service.health_check import HealthCheckEngine
-from services.config_service.metrics import CONFIG_HOT_UPDATES, CONFIG_VERSIONS, CONFIGS_CREATED
-from services.config_service.orchestrator import ConfigOrchestrator
-from services.config_service.repository import InMemoryConfigRepository
-from services.config_service.schemas import (
+from .config import settings
+from .health_check import HealthCheckEngine
+from .metrics import CONFIG_HOT_UPDATES, CONFIG_VERSIONS, CONFIGS_CREATED
+from .orchestrator import ConfigOrchestrator
+from .repository import InMemoryConfigRepository
+from .schemas import (
     ConfigValue,
     ConfigVersion,
     SagaTransaction,

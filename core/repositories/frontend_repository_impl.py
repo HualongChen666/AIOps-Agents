@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``frontend_repository_impl`` module.
+
+Top-level classes: FrontendRepositoryImpl"""
+
 # core/repositories/frontend_repository_impl.py
 # Frontend Repository实现 - 实现数据库持久化
 

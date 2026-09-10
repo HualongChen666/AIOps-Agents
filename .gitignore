@@ -103,3 +103,17 @@ static/indexbackup
 .coverage.*
 test
 
+
+# ---- Secrets / credential stores (added Wave0 #5) ----
+frontend/.env.local
+.env.local
+.env.*.local
+secret_storage/
+encryption_keys/
+
+# Frontend test/build artifacts (jest coverage output, TS incremental cache)
+frontend/coverage/
+# Per-batch coverage output from scripts/run-coverage-batched.js (memory-safe runs)
+frontend/coverage-batched/
+frontend/tsconfig.tsbuildinfo
+*.tsbuildinfo

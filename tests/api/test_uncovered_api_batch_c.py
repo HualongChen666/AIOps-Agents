@@ -37,7 +37,7 @@ def admin_headers(client):
         "/api/v1/auth/login",
         json={"username": "admin", "password": "admin123"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
@@ -49,7 +49,7 @@ def approval_headers(client):
         "/api/v1/auth/login",
         json={"username": "admin", "password": "admin123"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     return {
         "Authorization": f"Bearer {resp.json()['access_token']}",
         "X-Internal-Key": config.INTERNAL_API_KEY,
@@ -171,7 +171,7 @@ def test_itsm_create_incident_servicenow(client, admin_headers, monkeypatch):
         params={"provider": "servicenow"},
         json={"summary": "disk full", "description": "test"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     body = resp.json()
     assert body["status"] == "created"
     assert body["provider"] == "servicenow"
@@ -189,7 +189,7 @@ def test_itsm_create_incident_jira(client, admin_headers, monkeypatch):
         params={"provider": "jira"},
         json={"project_key": "OPS", "summary": "alert", "description": "d"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     body = resp.json()
     assert body["status"] == "created"
     assert body["incident_id"] == "OPS-42"
@@ -238,7 +238,7 @@ def test_itsm_resolve_incident(client, admin_headers, monkeypatch):
         headers=admin_headers,
         params={"provider": "jira"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     body = resp.json()
     assert body["status"] == "resolved"
     assert body["incident_id"] == "OPS-42"
@@ -308,7 +308,7 @@ def test_itsm_create_incident_exception(client, admin_headers, monkeypatch):
         params={"provider": "servicenow"},
         json={"summary": "test", "description": "test"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     body = resp.json()
     assert body["status"] == "created"
     assert "本地记录" in body["message"]
@@ -367,7 +367,7 @@ def test_itsm_resolve_incident_jira_success(client, admin_headers, monkeypatch):
         headers=admin_headers,
         params={"provider": "jira"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     body = resp.json()
     assert body["status"] == "resolved"
     assert body["incident_id"] == "OPS-42"
@@ -399,7 +399,7 @@ def test_itsm_resolve_incident_servicenow_success(client, admin_headers, monkeyp
         headers=admin_headers,
         params={"provider": "servicenow"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     body = resp.json()
     assert body["status"] == "resolved"
     assert body["incident_id"] == "sys-123"
@@ -435,7 +435,7 @@ def test_itsm_resolve_incident_exception(client, admin_headers, monkeypatch):
         headers=admin_headers,
         params={"provider": "servicenow"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     body = resp.json()
     assert body["status"] == "resolved"
     assert "本地记录" in body["message"]

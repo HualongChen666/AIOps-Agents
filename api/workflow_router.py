@@ -361,7 +361,7 @@ class WorkflowStep(BaseModel):
     desc: str = Field(default="", max_length=256, description="节点描述")
 
 
-class WorkflowCreate(BaseModel):
+class WorkflowWorkflowCreate(BaseModel):
     wf_key: str = Field(
         ..., min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9_-]+$", description="工作流唯一键"
     )
@@ -382,10 +382,10 @@ class WorkflowUpdate(BaseModel):
     rate: str | None = Field(default=None, max_length=32, description="成功率展示文本")
 
 
-def _to_engine_dict(data: WorkflowCreate | WorkflowUpdate) -> dict[str, Any]:
+def _to_engine_dict(data: WorkflowWorkflowCreate | WorkflowUpdate) -> dict[str, Any]:
     """Pydantic 模型转引擎所需的普通 dict"""
     payload = data.model_dump(
-        exclude_unset=True, exclude={"wf_key"} if isinstance(data, WorkflowCreate) else set()
+        exclude_unset=True, exclude={"wf_key"} if isinstance(data, WorkflowWorkflowCreate) else set()
     )
     # model_dump 已经递归把 WorkflowStep 转成 dict
     if "steps" in payload and payload["steps"] is not None:
@@ -442,7 +442,7 @@ def get_workflow(
 )
 def create_workflow(
     request: Request,
-    body: WorkflowCreate,
+    body: WorkflowWorkflowCreate,
     current_user = Depends(require_permission("workflow", "create"))
 ) -> dict[str, Any]:
     """新增一个工作流定义,创建后可立即被仿真执行"""

@@ -77,11 +77,62 @@ def client():
 
     try:
         from main import app
+
+        # --- Wave2 #24: production routers no longer return a placeholder admin
+        # for unauthenticated requests (they raise 401).  API tests exercise
+        # endpoint logic with an authenticated identity, so override the
+        # router-level get_current_user dependencies of the hardened routers.
+        from fastapi.routing import APIRoute as _APIRoute
+
+        _auth_user = Mock()
+        _auth_user.id = 1
+        _auth_user.username = "test_admin"
+        _auth_user.full_name = "Test Admin"
+        _auth_user.email = "test@example.com"
+        _auth_user.role = "admin"
+        _auth_user.is_active = True
+        _auth_user.disabled = False
+        _auth_user.tenant_id = "default"
+
+        def _override_current_user():
+            return _auth_user
+
+        _AUTH_MODULES = {
+            "api.user_router",
+            "api.maturity_router",
+            "api.dashboard_advanced_router",
+            "api.tenant_advanced_router",
+            "api.users_advanced_router",
+            "api.maturity_advanced_router",
+            "api.ai_advanced_router",
+            "api.test_automation_advanced_router",
+            "api.test_coverage_advanced_router",
+            "api.test_framework_advanced_router",
+        }
+
+        def _walk_dep(_dep):
+            for _sub in getattr(_dep, "dependencies", []) or []:
+                _call = getattr(_sub, "call", None)
+                if (
+                    _call is not None
+                    and getattr(_call, "__name__", "") == "get_current_user"
+                    and getattr(_call, "__module__", "") in _AUTH_MODULES
+                ):
+                    app.dependency_overrides[_call] = _override_current_user
+                _walk_dep(_sub)
+
+        try:
+            for _route in app.routes:
+                if isinstance(_route, _APIRoute):
+                    _walk_dep(_route.dependant)
+        except Exception:
+            pass
+
         with TestClient(app) as test_client:
             yield test_client
     except Exception as e:
         # If main app cannot be imported, create a minimal app for testing
-        from api.users_router import router as users_router
+        from api.user_router import router as users_router
         from api.cost_router import router as cost_router
         from api.disaster_router import router as disaster_router
         from api.knowledge_base_router import router as knowledge_base_router
@@ -145,12 +196,23 @@ def regular_user():
 
 
 @pytest.fixture(scope="module")
+def _internal_api_key() -> str:
+    """Internal API key for X-Internal-Key protected endpoints (Wave2 #25)."""
+    try:
+        import config
+
+        return config.INTERNAL_API_KEY or "test-internal-key"
+    except Exception:
+        return "test-internal-key"
+
+
+@pytest.fixture(scope="module")
 def approval_headers():
     """Create approval authentication headers for API tests"""
     try:
         from core.auth_service import create_access_token
         token = create_access_token({"sub": "approver", "role": "admin", "permissions": ["approve"]})
-        return {"Authorization": f"Bearer {token}"}
+        return {"Authorization": f"Bearer {token}", "X-Internal-Key": _internal_api_key()}
     except Exception:
         # If auth service is not available, return admin headers or empty headers
         try:

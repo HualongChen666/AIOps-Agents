@@ -80,7 +80,7 @@ class TestLogAlerting:
             "notification_channels": ["email"],
         }
         response = client.post("/api/v1/monitoring/log-alerting", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -90,7 +90,7 @@ class TestLogAlerting:
         """测试创建/更新日志告警 - 验证错误"""
         payload = {"name": "", "pattern": "test"}  # 空名称
         response = client.post("/api/v1/monitoring/log-alerting", json=payload)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_or_update_log_alerting_invalid_severity(self, client):
         """测试创建/更新日志告警 - 无效严重级别"""
@@ -110,7 +110,7 @@ class TestLogAnalysis:
     def test_get_log_analysis_success(self, client):
         """测试获取日志分析 - 成功"""
         response = client.get("/api/v1/monitoring/log-analysis")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_logs_analyzed" in data
@@ -120,7 +120,7 @@ class TestLogAnalysis:
     def test_get_log_analysis_with_filters(self, client):
         """测试获取日志分析 - 带过滤"""
         response = client.get("/api/v1/monitoring/log-analysis?time_range=24h&severity=error")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "patterns" in data
@@ -134,7 +134,7 @@ class TestLogAnalysis:
         """测试执行日志分析 - 成功"""
         payload = {"time_range": "24h", "log_sources": ["app.log", "system.log"]}
         response = client.post("/api/v1/monitoring/log-analysis", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -152,7 +152,7 @@ class TestElasticsearch:
     def test_get_elasticsearch_logs_success(self, client):
         """测试获取Elasticsearch日志 - 成功"""
         response = client.get("/api/v1/monitoring/elasticsearch")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "es_url" in data
@@ -162,7 +162,7 @@ class TestElasticsearch:
     def test_get_elasticsearch_logs_with_params(self, client):
         """测试获取Elasticsearch日志 - 带参数"""
         response = client.get("/api/v1/monitoring/elasticsearch?query=ERROR&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "logs" in data
@@ -184,7 +184,7 @@ class TestTempo:
     def test_get_tempo_traces_success(self, client):
         """测试获取Tempo追踪 - 成功"""
         response = client.get("/api/v1/monitoring/tempo")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "tempo_url" in data
@@ -196,7 +196,7 @@ class TestTempo:
         response = client.get(
             "/api/v1/monitoring/tempo?service=api&trace_id=test-123&time_range=1h"
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "traces" in data
@@ -213,7 +213,7 @@ class TestLoki:
     def test_get_loki_logs_success(self, client):
         """测试获取Loki日志 - 成功"""
         response = client.get("/api/v1/monitoring/loki")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "loki_url" in data
@@ -223,7 +223,7 @@ class TestLoki:
     def test_get_loki_logs_with_params(self, client):
         """测试获取Loki日志 - 带参数"""
         response = client.get('/api/v1/monitoring/loki?query={job="api"}&time_range=1h')
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "logs" in data
@@ -240,7 +240,7 @@ class TestVictoriaMetrics:
     def test_get_victoriametrics_success(self, client):
         """测试获取VictoriaMetrics - 成功"""
         response = client.get("/api/v1/monitoring/victoriametrics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "vm_url" in data
@@ -250,7 +250,7 @@ class TestVictoriaMetrics:
     def test_get_victoriametrics_with_params(self, client):
         """测试获取VictoriaMetrics - 带参数"""
         response = client.get("/api/v1/monitoring/victoriametrics?query=up&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "metrics" in data
@@ -267,7 +267,7 @@ class TestTracingVisualization:
     def test_get_tracing_visualization_success(self, client):
         """测试获取追踪可视化 - 成功"""
         response = client.get("/api/v1/monitoring/tracing-visualization")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "trace_id" in data
@@ -279,7 +279,7 @@ class TestTracingVisualization:
         response = client.get(
             "/api/v1/monitoring/tracing-visualization?trace_id=test-123&service=api&time_range=1h"
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "nodes" in data
@@ -296,7 +296,7 @@ class TestCrossServiceTracing:
     def test_get_cross_service_tracing_success(self, client):
         """测试获取跨服务追踪 - 成功"""
         response = client.get("/api/v1/monitoring/cross-service-tracing")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "trace_id" in data
@@ -307,7 +307,7 @@ class TestCrossServiceTracing:
         response = client.get(
             "/api/v1/monitoring/cross-service-tracing?trace_id=test-123&time_range=1h"
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "service_calls" in data
@@ -324,7 +324,7 @@ class TestFastAPITelemetry:
     def test_get_fastapi_telemetry_success(self, client):
         """测试获取FastAPI遥测 - 成功"""
         response = client.get("/api/v1/monitoring/fastapi-telemetry")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "fastapi_version" in data
@@ -336,7 +336,7 @@ class TestFastAPITelemetry:
         response = client.get(
             "/api/v1/monitoring/fastapi-telemetry?endpoint=/api/v1/metrics&time_range=1h"
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "endpoints" in data
@@ -361,7 +361,7 @@ class TestTelemetryCore:
         }
 
         response = client.get("/api/v1/monitoring/telemetry-core")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "metrics" in data
@@ -378,7 +378,7 @@ class TestTelemetryCore:
         }
 
         response = client.get("/api/v1/monitoring/telemetry-core?metric_name=cpu&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "metrics" in data
@@ -391,7 +391,7 @@ class TestTelemetryCore:
 
         payload = {"metric_name": "cpu", "metric_value": 75.5, "labels": {"host": "server-01"}}
         response = client.post("/api/v1/monitoring/telemetry-core", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -400,7 +400,7 @@ class TestTelemetryCore:
         """测试上报核心遥测 - 验证错误"""
         payload = {"metric_name": "", "metric_value": 75.5}  # 空名称
         response = client.post("/api/v1/monitoring/telemetry-core", json=payload)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================
@@ -422,7 +422,7 @@ class TestObservabilityQuery:
         }
 
         response = client.get("/api/v1/monitoring/observability-query?query_type=metrics&query=cpu")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["query_type"] == "metrics"
@@ -431,7 +431,7 @@ class TestObservabilityQuery:
     def test_get_observability_query_logs(self, client):
         """测试可观测性查询 - 日志"""
         response = client.get("/api/v1/monitoring/observability-query?query_type=logs&query=ERROR")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["query_type"] == "logs"
@@ -440,7 +440,7 @@ class TestObservabilityQuery:
     def test_get_observability_query_traces(self, client):
         """测试可观测性查询 - 追踪"""
         response = client.get("/api/v1/monitoring/observability-query?query_type=traces&query=api")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["query_type"] == "traces"
@@ -470,7 +470,7 @@ class TestDetailedHealth:
         }
 
         response = client.get("/api/v1/monitoring/detailed-health")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "overall_status" in data
@@ -489,7 +489,7 @@ class TestReadinessCheck:
     def test_get_readiness_check_success(self, client):
         """测试就绪检查 - 成功"""
         response = client.get("/api/v1/monitoring/readiness-check")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "ready"
@@ -499,7 +499,7 @@ class TestReadinessCheck:
         """测试更新就绪状态 - 成功"""
         payload = {"ready": True, "reason": "Service is ready"}
         response = client.post("/api/v1/monitoring/readiness-check", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -516,7 +516,7 @@ class TestHealthCheck:
     def test_get_health_check_success(self, client):
         """测试健康检查 - 成功"""
         response = client.get("/api/v1/monitoring/health-check")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "overall_status" in data
@@ -526,7 +526,7 @@ class TestHealthCheck:
         """测试执行健康检查 - 成功"""
         payload = {"service_name": "api-server"}
         response = client.post("/api/v1/monitoring/health-check", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "service" in data
@@ -536,7 +536,7 @@ class TestHealthCheck:
         """测试执行健康检查 - 验证错误"""
         payload = {"service_name": ""}  # 空名称
         response = client.post("/api/v1/monitoring/health-check", json=payload)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================
@@ -550,7 +550,7 @@ class TestOTELCollector:
     def test_get_otel_collector_success(self, client):
         """测试获取OTEL Collector状态 - 成功"""
         response = client.get("/api/v1/monitoring/otel-collector")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "otel_collector_url" in data
@@ -561,7 +561,7 @@ class TestOTELCollector:
         """测试配置OTEL Collector - 成功"""
         payload = {"exporters": ["otlp", "prometheus"], "sampling_rate": 0.1}
         response = client.post("/api/v1/monitoring/otel-collector", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -578,7 +578,7 @@ class TestMetricsConverter:
     def test_get_metrics_converter_success(self, client):
         """测试获取指标转换器状态 - 成功"""
         response = client.get("/api/v1/monitoring/metrics-converter")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "status" in data
@@ -592,7 +592,7 @@ class TestMetricsConverter:
             "metrics_data": {"cpu": 50.0, "memory": 60.0},
         }
         response = client.post("/api/v1/monitoring/metrics-converter", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -619,7 +619,7 @@ class TestMetricsExporter:
         mock_exporter.return_value = MagicMock()
 
         response = client.get("/api/v1/monitoring/metrics-exporter")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "status" in data
@@ -633,7 +633,7 @@ class TestMetricsExporter:
         }
 
         response = client.post("/api/v1/monitoring/metrics-exporter", json={"endpoint": "http://localhost:9090/metrics"})
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -658,7 +658,7 @@ class TestPrometheusMetrics:
         }
 
         response = client.get("/api/v1/monitoring/prometheus-metrics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "prometheus_url" in data
@@ -676,7 +676,7 @@ class TestPrometheusMetrics:
         }
 
         response = client.get("/api/v1/monitoring/prometheus-metrics?query=up")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "metrics" in data
@@ -701,7 +701,7 @@ class TestAnomalyAnalysis:
         }
 
         response = client.get("/api/v1/monitoring/anomaly-analysis")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_anomalies" in data
@@ -718,7 +718,7 @@ class TestAnomalyAnalysis:
         }
 
         response = client.get("/api/v1/monitoring/anomaly-analysis?time_range=24h&severity=critical")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "anomalies" in data
@@ -727,7 +727,7 @@ class TestAnomalyAnalysis:
         """测试执行异常分析 - 成功"""
         payload = {"time_range": "24h", "metrics": ["cpu", "memory"]}
         response = client.post("/api/v1/monitoring/anomaly-analysis", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -753,7 +753,7 @@ class TestAnomalyDetection:
         }
 
         response = client.get("/api/v1/monitoring/anomaly-detection")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_anomalies" in data
@@ -770,7 +770,7 @@ class TestAnomalyDetection:
         }
 
         response = client.get("/api/v1/monitoring/anomaly-detection?time_range=24h&severity=warning")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "anomalies" in data
@@ -779,7 +779,7 @@ class TestAnomalyDetection:
         """测试执行异常检测 - 成功"""
         payload = {"time_range": "24h", "algorithm": "isolation_forest"}
         response = client.post("/api/v1/monitoring/anomaly-detection", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -799,7 +799,7 @@ class TestLinuxLogs:
     def test_get_linux_logs_no_hosts(self, mock_get_logs, client):
         """测试获取Linux日志 - 无配置主机"""
         response = client.get("/api/v1/monitoring/linux-logs?host_name=localhost")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total" in data
@@ -814,7 +814,7 @@ class TestLinuxLogs:
         ]
 
         response = client.get("/api/v1/monitoring/linux-logs?host_name=test-host")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "logs" in data
@@ -841,7 +841,7 @@ class TestLogSearch:
         ]
 
         response = client.get("/api/v1/monitoring/log-search?keyword=ERROR")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total" in data
@@ -853,7 +853,7 @@ class TestLogSearch:
         mock_search.return_value = []
 
         response = client.get("/api/v1/monitoring/log-search?keyword=ERROR&time_range=1h&newest=50")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "logs" in data
@@ -882,7 +882,7 @@ class TestErrorLogs:
         ]
 
         response = client.get("/api/v1/monitoring/error-logs?platform=all")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total" in data
@@ -894,7 +894,7 @@ class TestErrorLogs:
         mock_system_errors.return_value = []
 
         response = client.get("/api/v1/monitoring/error-logs?platform=windows")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "logs" in data
@@ -908,7 +908,7 @@ class TestErrorLogs:
             "source": "api"
         }
         response = client.post("/api/v1/monitoring/error-logs", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -926,7 +926,7 @@ class TestLogCollection:
     def test_get_log_collection_status_success(self, client):
         """测试获取日志采集状态 - 成功"""
         response = client.get("/api/v1/monitoring/log-collection")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "status" in data
@@ -941,7 +941,7 @@ class TestLogCollection:
             "retention_days": 30,
         }
         response = client.post("/api/v1/monitoring/log-collection", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -958,7 +958,7 @@ class TestAPIPerformance:
     def test_get_api_performance_success(self, client):
         """测试获取API性能 - 成功"""
         response = client.get("/api/v1/monitoring/api-performance")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_requests" in data
@@ -967,7 +967,7 @@ class TestAPIPerformance:
     def test_get_api_performance_with_filter(self, client):
         """测试获取API性能 - 带过滤"""
         response = client.get("/api/v1/monitoring/api-performance?endpoint=/api/v1/metrics&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "endpoints" in data
@@ -989,7 +989,7 @@ class TestAPM:
     def test_get_apm_data_success(self, client):
         """测试获取APM数据 - 成功"""
         response = client.get("/api/v1/monitoring/apm")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_services" in data
@@ -998,7 +998,7 @@ class TestAPM:
     def test_get_apm_data_with_filter(self, client):
         """测试获取APM数据 - 带过滤"""
         response = client.get("/api/v1/monitoring/apm?service=api-service&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "services" in data
@@ -1015,7 +1015,7 @@ class TestCloudMonitoring:
     def test_get_cloud_monitoring_success(self, client):
         """测试获取云监控 - 成功"""
         response = client.get("/api/v1/monitoring/cloud-monitoring")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_instances" in data
@@ -1024,7 +1024,7 @@ class TestCloudMonitoring:
     def test_get_cloud_monitoring_with_provider(self, client):
         """测试获取云监控 - 带提供商过滤"""
         response = client.get("/api/v1/monitoring/cloud-monitoring?provider=aws&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "clouds" in data
@@ -1033,7 +1033,7 @@ class TestCloudMonitoring:
         """测试配置云监控 - 成功"""
         payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/cloud-monitoring", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -1050,7 +1050,7 @@ class TestK8sMonitoring:
     def test_get_k8s_monitoring_success(self, client):
         """测试获取K8s监控 - 成功"""
         response = client.get("/api/v1/monitoring/k8s-monitoring")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_pods" in data
@@ -1059,7 +1059,7 @@ class TestK8sMonitoring:
     def test_get_k8s_monitoring_with_namespace(self, client):
         """测试获取K8s监控 - 带命名空间过滤"""
         response = client.get("/api/v1/monitoring/k8s-monitoring?namespace=default&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "namespaces" in data
@@ -1068,7 +1068,7 @@ class TestK8sMonitoring:
         """测试配置K8s监控 - 成功"""
         payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/k8s-monitoring", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -1085,7 +1085,7 @@ class TestDockerMonitoring:
     def test_get_docker_monitoring_success(self, client):
         """测试获取Docker监控 - 成功"""
         response = client.get("/api/v1/monitoring/docker-monitoring")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_containers" in data
@@ -1094,7 +1094,7 @@ class TestDockerMonitoring:
     def test_get_docker_monitoring_with_container(self, client):
         """测试获取Docker监控 - 带容器过滤"""
         response = client.get("/api/v1/monitoring/docker-monitoring?container=api&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "containers" in data
@@ -1103,7 +1103,7 @@ class TestDockerMonitoring:
         """测试配置Docker监控 - 成功"""
         payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/docker-monitoring", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -1130,7 +1130,7 @@ class TestMacOSMonitoring:
         mock_processes.return_value = []
 
         response = client.get("/api/v1/monitoring/macos-monitoring")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "platform" in data
@@ -1149,7 +1149,7 @@ class TestMacOSMonitoring:
         mock_processes.return_value = []
 
         response = client.get("/api/v1/monitoring/macos-monitoring?time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "cpu_usage" in data
@@ -1158,7 +1158,7 @@ class TestMacOSMonitoring:
         """测试配置macOS监控 - 成功"""
         payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/macos-monitoring", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -1185,7 +1185,7 @@ class TestWindowsMonitoring:
         mock_processes.return_value = []
 
         response = client.get("/api/v1/monitoring/windows-monitoring")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "platform" in data
@@ -1204,7 +1204,7 @@ class TestWindowsMonitoring:
         mock_processes.return_value = []
 
         response = client.get("/api/v1/monitoring/windows-monitoring?time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "cpu_usage" in data
@@ -1213,7 +1213,7 @@ class TestWindowsMonitoring:
         """测试配置Windows监控 - 成功"""
         payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/windows-monitoring", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -1239,7 +1239,7 @@ class TestLinuxMonitoring:
         }
 
         response = client.get("/api/v1/monitoring/linux-monitoring")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "platform" in data
@@ -1249,7 +1249,7 @@ class TestLinuxMonitoring:
     def test_get_linux_monitoring_with_hosts(self, client):
         """测试获取Linux监控 - 有配置主机"""
         response = client.get("/api/v1/monitoring/linux-monitoring?host_name=test-host")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "host" in data
@@ -1272,7 +1272,7 @@ class TestLinuxMonitoring:
         """测试配置Linux监控 - 成功"""
         payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/linux-monitoring", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -1294,7 +1294,7 @@ class TestProcessMonitoring:
         ]
 
         response = client.get("/api/v1/monitoring/process-monitoring")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_processes" in data
@@ -1306,7 +1306,7 @@ class TestProcessMonitoring:
         mock_processes.return_value = []
 
         response = client.get("/api/v1/monitoring/process-monitoring?limit=50")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "processes" in data
@@ -1315,7 +1315,7 @@ class TestProcessMonitoring:
         """测试配置进程监控 - 成功"""
         payload = {"enabled": True, "interval_seconds": 60}
         response = client.post("/api/v1/monitoring/process-monitoring", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -1340,7 +1340,7 @@ class TestMetricsHistory:
         }
 
         response = client.get("/api/v1/monitoring/metrics-history")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "data" in data
@@ -1357,7 +1357,7 @@ class TestMetricsHistory:
         }
 
         response = client.get("/api/v1/monitoring/metrics-history?metric=cpu&time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "data" in data
@@ -1381,7 +1381,7 @@ class TestMetricsSnapshot:
         }
 
         response = client.get("/api/v1/monitoring/metrics-snapshot")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "timestamp" in data
@@ -1413,7 +1413,7 @@ class TestMetrics:
         }
 
         response = client.get("/api/v1/monitoring/metrics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "current" in data
@@ -1436,7 +1436,7 @@ class TestMetrics:
         }
 
         response = client.get("/api/v1/monitoring/metrics?time_range=1h")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "current" in data

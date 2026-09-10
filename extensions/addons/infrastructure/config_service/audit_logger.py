@@ -6,8 +6,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict
 
-from services.config_service.repository import ConfigRepository
-from services.config_service.schemas import AuditLogEntry
+from .repository import ConfigRepository
+from .schemas import AuditLogEntry
 
 
 class ConfigAuditLogger:

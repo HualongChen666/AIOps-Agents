@@ -35,7 +35,7 @@ router = APIRouter(prefix="/api/v1/users", tags=["users"])
 # ============ Pydantic Models ============
 
 
-class UserCreate(BaseModel):
+class UsersUnifiedUserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: Optional[str] = Field(None, max_length=255)
     full_name: Optional[str] = Field(None, max_length=100)
@@ -56,7 +56,7 @@ class UserCreate(BaseModel):
     }
 
 
-class UserUpdate(BaseModel):
+class UsersUnifiedUserUpdate(BaseModel):
     email: Optional[str] = Field(None, max_length=255)
     full_name: Optional[str] = Field(None, max_length=100)
     role: Optional[str] = Field(None, pattern="^(admin|user|operator|viewer)$")
@@ -75,7 +75,7 @@ class UserUpdate(BaseModel):
     }
 
 
-class PasswordChange(BaseModel):
+class UsersUnifiedPasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=12)
 
@@ -90,7 +90,7 @@ class PasswordChange(BaseModel):
     }
 
 
-class MFAEnableRequest(BaseModel):
+class UsersUnifiedMFAEnableRequest(BaseModel):
     password: str
 
     model_config = {
@@ -99,7 +99,7 @@ class MFAEnableRequest(BaseModel):
     }
 
 
-class MFAVerifyRequest(BaseModel):
+class UsersUnifiedMFAVerifyRequest(BaseModel):
     token: str = Field(..., min_length=6, max_length=6)
 
     model_config = {
@@ -108,7 +108,7 @@ class MFAVerifyRequest(BaseModel):
     }
 
 
-class UserResponse(BaseModel):
+class UsersUnifiedUserResponse(BaseModel):
     id: int
     username: str
     email: Optional[str]
@@ -137,7 +137,7 @@ class UserResponse(BaseModel):
     }
 
 
-class UserProfileUpdate(BaseModel):
+class UsersUnifiedUserProfileUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=100)
     email: Optional[str] = Field(None, max_length=255)
 
@@ -152,7 +152,7 @@ class UserProfileUpdate(BaseModel):
     }
 
 
-class UserPreferences(BaseModel):
+class UsersUnifiedUserPreferences(BaseModel):
     theme: str = "light"
     language: str = "zh-CN"
     timezone: str = "Asia/Shanghai"
@@ -161,7 +161,7 @@ class UserPreferences(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-class AuditLogResponse(BaseModel):
+class UsersUnifiedAuditLogResponse(BaseModel):
     id: int
     action: str
     resource_type: str
@@ -201,9 +201,9 @@ def get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def user_to_response(user: UserInDB) -> UserResponse:
+def user_to_response(user: UserInDB) -> UsersUnifiedUserResponse:
     """将UserInDB转换为UserResponse"""
-    return UserResponse(
+    return UsersUnifiedUserResponse(
         id=user.id if user.id else 0,
         username=user.username,
         email=user.email,
@@ -221,7 +221,7 @@ def user_to_response(user: UserInDB) -> UserResponse:
 
 @router.post(
     "/",
-    response_model=UserResponse,
+    response_model=UsersUnifiedUserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="创建新用户",
     dependencies=[Depends(require_permission(Permission.USER_WRITE))],
@@ -235,10 +235,10 @@ def user_to_response(user: UserInDB) -> UserResponse:
     },
 )
 async def create_user(
-    user_data: UserCreate,
+    user_data: UsersUnifiedUserCreate,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
-) -> UserResponse:
+) -> UsersUnifiedUserResponse:
     """创建新用户（需要用户写入权限）"""
     is_valid, error_msg = validate_password_complexity(user_data.password)
     if not is_valid:
@@ -296,7 +296,7 @@ async def create_user(
 
 @router.get(
     "/",
-    response_model=List[UserResponse],
+    response_model=List[UsersUnifiedUserResponse],
     summary="列出所有用户",
     dependencies=[Depends(require_permission(Permission.USER_READ))],
     responses={
@@ -309,7 +309,7 @@ async def list_users(
     limit: int = 100,
     offset: int = 0,
     current_user: UserInDB = Depends(get_current_user),
-) -> List[UserResponse]:
+) -> List[UsersUnifiedUserResponse]:
     """列出所有用户（需要用户读取权限）"""
     users = await user_service.list_users(limit=limit, offset=offset)
     return [
@@ -333,18 +333,18 @@ async def list_users(
 
 @router.get(
     "/me",
-    response_model=UserResponse,
+    response_model=UsersUnifiedUserResponse,
     summary="获取当前用户信息",
     responses={(200): {"description": "当前用户信息"}, (401): {"description": "未授权"}},
 )
-async def get_current_user_info(current_user: UserInDB = Depends(get_current_user)) -> UserResponse:
+async def get_current_user_info(current_user: UserInDB = Depends(get_current_user)) -> UsersUnifiedUserResponse:
     """获取当前用户信息"""
     return user_to_response(current_user)
 
 
 @router.patch(
     "/me",
-    response_model=UserResponse,
+    response_model=UsersUnifiedUserResponse,
     summary="更新当前用户资料",
     responses={
         (200): {"description": "用户资料更新成功"},
@@ -353,10 +353,10 @@ async def get_current_user_info(current_user: UserInDB = Depends(get_current_use
     },
 )
 async def update_my_profile(
-    profile_update: UserProfileUpdate,
+    profile_update: UsersUnifiedUserProfileUpdate,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
-) -> UserResponse:
+) -> UsersUnifiedUserResponse:
     """更新当前用户的资料"""
     success = await user_service.update_user(
         username=current_user.username,
@@ -402,7 +402,7 @@ async def update_my_profile(
 
 @router.get(
     "/{username}",
-    response_model=UserResponse,
+    response_model=UsersUnifiedUserResponse,
     summary="获取指定用户信息",
     dependencies=[Depends(require_permission(Permission.USER_READ))],
     responses={
@@ -414,7 +414,7 @@ async def update_my_profile(
 )
 async def get_user_by_username_endpoint(
     username: str, current_user: UserInDB = Depends(get_current_user)
-) -> UserResponse:
+) -> UsersUnifiedUserResponse:
     """获取指定用户信息（需要用户读取权限）"""
     user = await user_service.get_user_by_username(username)
     if not user:
@@ -438,7 +438,7 @@ async def get_user_by_username_endpoint(
 
 @router.put(
     "/{username}",
-    response_model=UserResponse,
+    response_model=UsersUnifiedUserResponse,
     summary="更新用户信息",
     dependencies=[Depends(require_permission(Permission.USER_WRITE))],
     responses={
@@ -451,10 +451,10 @@ async def get_user_by_username_endpoint(
 )
 async def update_user(
     username: str,
-    user_update: UserUpdate,
+    user_update: UsersUnifiedUserUpdate,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
-) -> UserResponse:
+) -> UsersUnifiedUserResponse:
     """更新用户信息（需要用户写入权限）"""
     success = await user_service.update_user(
         username=username,
@@ -557,7 +557,7 @@ async def delete_user(
     },
 )
 async def change_password(
-    password_change: PasswordChange,
+    password_change: UsersUnifiedPasswordChange,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
 ) -> Dict[str, str]:
@@ -628,7 +628,7 @@ async def change_password(
     },
 )
 async def enable_mfa(
-    mfa_request: MFAEnableRequest,
+    mfa_request: UsersUnifiedMFAEnableRequest,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
 ) -> Dict[str, Any]:
@@ -719,7 +719,7 @@ async def get_mfa_status(current_user: UserInDB = Depends(get_current_user)) -> 
 
 @router.get(
     "/audit-logs",
-    response_model=List[AuditLogResponse],
+    response_model=List[UsersUnifiedAuditLogResponse],
     summary="获取所有审计日志",
     dependencies=[Depends(require_permission(Permission.AUDIT_READ))],
     responses={
@@ -734,33 +734,33 @@ async def get_all_audit_logs(
     action: Optional[str] = None,
     resource_type: Optional[str] = None,
     current_user: UserInDB = Depends(get_current_user),
-) -> List[AuditLogResponse]:
+) -> List[UsersUnifiedAuditLogResponse]:
     """获取所有审计日志（需要审计读取权限）"""
     logs = await audit_service.get_audit_logs(
         limit=limit, offset=offset, action=action, resource_type=resource_type
     )
-    return [AuditLogResponse(**log) for log in logs]
+    return [UsersUnifiedAuditLogResponse(**log) for log in logs]
 
 
 @router.get(
     "/me/audit-logs",
-    response_model=List[AuditLogResponse],
+    response_model=List[UsersUnifiedAuditLogResponse],
     summary="获取当前用户的审计日志",
     responses={(200): {"description": "审计日志列表"}, (401): {"description": "未授权"}},
 )
 async def get_my_audit_logs(
     limit: int = 100, offset: int = 0, current_user: UserInDB = Depends(get_current_user)
-) -> List[AuditLogResponse]:
+) -> List[UsersUnifiedAuditLogResponse]:
     """获取当前用户的审计日志"""
     logs = await audit_service.get_audit_logs(
         limit=limit, offset=offset, username=current_user.username
     )
-    return [AuditLogResponse(**log) for log in logs]
+    return [UsersUnifiedAuditLogResponse(**log) for log in logs]
 
 
 @router.get(
     "/{username}/audit-logs",
-    response_model=List[AuditLogResponse],
+    response_model=List[UsersUnifiedAuditLogResponse],
     summary="获取指定用户的审计日志",
     dependencies=[Depends(require_permission(Permission.AUDIT_READ))],
     responses={
@@ -774,7 +774,7 @@ async def get_user_audit_logs(
     limit: int = 100,
     offset: int = 0,
     current_user: UserInDB = Depends(get_current_user),
-) -> List[AuditLogResponse]:
+) -> List[UsersUnifiedAuditLogResponse]:
     """获取指定用户的审计日志（需要审计读取权限）"""
     logs = await audit_service.get_audit_logs(limit=limit, offset=offset, username=username)
-    return [AuditLogResponse(**log) for log in logs]
+    return [UsersUnifiedAuditLogResponse(**log) for log in logs]

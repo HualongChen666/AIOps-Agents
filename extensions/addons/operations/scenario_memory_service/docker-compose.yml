@@ -2,7 +2,9 @@ version: "3.8"
 
 services:
   scenario-memory-service:
-    build: .
+    build:
+      context: ../../../..
+      dockerfile: extensions/addons/operations/scenario_memory_service/Dockerfile
     ports:
       - "9408:9408"
     environment:

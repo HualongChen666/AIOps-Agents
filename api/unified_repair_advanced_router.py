@@ -38,8 +38,6 @@ router = APIRouter(prefix="/api/v1/unified-repair", tags=["Advanced Unified Repa
 # Alternative router for /api/v1/repair prefix (for frontend compatibility)
 router_alt = APIRouter(prefix="/api/v1/repair", tags=["Unified Repair (Alt)"])
 
-# Router for /api/v1/unified-repair prefix (exact match for requirements)
-router_v1 = APIRouter(prefix="/api/v1/unified-repair", tags=["Unified Repair V1"])
 
 # ============================================================
 # Path Parameter Validation Functions
@@ -1796,7 +1794,7 @@ async def cancel_cross_platform_repair_alt(repair_id: str) -> Dict[str, Any]:
 # ============================================================
 
 
-@router_v1.get("/scenarios", summary="List repair scenarios (V1)")
+@router.get("/scenarios", summary="List repair scenarios (V1)")
 async def list_scenarios_v1(
     repair_type: Optional[str] = Query(None, description="Filter by repair type"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
@@ -1809,19 +1807,19 @@ async def list_scenarios_v1(
     )
 
 
-@router_v1.post("/scenarios", summary="Create repair scenario (V1)")
+@router.post("/scenarios", summary="Create repair scenario (V1)")
 async def create_scenario_v1(strategy: RepairStrategyCreate, request: Request) -> Dict[str, Any]:
     """Create a new repair scenario"""
     return await create_strategy(strategy, request)
 
 
-@router_v1.get("/scenarios/{id}", summary="Get scenario by ID (V1)")
+@router.get("/scenarios/{id}", summary="Get scenario by ID (V1)")
 async def get_scenario_v1(id: str = Path(..., description="Scenario ID")) -> Dict[str, Any]:
     """Retrieve a specific scenario by ID"""
     return await get_strategy(id)
 
 
-@router_v1.patch("/scenarios/{id}", summary="Update scenario (V1)")
+@router.patch("/scenarios/{id}", summary="Update scenario (V1)")
 async def update_scenario_v1(
     id: str, strategy_update: RepairStrategyUpdate, request: Request
 ) -> Dict[str, Any]:
@@ -1829,13 +1827,11 @@ async def update_scenario_v1(
     return await update_strategy(id, strategy_update, request)
 
 
-@router_v1.delete("/scenarios/{id}", summary="Delete scenario (V1)")
+@router.delete("/scenarios/{id}", summary="Delete scenario (V1)")
 async def delete_scenario_v1(id: str) -> Dict[str, Any]:
     """Delete a repair scenario"""
     return await delete_strategy(id)
 
-
-@router_v1.get("/executions", summary="List repair executions (V1)")
 async def list_executions_v1(
     strategy_id: Optional[str] = Query(None, description="Filter by strategy ID"),
     status: Optional[str] = Query(None, description="Filter by status"),
@@ -1847,28 +1843,20 @@ async def list_executions_v1(
         strategy_id=strategy_id, status=status, target_resource=target_resource, limit=limit
     )
 
-
-@router_v1.post("/executions", summary="Create repair execution (V1)")
 async def create_execution_v1(execution: RepairExecutionCreate, request: Request) -> Dict[str, Any]:
     """Create and execute a new repair execution"""
     return await create_execution(execution, request)
 
-
-@router_v1.get("/executions/{id}", summary="Get execution by ID (V1)")
 async def get_execution_v1(id: str = Path(..., description="Execution ID")) -> Dict[str, Any]:
     """Retrieve a specific execution by ID"""
     return await get_execution(id)
 
-
-@router_v1.patch("/executions/{id}", summary="Update execution (V1)")
 async def update_execution_v1(
     id: str, execution_update: RepairExecutionUpdate, request: Request
 ) -> Dict[str, Any]:
     """Update an existing execution"""
     return await update_execution(id, execution_update, request)
 
-
-@router_v1.get("/templates", summary="List repair templates (V1)")
 async def list_templates_v1(
     repair_type: Optional[str] = Query(None, description="Filter by repair type"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
@@ -1880,14 +1868,10 @@ async def list_templates_v1(
         repair_type=repair_type, platform=platform, category=category, status=status
     )
 
-
-@router_v1.post("/templates", summary="Create repair template (V1)")
 async def create_template_v1(template: RepairTemplateCreate, request: Request) -> Dict[str, Any]:
     """Create a new repair template"""
     return await create_template(template, request)
 
-
-@router_v1.get("/analytics", summary="Get repair analytics (V1)")
 async def get_repair_analytics_v1(
     time_range: str = Query("7d", description="Time range: 1d, 7d, 30d, 90d"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
@@ -1897,3 +1881,9 @@ async def get_repair_analytics_v1(
     return await get_repair_analytics(
         time_range=time_range, platform=platform, repair_type=repair_type
     )
+
+
+# Wave2 #23: ``router_v1`` used to register the SAME paths as ``router``
+# under an identical prefix.  The duplicate routes were merged into
+# ``router``; the export is preserved as an alias to avoid double mounting.
+router_v1 = router

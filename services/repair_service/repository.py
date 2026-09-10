@@ -95,5 +95,13 @@ else:
 
 
 async def get_repository(use_in_memory: bool = True) -> RepairRepository:
-    """Return repository instance based on configuration."""
-    return InMemoryRepairRepository()
+    """Return a repository instance based on configuration."""
+    if use_in_memory:
+        return InMemoryRepairRepository()
+
+    from services.repair_service.config import settings
+    from services.repair_service.persistence import SQLAlchemyRepairRepository
+
+    repository = SQLAlchemyRepairRepository(settings.database_url)
+    await repository.init_schema()
+    return repository

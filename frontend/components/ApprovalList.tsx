@@ -63,24 +63,24 @@ export const ApprovalList: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <div className="text-center text-gray-500">加载中…</div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center text-gray-500">
+        加载中…
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <div className="text-center text-red-500">获取审批列表失败</div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center text-red-500">
+        获取审批列表失败
       </div>
     );
   }
 
   if (!data || data.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <div className="text-center text-gray-500">暂无待审批项</div>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center text-gray-500">
+        暂无待审批项
       </div>
     );
   }

@@ -1136,12 +1136,19 @@ class TestIntegration(unittest.TestCase):
         self.assertIsNotNone(status)
         self.assertLess(status["error_budget_remaining_percent"], 100.0)
 
-    def test_realtime_monitoring_placeholders(self):
-        """Test real-time monitoring placeholder methods."""
-        # These are placeholder methods but should not raise errors
-        self.manager.start_realtime_monitoring(interval_seconds=60)
+    def test_realtime_monitoring_start_stop(self):
+        """Real-time monitoring runs a background thread that can be stopped."""
+        self.assertFalse(self.manager.is_realtime_monitoring)
+
+        self.manager.start_realtime_monitoring(interval_seconds=1)
+        self.assertTrue(self.manager.is_realtime_monitoring)
+
+        # Starting again while running is a no-op
+        self.manager.start_realtime_monitoring(interval_seconds=1)
+        self.assertTrue(self.manager.is_realtime_monitoring)
+
         self.manager.stop_realtime_monitoring()
-        self.assertTrue(True)
+        self.assertFalse(self.manager.is_realtime_monitoring)
 
     def test_report_with_different_periods(self):
         """Test report generation with different periods."""

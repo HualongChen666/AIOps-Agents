@@ -5,7 +5,7 @@ replicaCount: 1
 image:
   repository: postgres
   tag: 14
-  pullPolicy: IfNotExists
+  pullPolicy: IfNotPresent
 
 # PostgreSQL configuration
 postgresql:

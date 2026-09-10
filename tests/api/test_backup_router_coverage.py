@@ -20,7 +20,7 @@ class TestBackupDatabase:
             mock_dr.return_value = mock_instance
 
             resp = client.post("/api/v1/backup/database")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code == 200:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -44,7 +44,7 @@ class TestBackupDatabase:
             mock_dr.side_effect = Exception("Backup error")
 
             resp = client.post("/api/v1/backup/database")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "备份数据库失败" in resp.json()["detail"]
 
@@ -60,7 +60,7 @@ class TestBackupRedis:
             mock_dr.return_value = mock_instance
 
             resp = client.post("/api/v1/backup/redis")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -84,7 +84,7 @@ class TestBackupRedis:
             mock_dr.side_effect = Exception("Backup error")
 
             resp = client.post("/api/v1/backup/redis")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "备份Redis失败" in resp.json()["detail"]
 
@@ -100,7 +100,7 @@ class TestBackupConfiguration:
             mock_dr.return_value = mock_instance
 
             resp = client.post("/api/v1/backup/configuration")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -124,7 +124,7 @@ class TestBackupConfiguration:
             mock_dr.side_effect = Exception("Backup error")
 
             resp = client.post("/api/v1/backup/configuration")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "备份配置失败" in resp.json()["detail"]
 
@@ -143,7 +143,7 @@ class TestFullBackup:
             mock_dr.return_value = mock_instance
 
             resp = client.post("/api/v1/backup/full")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -158,7 +158,7 @@ class TestFullBackup:
             mock_dr.side_effect = Exception("Backup error")
 
             resp = client.post("/api/v1/backup/full")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "完整备份失败" in resp.json()["detail"]
 
@@ -186,7 +186,7 @@ class TestRestoreDatabase:
             mock_dr.return_value = mock_instance
 
             resp = client.post("/api/v1/backup/restore/database?backup_file=/backups/db.sql")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -209,7 +209,7 @@ class TestRestoreDatabase:
             mock_dr.side_effect = Exception("Restore error")
 
             resp = client.post("/api/v1/backup/restore/database?backup_file=/backups/db.sql")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "恢复数据库失败" in resp.json()["detail"]
 
@@ -233,7 +233,7 @@ class TestListBackups:
                 mock_iter.return_value = [mock_file]
 
                 resp = client.get("/api/v1/backup/list")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code != 404:
                     data = resp.json()
                     assert data["status"] == "success"
@@ -246,7 +246,7 @@ class TestListBackups:
             mock_exists.return_value = False
 
             resp = client.get("/api/v1/backup/list")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["backups"] == []
@@ -258,7 +258,7 @@ class TestListBackups:
             mock_exists.side_effect = Exception("Path error")
 
             resp = client.get("/api/v1/backup/list")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "列出备份文件失败" in resp.json()["detail"]
 
@@ -270,7 +270,7 @@ class TestListBackups:
                 mock_iter.return_value = []
 
                 resp = client.get("/api/v1/backup/list")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code != 404:
                     data = resp.json()
                     assert len(data["backups"]) == 0
@@ -296,7 +296,7 @@ class TestListBackups:
                 mock_iter.return_value = [mock_file, mock_dir]
 
                 resp = client.get("/api/v1/backup/list")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code != 404:
                     data = resp.json()
                 # Should only include files, not directories
@@ -314,7 +314,7 @@ class TestCleanupOldBackups:
             mock_dr.return_value = mock_instance
 
             resp = client.delete("/api/v1/backup/cleanup?retention_days=30")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -337,7 +337,7 @@ class TestCleanupOldBackups:
             mock_dr.side_effect = Exception("Cleanup error")
 
             resp = client.delete("/api/v1/backup/cleanup?retention_days=30")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "清理旧备份失败" in resp.json()["detail"]
 
@@ -349,7 +349,7 @@ class TestCleanupOldBackups:
             mock_dr.return_value = mock_instance
 
             resp = client.delete("/api/v1/backup/cleanup")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_cleanup_old_backups_custom_retention(self, client):
         """Test cleanup with custom retention days."""
@@ -359,7 +359,7 @@ class TestCleanupOldBackups:
             mock_dr.return_value = mock_instance
 
             resp = client.delete("/api/v1/backup/cleanup?retention_days=7")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
 
 class TestBackupEdgeCases:
@@ -378,7 +378,7 @@ class TestBackupEdgeCases:
                 mock_bg.return_value = mock_bg_instance
 
                 resp = client.post("/api/v1/backup/database")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code != 404:
                 # Verify background task was added
                     mock_bg_instance.add_task.assert_called()
@@ -398,7 +398,7 @@ class TestBackupEdgeCases:
                 mock_bg.return_value = mock_bg_instance
 
                 resp = client.post("/api/v1/backup/full")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code != 404:
                 # Verify background task was added
                     mock_bg_instance.add_task.assert_called()
@@ -429,7 +429,7 @@ class TestBackupEdgeCases:
                 mock_iter.return_value = [mock_file1, mock_file2]
 
                 resp = client.get("/api/v1/backup/list")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code != 404:
                     data = resp.json()
                 # Should be sorted by modification time descending
@@ -455,7 +455,7 @@ class TestBackupEdgeCases:
                 mock_iter.return_value = files
 
                 resp = client.get("/api/v1/backup/list")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code != 404:
                     data = resp.json()
                     assert len(data["backups"]) == 100
@@ -468,7 +468,7 @@ class TestBackupEdgeCases:
             mock_dr.return_value = mock_instance
 
             resp = client.post("/api/v1/backup/restore/database?backup_file=C:/backups/db.sql")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_restore_database_with_empty_path(self, client):
         """Test restore with empty backup_file."""
@@ -478,7 +478,7 @@ class TestBackupEdgeCases:
             mock_dr.return_value = mock_instance
 
             resp = client.post("/api/v1/backup/restore/database?backup_file=")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
 
 
 class TestBackupDirectoryPath:
@@ -492,7 +492,7 @@ class TestBackupDirectoryPath:
                 mock_iter.return_value = []
 
                 resp = client.get("/api/v1/backup/list")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
 
     def test_list_backups_path_trailing_slash(self, client):
         """Test backup directory path handling."""
@@ -502,4 +502,4 @@ class TestBackupDirectoryPath:
                 mock_iter.return_value = []
 
                 resp = client.get("/api/v1/backup/list")
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text

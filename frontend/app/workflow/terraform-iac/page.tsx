@@ -345,7 +345,7 @@ export default function TerraformIaCPage() {
                   <Button
                     variant="outline"
                     onClick={() => handleApply(selectedStack.id)}
-                    disabled={selectedStack.status !== 'idle' && selectedStack.status !== 'planned'}
+                    disabled={selectedStack.status !== 'idle'}
                   >
                     Apply
                   </Button>

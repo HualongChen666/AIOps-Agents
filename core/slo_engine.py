@@ -379,7 +379,7 @@ def generate_sla_report(period: str = "30d") -> list[dict[str, Any]]:
     from core.metrics_history import METRICS_HISTORY as metrics_history
 
     hours = parse_window(period)
-    end_dt = datetime.datetime.utcnow()
+    end_dt = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     start_dt = end_dt - datetime.timedelta(hours=hours)
     reports: list[dict[str, Any]] = []
 

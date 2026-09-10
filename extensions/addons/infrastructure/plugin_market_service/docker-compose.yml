@@ -6,11 +6,11 @@ services:
 
   plugin-market:
     build:
-      context: ../..
-      dockerfile: services/plugin_market_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/plugin_market_service/Dockerfile
     command: [
       "uvicorn",
-      "services.plugin_market_service.main_app:app",
+      "extensions.addons.infrastructure.plugin_market_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9557",
     ]

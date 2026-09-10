@@ -2,7 +2,9 @@ version: "3.8"
 
 services:
   knowledge-graph-service:
-    build: .
+    build:
+      context: ../../../..
+      dockerfile: extensions/addons/ai_plus/knowledge_graph_service/Dockerfile
     ports:
       - "9409:9409"
     environment:

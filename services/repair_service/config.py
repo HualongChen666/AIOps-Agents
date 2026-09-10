@@ -23,8 +23,8 @@ class RepairServiceSettings(BaseSettings):
 
     # Infrastructure
     redis_url: str = "redis://localhost:6379/1"
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/aiops"  # noqa: E501
-    use_in_memory: bool = True
+    database_url: str = "postgresql+asyncpg://postgres@localhost:5432/aiops"  # noqa: E501 - no embedded password
+    use_in_memory: bool = False
 
     # Prometheus
     enable_prometheus: bool = True

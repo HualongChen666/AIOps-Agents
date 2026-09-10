@@ -32,12 +32,7 @@ interface Workflow {
 
 const emptyStep = (): WorkflowStep => ({ key: '', title: '', desc: '' });
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:3000';
-
-function getInternalKey(): string {
-  if (typeof window === 'undefined') return '';
-  return process.env.NEXT_PUBLIC_INTERNAL_API_KEY || localStorage.getItem('internal_key') || '';
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '';
 
 export default function WorkflowPage() {
   const [workflows, setWorkflows] = useState<Record<string, Workflow>>({});
@@ -162,7 +157,6 @@ export default function WorkflowPage() {
         method: 'GET',
         headers: {
           Accept: 'text/event-stream',
-          'X-Internal-Key': getInternalKey(),
         } as Record<string, string>,
         signal: controller.signal,
       });

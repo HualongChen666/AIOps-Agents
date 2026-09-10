@@ -19,30 +19,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/users", tags=["users-advanced"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", auto_error=False)
 
-# 开发环境占位
-FAKE_ADMIN = UserInDB(
-    username="dev-admin",
-    full_name="Dev Admin",
-    email="dev@example.com",
-    role="admin",
-    disabled=False,
-    hashed_password="",
-)
-
-
 async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> UserInDB:
-    """获取当前用户；无 token 时返回开发占位 admin。"""
+    """获取当前用户；token 缺失/无效/用户不存在时返回 401（AGENTS.md §5：禁止占位放行）。"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     if not token:
-        return FAKE_ADMIN
+        raise credentials_exception
     payload = verify_token(token)
     if not payload:
-        return FAKE_ADMIN
+        raise credentials_exception
     username = payload.get("sub")
     if not username:
-        return FAKE_ADMIN
+        raise credentials_exception
     user = await get_user(username)
     if not user:
-        return FAKE_ADMIN
+        raise credentials_exception
     if user.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled"
@@ -78,7 +72,7 @@ class UserProfile(BaseModel):
     model_config = {"extra": "ignore"}
 
 
-class UserProfileUpdate(BaseModel):
+class UsersAdvancedUserProfileUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=100)
     email: Optional[str] = Field(None, max_length=255)
     avatar_url: Optional[str] = Field(None, max_length=500)
@@ -90,7 +84,7 @@ class UserProfileUpdate(BaseModel):
 
 
 # ============ Preferences Models ============
-class UserPreferences(BaseModel):
+class UsersAdvancedUserPreferences(BaseModel):
     theme: str = "light"
     language: str = "zh-CN"
     timezone: str = "Asia/Shanghai"
@@ -231,7 +225,7 @@ class UserGroupCreate(BaseModel):
 
 
 # ============ In-memory data storage (for demo) ============
-_user_preferences: Dict[int, UserPreferences] = {}
+_user_preferences: Dict[int, UsersAdvancedUserPreferences] = {}
 _activity_logs: List[ActivityLog] = []
 _user_sessions: Dict[int, List[Session]] = {}
 _user_notifications: Dict[int, List[Notification]] = {}
@@ -239,10 +233,10 @@ _user_permissions: Dict[int, List[UserPermission]] = {}
 _user_groups: List[UserGroup] = []
 
 
-def _get_user_preferences(user_id: int) -> UserPreferences:
+def _get_user_preferences(user_id: int) -> UsersAdvancedUserPreferences:
     """获取用户偏好设置"""
     if user_id not in _user_preferences:
-        _user_preferences[user_id] = UserPreferences()
+        _user_preferences[user_id] = UsersAdvancedUserPreferences()
     return _user_preferences[user_id]
 
 
@@ -395,7 +389,7 @@ async def get_user_profile(current_user: UserInDB = Depends(get_current_user)) -
     },
 )
 async def update_user_profile(
-    profile_update: UserProfileUpdate,
+    profile_update: UsersAdvancedUserProfileUpdate,
     current_user: UserInDB = Depends(get_current_user),
 ) -> UserProfile:
     """更新当前用户的资料"""
@@ -441,7 +435,7 @@ async def update_user_profile(
 # ============ Preferences Endpoints ============
 @router.get(
     "/preferences",
-    response_model=UserPreferences,
+    response_model=UsersAdvancedUserPreferences,
     summary="获取用户偏好设置",
     responses={
         (200): {"description": "用户偏好设置"},
@@ -450,7 +444,7 @@ async def update_user_profile(
 )
 async def get_user_preferences_endpoint(
     current_user: UserInDB = Depends(get_current_user),
-) -> UserPreferences:
+) -> UsersAdvancedUserPreferences:
     """获取当前用户的偏好设置"""
     user_id = current_user.id if current_user.id else 0
     return _get_user_preferences(user_id)
@@ -458,7 +452,7 @@ async def get_user_preferences_endpoint(
 
 @router.patch(
     "/preferences",
-    response_model=UserPreferences,
+    response_model=UsersAdvancedUserPreferences,
     summary="更新用户偏好设置",
     responses={
         (200): {"description": "偏好设置更新成功"},
@@ -468,7 +462,7 @@ async def get_user_preferences_endpoint(
 async def update_user_preferences(
     preferences_update: UserPreferencesUpdate,
     current_user: UserInDB = Depends(get_current_user),
-) -> UserPreferences:
+) -> UsersAdvancedUserPreferences:
     """更新当前用户的偏好设置"""
     user_id = current_user.id if current_user.id else 0
     preferences = _get_user_preferences(user_id)
@@ -836,7 +830,7 @@ async def get_user_profile_by_id(
 )
 async def update_user_profile_by_id(
     id: int,
-    profile_update: UserProfileUpdate,
+    profile_update: UsersAdvancedUserProfileUpdate,
     current_user: UserInDB = Depends(get_current_user),
 ) -> UserProfile:
     """更新指定用户的资料（需要管理员权限或本人）"""

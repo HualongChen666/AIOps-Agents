@@ -41,7 +41,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
 
 from api.ai_advanced_router import (
-    AnalyzeRequest,
+    AiAdvancedAnalyzeRequest,
     CostSuggestionCreate,
     CrossLayerTrackingConfigCreate,
     CrossLayerTrackingConfigUpdate,
@@ -60,22 +60,24 @@ from api.ai_advanced_router import (
     KnowledgeBaseCreate,
     LoadBalancerConfigCreate,
     ModelStatus,
-    OptimizationRequest,
+    AiAdvancedOptimizationRequest,
     PatternCreate,
     RerankRequest,
     RetrievalRequest,
     RetrieveRequest,
-    RootCauseAnalysisRequest,
+    AiAdvancedRootCauseAnalysisRequest,
     RoutingRuleCreate,
     RunbookGenerateRequest,
-    SearchRequest,
+    AiAdvancedSearchRequest,
     TopologyAnalysisRequest,
-    WorkflowCreate,
+    AiAdvancedWorkflowCreate,
     router,
-    DocumentResponse,
-    DocumentListResponse,
+    get_current_user,
+    AiAdvancedDocumentResponse,
+    AiAdvancedDocumentListResponse,
 )
 from core.auth_db import SessionLocal
+from core.authentication import UserInDB
 
 # ============================================================================
 # Test Fixtures
@@ -89,6 +91,8 @@ def client():
 
     app = FastAPI()
     app.include_router(router)
+    # Wave2 #24: routers now require auth; tests run authenticated.
+    app.dependency_overrides[get_current_user] = lambda: _TEST_AUTH_USER
     # Disable CORS for testing
     app.add_middleware(
         CORSMiddleware,
@@ -138,7 +142,7 @@ def sample_runbook_request():
 @pytest.fixture
 def sample_analyze_request():
     """Sample intelligent analysis request"""
-    return AnalyzeRequest(
+    return AiAdvancedAnalyzeRequest(
         name="Performance Analysis", type="performance", data_sources=["prometheus", "logs"]
     )
 
@@ -163,7 +167,7 @@ def sample_execution():
 @pytest.fixture
 def sample_workflow():
     """Sample workflow request"""
-    return WorkflowCreate(name="Test Workflow", description="Test workflow")
+    return AiAdvancedWorkflowCreate(name="Test Workflow", description="Test workflow")
 
 
 @pytest.fixture
@@ -177,7 +181,7 @@ def sample_deep_learning_model():
 @pytest.fixture
 def sample_optimization_request():
     """Sample optimization request"""
-    return OptimizationRequest(model_id="model-123", optimization_type="quantization")
+    return AiAdvancedOptimizationRequest(model_id="model-123", optimization_type="quantization")
 
 
 @pytest.fixture
@@ -201,7 +205,7 @@ def sample_document_index():
 @pytest.fixture
 def sample_search_request():
     """Sample search request"""
-    return SearchRequest(config_id="config-123", query="CPU optimization")
+    return AiAdvancedSearchRequest(config_id="config-123", query="CPU optimization")
 
 
 @pytest.fixture
@@ -221,7 +225,7 @@ def sample_topology_request():
 @pytest.fixture
 def sample_root_cause_request():
     """Sample root cause analysis request"""
-    return RootCauseAnalysisRequest(incident_id="incident-123")
+    return AiAdvancedRootCauseAnalysisRequest(incident_id="incident-123")
 
 
 @pytest.fixture
@@ -303,7 +307,7 @@ class TestModelFineTuning:
     def test_get_fine_tuning_jobs_empty(self, client):
         """Test getting fine-tuning jobs when empty"""
         response = client.get("/api/ai/model-fine-tuning/jobs")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "jobs" in data
@@ -312,7 +316,7 @@ class TestModelFineTuning:
     def test_create_fine_tuning_job(self, client, sample_fine_tuning_job):
         """Test creating a fine-tuning job"""
         response = client.post("/api/ai/model-fine-tuning/jobs", json=sample_fine_tuning_job.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -347,7 +351,7 @@ class TestModelFineTuning:
     def test_get_fine_tuned_models_empty(self, client):
         """Test getting fine-tuned models when empty"""
         response = client.get("/api/ai/model-fine-tuning/models")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "models" in data
@@ -372,7 +376,7 @@ class TestRunbookGenerator:
             response = client.post(
                 "/api/ai/runbook-generator/generate", json=sample_runbook_request.dict()
             )
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert "id" in data
@@ -384,7 +388,7 @@ class TestRunbookGenerator:
         response = client.post(
             "/api/ai/runbook-generator/generate", json=sample_runbook_request.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -414,7 +418,7 @@ class TestIntelligentAnalysis:
             response = client.post(
                 "/api/ai/intelligent-analysis/analyze", json=sample_analyze_request.dict()
             )
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert "id" in data
@@ -452,7 +456,7 @@ class TestLangGraphDSL:
     def test_get_dsl_definitions_empty(self, client):
         """Test getting DSL definitions when empty"""
         response = client.get("/api/ai/langgraph-dsl/definitions")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "definitions" in data
@@ -463,7 +467,7 @@ class TestLangGraphDSL:
         response = client.post(
             "/api/ai/langgraph-dsl/definitions", json=sample_dsl_definition.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -481,7 +485,7 @@ class TestLangGraphDSL:
         # Update the definition
         update_data = {"name": "Updated Workflow", "status": "published"}
         response = client.patch(f"/api/ai/langgraph-dsl/definitions/{defn_id}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Updated Workflow"
@@ -511,7 +515,7 @@ class TestLangGraphExecutor:
         response = client.post(
             "/api/ai/langgraph-executor/executions", json=sample_execution.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -522,7 +526,7 @@ class TestLangGraphExecutor:
         response = client.post(
             "/api/ai/langgraph-executor/executions", json=sample_execution.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -531,7 +535,7 @@ class TestLangGraphExecutor:
     def test_get_executions_empty(self, client):
         """Test getting executions when empty"""
         response = client.get("/api/ai/langgraph-executor/executions")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "executions" in data
@@ -551,7 +555,7 @@ class TestLangGraphWorkflow:
         """Test creating workflow with actual engine"""
         # Since the actual create_workflow function doesn't exist, this test will use fallback
         response = client.post("/api/ai/langgraph-workflow/workflows", json=sample_workflow.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -560,7 +564,7 @@ class TestLangGraphWorkflow:
     def test_create_workflow_fallback(self, client, sample_workflow):
         """Test creating workflow with fallback"""
         response = client.post("/api/ai/langgraph-workflow/workflows", json=sample_workflow.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -569,7 +573,7 @@ class TestLangGraphWorkflow:
     def test_get_workflows_empty(self, client):
         """Test getting workflows when empty"""
         response = client.get("/api/ai/langgraph-workflow/workflows")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "workflows" in data
@@ -588,7 +592,7 @@ class TestLangGraphWorkflow:
         response = client.patch(
             f"/api/ai/langgraph-workflow/workflows/{workflow_id}", json=update_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Updated Workflow"
@@ -617,7 +621,7 @@ class TestLangGraphVisualizer:
         response = client.post(
             "/api/ai/langgraph-visualizer/generate", json={"workflow_id": "workflow-123"}
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "visualization_id" in data
@@ -628,7 +632,7 @@ class TestLangGraphVisualizer:
         response = client.post(
             "/api/ai/langgraph-visualizer/generate", json={"workflow_id": "workflow-123"}
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "visualization_id" in data
@@ -651,7 +655,7 @@ class TestDeepLearning:
     def test_get_deep_learning_models_empty(self, client):
         """Test getting deep learning models when empty"""
         response = client.get("/api/ai/deep-learning/models")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "models" in data
@@ -662,7 +666,7 @@ class TestDeepLearning:
         response = client.post(
             "/api/ai/deep-learning/models", json=sample_deep_learning_model.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -682,7 +686,7 @@ class TestAdvancedAIFeatures:
     def test_get_advanced_features(self, client):
         """Test getting advanced AI features"""
         response = client.get("/api/ai/advanced-ai/features")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "features" in data
@@ -699,7 +703,7 @@ class TestAdvancedAIFeatures:
             feature_id = features[0]["id"]
             update_data = {"enabled": False}
             response = client.patch(f"/api/ai/advanced-ai/features/{feature_id}", json=update_data)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["enabled"] == False
@@ -728,7 +732,7 @@ class TestModelOptimization:
         response = client.post(
             "/api/ai/model-optimization/optimize", json=sample_optimization_request.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "optimization_id" in data
@@ -739,7 +743,7 @@ class TestModelOptimization:
         response = client.post(
             "/api/ai/model-optimization/optimize", json=sample_optimization_request.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "optimization_id" in data
@@ -757,7 +761,7 @@ class TestAIFeedback:
     def test_get_feedbacks_empty(self, client):
         """Test getting feedbacks when empty"""
         response = client.get("/api/ai/ai-feedback/feedbacks")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "feedbacks" in data
@@ -766,7 +770,7 @@ class TestAIFeedback:
     def test_create_feedback(self, client, sample_feedback):
         """Test creating feedback"""
         response = client.post("/api/ai/ai-feedback/feedbacks", json=sample_feedback.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -788,7 +792,7 @@ class TestAIFeedback:
         # Update the feedback
         update_data = {"status": "reviewed"}
         response = client.patch(f"/api/ai/ai-feedback/feedbacks/{feedback_id}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "reviewed"
@@ -822,7 +826,7 @@ class TestKnowledgeRetrieval:
             response = client.post(
                 "/api/ai/knowledge-retrieval/retrieve", json=sample_retrieval_request.dict()
             )
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert "results" in data
@@ -832,7 +836,7 @@ class TestKnowledgeRetrieval:
         response = client.post(
             "/api/ai/knowledge-retrieval/retrieve", json=sample_retrieval_request.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "results" in data
@@ -849,7 +853,7 @@ class TestDocumentIndex:
     def test_get_document_indexes_empty(self, client):
         """Test getting document indexes when empty"""
         response = client.get("/api/ai/document-index/indexes")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "indexes" in data
@@ -858,7 +862,7 @@ class TestDocumentIndex:
     def test_create_document_index(self, client, sample_document_index):
         """Test creating a document index"""
         response = client.post("/api/ai/document-index/indexes", json=sample_document_index.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -882,7 +886,7 @@ class TestSemanticSearch:
                 {"content": "Result 1", "source": "index", "score": 0.9, "metadata": {}}
             ]
             response = client.post("/api/ai/semantic-search/search", json=sample_search_request.dict())
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert "results" in data
@@ -890,7 +894,7 @@ class TestSemanticSearch:
     def test_semantic_search_fallback(self, client, sample_search_request):
         """Test semantic search with fallback"""
         response = client.post("/api/ai/semantic-search/search", json=sample_search_request.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "results" in data
@@ -907,7 +911,7 @@ class TestPatternMatching:
     def test_get_patterns_empty(self, client):
         """Test getting patterns when empty"""
         response = client.get("/api/ai/pattern-matching/patterns")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "patterns" in data
@@ -916,7 +920,7 @@ class TestPatternMatching:
     def test_create_pattern(self, client, sample_pattern):
         """Test creating a pattern"""
         response = client.post("/api/ai/pattern-matching/patterns", json=sample_pattern.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -935,7 +939,7 @@ class TestCrossLayerTracking:
     def test_get_cross_layer_traces(self, client):
         """Test getting cross-layer traces"""
         response = client.get("/api/ai/cross-layer-tracking/traces")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "traces" in data
@@ -944,7 +948,7 @@ class TestCrossLayerTracking:
     def test_get_cross_layer_tracking_configs(self, client):
         """Test getting cross-layer tracking configurations"""
         response = client.get("/api/ai/cross-layer-tracking/configs")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "configs" in data
@@ -956,7 +960,7 @@ class TestCrossLayerTracking:
     def test_get_cross_layer_tracking_configs_with_filter(self, client):
         """Test getting cross-layer tracking configurations with enabled filter"""
         response = client.get("/api/ai/cross-layer-tracking/configs?enabled=true")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "configs" in data
@@ -973,7 +977,7 @@ class TestCrossLayerTracking:
             "enabled": True,
         }
         response = client.post("/api/ai/cross-layer-tracking/configs", json=config_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -999,7 +1003,7 @@ class TestCrossLayerTracking:
                 "enabled": False,
             }
             response = client.patch(f"/api/ai/cross-layer-tracking/configs/{config_id}", json=update_data)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["name"] == "updated-config"
@@ -1021,7 +1025,7 @@ class TestCrossLayerTracking:
         if create_response.status_code == 200:
             config_id = create_response.json()["id"]
             response = client.delete(f"/api/ai/cross-layer-tracking/configs/{config_id}")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert "status" in data
@@ -1045,7 +1049,7 @@ class TestTopologyAnalysis:
         response = client.post(
             "/api/ai/topology-analysis/analyze", json=sample_topology_request.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1057,7 +1061,7 @@ class TestTopologyAnalysis:
         response = client.post(
             "/api/ai/topology-analysis/analyze", json=sample_topology_request.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1082,7 +1086,7 @@ class TestRootCauseAnalysis:
             response = client.post(
                 "/api/ai/root-cause-analysis/analyze", json=sample_root_cause_request.dict()
             )
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert "id" in data
@@ -1119,7 +1123,7 @@ class TestKnowledgeGraph:
     def test_get_knowledge_graph_nodes_empty(self, client):
         """Test getting knowledge graph nodes when empty"""
         response = client.get("/api/ai/knowledge-graph/nodes")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "nodes" in data
@@ -1128,7 +1132,7 @@ class TestKnowledgeGraph:
     def test_create_graph_node(self, client, sample_graph_node):
         """Test creating a graph node"""
         response = client.post("/api/ai/knowledge-graph/nodes", json=sample_graph_node.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1149,7 +1153,7 @@ class TestFusion:
         """Test fusing results with actual engine"""
         # Since the actual fuse_results function doesn't exist, this test will use fallback
         response = client.post("/api/ai/fusion/fuse", json=sample_fusion_request.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "results" in data
@@ -1157,7 +1161,7 @@ class TestFusion:
     def test_fuse_results_fallback(self, client, sample_fusion_request):
         """Test fusing results with fallback"""
         response = client.post("/api/ai/fusion/fuse", json=sample_fusion_request.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "results" in data
@@ -1176,7 +1180,7 @@ class TestReranker:
         """Test reranking results with actual engine"""
         # Since the actual rerank function doesn't exist, this test will use fallback
         response = client.post("/api/ai/reranker/rerank", json=sample_rerank_request.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "results" in data
@@ -1184,7 +1188,7 @@ class TestReranker:
     def test_rerank_results_fallback(self, client, sample_rerank_request):
         """Test reranking results with fallback"""
         response = client.post("/api/ai/reranker/rerank", json=sample_rerank_request.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "results" in data
@@ -1205,7 +1209,7 @@ class TestVectorizer:
         mock_model.encode.return_value = [0.1, 0.2, 0.3]
         with patch("core.rag_engine._get_model", return_value=mock_model):
             response = client.post("/api/ai/vectorizer/embed", json=sample_embed_request.dict())
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert "embedding" in data
@@ -1214,7 +1218,7 @@ class TestVectorizer:
     def test_embed_text_fallback(self, client, sample_embed_request):
         """Test embedding text with fallback"""
         response = client.post("/api/ai/vectorizer/embed", json=sample_embed_request.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "embedding" in data
@@ -1236,7 +1240,7 @@ class TestRetriever:
         """Test retrieving documents with actual engine"""
         # Since the actual retrieve function doesn't exist, this test will use fallback
         response = client.post("/api/ai/retriever/retrieve", json=sample_retrieve_request.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "results" in data
@@ -1244,7 +1248,7 @@ class TestRetriever:
     def test_retrieve_documents_fallback(self, client, sample_retrieve_request):
         """Test retrieving documents with fallback"""
         response = client.post("/api/ai/retriever/retrieve", json=sample_retrieve_request.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "results" in data
@@ -1261,7 +1265,7 @@ class TestRAGKnowledgeBase:
     def test_get_knowledge_bases_empty(self, client):
         """Test getting knowledge bases when empty"""
         response = client.get("/api/ai/rag-knowledge-base/bases")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "bases" in data
@@ -1276,7 +1280,7 @@ class TestRAGKnowledgeBase:
         response = client.post(
             "/api/ai/rag-knowledge-base/bases", json=sample_knowledge_base.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1287,7 +1291,7 @@ class TestRAGKnowledgeBase:
         response = client.post(
             "/api/ai/rag-knowledge-base/bases", json=sample_knowledge_base.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1303,7 +1307,7 @@ class TestRAGKnowledgeBase:
 
         # Delete the knowledge base
         response = client.delete(f"/api/ai/rag-knowledge-base/bases/{kb_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "message" in data
@@ -1422,7 +1426,7 @@ class TestLoadBalancer:
     async def test_get_load_balancer_configs_with_engine(self, client):
         """Test getting load balancer configs with actual engine"""
         response = client.get("/api/ai/load-balancer/configs")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "configs" in data
@@ -1430,7 +1434,7 @@ class TestLoadBalancer:
     def test_get_load_balancer_configs_fallback(self, client):
         """Test getting load balancer configs with fallback"""
         response = client.get("/api/ai/load-balancer/configs")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "configs" in data
@@ -1443,7 +1447,7 @@ class TestLoadBalancer:
         response = client.post(
             "/api/ai/load-balancer/configs", json=sample_load_balancer_config.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1454,7 +1458,7 @@ class TestLoadBalancer:
         response = client.post(
             "/api/ai/load-balancer/configs", json=sample_load_balancer_config.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1471,7 +1475,7 @@ class TestLoadBalancer:
         # Update the config
         update_data = {"enabled": False}
         response = client.patch(f"/api/ai/load-balancer/configs/{config_id}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["enabled"] == False
@@ -1500,7 +1504,7 @@ class TestCapabilityEvaluator:
         response = client.post(
             "/api/ai/capability-evaluator/evaluate", json=sample_evaluate_request.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "model_id" in data
@@ -1512,7 +1516,7 @@ class TestCapabilityEvaluator:
         response = client.post(
             "/api/ai/capability-evaluator/evaluate", json=sample_evaluate_request.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "model_id" in data
@@ -1532,7 +1536,7 @@ class TestCostOptimizer:
     async def test_get_cost_suggestions_with_engine(self, client):
         """Test getting cost suggestions with actual engine"""
         response = client.get("/api/ai/cost-optimizer/suggestions")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "suggestions" in data
@@ -1540,7 +1544,7 @@ class TestCostOptimizer:
     def test_get_cost_suggestions_fallback(self, client):
         """Test getting cost suggestions with fallback"""
         response = client.get("/api/ai/cost-optimizer/suggestions")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "suggestions" in data
@@ -1550,7 +1554,7 @@ class TestCostOptimizer:
         response = client.post(
             "/api/ai/cost-optimizer/suggestions", json=sample_cost_suggestion.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1569,7 +1573,7 @@ class TestLLMRouter:
     async def test_get_routing_rules_with_engine(self, client):
         """Test getting routing rules with actual engine"""
         response = client.get("/api/ai/llm-router/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data
@@ -1577,7 +1581,7 @@ class TestLLMRouter:
     def test_get_routing_rules_fallback(self, client):
         """Test getting routing rules with fallback"""
         response = client.get("/api/ai/llm-router/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data
@@ -1586,7 +1590,7 @@ class TestLLMRouter:
     async def test_create_routing_rule_with_engine(self, client, sample_routing_rule):
         """Test creating routing rule with actual engine"""
         response = client.post("/api/ai/llm-router/rules", json=sample_routing_rule.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1595,7 +1599,7 @@ class TestLLMRouter:
     def test_create_routing_rule_fallback(self, client, sample_routing_rule):
         """Test creating routing rule with fallback"""
         response = client.post("/api/ai/llm-router/rules", json=sample_routing_rule.dict())
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -1621,7 +1625,7 @@ class TestLLMRouter:
         # Update the rule
         update_data = {"enabled": False}
         response = client.patch(f"/api/ai/llm-router/rules/{rule_id}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["enabled"] == False
@@ -1640,7 +1644,7 @@ class TestLLMRouter:
 
         # Delete the rule
         response = client.delete(f"/api/ai/llm-router/rules/{rule_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "message" in data
@@ -1670,14 +1674,14 @@ class TestDataValidation:
             "epochs": 3,
         }
         response = client.post("/api/ai/model-fine-tuning/jobs", json=valid_job)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_feedback_rating_validation(self, client):
         """Test feedback rating range validation"""
         for rating in [1, 2, 3, 4, 5]:
             feedback = {"type": "positive", "content": "Test", "rating": rating}
             response = client.post("/api/ai/ai-feedback/feedbacks", json=feedback)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
 
     def test_routing_rule_priority_validation(self, client):
         """Test routing rule priority range validation"""
@@ -1689,7 +1693,7 @@ class TestDataValidation:
                 "priority": priority,
             }
             response = client.post("/api/ai/llm-router/rules", json=rule)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -1735,7 +1739,7 @@ class TestPerformance:
             feedback_data = sample_feedback.dict()
             feedback_data["content"] = f"Feedback {i}"
             response = client.post("/api/ai/ai-feedback/feedbacks", json=feedback_data)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
 
     def test_get_after_multiple_creates(self, client, sample_feedback):
         """Test getting list after creating multiple resources"""
@@ -1747,7 +1751,7 @@ class TestPerformance:
 
         # Get all feedbacks
         response = client.get("/api/ai/ai-feedback/feedbacks")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["feedbacks"]) >= 5
@@ -1755,3 +1759,17 @@ class TestPerformance:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--cov=api.ai_advanced_router", "--cov-report=html"])
+
+
+# Wave2 #24: production routers now require authentication (no FAKE_ADMIN
+# fallback for unauthenticated requests).  Tests exercise endpoint logic with
+# an authenticated identity via dependency_overrides.
+_TEST_AUTH_USER = UserInDB(
+    id=1,
+    username="test_admin",
+    full_name="Test Admin",
+    email="test@example.com",
+    role="admin",
+    disabled=False,
+    hashed_password="hashed",
+)

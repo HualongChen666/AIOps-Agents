@@ -1,6 +1,9 @@
 syntax = "proto3";
 
-package aiops;
+// NOTE: this file previously declared `package aiops`, which collided with
+// aiops.proto (both defined `Empty`) and made protoc refuse to generate any
+// Python code. Each proto now owns a distinct package.
+package automated_testing;
 
 // Automated Testing Service gRPC Service Definition
 

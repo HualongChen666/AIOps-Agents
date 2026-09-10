@@ -15,14 +15,16 @@ Features:
 
 from __future__ import annotations
 
+import json
 import logging
 import re
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.auto_heal import RepairScript, repair_script_library
+from core.auto_heal import PlatformType, RepairScript, repair_script_library
 from core.command_guard import RiskLevel, analyze_command
 
 logger = logging.getLogger(__name__)
@@ -851,29 +853,29 @@ class HardwareLogAnalyzer:
 
 def register_hardware_log_scripts() -> None:
     """
-    Register hardware log analysis scripts in the global RepairScriptLibrary.
-    This function is called during module initialization.
+    Register the hardware-log analysis script in the shared RepairScriptLibrary
+    (``core.auto_heal.repair_script_library``).  Called during module/package
+    initialization — see ``extensions/hardware_remediation/__init__.py``.
     """
-    try:
-        from core.repair_script_library import RepairScriptLibrary
-        
-        library = RepairScriptLibrary()
-        
-        # Register hardware log analysis script
-        library.register_script(
-            name="analyze_hardware_log",
-            description="Analyze hardware logs to detect issues and generate repair recommendations",
-            execute_func=lambda log_content: str(_hardware_log_analyzer.analyze_log(log_content)),
-            dry_run_func=lambda log_content: str(_hardware_log_analyzer.analyze_log(log_content)),
-            category="hardware",
-            risk_level="low"
+    repair_script_library.register_script(
+        RepairScript(
+            script_key="analyze_hardware_log",
+            name="Analyze Hardware Log",
+            description=(
+                "Analyze a vendor hardware log (Dell iDRAC / HP iLO / Lenovo XClarity / "
+                "Cisco IMC / Huawei iBMC) to detect component issues and produce repair "
+                "recommendations."
+            ),
+            platforms=[PlatformType.LINUX, PlatformType.WINDOWS, PlatformType.MACOS],
+            risk_level=RiskLevel.LOW,
+            requires_approval=False,
+            script_content=(
+                "python -m extensions.hardware_remediation.hardware_log_analyzer '{log_file}'"
+            ),
+            metadata={"category": "hardware", "interface": "log"},
         )
-        
-        logger.info("Hardware log analysis scripts registered successfully")
-    except ImportError:
-        logger.warning("RepairScriptLibrary not available, skipping hardware log script registration")
-    except Exception as e:
-        logger.error(f"Error registering hardware log scripts: {e}")
+    )
+    logger.info("Hardware log analysis scripts registered successfully")
 
 
 # Global analyzer instance
@@ -883,3 +885,66 @@ _hardware_log_analyzer = HardwareLogAnalyzer()
 def get_hardware_log_analyzer() -> HardwareLogAnalyzer:
     """Get the global hardware log analyzer instance"""
     return _hardware_log_analyzer
+
+
+def _result_to_dict(result: AnalysisResult) -> Dict[str, Any]:
+    """Return a JSON-serialisable view of an ``AnalysisResult`` (enums → their values)."""
+
+    def normalise(value: Any) -> Any:
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, dict):
+            return {k: normalise(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [normalise(v) for v in value]
+        if hasattr(value, "__dataclass_fields__"):
+            return {k: normalise(getattr(value, k)) for k in value.__dataclass_fields__}
+        return value
+
+    return normalise(result)
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    """
+    CLI entry point used by the repair-script library (see
+    ``register_hardware_log_scripts``).
+
+    Usage::
+
+        python -m extensions.hardware_remediation.hardware_log_analyzer <log-file> [vendor]
+        ipmitool sel list | python -m extensions.hardware_remediation.hardware_log_analyzer - dell
+
+    ``<log-file>`` may be ``-`` to read the log from stdin.  ``[vendor]`` is one of
+    dell/hp/lenovo/cisco/huawei (auto-detected when omitted).  The analysis is
+    printed to stdout as JSON.
+    """
+    args = list(sys.argv[1:] if argv is None else argv)
+    if not args or args[0] in ("-h", "--help"):
+        print(
+            "usage: python -m extensions.hardware_remediation.hardware_log_analyzer "
+            "<log-file|-> [vendor]",
+            file=sys.stderr,
+        )
+        return 2
+
+    vendor: Optional[HardwareVendor] = None
+    if len(args) > 1:
+        try:
+            vendor = HardwareVendor(args[1].lower())
+        except ValueError:
+            logger.error("Unknown hardware vendor: %s", args[1])
+            return 2
+
+    if args[0] == "-":
+        content = sys.stdin.read()
+    else:
+        with open(args[0], "r", encoding="utf-8", errors="replace") as handle:
+            content = handle.read()
+
+    result = get_hardware_log_analyzer().analyze_log(content, vendor)
+    print(json.dumps(_result_to_dict(result), ensure_ascii=False, indent=2))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

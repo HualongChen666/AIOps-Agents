@@ -20,7 +20,7 @@ from permission_checker import PermissionChecker
 from grpc.server import serve as grpc_serve
 
 # Import storage
-from core.storage.postgres_storage import PostgreSQLStorage
+from modules.storage.postgres.storage import PostgreSQLStorage
 
 SERVICE_NAME = "access_control_service"
 HTTP_PORT = int(os.getenv("PORT", "8001"))

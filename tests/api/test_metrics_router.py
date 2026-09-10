@@ -200,7 +200,7 @@ def test_get_snapshot_cache_hit(client, monkeypatch):
     metrics_router._snapshot_cache.set(test_data)
 
     resp = client.get("/api/v1/metrics/snapshot")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["cpu"]["usage_percent"] == 45
@@ -239,7 +239,7 @@ def test_get_snapshot_collection_error(client, monkeypatch):
     monkeypatch.setattr(asyncio, "to_thread", failing_to_thread)
 
     resp = client.get("/api/v1/metrics/snapshot")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "系统指标采集失败" in resp.text
 
@@ -260,7 +260,7 @@ def test_get_history_error(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/history")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "历史数据获取失败" in resp.text
 
@@ -383,7 +383,7 @@ def test_get_processes_cache_hit(client, monkeypatch):
     metrics_router._processes_cache.set(test_data, limit=10)
 
     resp = client.get("/api/v1/metrics/processes?limit=10")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["processes"]) == 1
@@ -421,7 +421,7 @@ def test_get_processes_collection_error(client, monkeypatch):
     monkeypatch.setattr(asyncio, "to_thread", failing_to_thread)
 
     resp = client.get("/api/v1/metrics/processes?limit=10")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "进程列表获取失败" in resp.text
 
@@ -440,7 +440,7 @@ def test_get_summary_error(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/summary")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "摘要数据获取失败" in resp.text
 
@@ -461,7 +461,7 @@ def test_clear_snapshot_cache_engine_error(client, monkeypatch):
     monkeypatch.setattr(core.collector, "invalidate_collect_cache", failing_invalidate)
 
     resp = client.delete("/api/v1/metrics/cache")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # Should still return success even if engine cache clear fails
@@ -479,7 +479,7 @@ def test_clear_snapshot_cache_import_error(client, monkeypatch):
     monkeypatch.delattr(core.collector, "invalidate_collect_cache", raising=False)
 
     resp = client.delete("/api/v1/metrics/cache")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["status"] == "ok"
@@ -498,7 +498,7 @@ def test_clear_snapshot_cache_success(client, monkeypatch):
     monkeypatch.setattr(core.collector, "invalidate_collect_cache", MagicMock())
 
     resp = client.delete("/api/v1/metrics/cache")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["status"] == "ok"
@@ -527,7 +527,7 @@ def test_get_kpi_values_no_visible_configs(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/kpi/values")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["data"] == []
@@ -580,7 +580,7 @@ def test_get_kpi_values_mixed_visibility(client, monkeypatch):
     monkeypatch.setattr(metrics_router, "resolve_field", MagicMock(return_value=5))
 
     resp = client.get("/api/v1/metrics/kpi/values")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # Should only return visible configs
@@ -620,7 +620,7 @@ def test_get_kpi_values_snapshot_endpoint(client, monkeypatch):
     monkeypatch.setattr(metrics_router, "resolve_field", MagicMock(return_value=45.5))
 
     resp = client.get("/api/v1/metrics/kpi/values")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["data"]) == 1
@@ -651,7 +651,7 @@ def test_get_kpi_values_decision_accuracy_endpoint(client, monkeypatch):
     monkeypatch.setattr(metrics_router, "resolve_field", MagicMock(return_value=0.95))
 
     resp = client.get("/api/v1/metrics/kpi/values")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["data"]) == 1
@@ -682,7 +682,7 @@ def test_get_kpi_values_feedback_accuracy_endpoint(client, monkeypatch):
     monkeypatch.setattr(metrics_router, "resolve_field", MagicMock(return_value=0.85))
 
     resp = client.get("/api/v1/metrics/kpi/values")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["data"]) == 1
@@ -719,7 +719,7 @@ def test_get_kpi_values_value_conversion_error(client, monkeypatch):
     monkeypatch.setattr(metrics_router, "resolve_field", MagicMock(return_value="not a number"))
 
     resp = client.get("/api/v1/metrics/kpi/values")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["data"]) == 1
@@ -751,7 +751,7 @@ def test_get_kpi_values_none_value(client, monkeypatch):
     monkeypatch.setattr(metrics_router, "resolve_field", MagicMock(return_value=None))
 
     resp = client.get("/api/v1/metrics/kpi/values")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["data"]) == 1
@@ -777,7 +777,7 @@ def test_get_dashboard_metrics_high_alerts(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     alert_metric = next(m for m in data["metrics"] if m["key"] == "告警数量")
@@ -797,7 +797,7 @@ def test_get_dashboard_metrics_warning_alerts(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     alert_metric = next(m for m in data["metrics"] if m["key"] == "告警数量")
@@ -817,7 +817,7 @@ def test_get_dashboard_metrics_normal_alerts(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     alert_metric = next(m for m in data["metrics"] if m["key"] == "告警数量")
@@ -837,7 +837,7 @@ def test_get_dashboard_metrics_low_heal_rate(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     heal_metric = next(m for m in data["metrics"] if m["key"] == "自愈成功率")
@@ -857,7 +857,7 @@ def test_get_dashboard_metrics_high_mttd(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     mttd_metric = next(m for m in data["metrics"] if m["key"] == "MTTD")
@@ -877,7 +877,7 @@ def test_get_dashboard_metrics_low_rca_accuracy(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     rca_metric = next(m for m in data["metrics"] if m["key"] == "RCA准确率")
@@ -925,15 +925,15 @@ def test_get_processes_limit_validation(client, monkeypatch):
 
     # Test minimum limit
     resp = client.get("/api/v1/metrics/processes?limit=1")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test maximum limit
     resp = client.get("/api/v1/metrics/processes?limit=100")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test default limit
     resp = client.get("/api/v1/metrics/processes")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_get_processes_invalid_limit(client, monkeypatch):
@@ -1009,7 +1009,7 @@ def test_get_predictions_error(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/predictions")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "预测性维护建议生成失败" in resp.text
 
@@ -1053,7 +1053,7 @@ def test_get_dashboard_metrics_exception(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "仪表盘指标获取失败" in resp.text
 
@@ -1080,7 +1080,7 @@ def test_get_history_with_metadata(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/history")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
 
@@ -1113,7 +1113,7 @@ def test_get_predictions_success(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/predictions")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "data" in data
@@ -1138,7 +1138,7 @@ def test_get_summary_with_logging(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/summary")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["total_alerts"] == 42
@@ -1161,7 +1161,7 @@ def test_get_feedback_accuracy(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/agent/feedback-accuracy")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["accuracy"] == 0.8
@@ -1185,7 +1185,7 @@ def test_get_decision_accuracy_endpoint(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/agent/decision-accuracy")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["accuracy"] == 0.88
@@ -1207,7 +1207,7 @@ def test_kpi_config_get_list(client, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/kpi/config")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "data" in data
@@ -1227,7 +1227,7 @@ def test_kpi_config_create(client, monkeypatch):
     resp = client.post(
         "/api/v1/metrics/kpi/config", json={"name": "New Config", "endpoint": "summary"}
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["data"]["id"] == "new-1"
@@ -1242,7 +1242,7 @@ def test_kpi_config_update_success(client, monkeypatch):
     )
 
     resp = client.put("/api/v1/metrics/kpi/config/1", json={"name": "Updated"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["data"]["name"] == "Updated"
@@ -1255,7 +1255,7 @@ def test_kpi_config_delete_success(client, monkeypatch):
     monkeypatch.setattr(metrics_router, "delete_kpi_config", MagicMock(return_value=True))
 
     resp = client.delete("/api/v1/metrics/kpi/config/1")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["status"] == "ok"

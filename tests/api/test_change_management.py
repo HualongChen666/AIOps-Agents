@@ -131,9 +131,9 @@ def test_get_change_requests_exception_handling(mock_dependencies, mock_request)
 
 def test_post_change_request_success(mock_dependencies, mock_request, mock_change_request):
     """Test successful post_change_request endpoint (lines 56-71)."""
-    from api.change_management_router import ChangeRequestCreate, post_change_request
+    from api.change_management_router import ChangeManagementChangeRequestCreate, post_change_request
 
-    payload = ChangeRequestCreate(
+    payload = ChangeManagementChangeRequestCreate(
         title="Test Change",
         requester="user1",
         description="Test description",
@@ -150,12 +150,12 @@ def test_post_change_request_change_management_error(mock_dependencies, mock_req
     """Test post_change_request with ChangeManagementError (lines 67-68)."""
     from fastapi import HTTPException
 
-    from api.change_management_router import ChangeRequestCreate, post_change_request
+    from api.change_management_router import ChangeManagementChangeRequestCreate, post_change_request
     from core.change_management_engine import ChangeManagementError
 
     mock_dependencies["create"].side_effect = ChangeManagementError("Invalid request")
 
-    payload = ChangeRequestCreate(title="Test", requester="user1")
+    payload = ChangeManagementChangeRequestCreate(title="Test", requester="user1")
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(post_change_request(mock_request, payload))
@@ -168,11 +168,11 @@ def test_post_change_request_exception_handling(mock_dependencies, mock_request)
     """Test post_change_request general exception handling (lines 69-71)."""
     from fastapi import HTTPException
 
-    from api.change_management_router import ChangeRequestCreate, post_change_request
+    from api.change_management_router import ChangeManagementChangeRequestCreate, post_change_request
 
     mock_dependencies["create"].side_effect = Exception("Unexpected error")
 
-    payload = ChangeRequestCreate(title="Test", requester="user1")
+    payload = ChangeManagementChangeRequestCreate(title="Test", requester="user1")
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(post_change_request(mock_request, payload))

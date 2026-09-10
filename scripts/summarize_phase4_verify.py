@@ -3,12 +3,14 @@
 """Summarize final phase-4 verification JSON."""
 
 import json
+import os
 import sys
 from pathlib import Path
 
 
 def main() -> int:
-    p = Path("C:/AIOps_Agent_bak/verify_logs/tasks_62_69_final_verification.json")
+    root = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
+    p = root / "verify_logs" / "tasks_62_69_final_verification.json"
     data = json.loads(p.read_text(encoding="utf-8"))
     print(f"{'task':>4} {'service':30} black isort flake8 mypy bandit pytest coverage")
     all_ok = True

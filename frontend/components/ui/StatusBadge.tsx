@@ -1,5 +1,6 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Clock, AlertTriangle, HelpCircle } from 'lucide-react';
 
@@ -8,9 +9,10 @@ interface StatusBadgeProps {
   text?: string;
   size?: 'sm' | 'md' | 'lg';
   showIcon?: boolean;
+  children?: ReactNode;
 }
 
-export function StatusBadge({ status, text, size = 'md', showIcon = true }: StatusBadgeProps) {
+export function StatusBadge({ status, text, size = 'md', showIcon = true, children }: StatusBadgeProps) {
   const config = {
     success: {
       variant: 'default' as const,
@@ -51,7 +53,14 @@ export function StatusBadge({ status, text, size = 'md', showIcon = true }: Stat
   };
 
   const { variant, className, icon: Icon, defaultText } = config[status];
-  const displayText = text || defaultText;
+  // With the icon shown, an empty/absent `text` falls back to the status label;
+  // an icon-less badge renders exactly the text it is given (see tests).
+  const displayText =
+    children !== undefined && children !== null
+      ? children
+      : showIcon
+        ? text || defaultText
+        : text;
 
   const sizeClasses = {
     sm: 'text-xs px-2 py-0.5',

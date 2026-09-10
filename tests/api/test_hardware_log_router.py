@@ -126,8 +126,10 @@ class TestHardwareLogRouterHelperFunctions:
         assert "Invalid vendor" in str(exc_info.value)
 
     def test_verify_internal_key_without_config(self):
-        """Test internal key verification when not configured"""
+        """Unconfigured INTERNAL_API_KEY must fail closed (503), not allow."""
         from unittest.mock import Mock, patch
+
+        from fastapi import HTTPException
 
         from api.hardware_log_router import _verify_internal_key
 
@@ -135,7 +137,9 @@ class TestHardwareLogRouterHelperFunctions:
         request.headers = {}
 
         with patch("config.INTERNAL_API_KEY", ""):
-            _verify_internal_key(request)  # Should not raise
+            with pytest.raises(HTTPException) as exc_info:
+                _verify_internal_key(request)
+            assert exc_info.value.status_code == 503
 
     def test_verify_internal_key_with_missing_header(self):
         """Test internal key verification with missing header"""

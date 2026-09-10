@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.ai_router import (
-    AnalyzeRequest,
+    AiAnalyzeRequest,
     _build_context_summary,
     _build_metrics_context,
     _collect_rich_context,
@@ -37,28 +37,28 @@ client = TestClient(app)
 # Request model / validation branches
 # ---------------------------------------------------------------------------
 def test_analyze_request_query_stripping() -> None:
-    req = AnalyzeRequest(query="  CPU high  ")
+    req = AiAnalyzeRequest(query="  CPU high  ")
     assert req.query == "CPU high"
 
 
 def test_analyze_request_invalid_platform() -> None:
     with pytest.raises(ValueError):
-        AnalyzeRequest(query="x", platform="macos")
+        AiAnalyzeRequest(query="x", platform="macos")
 
 
 def test_analyze_request_whitespace_query() -> None:
     with pytest.raises(ValueError):
-        AnalyzeRequest(query="   ")
+        AiAnalyzeRequest(query="   ")
 
 
 def test_platform_and_query_normalizers_direct() -> None:
     # Direct classmethod calls exercise the normalization branches
-    assert AnalyzeRequest._normalize_platform(" LINUX ") == "linux"
-    assert AnalyzeRequest._normalize_platform("") == "windows"
-    assert AnalyzeRequest._normalize_platform(None) == "windows"
-    assert AnalyzeRequest._strip_query("  CPU high  ") == "CPU high"
+    assert AiAnalyzeRequest._normalize_platform(" LINUX ") == "linux"
+    assert AiAnalyzeRequest._normalize_platform("") == "windows"
+    assert AiAnalyzeRequest._normalize_platform(None) == "windows"
+    assert AiAnalyzeRequest._strip_query("  CPU high  ") == "CPU high"
     with pytest.raises(ValueError, match="query"):
-        AnalyzeRequest._strip_query("   ")
+        AiAnalyzeRequest._strip_query("   ")
 
 
 # ---------------------------------------------------------------------------

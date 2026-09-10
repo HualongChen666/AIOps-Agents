@@ -7,8 +7,8 @@ import hashlib
 from datetime import datetime
 from typing import List
 
-from services.config_service.repository import ConfigRepository
-from services.config_service.schemas import ConfigVersion
+from .repository import ConfigRepository
+from .schemas import ConfigVersion
 
 
 class ConfigVersionControl:

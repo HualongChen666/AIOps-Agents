@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/v1/service-monitoring", tags=["Service Monitorin
 
 
 # Pydantic Models
-class AlertCreate(BaseModel):
+class ServiceMonitoringAdvancedAlertCreate(BaseModel):
     """Alert creation model"""
 
     name: str = Field(..., description="Alert name")
@@ -35,7 +35,7 @@ class AlertCreate(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict, description="Alert metadata")
 
 
-class AlertUpdate(BaseModel):
+class ServiceMonitoringAdvancedAlertUpdate(BaseModel):
     """Alert update model"""
 
     name: Optional[str] = Field(None, description="Alert name")
@@ -475,7 +475,7 @@ async def list_alerts(
     },
     status_code=201,
 )
-async def create_alert(alert: AlertCreate):
+async def create_alert(alert: ServiceMonitoringAdvancedAlertCreate):
     """
     Create a new alert
 

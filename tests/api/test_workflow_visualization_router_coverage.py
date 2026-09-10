@@ -22,7 +22,7 @@ class TestWorkflowVisualizationPage:
             html_path.write_text("<html><body>Test</body></html>")
 
         resp = client.get("/workflow/visualization")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             assert resp.headers["content-type"] == "text/html"
 
@@ -55,7 +55,7 @@ class TestWorkflowVisualizationPage:
             html_path.write_text("<html><body>Test</body></html>")
 
         resp = client.get("/workflow/visualization")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
         # Verify it's a file response
             assert "text/html" in resp.headers["content-type"]
@@ -82,7 +82,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert "nodes" in data
@@ -102,7 +102,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure?key=workflow2")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["metadata"]["workflow_key"] == "workflow2"
@@ -139,7 +139,7 @@ class TestGetWorkflowStructure:
             mock_get.side_effect = Exception("Failed to load definitions")
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "工作流定义加载失败" in resp.json()["detail"]
 
@@ -163,7 +163,7 @@ class TestGetWorkflowStructure:
             mock_get.return_value = {"test_workflow": {"name": "Test", "steps": []}}
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "缺少 steps 定义" in resp.json()["detail"]
 
@@ -180,7 +180,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # Should generate default node_id
@@ -196,7 +196,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # Should use key as label
@@ -212,7 +212,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # Description should be empty string
@@ -228,7 +228,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # String steps should be used as both id and label
@@ -252,7 +252,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["nodes"][0]["type"] == "start"
@@ -272,7 +272,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # Single step should be both start and end
@@ -295,7 +295,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # Should have 2 edges for 3 nodes
@@ -319,7 +319,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["metadata"]["workflow_key"] == "test_workflow"
@@ -339,7 +339,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # Should fallback to name
@@ -355,7 +355,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure?key=")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # Should use first workflow
@@ -372,7 +372,7 @@ class TestGetWorkflowStructure:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
             # Should return one of the workflows
@@ -391,7 +391,7 @@ class TestWorkflowVisualizationEdgeCases:
             mock_get.return_value = {"test_workflow": {"name": "Test", "steps": steps}}
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert len(data["nodes"]) == 100
@@ -414,7 +414,7 @@ class TestWorkflowVisualizationEdgeCases:
             }
 
             resp = client.get("/workflow/structure")
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["nodes"][0]["id"] == "step-1"

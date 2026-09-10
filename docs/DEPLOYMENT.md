@@ -1,8 +1,19 @@
-# AIOps Agent Deployment Guide
+# AIOps Agent Deployment Guide (English quick start)
+
+> **Authoritative deployment document: [`DEPLOYMENT_GUIDE.md`](./DEPLOYMENT_GUIDE.md)**
+> (the complete, maintained guide — Chinese). This file is a short English
+> quick start and may lag behind it; when the two disagree, follow
+> `DEPLOYMENT_GUIDE.md`.
+>
+> Scope map:
+> - `DEPLOYMENT_GUIDE.md` — full application deployment (local/Docker/K8s).
+> - `deployment/README.md` — sizing / hardware requirements.
+> - `KUBERNETES_DEPLOYMENT.md` — Kubernetes specifics.
+> - `monitoring/DEPLOYMENT_GUIDE.md` — the standalone monitoring stack only.
 
 ## Prerequisites
 
-- Python 3.10+
+- Python 3.12
 - PostgreSQL 14+
 - Redis 7+
 - Docker (optional, for containerized deployment)

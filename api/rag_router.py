@@ -15,7 +15,7 @@ from core.rag_engine import search_similar, upsert_record, upsert_records
 router = APIRouter(prefix="/api/v1/rag", tags=["RAG"])
 
 
-class SearchRequest(BaseModel):
+class RagSearchRequest(BaseModel):
     query: str
     top_k: int = 5
 
@@ -55,7 +55,7 @@ class BatchIngestRequest(BaseModel):
         (400): {"description": "查询不能为空"},
     },
 )
-async def rag_search(req: SearchRequest):
+async def rag_search(req: RagSearchRequest):
     if not req.query.strip():
         raise HTTPException(status_code=400, detail="query cannot be empty")
     results = search_similar(req.query, top_k=req.top_k)

@@ -317,9 +317,9 @@ describe('Skeleton Component', () => {
     describe('Structure', () => {
       it('should have proper item structure', () => {
         render(<ListSkeleton />);
-        const item = document.querySelector('.flex.items-center.gap-4.p-4.border');
-        const avatar = item?.querySelector('.h-10.w-10.rounded-full');
-        const content = item?.querySelector('.flex-1.space-y-2');
+        const item = document.querySelector<HTMLElement>('.flex.items-center.gap-4.p-4.border') ?? null;
+        const avatar = item?.querySelector<HTMLElement>('.h-10.w-10.rounded-full') ?? null;
+        const content = item?.querySelector<HTMLElement>('.flex-1.space-y-2') ?? null;
         
         expect(item).toContainElement(avatar);
         expect(item).toContainElement(content);
@@ -327,9 +327,9 @@ describe('Skeleton Component', () => {
 
       it('should have proper content structure', () => {
         render(<ListSkeleton />);
-        const content = document.querySelector('.flex-1.space-y-2');
-        const title = content?.querySelector('.h-4.w-1\\/3');
-        const subtitle = content?.querySelector('.h-3.w-2\\/3');
+        const content = document.querySelector<HTMLElement>('.flex-1.space-y-2');
+        const title = content?.querySelector<HTMLElement>('.h-4.w-1\\/3') ?? null;
+        const subtitle = content?.querySelector<HTMLElement>('.h-3.w-2\\/3') ?? null;
         
         expect(content).toContainElement(title);
         expect(content).toContainElement(subtitle);

@@ -35,7 +35,7 @@ public class AIOpsAgentDemo {
 
         // Alerts
         HttpRequest alerts = HttpRequest.newBuilder()
-                .uri(URI.create(baseUrl + "/api/alerts?limit=5"))
+                .uri(URI.create(baseUrl + "/api/v1/alerts/?limit=5"))
                 .GET()
                 .build();
         HttpResponse<String> alertsResp = client.send(alerts, HttpResponse.BodyHandlers.ofString());

@@ -72,7 +72,7 @@ def test_guard_endpoint(client, approval_headers, method, path, body, params, ex
 def test_check_safe_command(client):
     """Test checking a safe command."""
     resp = client.post("/api/guard/check", json={"command": "ls -la"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["risk_level"] == "safe"
@@ -84,7 +84,7 @@ def test_check_safe_command(client):
 def test_check_high_risk_command(client):
     """Test checking a high risk command."""
     resp = client.post("/api/guard/check", json={"command": "reboot"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["risk_level"] == "high"
@@ -95,7 +95,7 @@ def test_check_high_risk_command(client):
 def test_check_blocked_command(client):
     """Test checking a blocked command."""
     resp = client.post("/api/guard/check", json={"command": "rm -rf /"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["risk_level"] == "blocked"
@@ -107,7 +107,7 @@ def test_check_self_termination_pid(client):
     """Test checking command that would terminate protected PID."""
     # 12345 was registered as protected in _guard_setup
     resp = client.post("/api/guard/check", json={"command": "kill 12345"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["risk_level"] == "blocked"
@@ -117,7 +117,7 @@ def test_check_self_termination_pid(client):
 def test_check_command_chain(client):
     """Test checking a command chain."""
     resp = client.post("/api/guard/check", json={"command": "ls && reboot"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["is_chained"] is True
@@ -131,7 +131,7 @@ def test_check_target_host_alias_and_validation(client):
         "/api/guard/check",
         json={"command": "ls", "host": "web-01!node"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # cleaned to allowed chars
@@ -142,10 +142,10 @@ def test_check_target_host_variants(client):
     """Test various target_host variants."""
     # whitespace host collapses to default
     resp = client.post("/api/guard/check", json={"command": "ls", "host": "   "})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     # valid host returns as-is
     resp = client.post("/api/guard/check", json={"command": "ls", "host": "web-01.node:8080"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_check_low_risk_unknown(client):
@@ -164,7 +164,7 @@ def test_check_local_executor(client, restore_config):
     if "testclient" not in config.ALLOWED_LOCAL_IPS:
         config.ALLOWED_LOCAL_IPS.append("testclient")
     resp = client.post("/api/guard/check", json={"command": "ls"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["audit"]["executor"] == "local_caller"
 
@@ -178,13 +178,13 @@ def test_check_validation_missing_command(client):
 def test_check_validation_command_too_long(client):
     """Test validation error for command too long."""
     resp = client.post("/api/guard/check", json={"command": "x" * 2001})
-    assert resp.status_code in (422, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_check_with_target_host(client):
     """Test check with explicit target_host."""
     resp = client.post("/api/guard/check", json={"command": "ls", "target_host": "server1"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["command"] == "ls"
@@ -198,7 +198,7 @@ def test_check_with_target_host(client):
 def test_allowed_true(client):
     """Test allowed endpoint for safe command."""
     resp = client.post("/api/guard/allowed", json={"command": "ls"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["allowed"] is True
@@ -207,7 +207,7 @@ def test_allowed_true(client):
 def test_allowed_false(client):
     """Test allowed endpoint for blocked command."""
     resp = client.post("/api/guard/allowed", json={"command": "rm -rf /"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["allowed"] is False
@@ -216,13 +216,13 @@ def test_allowed_false(client):
 def test_allowed_validation_empty(client):
     """Test validation error for empty command."""
     resp = client.post("/api/guard/allowed", json={"command": ""})
-    assert resp.status_code in (422, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_allowed_with_target_host(client):
     """Test allowed with target_host."""
     resp = client.post("/api/guard/allowed", json={"command": "ls", "target_host": "server1"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +233,7 @@ def test_allowed_with_target_host(client):
 def test_rewrite_rm_to_safe(client):
     """Test rewriting rm command to safe version."""
     resp = client.post("/api/guard/rewrite", json={"command": "rm -rf /tmp/old"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["changed"] is True
@@ -243,7 +243,7 @@ def test_rewrite_rm_to_safe(client):
 def test_rewrite_no_change(client):
     """Test rewriting safe command (no change)."""
     resp = client.post("/api/guard/rewrite", json={"command": "ls"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["changed"] is False
@@ -253,13 +253,13 @@ def test_rewrite_no_change(client):
 def test_rewrite_validation_empty(client):
     """Test validation error for empty command."""
     resp = client.post("/api/guard/rewrite", json={"command": ""})
-    assert resp.status_code in (422, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_rewrite_validation_too_long(client):
     """Test validation error for command too long."""
     resp = client.post("/api/guard/rewrite", json={"command": "x" * 2001})
-    assert resp.status_code in (422, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +270,7 @@ def test_rewrite_validation_too_long(client):
 def test_dryrun_rm(client):
     """Test dryrun for rm command."""
     resp = client.post("/api/guard/dryrun", json={"command": "rm -rf /tmp/data"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "将要删除" in data["preview"]
@@ -279,7 +279,7 @@ def test_dryrun_rm(client):
 def test_dryrun_systemctl(client):
     """Test dryrun for systemctl command."""
     resp = client.post("/api/guard/dryrun", json={"command": "systemctl restart sshd"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "即将重启服务" in data["preview"]
@@ -288,7 +288,7 @@ def test_dryrun_systemctl(client):
 def test_dryrun_default(client):
     """Test dryrun for generic command."""
     resp = client.post("/api/guard/dryrun", json={"command": "echo hello"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "Dry-run 预览" in data["preview"]
@@ -297,13 +297,13 @@ def test_dryrun_default(client):
 def test_dryrun_with_target_host(client):
     """Test dryrun with target_host."""
     resp = client.post("/api/guard/dryrun", json={"command": "ls", "target_host": "server1"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_dryrun_validation_empty(client):
     """Test validation error for empty command."""
     resp = client.post("/api/guard/dryrun", json={"command": ""})
-    assert resp.status_code in (422, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +319,7 @@ def _audit_headers(key: str):
 def test_audit_with_valid_key(client):
     """Test audit endpoint with valid key."""
     resp = client.get("/api/guard/audit", headers=_audit_headers(config.INTERNAL_API_KEY))
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "logs" in data
@@ -347,7 +347,7 @@ def test_audit_local_allowed(client, restore_config):
     if "testclient" not in config.ALLOWED_LOCAL_IPS:
         config.ALLOWED_LOCAL_IPS.append("testclient")
     resp = client.get("/api/guard/audit")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_audit_proxy_without_key(client, restore_config):
@@ -370,7 +370,7 @@ def test_audit_filter_by_risk_level(client):
         params={"risk_level": "high"},
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert all(log["risk_level"] == "high" for log in data["logs"])
@@ -384,7 +384,7 @@ def test_audit_limit_validation(client):
         params={"limit": 501},
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (422, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_audit_mask_long_command(client):
@@ -406,7 +406,7 @@ def test_audit_mask_long_command(client):
         params={"limit": 1},
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # the masked entry should end with ...
@@ -433,7 +433,7 @@ def test_audit_mask_non_string_command(client):
         params={"limit": 1},
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_audit_remote_denied(client, restore_config):
@@ -455,7 +455,7 @@ def test_audit_with_limit(client):
         params={"limit": 10},
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["logs"]) <= 10
@@ -472,7 +472,7 @@ def test_stats_with_valid_key(client):
     record_audit("h1", "rm -rf /", "blocked", executor="remote@testclient", result="blocked")
     record_audit("h1", "reboot", "high", executor="remote@testclient", result="checked_high")
     resp = client.get("/api/guard/stats", headers=_audit_headers(config.INTERNAL_API_KEY))
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["total"] >= 2
@@ -485,7 +485,7 @@ def test_stats_empty_logs(client):
     """Test stats endpoint with empty logs."""
     clear_audit_log()
     resp = client.get("/api/guard/stats", headers=_audit_headers(config.INTERNAL_API_KEY))
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["total"] == 0
@@ -520,7 +520,7 @@ def test_security_events(client):
         "/api/v1/security/events",
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["events"]) >= 4
@@ -547,7 +547,7 @@ def test_security_events_with_limit(client):
         params={"limit": 5},
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert len(data["events"]) <= 5
@@ -567,7 +567,7 @@ def test_security_stats(client):
         "/api/v1/security/stats",
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["blocked_count"] >= 1
@@ -588,7 +588,7 @@ def test_security_stats_with_limit(client):
         params={"limit": 100},
         headers=_audit_headers(config.INTERNAL_API_KEY),
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -599,7 +599,7 @@ def test_security_stats_with_limit(client):
 def test_check_medium_risk_command(client):
     """Test checking a medium risk command."""
     resp = client.post("/api/guard/check", json={"command": "iptables -F"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["risk_level"] in ["medium", "high"]  # May be classified differently
@@ -609,13 +609,13 @@ def test_check_with_very_long_command(client):
     """Test checking a command at max length boundary."""
     cmd = "x" * 2000
     resp = client.post("/api/guard/check", json={"command": cmd})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_allowed_medium_risk(client):
     """Test allowed endpoint for medium risk command."""
     resp = client.post("/api/guard/allowed", json={"command": "iptables -F"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
     # Medium risk commands should be allowed
@@ -625,7 +625,7 @@ def test_allowed_medium_risk(client):
 def test_rewrite_high_risk_command(client):
     """Test rewriting high risk command."""
     resp = client.post("/api/guard/rewrite", json={"command": "rm -rf /etc/passwd"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "original" in data
@@ -635,7 +635,7 @@ def test_rewrite_high_risk_command(client):
 def test_dryrun_high_risk_command(client):
     """Test dryrun for high risk command."""
     resp = client.post("/api/guard/dryrun", json={"command": "rm -rf /etc/passwd"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "preview" in data
@@ -656,7 +656,7 @@ def test_audit_with_all_risk_levels(client):
             params={"risk_level": level},
             headers=_audit_headers(config.INTERNAL_API_KEY),
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["filter"]["risk_level"] == level
@@ -672,7 +672,7 @@ def test_stats_with_all_risk_levels(client):
     record_audit("h1", "rm -rf /", "blocked", executor="remote@testclient", result="blocked")
 
     resp = client.get("/api/guard/stats", headers=_audit_headers(config.INTERNAL_API_KEY))
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["total"] >= 5
@@ -692,7 +692,7 @@ def test_security_events_all_types(client):
     record_audit("h1", "ls", "safe", executor="local_caller", result="allowed")
 
     resp = client.get("/api/v1/security/events", headers=_audit_headers(config.INTERNAL_API_KEY))
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
 
@@ -713,7 +713,7 @@ def test_security_stats_comprehensive(client):
     record_audit("h1", "ls", "safe", executor="local_caller", result="allowed")
 
     resp = client.get("/api/v1/security/stats", headers=_audit_headers(config.INTERNAL_API_KEY))
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
 

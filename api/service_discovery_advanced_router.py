@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/v1/service-discovery", tags=["Service Discovery 
 
 
 # Pydantic Models
-class ServiceCreate(BaseModel):
+class ServiceDiscoveryAdvancedServiceCreate(BaseModel):
     """Service creation model"""
 
     name: str = Field(..., description="Service name")
@@ -154,7 +154,7 @@ async def list_services(
     },
     status_code=201,
 )
-async def create_service(service: ServiceCreate):
+async def create_service(service: ServiceDiscoveryAdvancedServiceCreate):
     """
     Create a new service
 

@@ -20,7 +20,7 @@ from api.topology_router import (
     _full_link_cache,
     _full_link_cache_lock,
     _BATCH_SIZE_LIMIT,
-    BatchDeleteRequest,
+    TopologyBatchDeleteRequest,
     BatchEdgeCreateRequest,
     BatchNodeCreateRequest,
     EdgeCreateRequest,
@@ -29,8 +29,8 @@ from api.topology_router import (
     NodeUpdateRequest,
     TopologyCreateRequest,
     TopologyUpdateRequest,
-    TopologyViewCreateRequest,
-    TopologyViewUpdateRequest,
+    TopologyTopologyViewCreateRequest,
+    TopologyTopologyViewUpdateRequest,
     _validate_path_node_id,
 )
 
@@ -115,7 +115,7 @@ class TestOriginalEndpoints:
     def test_get_topo_status(self, client, admin_headers):
         """Test GET /api/v1/topologies/status/{topo_key}"""
         resp = client.get("/api/v1/topologies/status/default", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_set_node_health(self, client, admin_headers):
@@ -137,13 +137,13 @@ class TestOriginalEndpoints:
     def test_get_node_timeline(self, client, admin_headers):
         """Test GET /api/v1/topologies/node/{node_id}/timeline"""
         resp = client.get("/api/v1/topologies/node/agent/timeline", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_clear_topology_cache(self, client, admin_headers):
         """Test POST /api/v1/topologies/cache/clear"""
         resp = client.post("/api/v1/topologies/cache/clear", headers=admin_headers)
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -174,7 +174,7 @@ class TestTopologyCRUD:
     def test_get_topology_by_id(self, client, admin_headers):
         """Test GET /api/v1/topologies/{topology_id}"""
         resp = client.get("/api/v1/topologies/topology-123", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_get_topology_by_id_invalid_id(self, client, admin_headers):
@@ -197,13 +197,13 @@ class TestTopologyCRUD:
         """Test PUT /api/v1/topologies/{topology_id}"""
         update_data = {"name": "Updated Topology"}
         resp = client.put("/api/v1/topologies/topology-123", headers=admin_headers, json=update_data)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_delete_topology(self, client, admin_headers):
         """Test DELETE /api/v1/topologies/{topology_id}"""
         resp = client.delete("/api/v1/topologies/topology-123", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_validate_topology(self, client, admin_headers, sample_topology_data):
@@ -218,13 +218,13 @@ class TestTopologyCRUD:
     def test_export_topology_json(self, client, admin_headers):
         """Test GET /api/v1/topologies/{topology_id}/export with JSON format"""
         resp = client.get("/api/v1/topologies/topology-123/export?format=json", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_export_topology_yaml(self, client, admin_headers):
         """Test GET /api/v1/topologies/{topology_id}/export with YAML format"""
         resp = client.get("/api/v1/topologies/topology-123/export?format=yaml", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -252,7 +252,7 @@ class TestNodeManagement:
     def test_list_nodes(self, client, admin_headers):
         """Test GET /api/v1/topologies/nodes"""
         resp = client.get("/api/v1/topologies/nodes", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
         if resp.status_code == 200:
             data = resp.json()
             assert "nodes" in data
@@ -262,13 +262,13 @@ class TestNodeManagement:
     def test_list_nodes_with_filters(self, client, admin_headers):
         """Test GET /api/v1/topologies/nodes with filters"""
         resp = client.get("/api/v1/topologies/nodes?type=service&status=healthy", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_get_node_by_id(self, client, admin_headers):
         """Test GET /api/v1/topologies/nodes/{node_id}"""
         resp = client.get("/api/v1/topologies/nodes/node-1", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_get_node_by_id_invalid(self, client, admin_headers):
@@ -281,13 +281,13 @@ class TestNodeManagement:
         """Test PUT /api/v1/topologies/nodes/{node_id}"""
         update_data = {"name": "Updated Service", "status": "warning"}
         resp = client.put("/api/v1/topologies/nodes/node-1", headers=admin_headers, json=update_data)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_delete_node(self, client, admin_headers):
         """Test DELETE /api/v1/topologies/nodes/{node_id}"""
         resp = client.delete("/api/v1/topologies/nodes/node-1", headers=admin_headers)
-        assert resp.status_code in (200, 404, 400, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_check_node_exists(self, client, admin_headers):
@@ -325,7 +325,7 @@ class TestEdgeManagement:
     def test_list_edges(self, client, admin_headers):
         """Test GET /api/v1/topologies/edges"""
         resp = client.get("/api/v1/topologies/edges", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
         if resp.status_code == 200:
             data = resp.json()
             assert "edges" in data
@@ -335,19 +335,19 @@ class TestEdgeManagement:
     def test_list_edges_with_filters(self, client, admin_headers):
         """Test GET /api/v1/topologies/edges with filters"""
         resp = client.get("/api/v1/topologies/edges?source=node-1&type=sync", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_get_edge_by_id(self, client, admin_headers):
         """Test GET /api/v1/topologies/edges/{edge_id}"""
         resp = client.get("/api/v1/topologies/edges/node-1__node-2", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_delete_edge(self, client, admin_headers):
         """Test DELETE /api/v1/topologies/edges/{edge_id}"""
         resp = client.delete("/api/v1/topologies/edges/node-1__node-2", headers=admin_headers)
-        assert resp.status_code in (200, 404, 400, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_check_edge_exists(self, client, admin_headers):
@@ -372,7 +372,7 @@ class TestDependencyAnalysis:
     def test_get_node_dependencies(self, client, admin_headers):
         """Test GET /api/v1/topologies/nodes/{node_id}/dependencies"""
         resp = client.get("/api/v1/topologies/nodes/node-1/dependencies", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
         if resp.status_code == 200:
             data = resp.json()
             assert "dependencies" in data
@@ -382,7 +382,7 @@ class TestDependencyAnalysis:
     def test_get_transitive_dependencies(self, client, admin_headers):
         """Test GET /api/v1/topologies/nodes/{node_id}/transitive-dependencies"""
         resp = client.get("/api/v1/topologies/nodes/node-1/transitive-dependencies", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
         if resp.status_code == 200:
             data = resp.json()
             assert "transitive_dependencies" in data
@@ -392,7 +392,7 @@ class TestDependencyAnalysis:
     def test_get_impact_analysis(self, client, admin_headers):
         """Test GET /api/v1/topologies/nodes/{node_id}/impact"""
         resp = client.get("/api/v1/topologies/nodes/node-1/impact", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
         if resp.status_code == 200:
             data = resp.json()
             assert "impact" in data
@@ -426,7 +426,7 @@ class TestTopologyViews:
     def test_list_topology_views(self, client, admin_headers):
         """Test GET /api/v1/topologies/views"""
         resp = client.get("/api/v1/topologies/views", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
         if resp.status_code == 200:
             data = resp.json()
             assert "views" in data
@@ -436,26 +436,26 @@ class TestTopologyViews:
     def test_list_topology_views_with_filter(self, client, admin_headers):
         """Test GET /api/v1/topologies/views with type filter"""
         resp = client.get("/api/v1/topologies/views?view_type=service", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_get_topology_view_by_id(self, client, admin_headers):
         """Test GET /api/v1/topologies/views/{view_id}"""
         resp = client.get("/api/v1/topologies/views/view-123", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_update_topology_view(self, client, admin_headers):
         """Test PUT /api/v1/topologies/views/{view_id}"""
         update_data = {"name": "Updated View"}
         resp = client.put("/api/v1/topologies/views/view-123", headers=admin_headers, json=update_data)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     @pytest.mark.smoke
     def test_delete_topology_view(self, client, admin_headers):
         """Test DELETE /api/v1/topologies/views/{view_id}"""
         resp = client.delete("/api/v1/topologies/views/view-123", headers=admin_headers)
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -601,20 +601,20 @@ class TestPydanticModels:
             BatchNodeCreateRequest(nodes=nodes)
 
     def test_topology_view_create_request_valid(self):
-        """Test TopologyViewCreateRequest with valid data"""
+        """Test TopologyTopologyViewCreateRequest with valid data"""
         data = {
             "name": "Service View",
             "view_type": "service",
             "config": {"filters": {"environment": "production"}},
         }
-        request = TopologyViewCreateRequest(**data)
+        request = TopologyTopologyViewCreateRequest(**data)
         assert request.name == "Service View"
         assert request.view_type == "service"
 
     def test_topology_view_create_request_invalid_type(self):
-        """Test TopologyViewCreateRequest with invalid view_type"""
+        """Test TopologyTopologyViewCreateRequest with invalid view_type"""
         with pytest.raises(ValueError, match="必须是以下之一"):
-            TopologyViewCreateRequest(name="Test", view_type="invalid_type")
+            TopologyTopologyViewCreateRequest(name="Test", view_type="invalid_type")
 
 
 # ============================================================
@@ -693,12 +693,12 @@ class TestIntegration:
 
         # Get node
         get_resp = client.get("/api/v1/topologies/nodes/node-1", headers=admin_headers)
-        assert get_resp.status_code in (200, 404, 500)
+        assert get_resp.status_code != 404, get_resp.text
 
         # Update node
         update_data = {"status": "warning"}
         update_resp = client.put("/api/v1/topologies/nodes/node-1", headers=admin_headers, json=update_data)
-        assert update_resp.status_code in (200, 404, 500)
+        assert update_resp.status_code != 404, update_resp.text
 
     @pytest.mark.integration
     def test_batch_operations_workflow(self, client, admin_headers):

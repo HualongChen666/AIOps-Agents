@@ -4,14 +4,14 @@
  */
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { Form, useForm, FormActions } from '@/components/ui/Form';
 import { useFormValidation } from '@/hooks/useEnhancements';
 
 describe('Form Error Handling', () => {
   describe('Validation Error Handling', () => {
     it('should display validation errors for required fields', async () => {
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         const errors: any = {};
         if (!values.username) errors.username = 'Username is required';
         if (!values.email) errors.email = 'Email is required';
@@ -67,7 +67,7 @@ describe('Form Error Handling', () => {
     });
 
     it('should display validation errors for email format', async () => {
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         const errors: any = {};
         if (values.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(values.email)) {
           errors.email = 'Invalid email format';
@@ -106,7 +106,7 @@ describe('Form Error Handling', () => {
     });
 
     it('should display validation errors for minimum length', async () => {
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         const errors: any = {};
         if (values.password && values.password.length < 8) {
           errors.password = 'Password must be at least 8 characters';
@@ -145,7 +145,7 @@ describe('Form Error Handling', () => {
     });
 
     it('should display validation errors for maximum length', async () => {
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         const errors: any = {};
         if (values.username && values.username.length > 20) {
           errors.username = 'Username must be less than 20 characters';
@@ -184,7 +184,7 @@ describe('Form Error Handling', () => {
     });
 
     it('should display validation errors for pattern matching', async () => {
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         const errors: any = {};
         if (values.phone && !/^\d{10}$/.test(values.phone)) {
           errors.phone = 'Phone must be 10 digits';
@@ -223,7 +223,7 @@ describe('Form Error Handling', () => {
     });
 
     it('should clear validation errors when user fixes input', async () => {
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         const errors: any = {};
         if (!values.email) errors.email = 'Email is required';
         return errors;
@@ -271,7 +271,7 @@ describe('Form Error Handling', () => {
   describe('Submission Error Handling', () => {
     it('should handle submission errors gracefully', async () => {
       const handleSubmit = jest.fn().mockRejectedValue(new Error('Submission failed'));
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         if (!values.email) return { email: 'Email is required' };
         return {};
       };
@@ -474,7 +474,7 @@ describe('Form Error Handling', () => {
     });
 
     it('should reset errors on reset', async () => {
-      const validation = (values: any) => {
+      const validation = (values: any): Record<string, string> => {
         if (!values.name) return { name: 'Name is required' };
         return {};
       };
@@ -598,7 +598,8 @@ describe('Form Error Handling', () => {
         </Form>
       );
 
-      const submitButton = screen.getByText('提交');
+      // While loading the button switches its label and is disabled.
+      const submitButton = screen.getByText('提交中...');
       expect(submitButton).toBeDisabled();
     });
 
@@ -643,7 +644,10 @@ describe('Form Error Handling', () => {
         useFormValidation({ name: '' }, validationRules)
       );
 
-      const isValid = result.current.validate();
+      let isValid = false;
+      act(() => {
+        isValid = result.current.validate();
+      });
       expect(isValid).toBe(false);
       expect(result.current.errors.name).toBe('This field is required');
     });
@@ -657,7 +661,10 @@ describe('Form Error Handling', () => {
         useFormValidation({ name: null }, validationRules)
       );
 
-      const isValid = result.current.validate();
+      let isValid = false;
+      act(() => {
+        isValid = result.current.validate();
+      });
       expect(isValid).toBe(false);
       expect(result.current.errors.name).toBe('This field is required');
     });
@@ -671,7 +678,10 @@ describe('Form Error Handling', () => {
         useFormValidation({ name: undefined }, validationRules)
       );
 
-      const isValid = result.current.validate();
+      let isValid = false;
+      act(() => {
+        isValid = result.current.validate();
+      });
       expect(isValid).toBe(false);
       expect(result.current.errors.name).toBe('This field is required');
     });
@@ -686,7 +696,10 @@ describe('Form Error Handling', () => {
         useFormValidation({ email: 'invalid', password: 'short' }, validationRules)
       );
 
-      const isValid = result.current.validate();
+      let isValid = false;
+      act(() => {
+        isValid = result.current.validate();
+      });
       expect(isValid).toBe(false);
       expect(result.current.errors.email).toBeDefined();
       expect(result.current.errors.password).toBeDefined();
@@ -707,7 +720,10 @@ describe('Form Error Handling', () => {
         useFormValidation({ age: '15' }, validationRules)
       );
 
-      const isValid = result.current.validate();
+      let isValid = false;
+      act(() => {
+        isValid = result.current.validate();
+      });
       expect(isValid).toBe(false);
       expect(result.current.errors.age).toBe('Must be at least 18');
     });
@@ -722,7 +738,10 @@ describe('Form Error Handling', () => {
         useFormValidation({ name: 'John', email: 'john@example.com' }, validationRules)
       );
 
-      const isValid = result.current.validate();
+      let isValid = false;
+      act(() => {
+        isValid = result.current.validate();
+      });
       expect(isValid).toBe(true);
       expect(Object.keys(result.current.errors)).toHaveLength(0);
     });
@@ -794,17 +813,18 @@ describe('Form Error Handling', () => {
       expect(handleSubmit).toHaveBeenCalled();
     });
 
-    it('should handle validation function throwing error', () => {
+    it('should handle validation function throwing error', async () => {
       const validation = jest.fn().mockImplementation(() => {
         throw new Error('Validation error');
       });
       const handleSubmit = jest.fn();
 
       const TestForm = () => {
-        const { handleSubmit } = useForm();
+        const { handleSubmit, errors } = useForm();
 
         return (
           <form onSubmit={handleSubmit}>
+            {errors._form && <div role="alert">{errors._form}</div>}
             <button type="submit">Submit</button>
           </form>
         );
@@ -816,14 +836,16 @@ describe('Form Error Handling', () => {
         </Form>
       );
 
-      const submitButton = screen.getByText('Submit');
+      // A throwing validator is rendered into the form's error state instead of
+      // escaping as an unhandled promise rejection (which used to crash the
+      // whole Jest process).
+      fireEvent.click(screen.getByText('Submit'));
 
-      // Handle the error gracefully instead of expecting it to throw
-      try {
-        fireEvent.click(submitButton);
-      } catch (error) {
-        expect(error.message).toBe('Validation error');
-      }
+      await waitFor(() => {
+        expect(screen.getByRole('alert')).toHaveTextContent('Validation error');
+      });
+      // The submit handler must not run when validation failed.
+      expect(handleSubmit).not.toHaveBeenCalled();
     });
 
     it('should handle rapid value changes', () => {

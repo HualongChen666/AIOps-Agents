@@ -159,14 +159,19 @@ def _get_tenant_id(request: Request) -> str:
 
 
 def _verify_internal_key(request: Request) -> None:
-    """Verify X-Internal-Key for protected endpoints"""
-    try:
-        from config import INTERNAL_API_KEY
-    except ImportError:
-        INTERNAL_API_KEY = ""
+    """Verify X-Internal-Key for protected endpoints (fail-closed).
+
+    Reads ``config.INTERNAL_API_KEY`` at call time.  A missing configuration is
+    treated as "endpoint disabled" instead of silently allowing every caller
+    (Wave2 #25).
+    """
+    from config import INTERNAL_API_KEY
 
     if not INTERNAL_API_KEY:
-        return
+        raise HTTPException(
+            status_code=503,
+            detail="INTERNAL_API_KEY is not configured; internal endpoint is disabled",
+        )
 
     provided_key = request.headers.get("X-Internal-Key")
     if not provided_key:

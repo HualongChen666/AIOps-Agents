@@ -8,9 +8,9 @@ services:
 
   user-orchestrator:
     build:
-      context: ../..
-      dockerfile: services/user_service/Dockerfile
-    command: ["uvicorn", "services.user_service.main_app:app", "--host", "0.0.0.0", "--port", "9401"]
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/user_service/Dockerfile
+    command: ["uvicorn", "extensions.addons.infrastructure.user_service.main_app:app", "--host", "0.0.0.0", "--port", "9401"]
     ports:
       - "9401:9401"
     environment:

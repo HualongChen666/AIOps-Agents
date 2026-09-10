@@ -11,8 +11,8 @@ from typing import Any, Callable, Coroutine, Dict, List
 
 from loguru import logger
 
-from services.workflow_service.metrics import WORKFLOW_SCHEDULED_TASKS
-from services.workflow_service.schemas import ScheduledTask, WorkflowRequest, WorkflowTask
+from .metrics import WORKFLOW_SCHEDULED_TASKS
+from .schemas import ScheduledTask, WorkflowRequest, WorkflowTask
 
 
 class WorkflowScheduler:

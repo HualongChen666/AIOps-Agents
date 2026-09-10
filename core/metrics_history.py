@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``metrics_history`` module.
+
+Top-level classes: MetricPoint, MetricsHistory
+
+Module-level constants: METRICS_HISTORY"""
+
 # core/metrics_history.py
 #
 # Refactored to support timestamped, per-metric, per-service metric samples
@@ -95,12 +101,12 @@ class MetricsHistory:
             return timestamp
 
         if timestamp is None:
-            return datetime.datetime.utcnow()
+            return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
         if isinstance(timestamp, str):
             ts_str = timestamp.strip()
             if not ts_str:
-                return datetime.datetime.utcnow()
+                return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
             try:
                 t = datetime.datetime.strptime(ts_str, "%H:%M:%S").time()
                 return datetime.datetime.combine(datetime.date.today(), t)
@@ -112,13 +118,13 @@ class MetricsHistory:
                         "MetricsHistory 无法解析 timestamp 字符串,使用 UTC 当前时间 | "
                         f"value={timestamp!r}"
                     )
-                    return datetime.datetime.utcnow()
+                    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
         logger.warning(
             "MetricsHistory timestamp 类型非法,使用 UTC 当前时间 | "
             f"type={type(timestamp).__name__} value={timestamp!r}"
         )
-        return datetime.datetime.utcnow()
+        return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
     # ----------------------------------------------------------
     # 写入方法

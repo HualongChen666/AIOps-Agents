@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
 import json
+import os
+import pathlib
 
 import yaml
 
-path = r"C:\\AIOps_Agent_bak\\openapi.yaml"
+REPO_ROOT = pathlib.Path(os.getenv("AIOPS_ROOT", pathlib.Path(__file__).resolve().parents[1]))
+path = pathlib.Path(
+    os.getenv("AIOPS_OPENAPI", str(REPO_ROOT / "docs" / "api" / "openapi.yaml"))
+)
 with open(path, "r", encoding="utf-8") as f:
     spec = yaml.safe_load(f)
 methods = ["get", "post", "put", "delete", "patch"]

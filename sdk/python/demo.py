@@ -53,7 +53,7 @@ def main() -> None:
         print("AI analyze:", ai_resp.status_code, ai_resp.text[:200])
 
     # List recent alerts
-    alerts_resp = requests.get(f"{BASE_URL}/api/v1/alerts", params={"limit": 5}, timeout=10)
+    alerts_resp = requests.get(f"{BASE_URL}/api/v1/alerts/", params={"limit": 5}, timeout=10)
     print("Alerts:", alerts_resp.status_code, alerts_resp.json())
 
 

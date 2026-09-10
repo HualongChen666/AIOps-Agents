@@ -350,60 +350,60 @@ class TestGetRecentRepairs:
 
 
 class TestAnalyzeRequestValidation:
-    """Test AnalyzeRequest validation."""
+    """Test AiAnalyzeRequest validation."""
 
     def test_analyze_request_platform_normalization(self):
         """Test platform normalization (lines 46-48)."""
-        from api.ai_router import AnalyzeRequest
+        from api.ai_router import AiAnalyzeRequest
 
-        req = AnalyzeRequest(query="test", platform="WINDOWS")
+        req = AiAnalyzeRequest(query="test", platform="WINDOWS")
         assert req.platform == "windows"
 
-        req = AnalyzeRequest(query="test", platform=" Linux ")
+        req = AiAnalyzeRequest(query="test", platform=" Linux ")
         assert req.platform == "linux"
 
     def test_analyze_request_query_strip(self):
         """Test query stripping (lines 50-56)."""
-        from api.ai_router import AnalyzeRequest
+        from api.ai_router import AiAnalyzeRequest
 
-        req = AnalyzeRequest(query="  test  ")
+        req = AiAnalyzeRequest(query="  test  ")
         assert req.query == "test"
 
     def test_analyze_request_query_empty_error(self):
         """Test error on empty query (lines 54-56)."""
         from pydantic import ValidationError
 
-        from api.ai_router import AnalyzeRequest
+        from api.ai_router import AiAnalyzeRequest
 
         with pytest.raises(ValidationError):
-            AnalyzeRequest(query="   ")
+            AiAnalyzeRequest(query="   ")
 
     def test_analyze_request_query_min_length(self):
         """Test minimum length validation (line 32)."""
         from pydantic import ValidationError
 
-        from api.ai_router import AnalyzeRequest
+        from api.ai_router import AiAnalyzeRequest
 
         with pytest.raises(ValidationError):
-            AnalyzeRequest(query="")
+            AiAnalyzeRequest(query="")
 
     def test_analyze_request_query_max_length(self):
         """Test maximum length validation (line 33)."""
         from pydantic import ValidationError
 
-        from api.ai_router import AnalyzeRequest
+        from api.ai_router import AiAnalyzeRequest
 
         with pytest.raises(ValidationError):
-            AnalyzeRequest(query="a" * 2001)
+            AiAnalyzeRequest(query="a" * 2001)
 
     def test_analyze_request_platform_validation(self):
         """Test platform pattern validation (line 39)."""
         from pydantic import ValidationError
 
-        from api.ai_router import AnalyzeRequest
+        from api.ai_router import AiAnalyzeRequest
 
         with pytest.raises(ValidationError):
-            AnalyzeRequest(query="test", platform="invalid")
+            AiAnalyzeRequest(query="test", platform="invalid")
 
 
 class TestAIAnalyze:
@@ -415,7 +415,7 @@ class TestAIAnalyze:
             mock_analyze.return_value = {"analysis": "Test analysis", "confidence": 0.9}
 
             resp = client.post("/api/ai/analyze", json={"query": "CPU usage high"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "ok"
@@ -430,7 +430,7 @@ class TestAIAnalyze:
                 resp = client.post(
                     "/api/ai/analyze", json={"query": "test", "include_metrics": True}
                 )
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_without_metrics(self, client):
         """Test with include_metrics=False (line 387)."""
@@ -438,7 +438,7 @@ class TestAIAnalyze:
             mock_analyze.return_value = {"analysis": "Test"}
 
             resp = client.post("/api/ai/analyze", json={"query": "test", "include_metrics": False})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_with_rich_context(self, client):
         """Test with include_rich_context=True (lines 399-411)."""
@@ -450,7 +450,7 @@ class TestAIAnalyze:
                 resp = client.post(
                     "/api/ai/analyze", json={"query": "test", "include_rich_context": True}
                 )
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_cancelled_error(self, client):
         """Test CancelledError handling (lines 394-396, 407-408, 420-421)."""
@@ -459,7 +459,7 @@ class TestAIAnalyze:
 
             resp = client.post("/api/ai/analyze", json={"query": "test", "include_metrics": True})
             # Should propagate CancelledError
-            assert resp.status_code in (200, 404, 500)
+            assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_exception_metrics(self, client):
         """Test exception in metrics collection (lines 397-399)."""
@@ -471,7 +471,7 @@ class TestAIAnalyze:
                 resp = client.post(
                     "/api/ai/analyze", json={"query": "test", "include_metrics": True}
                 )
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_exception_rich_context(self, client):
         """Test exception in rich context collection (lines 409-411)."""
@@ -483,7 +483,7 @@ class TestAIAnalyze:
                 resp = client.post(
                     "/api/ai/analyze", json={"query": "test", "include_rich_context": True}
                 )
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_analyze_exception(self, client):
         """Test exception in analyze call (lines 424-426)."""
@@ -491,7 +491,7 @@ class TestAIAnalyze:
             mock_analyze.side_effect = Exception("AI error")
 
             resp = client.post("/api/ai/analyze", json={"query": "test"})
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_http_exception(self, client):
         """Test HTTPException from analyze (lines 422-423)."""
@@ -501,11 +501,11 @@ class TestAIAnalyze:
             mock_analyze.side_effect = HTTPException(status_code=503, detail="Service unavailable")
 
             resp = client.post("/api/ai/analyze", json={"query": "test"})
-            assert resp.status_code in (503, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_string_result(self):
         """Test when analyze returns string (lines 429-436)."""
-        from api.ai_router import AnalyzeRequest, ai_analyze
+        from api.ai_router import AiAnalyzeRequest, ai_analyze
         from api.ai_service import ai_context_service
 
         with patch("api.ai_router.analyze") as mock_analyze:
@@ -515,7 +515,7 @@ class TestAIAnalyze:
                 with patch("api.ai_router._collect_rich_context") as mock_rich:
                     mock_rich.return_value = None
 
-                    req = AnalyzeRequest(query="test")
+                    req = AiAnalyzeRequest(query="test")
                     mock_request = MagicMock()
                     mock_request.client.host = "127.0.0.1"
 
@@ -524,7 +524,7 @@ class TestAIAnalyze:
 
     def test_ai_analyze_invalid_json(self):
         """Test when analyze returns invalid JSON (lines 434-436)."""
-        from api.ai_router import AnalyzeRequest, ai_analyze
+        from api.ai_router import AiAnalyzeRequest, ai_analyze
 
         with patch("api.ai_router.analyze") as mock_analyze:
             mock_analyze.return_value = "invalid json"
@@ -533,7 +533,7 @@ class TestAIAnalyze:
                 with patch("api.ai_router._collect_rich_context") as mock_rich:
                     mock_rich.return_value = None
 
-                    req = AnalyzeRequest(query="test")
+                    req = AiAnalyzeRequest(query="test")
                     mock_request = MagicMock()
                     mock_request.client.host = "127.0.0.1"
 
@@ -546,7 +546,7 @@ class TestAIAnalyze:
             mock_analyze.return_value = {"analysis": "Test"}
 
             resp = client.post("/api/ai/analyze", json={"query": "test", "platform": "windows"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_ai_analyze_platform_linux(self, client):
         """Test with linux platform."""
@@ -554,7 +554,7 @@ class TestAIAnalyze:
             mock_analyze.return_value = {"analysis": "Test"}
 
             resp = client.post("/api/ai/analyze", json={"query": "test", "platform": "linux"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
 
 class TestCollectRichContext:

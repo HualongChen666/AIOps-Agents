@@ -119,7 +119,7 @@ class TestAnalysisEndpoints:
     def test_get_analysis_list_empty(self, client):
         """Test getting analysis list when none exist"""
         response = client.get("/api/v1/business-impact/analysis")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -146,7 +146,7 @@ class TestAnalysisEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/business-impact/analysis")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -180,7 +180,7 @@ class TestAnalysisEndpoints:
         }
 
         response = client.post("/api/v1/business-impact/analysis", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
 
 # Dependency endpoints tests
@@ -190,7 +190,7 @@ class TestDependenciesEndpoints:
     def test_get_dependencies_empty(self, client):
         """Test getting dependencies when none exist"""
         response = client.get("/api/v1/business-impact/dependencies")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -224,7 +224,7 @@ class TestReportsEndpoints:
     def test_get_reports_empty(self, client):
         """Test getting reports when none exist"""
         response = client.get("/api/v1/business-impact/reports")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data

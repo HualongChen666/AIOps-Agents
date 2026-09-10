@@ -68,7 +68,7 @@ class RoutingRule(BaseModel):
     }
 
 
-class SuppressionRule(BaseModel):
+class AlertSuppressionRule(BaseModel):
     """告警抑制规则模型.
 
     定义如何抑制特定模式的告警，减少告警噪声。
@@ -610,7 +610,7 @@ async def add_routing_rule(rule: RoutingRule) -> dict[str, Any]:
         },
     },
 )
-async def add_suppression_rule(rule: SuppressionRule) -> dict[str, Any]:
+async def add_suppression_rule(rule: AlertSuppressionRule) -> dict[str, Any]:
     """添加告警抑制规则，实现精细化噪声控制。
 
     Args:

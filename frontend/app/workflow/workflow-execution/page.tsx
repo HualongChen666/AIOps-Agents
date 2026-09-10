@@ -56,7 +56,7 @@ export default function WorkflowExecutionPage() {
   };
 
   useEffect(() => {
-    loadExecflows();
+    loadExecutions();
     const interval = setInterval(() => {
       const hasRunning = executions.some(e => e.status === 'running');
       if (hasRunning) {

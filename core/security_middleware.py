@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``security_middleware`` module.
+
+Top-level classes: PasswordPolicy, MFAManager, RateLimiter, SecurityHeaders, TLSEnforcer"""
+
 # core/security_middleware.py
 # Security Middleware for Enterprise-grade Security
 # Implements MFA, password policy, TLS enforcement, and security headers

@@ -12,6 +12,35 @@ import pytest  # noqa: F401  # Imported for test setup
 pytestmark = [pytest.mark.core]
 
 
+class _EmptyResult:
+    """Result proxy with no rows (used by the data-lifecycle fakes)."""
+
+    rowcount = 0
+
+    def fetchall(self):
+        return []
+
+
+class _EmptySession:
+    """Async session double for database backed lifecycle categories."""
+
+    async def execute(self, *args, **kwargs):
+        return _EmptyResult()
+
+    async def commit(self):
+        return None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc_info):
+        return False
+
+
+def _empty_session_factory():
+    return _EmptySession()
+
+
 # ---------------------------------------------------------------------------
 # core.memory_usage_optimizer
 # ---------------------------------------------------------------------------
@@ -541,7 +570,7 @@ async def test_data_lifecycle_retention_and_archive():
         DataRetentionPolicy,
     )
 
-    manager = DataLifecycleManager()
+    manager = DataLifecycleManager(session_factory=_empty_session_factory)
 
     assert manager.get_retention_days(DataRetentionPolicy.RETAIN_7_DAYS) == 7
     assert manager.get_retention_days(DataRetentionPolicy.RETAIN_PERMANENT) == -1
@@ -589,13 +618,15 @@ async def test_data_lifecycle_cleanup_and_delete():
     result = await manager.cleanup_temp_data()  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
 
+    manager = DataLifecycleManager(session_factory=_empty_session_factory)
+
     result = await manager._delete_expired_data(
         DataCategory.METRICS, 30
     )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
-    assert "deleted_count" in result
+    assert result["deleted_count"] == 0
 
-    result = await manager._simulate_delete(
+    result = await manager._delete_expired_rows(
         DataCategory.METRICS, datetime.now(timezone.utc)
     )  # noqa: F841  # Variable for test verification
     assert result == 0  # noqa: F841  # Variable for test verification

@@ -144,7 +144,7 @@ describe('Form Component Tests', () => {
     });
 
     it('should set isSubmitting during submission', async () => {
-      const handleSubmit = jest.fn(() => new Promise(resolve => setTimeout(resolve, 100)));
+      const handleSubmit = jest.fn(() => new Promise<void>(resolve => setTimeout(resolve, 100)));
 
       const TestForm = () => {
         const { isSubmitting, handleSubmit } = useForm();
@@ -298,7 +298,7 @@ describe('Form Component Tests', () => {
     });
 
     it('should disable buttons when submitting', async () => {
-      const handleSubmit = jest.fn(() => new Promise(resolve => setTimeout(resolve, 100)));
+      const handleSubmit = jest.fn(() => new Promise<void>(resolve => setTimeout(resolve, 100)));
 
       const TestForm = () => {
         const { handleSubmit } = useForm();
@@ -329,7 +329,7 @@ describe('Form Component Tests', () => {
     });
 
     it('should show loading text when submitting', async () => {
-      const handleSubmit = jest.fn(() => new Promise(resolve => setTimeout(resolve, 100)));
+      const handleSubmit = jest.fn(() => new Promise<void>(resolve => setTimeout(resolve, 100)));
 
       const TestForm = () => {
         const { handleSubmit } = useForm();

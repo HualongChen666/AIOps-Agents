@@ -4,6 +4,6 @@ metadata:
   name: alert-service-config
   namespace: alert-service
 data:
-  ALERT_SERVICE_USE_IN_MEMORY: "true"
+  ALERT_SERVICE_USE_IN_MEMORY: "false"
   ALERT_SERVICE_AGGREGATOR_WINDOW_SECONDS: "5"
   NOTIFY_MIN_LEVEL: "warning"

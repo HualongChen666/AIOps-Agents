@@ -55,7 +55,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         
         # Add custom security headers
         response.headers["X-API-Version"] = "1.0"
-        response.headers["X-Request-ID"] = self._generate_request_id(request)
+        # Preserve an existing correlation id (set by RequestTrackingMiddleware /
+        # supplied by the caller) instead of overwriting it with a fresh uuid —
+        # overwriting broke distributed tracing (Wave2 #25).
+        request_id = (
+            getattr(request.state, "request_id", None)
+            or request.headers.get("X-Request-ID")
+            or self._generate_request_id(request)
+        )
+        response.headers["X-Request-ID"] = request_id
         
         return response
     

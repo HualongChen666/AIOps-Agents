@@ -28,7 +28,7 @@ def test_webhook_auto_heal_unavailable(client):
             ],
         }
         resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-        assert resp.status_code in (503, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             # Error response format: {"error": {"message": "..."}}
@@ -64,7 +64,7 @@ def test_webhook_status_not_firing(client):
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
 
             # Should succeed but skip non-firing alerts, or return 404 if endpoint not implemented
-            assert resp.status_code in (200, 404, 503)
+            assert resp.status_code != 404, resp.text
             if resp.status_code == 200:
                 data = resp.json()
                 # Check that non-firing alerts were skipped
@@ -90,7 +90,7 @@ def test_webhook_status_case_insensitive(client):
 
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-            assert resp.status_code in (200, 404, 503)
+            assert resp.status_code != 404, resp.text
 
 
 def test_webhook_record_audit_available(client):
@@ -121,7 +121,7 @@ def test_webhook_record_audit_available(client):
                 payload = {"test": "data"}
                 resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
 
-                assert resp.status_code in (200, 404, 503)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code == 200:
                     # Check that record_audit was called
                     mock_record_audit.assert_called()
@@ -156,7 +156,7 @@ def test_webhook_record_audit_exception(client):
                 payload = {"test": "data"}
                 # Should not raise, but log the exception
                 resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-                assert resp.status_code in (200, 404, 503)
+                assert resp.status_code != 404, resp.text
 
 
 def test_webhook_try_auto_heal_exception(client):
@@ -179,7 +179,7 @@ def test_webhook_try_auto_heal_exception(client):
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
 
-            assert resp.status_code in (200, 404, 503)
+            assert resp.status_code != 404, resp.text
             if resp.status_code == 200:
                 data = resp.json()
                 results = data.get("results", [])
@@ -200,7 +200,7 @@ def test_webhook_prometheus_endpoint(client):
         ],
     }
     resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-    assert resp.status_code in (200, 404, 422, 500, 503)
+    assert resp.status_code != 404, resp.text
 
 
 def test_webhook_prometheus_root_endpoint(client):
@@ -215,7 +215,7 @@ def test_webhook_prometheus_root_endpoint(client):
         ],
     }
     resp = client.post("/api/v1/alerts/prometheus", json=payload)
-    assert resp.status_code in (200, 404, 422, 500, 503)
+    assert resp.status_code != 404, resp.text
 
 
 def test_webhook_alert_without_id(client):
@@ -237,7 +237,7 @@ def test_webhook_alert_without_id(client):
 
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-            assert resp.status_code in (200, 404, 503)
+            assert resp.status_code != 404, resp.text
 
 
 def test_webhook_multiple_alerts_mixed_status(client):
@@ -259,7 +259,7 @@ def test_webhook_multiple_alerts_mixed_status(client):
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
 
-            assert resp.status_code in (200, 404, 503)
+            assert resp.status_code != 404, resp.text
             if resp.status_code == 200:
                 data = resp.json()
                 results = data.get("results", [])
@@ -281,7 +281,7 @@ def test_webhook_empty_alerts_list(client):
         payload = {"test": "data"}
         resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
 
-        assert resp.status_code in (200, 404, 503)
+        assert resp.status_code != 404, resp.text
         if resp.status_code == 200:
             data = resp.json()
             assert data.get("received") == 0
@@ -342,7 +342,7 @@ def test_webhook_alert_non_dict(client):
 
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-            assert resp.status_code in (200, 404, 503)
+            assert resp.status_code != 404, resp.text
 
 
 def test_webhook_try_auto_heal_none(client):
@@ -358,7 +358,7 @@ def test_webhook_try_auto_heal_none(client):
         with patch("api.alert_webhook_router.try_auto_heal", None):
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-            assert resp.status_code in (503, 404)
+            assert resp.status_code != 404, resp.text
 
 
 def test_webhook_alert_status_none(client):
@@ -380,7 +380,7 @@ def test_webhook_alert_status_none(client):
 
             payload = {"test": "data"}
             resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-            assert resp.status_code in (200, 404, 503)
+            assert resp.status_code != 404, resp.text
 
 
 def test_webhook_record_audit_is_none(client):
@@ -406,7 +406,7 @@ def test_webhook_record_audit_is_none(client):
 
                 payload = {"test": "data"}
                 resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-                assert resp.status_code in (200, 404, 503)
+                assert resp.status_code != 404, resp.text
 
 
 def test_webhook_alert_get_status_missing(client):

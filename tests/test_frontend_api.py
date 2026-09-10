@@ -110,7 +110,7 @@ class TestFrontendAPI:
         headers = {"Authorization": f"Bearer {auth_token}"}
         response = client.get("/api/v1/frontend/components/test-id", headers=headers)
         # Should return 200, 403, or 404
-        assert response.status_code in [200, 403, 404]
+        assert response.status_code != 404, response.text
 
     def test_update_component_unauthorized(self, client: TestClient):
         """Test updating component without authentication"""
@@ -126,7 +126,7 @@ class TestFrontendAPI:
             "/api/v1/frontend/components/test-id", json=update_data, headers=headers
         )
         # Should return 200, 403, or 404
-        assert response.status_code in [200, 403, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_component_unauthorized(self, client: TestClient):
         """Test deleting component without authentication"""
@@ -138,7 +138,7 @@ class TestFrontendAPI:
         headers = {"Authorization": f"Bearer {auth_token}"}
         response = client.delete("/api/v1/frontend/components/test-id", headers=headers)
         # Should return 200, 403, or 404
-        assert response.status_code in [200, 403, 404]
+        assert response.status_code != 404, response.text
 
     def test_list_themes_unauthorized(self, client: TestClient):
         """Test listing themes without authentication"""

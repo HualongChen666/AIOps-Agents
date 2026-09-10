@@ -12,7 +12,7 @@ def test_audit_center_page(client, admin_headers, tmp_path, monkeypatch):
     (static_dir / "audit_center.html").write_text("<html></html>")
     monkeypatch.setattr(acr, "BASE_DIR", tmp_path)
     resp = client.get("/audit_center/", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.headers["content-type"].startswith("text/html")
 
@@ -47,4 +47,4 @@ def test_audit_center_page_static_dir_not_found(client, admin_headers, tmp_path,
 @pytest.mark.smoke
 def test_audit_center_page_status(client, admin_headers):
     resp = client.get("/audit_center/", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text

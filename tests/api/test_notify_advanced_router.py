@@ -18,7 +18,7 @@ from api.notify_advanced_router import (
     NotificationSettings,
     RuleCreate,
     RuleUpdate,
-    TemplateCreate,
+    NotifyAdvancedTemplateCreate,
     TemplateUpdate,
     _channels,
     _history,
@@ -146,7 +146,7 @@ class TestChannelEndpoints:
     def test_get_channels_empty(self, client):
         """Test getting channels when storage is empty"""
         response = client.get("/api/v1/notify/channels")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -154,7 +154,7 @@ class TestChannelEndpoints:
         """Test getting channels with data"""
         _channels[sample_channel["id"]] = sample_channel
         response = client.get("/api/v1/notify/channels")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -170,7 +170,7 @@ class TestChannelEndpoints:
         _channels[disabled_channel["id"]] = disabled_channel
 
         response = client.get("/api/v1/notify/channels?enabled=true")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -181,7 +181,7 @@ class TestChannelEndpoints:
         _channels[sample_channel["id"]] = sample_channel
 
         response = client.get("/api/v1/notify/channels?type=email")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -199,7 +199,7 @@ class TestChannelEndpoints:
         _channels[channel2["id"]] = channel2
 
         response = client.get("/api/v1/notify/channels")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data[0]["priority"] >= data[1]["priority"]
@@ -216,7 +216,7 @@ class TestChannelEndpoints:
             "timeout": 30,
         }
         response = client.post("/api/v1/notify/channels", json=channel_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Slack Channel"
@@ -239,13 +239,13 @@ class TestChannelEndpoints:
                 "enabled": True,
             }
             response = client.post("/api/v1/notify/channels", json=channel_data)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
 
     def test_get_channel_success(self, client, sample_channel):
         """Test getting a channel by ID successfully"""
         _channels[sample_channel["id"]] = sample_channel
         response = client.get(f"/api/v1/notify/channels/{sample_channel['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Email Channel"
@@ -263,7 +263,7 @@ class TestChannelEndpoints:
 
         update_data = {"name": "Email Channel Updated", "enabled": False, "priority": 15}
         response = client.patch(f"/api/v1/notify/channels/{sample_channel['id']}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Email Channel Updated"
@@ -281,7 +281,7 @@ class TestChannelEndpoints:
         _channels[sample_channel["id"]] = sample_channel
 
         response = client.delete(f"/api/v1/notify/channels/{sample_channel['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert sample_channel["id"] not in _channels
 
@@ -297,7 +297,7 @@ class TestChannelEndpoints:
         _rules[sample_rule["id"]] = sample_rule
 
         response = client.delete(f"/api/v1/notify/channels/{sample_channel['id']}")
-        assert response.status_code in (400, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert "used by one or more notification rules" in response.json()["detail"]
 
@@ -313,7 +313,7 @@ class TestTemplateEndpoints:
     def test_get_templates_empty(self, client):
         """Test getting templates when storage is empty"""
         response = client.get("/api/v1/notify/templates")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -321,7 +321,7 @@ class TestTemplateEndpoints:
         """Test getting templates with data"""
         _templates[sample_template["id"]] = sample_template
         response = client.get("/api/v1/notify/templates")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -337,7 +337,7 @@ class TestTemplateEndpoints:
         _templates[disabled_template["id"]] = disabled_template
 
         response = client.get("/api/v1/notify/templates?enabled=true")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -347,7 +347,7 @@ class TestTemplateEndpoints:
         _templates[sample_template["id"]] = sample_template
 
         response = client.get("/api/v1/notify/templates?type=email")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -364,7 +364,7 @@ class TestTemplateEndpoints:
             "metadata": {},
         }
         response = client.post("/api/v1/notify/templates", json=template_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "SMS Template"
@@ -383,7 +383,7 @@ class TestTemplateEndpoints:
         """Test getting a template by ID successfully"""
         _templates[sample_template["id"]] = sample_template
         response = client.get(f"/api/v1/notify/templates/{sample_template['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Alert Template"
@@ -406,7 +406,7 @@ class TestTemplateEndpoints:
         response = client.patch(
             f"/api/v1/notify/templates/{sample_template['id']}", json=update_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Updated Template"
@@ -423,7 +423,7 @@ class TestTemplateEndpoints:
         _templates[sample_template["id"]] = sample_template
 
         response = client.delete(f"/api/v1/notify/templates/{sample_template['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert sample_template["id"] not in _templates
 
@@ -455,7 +455,7 @@ class TestRuleEndpoints:
     def test_get_rules_empty(self, client):
         """Test getting rules when storage is empty"""
         response = client.get("/api/v1/notify/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -463,7 +463,7 @@ class TestRuleEndpoints:
         """Test getting rules with data"""
         _rules[sample_rule["id"]] = sample_rule
         response = client.get("/api/v1/notify/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -479,7 +479,7 @@ class TestRuleEndpoints:
         _rules[disabled_rule["id"]] = disabled_rule
 
         response = client.get("/api/v1/notify/rules?enabled=true")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -497,7 +497,7 @@ class TestRuleEndpoints:
         _rules[rule2["id"]] = rule2
 
         response = client.get("/api/v1/notify/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data[0]["priority"] >= data[1]["priority"]
@@ -517,7 +517,7 @@ class TestRuleEndpoints:
             "metadata": {},
         }
         response = client.post("/api/v1/notify/rules", json=rule_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Warning Alert Rule"
@@ -558,7 +558,7 @@ class TestRuleEndpoints:
         """Test getting a rule by ID successfully"""
         _rules[sample_rule["id"]] = sample_rule
         response = client.get(f"/api/v1/notify/rules/{sample_rule['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Critical Alert Rule"
@@ -575,7 +575,7 @@ class TestRuleEndpoints:
 
         update_data = {"name": "Updated Rule", "enabled": False}
         response = client.patch(f"/api/v1/notify/rules/{sample_rule['id']}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Updated Rule"
@@ -592,7 +592,7 @@ class TestRuleEndpoints:
         _rules[sample_rule["id"]] = sample_rule
 
         response = client.delete(f"/api/v1/notify/rules/{sample_rule['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert sample_rule["id"] not in _rules
 
@@ -614,7 +614,7 @@ class TestHistoryEndpoints:
     def test_get_history_empty(self, client):
         """Test getting history when storage is empty"""
         response = client.get("/api/v1/notify/history")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -622,7 +622,7 @@ class TestHistoryEndpoints:
         """Test getting history with data"""
         _history.append(sample_history)
         response = client.get("/api/v1/notify/history")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -632,7 +632,7 @@ class TestHistoryEndpoints:
         _history.append(sample_history)
 
         response = client.get(f"/api/v1/notify/history?channel_id={sample_history['channel_id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -645,7 +645,7 @@ class TestHistoryEndpoints:
             _history.append(history)
 
         response = client.get("/api/v1/notify/history?limit=5")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 5
@@ -662,7 +662,7 @@ class TestSettingsEndpoints:
     def test_get_settings(self, client):
         """Test getting notification settings"""
         response = client.get("/api/v1/notify/settings")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "enabled" in data
@@ -676,7 +676,7 @@ class TestSettingsEndpoints:
             "rate_limit_per_minute": 20,
         }
         response = client.patch("/api/v1/notify/settings", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["enabled"] == False

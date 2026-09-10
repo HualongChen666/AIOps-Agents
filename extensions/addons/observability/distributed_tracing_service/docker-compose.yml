@@ -6,11 +6,11 @@ services:
 
   distributed-tracing:
     build:
-      context: ../..
-      dockerfile: services/distributed_tracing_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/observability/distributed_tracing_service/Dockerfile
     command: [
       "uvicorn",
-      "services.distributed_tracing_service.main_app:app",
+      "extensions.addons.observability.distributed_tracing_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9569",
     ]

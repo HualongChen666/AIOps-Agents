@@ -17,7 +17,6 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from api.test_framework_advanced_router import (
-    FAKE_ADMIN,
     FrameworkType,
     ParallelMode,
     TestFrameworkConfig,
@@ -69,6 +68,8 @@ def client():
 
     app = FastAPI()
     app.include_router(router)
+    # Wave2 #24: routers now require auth; tests run authenticated.
+    app.dependency_overrides[get_current_user] = lambda: _TEST_AUTH_USER
     return TestClient(app)
 
 
@@ -114,7 +115,7 @@ class TestFrameworkConfigurationEndpoints:
         """Test successful framework configurations retrieval"""
         _init_framework_configs()
         response = client.get("/api/v1/test-framework/configurations")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -124,7 +125,7 @@ class TestFrameworkConfigurationEndpoints:
         """Test framework configurations retrieval with framework filter"""
         _init_framework_configs()
         response = client.get("/api/v1/test-framework/configurations?framework=pytest")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -134,7 +135,7 @@ class TestFrameworkConfigurationEndpoints:
         """Test framework configurations retrieval with enabled only filter"""
         _init_framework_configs()
         response = client.get("/api/v1/test-framework/configurations?enabled_only=true")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -144,7 +145,7 @@ class TestFrameworkConfigurationEndpoints:
         """Test framework configurations retrieval with combined filters"""
         _init_framework_configs()
         response = client.get("/api/v1/test-framework/configurations?framework=pytest&enabled_only=true")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -154,7 +155,7 @@ class TestFrameworkConfigurationEndpoints:
         """Test successful framework configuration retrieval"""
         _init_framework_configs()
         response = client.get("/api/v1/test-framework/configurations/pytest-config")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "pytest-config"
@@ -170,7 +171,7 @@ class TestFrameworkConfigurationEndpoints:
         _init_framework_configs()
         update_data = {"enabled": False, "parallel_workers": 8}
         response = client.patch("/api/v1/test-framework/configurations/pytest-config", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["enabled"] == False
@@ -228,7 +229,7 @@ class TestFrameworkConfigurationEndpoints:
         _init_framework_configs()
         update_data = {"enabled": False}
         response = client.patch("/api/v1/test-framework/configurations/pytest-config", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["enabled"] == False
@@ -310,7 +311,7 @@ class TestValidationEndpoints:
         """Test successful framework configuration validation"""
         _init_framework_configs()
         response = client.post("/api/v1/test-framework/configurations/pytest-config/validate")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "valid" in data
@@ -350,7 +351,7 @@ class TestValidationEndpoints:
         )
 
         response = client.post(f"/api/v1/test-framework/configurations/{config_id}/validate")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["valid"] == True
@@ -382,7 +383,7 @@ class TestValidationEndpoints:
         )
 
         response = client.post(f"/api/v1/test-framework/configurations/{config_id}/validate")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["valid"] == True
@@ -432,7 +433,7 @@ class TestStatusEndpoints:
         """Test successful framework status retrieval"""
         _init_framework_configs()
         response = client.get("/api/v1/test-framework/status")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, dict)
@@ -444,7 +445,7 @@ class TestStatusEndpoints:
     def test_get_framework_status_empty(self, client, clear_data):
         """Test framework status retrieval when no configs exist"""
         response = client.get("/api/v1/test-framework/status")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, dict)
@@ -456,7 +457,7 @@ class TestStatusEndpoints:
         """Test framework status retrieval with configs"""
         _init_framework_configs()
         response = client.get("/api/v1/test-framework/status")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["total_frameworks"] >= 2
@@ -472,19 +473,20 @@ class TestAuthentication:
 
     @pytest.mark.asyncio
     async def test_get_current_user_no_token(self):
-        """Test get_current_user with no token returns fake admin"""
-        result = await get_current_user(token=None)
+        """get_current_user must reject a missing token with 401 (no FAKE_ADMIN fallback)."""
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(token=None)
 
-        assert result.username == "dev-admin"
-        assert result.role == "admin"
+        assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_get_current_user_invalid_token(self):
-        """Test get_current_user with invalid token returns fake admin"""
+        """get_current_user must reject an invalid token with 401."""
         with patch("api.test_framework_advanced_router.verify_token", return_value=None):
-            result = await get_current_user(token="invalid")
+            with pytest.raises(HTTPException) as exc_info:
+                await get_current_user(token="invalid")
 
-            assert result.username == "dev-admin"
+            assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 # ============ Data Validation Tests ============
@@ -583,33 +585,33 @@ class TestIntegration:
         # Get configs
         _init_framework_configs()
         response = client.get("/api/v1/test-framework/configurations")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         configs = response.json()
         assert len(configs) >= 2
 
         # Get specific config
         config = configs[0]
         response = client.get(f"/api/v1/test-framework/configurations/{config['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         retrieved = response.json()
         assert retrieved["id"] == config["id"]
 
         # Validate config
         response = client.post(f"/api/v1/test-framework/configurations/{config['id']}/validate")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         validation = response.json()
         assert "valid" in validation
 
         # Update config
         update = {"enabled": False}
         response = client.patch(f"/api/v1/test-framework/configurations/{config['id']}", json=update)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         updated = response.json()
         assert updated["enabled"] == False
 
         # Get status
         response = client.get("/api/v1/test-framework/status")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         status = response.json()
         assert status["total_frameworks"] >= 2
 
@@ -620,7 +622,7 @@ class TestIntegration:
 
         # Validate config
         response = client.post(f"/api/v1/test-framework/configurations/{config.id}/validate")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         validation = response.json()
 
         assert validation["config_id"] == config.id
@@ -656,12 +658,26 @@ class TestErrorHandling:
         # Run multiple concurrent updates
         for _ in range(5):
             response = update_config()
-            assert response.status_code in [200, 404]  # May fail due to race conditions
+            assert response.status_code != 404  # May fail due to race conditions
 
         # Should not raise errors
         response = client.get(f"/api/v1/test-framework/configurations/{config.id}")
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+
+
+# Wave2 #24: production routers now require authentication (no FAKE_ADMIN
+# fallback for unauthenticated requests).  Tests exercise endpoint logic with
+# an authenticated identity via dependency_overrides.
+_TEST_AUTH_USER = UserInDB(
+    id=1,
+    username="test_admin",
+    full_name="Test Admin",
+    email="test@example.com",
+    role="admin",
+    disabled=False,
+    hashed_password="hashed",
+)

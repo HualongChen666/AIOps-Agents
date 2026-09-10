@@ -12,7 +12,7 @@ def test_hitl_approval_page(client, admin_headers, tmp_path, monkeypatch):
     (static_dir / "hitl_approval.html").write_text("<html></html>")
     monkeypatch.setattr(har, "BASE_DIR", tmp_path)
     resp = client.get("/hitl-page/", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.headers["content-type"].startswith("text/html")
 
@@ -34,4 +34,4 @@ def test_hitl_approval_page_not_found(client, admin_headers, tmp_path, monkeypat
 @pytest.mark.smoke
 def test_hitl_approval_page_status(client, admin_headers):
     resp = client.get("/hitl-page/", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text

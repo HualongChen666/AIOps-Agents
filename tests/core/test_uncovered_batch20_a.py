@@ -112,17 +112,45 @@ def tuner(tmp_path, monkeypatch):
 
 
 @pytest.fixture
-def fast_fine_tuner_asyncio(monkeypatch):
-    """Replace fine_tuner.asyncio so training sleeps complete instantly."""
+def fast_fine_tuner_asyncio(monkeypatch, tmp_path):
+    """Stub the heavy training stack so orchestration tests complete instantly.
+
+    ``_load_base_model``/``_run_trainer`` do the real model loading + training;
+    the tests exercise the surrounding orchestration and therefore stub them.
+    """
 
     class FakeAsyncio:
         create_task = staticmethod(asyncio.create_task)
+        to_thread = staticmethod(asyncio.to_thread)
 
         @staticmethod
         async def sleep(delay, result=None):
             return result
 
     monkeypatch.setattr(fine_tuner, "asyncio", FakeAsyncio)
+
+    # Tests reference dataset_path="data.json"; provide it in the cwd.
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data.json").write_text('[{"text": "hello world"}]')
+
+    sentinel_model = MagicMock()
+    sentinel_model.save_pretrained = MagicMock(return_value=None)
+    sentinel_tokenizer = MagicMock()
+    sentinel_tokenizer.save_pretrained = MagicMock(return_value=None)
+
+    monkeypatch.setattr(
+        fine_tuner.ModelFineTuner,
+        "_load_base_model",
+        lambda self, config: (sentinel_model, sentinel_tokenizer),
+    )
+    monkeypatch.setattr(
+        fine_tuner.ModelFineTuner,
+        "_run_trainer",
+        lambda self, job_id, model, tokenizer, dataset, config: {
+            "train_loss": 0.5,
+            "global_step": 10,
+        },
+    )
     return FakeAsyncio
 
 

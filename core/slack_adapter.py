@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``slack_adapter`` module.
+
+Top-level functions: post_message, post_interactive_message, verify_slack_signature, build_approval_buttons, close_slack_client
+
+Module-level constants: SLACK_API_BASE"""
+
 # core/slack_adapter.py
 # Slack Block‑Kit 交互适配器
 # 负责构造 Block‑Kit 消息、发送到 Slack 并处理交互（按钮点击）

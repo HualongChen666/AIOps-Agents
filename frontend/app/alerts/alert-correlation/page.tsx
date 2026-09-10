@@ -43,7 +43,7 @@ export default function AlertCorrelationPage() {
   });
 
   const debouncedSearch = useDebounce(filters.search, 300);
-  const { isLoading, error, refetch } = useLoadingState();
+  const { isLoading, error } = useLoadingState();
   const toast = useToast();
   const showError = toast.error;
 

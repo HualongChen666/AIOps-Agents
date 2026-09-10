@@ -263,8 +263,22 @@ def test_interrupt_associated_agent(fresh_workflow, monkeypatch):
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def chaos(monkeypatch):
-    """Return a fresh ChaosEngine with sleeps removed."""
+    """Return a fresh ChaosEngine with a stubbed chaos backend."""
+
+    class _FakeInjector:
+        def __init__(self):
+            self.applied = []
+            self.deleted = []
+
+        async def apply(self, kind, name, spec):
+            self.applied.append((kind, name, spec))
+
+        async def delete(self, kind, name):
+            self.deleted.append((kind, name))
+
     engine = ce.ChaosEngine()
+    engine.set_injector(_FakeInjector())
+    engine._target_service = "test-target"
     # patch sleep to avoid real delays
     monkeypatch.setattr(ce.asyncio, "sleep", AsyncMock())
     # patch measurement / health helpers

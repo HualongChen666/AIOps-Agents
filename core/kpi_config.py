@@ -5,7 +5,7 @@ import json
 import os
 import threading
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -27,7 +27,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "个",
             "visible": True,
             "order": 0,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
         {
             "id": str(uuid.uuid4()),
@@ -38,7 +38,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "%",
             "visible": True,
             "order": 1,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
         {
             "id": str(uuid.uuid4()),
@@ -49,7 +49,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "min",
             "visible": True,
             "order": 2,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
         {
             "id": str(uuid.uuid4()),
@@ -60,7 +60,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "%",
             "visible": True,
             "order": 3,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
         {
             "id": str(uuid.uuid4()),
@@ -71,7 +71,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "%",
             "visible": True,
             "order": 4,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
         {
             "id": str(uuid.uuid4()),
@@ -82,7 +82,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "%",
             "visible": True,
             "order": 5,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
         {
             "id": str(uuid.uuid4()),
@@ -93,7 +93,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "%",
             "visible": True,
             "order": 6,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
         {
             "id": str(uuid.uuid4()),
@@ -104,7 +104,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "%",
             "visible": True,
             "order": 7,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
         {
             "id": str(uuid.uuid4()),
@@ -115,7 +115,7 @@ def _default_configs() -> list[dict[str, Any]]:
             "unit": "%",
             "visible": True,
             "order": 8,
-            "created_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         },
     ]
 
@@ -173,7 +173,7 @@ def create_kpi_config(data: dict[str, Any]) -> dict[str, Any]:
         "unit": data.get("unit", ""),
         "visible": bool(data.get("visible", True)),
         "order": int(data.get("order", len(configs))),
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
     }
     configs.append(new_config)
     _write_configs(configs)

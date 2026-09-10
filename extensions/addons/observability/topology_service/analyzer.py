@@ -11,12 +11,12 @@ from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from services.topology_service.config import settings
-from services.topology_service.dependency import DependencyGraph, DependencyModelingEngine
-from services.topology_service.health_check import HealthCheckEngine
-from services.topology_service.impact import ImpactAnalyzer
-from services.topology_service.repository import get_repository
-from services.topology_service.schemas import DependencyRequest, ImpactRequest, ServiceHealth
+from .config import settings
+from .dependency import DependencyGraph, DependencyModelingEngine
+from .health_check import HealthCheckEngine
+from .impact import ImpactAnalyzer
+from .repository import get_repository
+from .schemas import DependencyRequest, ImpactRequest, ServiceHealth
 
 
 class TopologyAnalyzerApp:

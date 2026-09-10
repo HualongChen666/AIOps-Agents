@@ -206,8 +206,8 @@ describe('键盘导航可访问性测试', () => {
       ];
 
       const columns = [
-        { key: 'name', header: '名称' },
-        { key: 'status', header: '状态' },
+        { key: 'name' as const, label: '名称' },
+        { key: 'status' as const, label: '状态' },
       ];
 
       const { container } = render(

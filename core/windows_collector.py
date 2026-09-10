@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``windows_collector`` module.
+
+Top-level functions: collect_windows_host, collect_all_windows
+
+Module-level constants: WINRM_CERT_VALIDATION"""
+
 # core/windows_collector.py
 # Windows 远程采集实现 (基于 WinRM)
 # 采用 pywinrm 通过 HTTPS 5986 端口执行 PowerShell 脚本

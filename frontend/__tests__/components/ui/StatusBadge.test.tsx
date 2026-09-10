@@ -13,11 +13,21 @@ jest.mock('@/components/ui/badge', () => ({
 
 // Mock the lucide-react icons
 jest.mock('lucide-react', () => ({
-  CheckCircle: () => <span data-testid="check-circle-icon">✓</span>,
-  XCircle: () => <span data-testid="x-circle-icon">✗</span>,
-  Clock: () => <span data-testid="clock-icon">⏰</span>,
-  AlertTriangle: () => <span data-testid="alert-triangle-icon">⚠</span>,
-  HelpCircle: () => <span data-testid="help-circle-icon">?</span>,
+  CheckCircle: ({ className }: { className?: string }) => (
+    <span data-testid="check-circle-icon" className={className}>✓</span>
+  ),
+  XCircle: ({ className }: { className?: string }) => (
+    <span data-testid="x-circle-icon" className={className}>✗</span>
+  ),
+  Clock: ({ className }: { className?: string }) => (
+    <span data-testid="clock-icon" className={className}>⏰</span>
+  ),
+  AlertTriangle: ({ className }: { className?: string }) => (
+    <span data-testid="alert-triangle-icon" className={className}>⚠</span>
+  ),
+  HelpCircle: ({ className }: { className?: string }) => (
+    <span data-testid="help-circle-icon" className={className}>?</span>
+  ),
 }));
 
 describe('StatusBadge Component', () => {

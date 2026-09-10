@@ -360,7 +360,8 @@ describe('ThemeProvider Component', () => {
         button.click();
       });
 
-      expect(screen.getByText('Theme: light')).toBeInTheDocument();
+      // Three toggles from 'light' land on 'dark'.
+      expect(screen.getByText('Theme: dark')).toBeInTheDocument();
     });
   });
 

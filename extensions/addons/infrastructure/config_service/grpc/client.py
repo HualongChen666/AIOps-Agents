@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import httpx
 
-from services.config_service.grpc.server import ConfigRPCServer
+from .server import ConfigRPCServer
 
 
 class ConfigRPCClient:

@@ -64,7 +64,7 @@ class _InMemoryScheduler:
         """Get or create the event loop for this scheduler."""
         if self._loop is None:
             try:
-                self._loop = asyncio.get_event_loop()
+                self._loop = asyncio.get_running_loop()
             except RuntimeError:
                 self._loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._loop)
@@ -186,9 +186,12 @@ class TaskScheduler:
     # ---------------------------------------------------------------------
     def _init_impl(self) -> None:
         if self._backend == "temporal":
-            self._impl = self._load_temporal()
+            # 显式指定 temporal：若 SDK 不可用，按文档承诺回退到内存实现，
+            # 避免 _impl 为 None 导致后续调用 AttributeError。
+            self._impl = self._load_temporal() or _InMemoryScheduler()
         elif self._backend == "prefect":
-            self._impl = self._load_prefect()
+            # 同上：显式 prefect 但 SDK 缺失时回退，而非返回 None。
+            self._impl = self._load_prefect() or _InMemoryScheduler()
         else:  # auto – try temporal then prefect then fallback
             self._impl = self._load_temporal() or self._load_prefect() or _InMemoryScheduler()
 

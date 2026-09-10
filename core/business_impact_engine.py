@@ -53,7 +53,7 @@ class BusinessImpactEngine:
         """Load and cache the full-link topology for a short TTL."""
         import asyncio
 
-        now = asyncio.get_event_loop().time()
+        now = asyncio.get_running_loop().time()
         if self._topology is None or now - self._topology_ts > self._topology_ttl:
             try:
                 self._topology = await get_full_link_topology()

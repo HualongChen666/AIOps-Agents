@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
 import json
+import os
 import pathlib
 
 import yaml
 
-openapi_path = pathlib.Path(r"C:\\AIOps_Agent_bak\\openapi.yaml")
+REPO_ROOT = pathlib.Path(os.getenv("AIOPS_ROOT", pathlib.Path(__file__).resolve().parents[1]))
+openapi_path = pathlib.Path(
+    os.getenv("AIOPS_OPENAPI", str(REPO_ROOT / "docs" / "api" / "openapi.yaml"))
+)
 openapi = yaml.safe_load(openapi_path.read_text(encoding="utf-8"))
 paths = openapi.get("paths", {})
 missing = []

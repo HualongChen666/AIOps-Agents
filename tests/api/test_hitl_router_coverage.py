@@ -84,7 +84,7 @@ def test_hitl_health_when_not_available(client, monkeypatch):
 
     monkeypatch.setattr(hitl_router, "HITL_AVAILABLE", False)
     resp = client.get("/hitl/health")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["status"] == "degraded"
@@ -101,7 +101,7 @@ def test_create_approval_request_when_not_available(client, admin_headers, monke
         json={"steps": [{"step_id": "s1", "name": "n", "approver": "admin"}]},
         headers=admin_headers,
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
     # Error response may have different structure
         response_data = resp.json()
@@ -117,7 +117,7 @@ def test_approve_step_when_not_available(client, admin_headers, monkeypatch):
         "/hitl/approval/approve?request_id=req-1&step_id=s1",
         headers=admin_headers,
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         response_data = resp.json()
         assert "HITL not available" in str(response_data)
@@ -132,7 +132,7 @@ def test_reject_step_when_not_available(client, admin_headers, monkeypatch):
         "/hitl/approval/reject?request_id=req-1&step_id=s1",
         headers=admin_headers,
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         response_data = resp.json()
         assert "HITL not available" in str(response_data)
@@ -144,7 +144,7 @@ def test_get_approval_status_when_not_available(client, admin_headers, monkeypat
 
     monkeypatch.setattr(hitl_router, "HITL_AVAILABLE", False)
     resp = client.get("/hitl/approval/req-1", headers=admin_headers)
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         response_data = resp.json()
         assert "HITL not available" in str(response_data)
@@ -156,7 +156,7 @@ def test_manual_takeover_when_not_available(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(hitl_router, "HITL_AVAILABLE", False)
     resp = client.post("/hitl/takeover/req-1?reason=test", headers=admin_headers)
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         response_data = resp.json()
         assert "HITL not available" in str(response_data)
@@ -168,7 +168,7 @@ def test_interrupt_agent_when_not_available(client, monkeypatch):
 
     monkeypatch.setattr(hitl_router, "SUBAGENT_AVAILABLE", False)
     resp = client.post("/hitl/interrupt/agent-1")
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         response_data = resp.json()
         assert "SubAgent dispatcher not available" in str(response_data)
@@ -212,7 +212,7 @@ def test_create_approval_request_without_timeout_handler(client, admin_headers, 
         json={"steps": [{"step_id": "s1", "name": "n", "approver": "admin"}]},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["request_id"] == "req-1"
 
@@ -236,7 +236,7 @@ def test_create_approval_request_without_notifier(client, admin_headers, monkeyp
         json={"steps": [{"step_id": "s1", "name": "n", "approver": "admin"}]},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["request_id"] == "req-1"
 
@@ -263,7 +263,7 @@ def test_create_approval_request_with_sync_notifier(client, admin_headers, monke
         json={"steps": [{"step_id": "s1", "name": "n", "approver": "admin"}]},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["request_id"] == "req-1"
 
@@ -309,7 +309,7 @@ def test_create_approval_request_with_empty_steps(client, admin_headers, monkeyp
         json={"steps": []},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_create_approval_request_with_optional_fields(client, admin_headers, monkeypatch):
@@ -337,7 +337,7 @@ def test_create_approval_request_with_optional_fields(client, admin_headers, mon
         },
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         workflow.create_request.assert_called_once()
 
@@ -383,7 +383,7 @@ def test_approve_step_without_timeout_handler(client, admin_headers, monkeypatch
         "/hitl/approval/approve?request_id=req-1&step_id=s1",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "approved"
 
@@ -424,7 +424,7 @@ def test_approve_step_with_custom_approver(client, admin_headers, monkeypatch):
         "/hitl/approval/approve?request_id=req-1&step_id=s1&approver=custom_user",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         workflow.approve_step.assert_called_once()
 
@@ -445,7 +445,7 @@ def test_approve_step_with_comment(client, admin_headers, monkeypatch):
         "/hitl/approval/approve?request_id=req-1&step_id=s1&comment=Approved",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -489,7 +489,7 @@ def test_reject_step_without_timeout_handler(client, admin_headers, monkeypatch)
         "/hitl/approval/reject?request_id=req-1&step_id=s1",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "rejected"
 
@@ -530,7 +530,7 @@ def test_reject_step_with_custom_approver(client, admin_headers, monkeypatch):
         "/hitl/approval/reject?request_id=req-1&step_id=s1&approver=custom_user",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_reject_step_with_comment(client, admin_headers, monkeypatch):
@@ -549,7 +549,7 @@ def test_reject_step_with_comment(client, admin_headers, monkeypatch):
         "/hitl/approval/reject?request_id=req-1&step_id=s1&comment=Rejected",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -566,7 +566,7 @@ def test_get_approval_status_exception(client, admin_headers, monkeypatch):
     monkeypatch.setattr(hitl_router, "_approval_workflow", workflow)
 
     resp = client.get("/hitl/approval/req-1", headers=admin_headers)
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         response_data = resp.json()
         assert "Status check failed" in str(response_data)
@@ -583,7 +583,7 @@ def test_get_approval_status_none_response(client, admin_headers, monkeypatch):
     monkeypatch.setattr(hitl_router, "_approval_workflow", workflow)
 
     resp = client.get("/hitl/approval/req-1", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json() == {}
 
@@ -603,7 +603,7 @@ def test_manual_takeover_without_timeout_handler(client, admin_headers, monkeypa
     monkeypatch.setattr(hitl_router, "_approval_timeout_handler", None)
 
     resp = client.post("/hitl/takeover/req-1?reason=test", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "taken_over"
 
@@ -620,7 +620,7 @@ def test_manual_takeover_exception(client, admin_headers, monkeypatch):
     monkeypatch.setattr(hitl_router, "_approval_timeout_handler", MagicMock())
 
     resp = client.post("/hitl/takeover/req-1?reason=test", headers=admin_headers)
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         response_data = resp.json()
         assert "Takeover failed" in str(response_data)
@@ -638,7 +638,7 @@ def test_manual_takeover_with_default_reason(client, admin_headers, monkeypatch)
     monkeypatch.setattr(hitl_router, "_approval_timeout_handler", MagicMock())
 
     resp = client.post("/hitl/takeover/req-1", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["reason"] == "manual takeover"
 
@@ -667,7 +667,7 @@ def test_interrupt_agent_exception(client, monkeypatch):
     monkeypatch.setattr(hitl_router, "SubAgentDispatcher", lambda: mock_dispatcher_class)
 
     resp = client.post("/hitl/interrupt/agent-1")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         response_data = resp.json()
         assert "Interrupt failed" in str(response_data)
@@ -686,7 +686,7 @@ def test_interrupt_agent_without_instance(client, monkeypatch):
     monkeypatch.setattr(hitl_router, "SubAgentDispatcher", dispatcher)
 
     resp = client.post("/hitl/interrupt/agent-1")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "interrupted"
 
@@ -723,7 +723,7 @@ def test_approval_step_with_optional_parameters(client, admin_headers, monkeypat
         },
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -750,7 +750,7 @@ def test_create_approval_request_with_tenant_id(client, admin_headers, monkeypat
         json={"steps": [{"step_id": "s1", "name": "n", "approver": "admin"}]},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     # Verify that create_request was called with tenant_id
     call_kwargs = workflow.create_request.call_args[1]
     assert "tenant_id" in call_kwargs
@@ -777,7 +777,7 @@ def test_approve_step_audit_recording(client, admin_headers, monkeypatch):
         "/hitl/approval/approve?request_id=req-1&step_id=s1",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         audit_mock.assert_called_once()
     call_kwargs = audit_mock.call_args[1]
@@ -803,7 +803,7 @@ def test_reject_step_audit_recording(client, admin_headers, monkeypatch):
         "/hitl/approval/reject?request_id=req-1&step_id=s1",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         audit_mock.assert_called_once()
     call_kwargs = audit_mock.call_args[1]

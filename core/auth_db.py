@@ -3,7 +3,7 @@
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean,
@@ -117,8 +117,8 @@ def init_db() -> None:
                 hashed_password=hash_password("admin123"),
                 role="admin",
                 disabled=False,
-                created_at=datetime.utcnow(),
-                updated_at=datetime.utcnow(),
+                created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+                updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
             db.add(admin)
             db.commit()

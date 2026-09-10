@@ -443,7 +443,7 @@ def _set_report(report_id: str, report: Dict, db: Optional[Session] = None) -> N
 # ============================================================================
 
 
-class BudgetCreate(BaseModel):
+class CostAdvancedBudgetCreate(BaseModel):
     """Model for creating a new budget"""
 
     name: str = Field(..., description="Budget name")
@@ -453,7 +453,7 @@ class BudgetCreate(BaseModel):
     alerts_enabled: bool = Field(default=True, description="Enable alerts")
 
 
-class BudgetUpdate(BaseModel):
+class CostAdvancedBudgetUpdate(BaseModel):
     """Model for updating a budget"""
 
     name: Optional[str] = Field(None, description="Budget name")
@@ -471,7 +471,7 @@ class AnalyticsRequest(BaseModel):
     granularity: Optional[str] = Field(default="daily", description="Time granularity")
 
 
-class OptimizationRequest(BaseModel):
+class CostAdvancedOptimizationRequest(BaseModel):
     """Model for optimization request"""
 
     resource_id: Optional[str] = Field(None, description="Resource ID")
@@ -486,7 +486,7 @@ class ReportRequest(BaseModel):
     include_forecast: bool = Field(default=False, description="Include forecast data")
 
 
-class AlertCreate(BaseModel):
+class CostAdvancedAlertCreate(BaseModel):
     """Model for creating an alert"""
 
     name: str = Field(..., description="Alert name")
@@ -498,7 +498,7 @@ class AlertCreate(BaseModel):
     )
 
 
-class AlertUpdate(BaseModel):
+class CostAdvancedAlertUpdate(BaseModel):
     """Model for updating an alert"""
 
     name: Optional[str] = Field(None, description="Alert name")
@@ -770,7 +770,7 @@ async def get_optimization_suggestions() -> Dict[str, Any]:
     },
 )
 async def handle_optimization(
-    request: OptimizationRequest,
+    request: CostAdvancedOptimizationRequest,
     db_core: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
@@ -872,7 +872,7 @@ async def get_budgets(
     },
 )
 async def create_budget(
-    budget: BudgetCreate,
+    budget: CostAdvancedBudgetCreate,
     db_core: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
@@ -919,7 +919,7 @@ async def create_budget(
 )
 async def update_budget(
     budget_id: str,
-    budget: BudgetUpdate,
+    budget: CostAdvancedBudgetUpdate,
     db_core: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
@@ -1323,7 +1323,7 @@ async def get_alerts(
     },
 )
 async def create_alert(
-    alert: AlertCreate,
+    alert: CostAdvancedAlertCreate,
     db_core: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """

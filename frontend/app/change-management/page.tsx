@@ -382,7 +382,7 @@ export default function ChangeManagementPage() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading && <p className="text-sm text-gray-500">加载中...</p>}
+          {isLoading && <p className="text-sm text-gray-500">加载中...</p>}
           <Table>
             <TableHeader>
               <TableRow>

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from services.config_service.schemas import ConfigUpdateEvent
+from .schemas import ConfigUpdateEvent
 
 
 class HotUpdateManager:

@@ -14,7 +14,9 @@ beforeEach(() => {
   (useRouter as jest.Mock).mockReturnValue({
     push: mockPush,
   });
-  mockPush.mockClear();
+  // mockReset (not mockClear) so implementations installed by a test — e.g. the
+  // throwing push in the "router push fails" case — do not leak into later tests.
+  mockPush.mockReset();
 });
 
 describe('QuickActions Component', () => {
@@ -160,8 +162,12 @@ describe('QuickActions Component', () => {
       
       const button = screen.getByText('新建告警规则');
       
-      // Should not throw error
-      await expect(user.click(button)).rejects.toThrow('Navigation failed');
+      // The component catches navigation failures, so the click must not throw
+      // and the UI must stay interactive.
+      await user.click(button);
+      
+      expect(button).toBeInTheDocument();
+      expect(button).toBeEnabled();
     });
   });
 

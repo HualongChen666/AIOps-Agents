@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 import copy
+import os
 import sys
+from pathlib import Path
 
 import yaml
+
+_REPO_ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 
 
 def load_yaml(path):
@@ -48,7 +52,11 @@ def ensure_error_responses(openapi):
 
 
 if __name__ == "__main__":
-    yaml_path = sys.argv[1] if len(sys.argv) > 1 else r"C:\AIOps_Agent_bak\openapi.yaml"
+    yaml_path = (
+        sys.argv[1]
+        if len(sys.argv) > 1
+        else os.getenv("AIOPS_OPENAPI", str(_REPO_ROOT / "docs" / "api" / "openapi.yaml"))
+    )
     data = load_yaml(yaml_path)
     updated = ensure_error_responses(data)
     save_yaml(updated, yaml_path)

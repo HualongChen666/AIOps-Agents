@@ -51,7 +51,11 @@ export default function LoginPage() {
               <Input
                 required
                 value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                onChange={(e) => {
+                  setUsername(e.target.value);
+                  // Any edit invalidates the previous failure message.
+                  if (error) setError(null);
+                }}
                 placeholder="请输入用户名"
                 disabled={loading}
               />
@@ -62,7 +66,10 @@ export default function LoginPage() {
                 type="password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) setError(null);
+                }}
                 placeholder="请输入密码"
                 disabled={loading}
               />

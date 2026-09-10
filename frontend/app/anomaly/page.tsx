@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import api from '@/lib/api';
 
 interface AnomalyData {
   timestamp: string;
@@ -33,32 +34,28 @@ export default function AnomalyPage() {
   const [anomalyRecords, setAnomalyRecords] = useState<AnomalyRecord[]>([]);
 
   const loadAnomalyData = async () => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') || '' : '';
+    // Use the shared client so the HttpOnly session cookie is sent with the
+    // request; no token is read or attached in JavaScript.
     try {
       const [recordsRes, statsRes] = await Promise.all([
-        fetch('/api/v1/anomaly/records', { headers: { Authorization: `Bearer ${token}` } }),
-        fetch('/api/v1/anomaly/statistics', { headers: { Authorization: `Bearer ${token}` } }),
+        api.get<AnomalyRecord[]>('/api/v1/anomaly/records'),
+        api.get<Record<string, number>>('/api/v1/anomaly/statistics'),
       ]);
 
-      if (recordsRes.ok) {
-        const records: AnomalyRecord[] = await recordsRes.json();
-        setAnomalyRecords(records);
-      }
+      setAnomalyRecords(recordsRes.data);
 
-      if (statsRes.ok) {
-        const stats = await statsRes.json();
-        const chartData: AnomalyData[] = Object.entries(stats)
-          .filter(([key]) => key !== 'total')
-          .map(([_metric, count]) => ({
-            timestamp: new Date().toISOString(),
-            value: Number(count),
-            predicted: 0,
-            lowerBound: 0,
-            upperBound: 0,
-            isAnomaly: Number(count) > 0,
-          }));
-        setAnomalyData(chartData);
-      }
+      const stats = statsRes.data;
+      const chartData: AnomalyData[] = Object.entries(stats)
+        .filter(([key]) => key !== 'total')
+        .map(([_metric, count]) => ({
+          timestamp: new Date().toISOString(),
+          value: Number(count),
+          predicted: 0,
+          lowerBound: 0,
+          upperBound: 0,
+          isAnomaly: Number(count) > 0,
+        }));
+      setAnomalyData(chartData);
     } catch (err) {
       console.error('Failed to load anomaly data:', err);
     }

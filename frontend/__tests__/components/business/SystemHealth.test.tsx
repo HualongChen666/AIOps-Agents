@@ -332,7 +332,7 @@ describe('SystemHealth Component', () => {
       renderWithQueryClient(<SystemHealth />);
       
       await waitFor(() => {
-        const serviceCard = screen.getByText('Test').closest('div');
+        const serviceCard = screen.getByText('Test').closest('div[class*="rounded-md"]');
         expect(serviceCard).toHaveClass('bg-gray-50');
       });
     });

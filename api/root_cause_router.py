@@ -52,7 +52,7 @@ class SymptomMatchingRequest(BaseModel):
     }
 
 
-class RootCauseAnalysisRequest(BaseModel):
+class RootCauseRootCauseAnalysisRequest(BaseModel):
     """Request for root cause analysis"""
 
     alert: dict[str, Any]
@@ -259,7 +259,7 @@ async def get_historical_patterns(limit: int = Query(default=50, ge=1, le=200)) 
 
 
 @router.post("/analyze", summary="增强根因分析")
-async def analyze_root_causes_enhanced(request: RootCauseAnalysisRequest) -> dict[str, Any]:
+async def analyze_root_causes_enhanced(request: RootCauseRootCauseAnalysisRequest) -> dict[str, Any]:
     """
     执行增强的根因分析，结合多种算法
     """

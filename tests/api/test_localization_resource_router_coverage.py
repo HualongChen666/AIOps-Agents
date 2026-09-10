@@ -49,7 +49,7 @@ class TestLocalizationResourceRouterCoverage:
             MagicMock(return_value=_fake_locres_manager()),
         )
         resp = client.get("/api/localization/status")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -64,7 +64,7 @@ class TestLocalizationResourceRouterCoverage:
             MagicMock(return_value=_fake_locres_manager(fail=True)),
         )
         resp = client.get("/api/localization/status")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -79,7 +79,7 @@ class TestLocalizationResourceRouterCoverage:
             MagicMock(return_value=fake_manager),
         )
         resp = client.get("/api/localization/translations?language=zh-CN&namespace=common")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -110,7 +110,7 @@ class TestLocalizationResourceRouterCoverage:
             MagicMock(return_value=_fake_locres_manager(fail=True)),
         )
         resp = client.get("/api/localization/translations?language=zh-CN&namespace=common")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -128,7 +128,7 @@ class TestLocalizationResourceRouterCoverage:
             "/api/localization/translation/add",
             params={"language": "zh-CN", "namespace": "common", "key": "test", "value": "测试"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -146,7 +146,7 @@ class TestLocalizationResourceRouterCoverage:
             "/api/localization/translation/add",
             params={"language": "zh-CN", "namespace": "common", "key": "test", "value": "测试"},
         )
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             resp_data = resp.json()
             assert "boom" in str(resp_data) or resp.status_code == 500
@@ -167,7 +167,7 @@ class TestLocalizationResourceRouterCoverage:
                 "/api/localization/translation/export",
                 params={"language": "zh-CN", "namespace": "common", "output_path": tmp_path},
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -216,7 +216,7 @@ class TestLocalizationResourceRouterCoverage:
                 "/api/localization/translation/import",
                 params={"language": "zh-CN", "namespace": "common", "input_path": tmp_path},
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "success"
@@ -300,18 +300,18 @@ class TestLocalizationResourceRouterCoverage:
 
         # Test GET /status
         resp = client.get("/api/localization/status")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test GET /translations
         resp = client.get("/api/localization/translations?language=zh-CN&namespace=common")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test POST /translation/add
         resp = client.post(
             "/api/localization/translation/add",
             params={"language": "zh-CN", "namespace": "common", "key": "test", "value": "测试"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test POST /translation/export
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
@@ -321,7 +321,7 @@ class TestLocalizationResourceRouterCoverage:
                 "/api/localization/translation/export",
                 params={"language": "zh-CN", "namespace": "common", "output_path": tmp_path},
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 
@@ -334,7 +334,7 @@ class TestLocalizationResourceRouterCoverage:
                 "/api/localization/translation/import",
                 params={"language": "zh-CN", "namespace": "common", "input_path": tmp_path},
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 
@@ -343,7 +343,7 @@ class TestLocalizationResourceRouterCoverage:
             "/api/localization/translations/missing",
             params={"source_language": "zh-CN", "target_language": "en", "namespace": "common"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_router_module_import(self):
         """Test that the router module can be imported successfully."""

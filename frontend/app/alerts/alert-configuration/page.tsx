@@ -40,7 +40,7 @@ export default function AlertConfigurationPage() {
     suppression_enabled: true,
   });
 
-  const { isLoading, error, refetch } = useLoadingState();
+  const { isLoading, error } = useLoadingState();
   const toast = useToast();
   const showSuccess = toast.success;
   const showError = toast.error;

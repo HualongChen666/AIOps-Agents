@@ -9,11 +9,11 @@ from fastapi import FastAPI, HTTPException
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from services.user_service.health_check import HealthCheckEngine
-from services.user_service.metrics import USER_LOGINS, USERS_CREATED
-from services.user_service.orchestrator import UserOrchestrator
-from services.user_service.repository import InMemoryUserRepository
-from services.user_service.schemas import (
+from .health_check import HealthCheckEngine
+from .metrics import USER_LOGINS, USERS_CREATED
+from .orchestrator import UserOrchestrator
+from .repository import InMemoryUserRepository
+from .schemas import (
     Organization,
     Role,
     SagaTransaction,

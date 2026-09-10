@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``es_logger`` module.
+
+Top-level functions: get_es_client, index_log, es_search_logs"""
+
 # core/es_logger.py
 # Elasticsearch 日志聚合封装
 # 提供异步客户端单例、日志写入、搜索接口

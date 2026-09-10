@@ -1,5 +1,5 @@
 # Build context must be repository root
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -7,7 +7,8 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY . /app
+ENV PYTHONPATH=/app
 
 EXPOSE 9559
 
-CMD ["uvicorn", "services.data_standards_service.main_app:app", "--host", "0.0.0.0", "--port", "9559"]
+CMD ["uvicorn", "extensions.addons.infrastructure.data_standards_service.main_app:app", "--host", "0.0.0.0", "--port", "9559"]

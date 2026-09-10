@@ -1,11 +1,15 @@
 # AIOps SRE Agent
 
-![Python 3.10+](https://img.shields.io/badge/python-3.10+-3776AB.svg?style=flat-square)
+![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB.svg?style=flat-square)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg?style=flat-square)
 ![Docker Compose](https://img.shields.io/badge/docker--compose-ready-2496ED.svg?style=flat-square)
-![Coverage](https://img.shields.io/badge/coverage-90.18%25-brightgreen.svg?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-99.9%25-brightgreen.svg?style=flat-square)
+![Test Functions](https://img.shields.io/badge/test%20functions-17%2C515-blue.svg?style=flat-square)
+
+> Coverage and pass-rate are not hard-coded here: both are produced by CI
+> (`.github/workflows/coverage_check.yml`, `.github/workflows/quality_gates.yml`)
+> and published as build artifacts. Committed snapshots of those numbers go stale,
+> so this README intentionally does not repeat them.
 
 > **Enterprise-grade Autonomous SRE Agent with Platform-scale Capabilities**
 

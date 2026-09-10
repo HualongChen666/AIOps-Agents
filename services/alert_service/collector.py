@@ -17,7 +17,7 @@ from starlette.responses import Response
 
 from services.alert_service.config import settings
 from services.alert_service.mq import InMemoryMessageQueue
-from services.alert_service.repository import AlertRepository, InMemoryAlertRepository
+from services.alert_service.repository import AlertRepository, get_repository
 from services.alert_service.schemas import (
     Alert,
     AlertSeverity,
@@ -71,8 +71,8 @@ class _SlidingWindowRateLimiter:
 class CollectorState:
     """Shared state for the collector service."""
 
-    def __init__(self) -> None:
-        self.repository: AlertRepository = InMemoryAlertRepository()
+    def __init__(self, repository: AlertRepository) -> None:
+        self.repository: AlertRepository = repository
         self.mq = InMemoryMessageQueue()
         self.start_time = time.time()
         self.rate_limiter = _SlidingWindowRateLimiter(
@@ -83,7 +83,7 @@ class CollectorState:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    state = CollectorState()
+    state = CollectorState(await get_repository(settings.use_in_memory))
     app.state.repo = state.repository
     app.state.mq = state.mq
     app.state.rate_limiter = state.rate_limiter

@@ -806,7 +806,11 @@ def init_db():  # pragma: no cover
         # May be called from within an existing event loop during tests.
         import asyncio
 
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         return loop.run_until_complete(async_init_db())
 
 
@@ -966,7 +970,11 @@ class DatabaseEngine:
 
         from sqlalchemy import create_engine, text
 
-        self._loop = asyncio.get_event_loop()
+        try:
+            self._loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
         self.connection_string = connection_string or "sqlite:///data/db_engine.db"
         self._engine = create_engine(self.connection_string, future=True)
         self.connected = False

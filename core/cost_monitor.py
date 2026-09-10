@@ -7,10 +7,29 @@ for cloud resources and infrastructure.
 """
 
 import logging
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
+
+
+def _budget_row_to_dict(row: Any) -> Dict[str, Any]:
+    """Serialise a CostBudgetDB row to the API dictionary shape."""
+    return {
+        "id": row.id,
+        "name": row.name,
+        "service": row.service,
+        "amount": row.amount,
+        "spent": row.spent,
+        "used": row.spent,
+        "remaining": row.remaining,
+        "period": row.period,
+        "status": row.status,
+        "alerts_enabled": row.alerts_enabled,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+    }
 
 
 def collect_costs(start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
@@ -349,70 +368,69 @@ def get_llm_costs() -> Dict[str, Any]:
 
 def get_budget_management() -> List[Dict[str, Any]]:
     """
-    Get all budget configurations
-    
+    Get all budget configurations persisted in the ``cost_budgets`` table.
+
     Returns:
-        List of budget configurations
+        List of budget configurations (empty when none have been created).
     """
+    from core.database import SessionLocal
+    from core.models import CostBudgetDB
+
+    db = SessionLocal()
     try:
-        # In production, load from database
-        # For now, return default budget configuration
-        budgets = [
-            {
-                "id": 1,
-                "name": "Monthly Budget",
-                "amount": 5000.0,
-                "used": sum(r["cost"] for r in collect_costs()),
-                "status": "active",
-                "period": "monthly",
-                "alert_threshold": 0.8
-            },
-            {
-                "id": 2,
-                "name": "Project Budget",
-                "amount": 10000.0,
-                "used": sum(r["cost"] for r in collect_costs()) * 2,
-                "status": "active",
-                "period": "quarterly",
-                "alert_threshold": 0.75
-            }
-        ]
-        
+        rows = db.query(CostBudgetDB).order_by(CostBudgetDB.created_at).all()
+        budgets = [_budget_row_to_dict(row) for row in rows]
         logger.info(f"Retrieved {len(budgets)} budget configurations")
         return budgets
-        
     except Exception as e:
         logger.error(f"Error getting budget management: {e}")
         return []
+    finally:
+        db.close()
 
 
 def create_budget(budget_data: dict) -> Dict[str, Any]:
     """
-    Create a new budget configuration
-    
+    Create a new budget configuration and persist it in ``cost_budgets``.
+
     Args:
         budget_data: Budget configuration data
-        
+
     Returns:
         Created budget configuration
     """
+    from core.database import SessionLocal
+    from core.models import CostBudgetDB
+
     try:
-        # In production, save to database
-        # For now, return a mock response
-        new_budget = {
-            "id": len(get_budget_management()) + 1,
-            "name": budget_data.get("name", "New Budget"),
-            "amount": budget_data.get("amount", 0),
-            "used": 0,
-            "status": "active",
-            "period": budget_data.get("period", "monthly"),
-            "alert_threshold": budget_data.get("alert_threshold", 0.8),
-            "created_at": datetime.now().isoformat()
-        }
-        
+        amount = float(budget_data.get("amount", 0) or 0)
+        spent = float(budget_data.get("spent", budget_data.get("used", 0.0)) or 0.0)
+        budget_id = budget_data.get("id") or f"budget-{uuid.uuid4().hex[:8]}"
+
+        db = SessionLocal()
+        try:
+            row = CostBudgetDB(
+                id=budget_id,
+                name=budget_data.get("name", "New Budget"),
+                service=budget_data.get("service", "default"),
+                amount=amount,
+                spent=spent,
+                remaining=amount - spent,
+                period=budget_data.get("period", "monthly"),
+                status=budget_data.get("status", "on_track"),
+                alerts_enabled=bool(budget_data.get("alerts_enabled", True)),
+                budget_metadata=budget_data.get("metadata"),
+            )
+            db.add(row)
+            db.commit()
+            db.refresh(row)
+            new_budget = _budget_row_to_dict(row)
+        finally:
+            db.close()
+
         logger.info(f"Created budget: {new_budget['name']} with amount ${new_budget['amount']}")
         return new_budget
-        
+
     except Exception as e:
         logger.error(f"Error creating budget: {e}")
         raise

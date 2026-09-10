@@ -562,7 +562,7 @@ class IntegrationEcosystem:
                         server.login(sender, password)
                     server.sendmail(sender, [recipient], msg.as_string())
 
-            await asyncio.get_event_loop().run_in_executor(None, _send)
+            await asyncio.get_running_loop().run_in_executor(None, _send)
             logger.info(f"Email notification sent to {recipient}")
             return True
         except Exception as e:
@@ -605,7 +605,7 @@ class IntegrationEcosystem:
                 return False
 
             http_session = self.http_session
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             response = await loop.run_in_executor(
                 None,
                 lambda: http_session.post(webhook_url, json=payload, headers=headers, timeout=10),

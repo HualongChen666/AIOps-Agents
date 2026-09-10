@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``backup_manager`` module.
+
+Top-level functions: backup_database, restore_latest_backup, list_backups
+
+Module-level constants: POSTGRES_URL, S3_URL, WALG_PATH"""
+
 # core/backup_manager.py
 # ------------------------------------------------------------
 # 备份 & 恢复（Wal‑G + S3） 简易包装。

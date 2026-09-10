@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from services.topology_service.schemas import (
+from .schemas import (
     ServiceTopology,
     TopologyAuditEvent,
 )

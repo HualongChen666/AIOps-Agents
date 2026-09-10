@@ -47,9 +47,9 @@ export default function DSLDefinitionPage() {
     name: '',
     version: '1.0.0',
     description: '',
-    language: 'yaml' as const,
+    language: 'yaml',
     content: '',
-    status: 'draft' as const,
+    status: 'draft',
   });
 
   const loadDefinitions = async () => {

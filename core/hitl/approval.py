@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-import logging
-
 """
 Approval Workflow
 Implements approval workflow with visualization support
 """
+
+import logging
 
 import asyncio
 import threading

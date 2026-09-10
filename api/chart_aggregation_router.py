@@ -15,7 +15,7 @@ Endpoints:
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -76,26 +76,77 @@ class ChartResponse(BaseModel):
 # ============================================================================
 
 
-def generate_mock_data(
+def _query_backend(promql: str, start_time: datetime, end_time: datetime, step: int = 60) -> List[Dict[str, Any]]:
+    """Query the configured metrics backend (VictoriaMetrics/Prometheus).
+
+    Returns the real samples; an empty list is returned when the backend is
+    unreachable or has no data (never fabricated data).
+    """
+    import requests
+
+    from config import VICTORIAMETRICS_TIMEOUT, VICTORIAMETRICS_URL
+
+    params = {
+        "query": promql,
+        "start": int(start_time.timestamp()),
+        "end": int(end_time.timestamp()),
+        "step": step,
+    }
+    try:
+        response = requests.get(
+            f"{VICTORIAMETRICS_URL.rstrip('/')}/api/v1/query_range",
+            params=params,
+            timeout=VICTORIAMETRICS_TIMEOUT,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception as exc:
+        logger.error(f"Metrics backend query failed for {promql}: {exc}")
+        return []
+
+    if payload.get("status") != "success":
+        logger.warning(f"Metrics backend returned non-success for {promql}: {payload}")
+        return []
+
+    samples: List[Dict[str, Any]] = []
+    for result in payload.get("data", {}).get("result", []) or []:
+        for ts, value in result.get("values", []) or []:
+            try:
+                samples.append(
+                    {
+                        "timestamp": datetime.fromtimestamp(
+                            int(ts), tz=timezone.utc
+                        ).isoformat(),
+                        "value": round(float(value), 4),
+                    }
+                )
+            except (TypeError, ValueError):
+                continue
+    return samples
+
+
+def fetch_metric_series(
+    metric: str,
     start_time: datetime,
     end_time: datetime,
-    interval_minutes: int = 60,
-    base_value: float = 100.0,
-    variance: float = 20.0,
+    service: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """生成模拟数据"""
-    import random
+    """Fetch a real metric time series from the metrics backend."""
+    promql = f'{metric}{{service="{service}"}}' if service else metric
+    return _query_backend(promql, start_time, end_time)
 
-    data = []
-    current_time = start_time
-    while current_time <= end_time:
-        value = base_value + random.uniform(-variance, variance)
-        data.append({
-            "timestamp": current_time.isoformat(),
-            "value": round(value, 2),
-        })
-        current_time += timedelta(minutes=interval_minutes)
-    return data
+
+def fetch_metric_prediction(
+    metric: str,
+    start_time: datetime,
+    end_time: datetime,
+    horizon_seconds: int,
+    service: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """Forecast a metric with the backend's real ``predict_linear`` function."""
+    selector = f'{metric}{{service="{service}"}}' if service else metric
+    promql = f"predict_linear({selector}[1h], {int(horizon_seconds)})"
+    return _query_backend(promql, start_time, end_time)
 
 
 def get_time_range_from_preset(preset: str) -> tuple[datetime, datetime]:
@@ -154,7 +205,7 @@ async def get_aggregated_metrics(
         series = []
         for metric in metrics:
             if metric == "cpu_usage":
-                data = generate_mock_data(start_time, end_time, 60, 45.0, 15.0)
+                data = fetch_metric_series("cpu_usage", start_time, end_time)
                 series.append({
                     "name": "CPU使用率",
                     "data": data,
@@ -162,7 +213,7 @@ async def get_aggregated_metrics(
                     "color": "#3b82f6"
                 })
             elif metric == "memory_usage":
-                data = generate_mock_data(start_time, end_time, 60, 65.0, 10.0)
+                data = fetch_metric_series("memory_usage", start_time, end_time)
                 series.append({
                     "name": "内存使用率",
                     "data": data,
@@ -170,7 +221,7 @@ async def get_aggregated_metrics(
                     "color": "#10b981"
                 })
             elif metric == "disk_usage":
-                data = generate_mock_data(start_time, end_time, 60, 55.0, 5.0)
+                data = fetch_metric_series("disk_usage", start_time, end_time)
                 series.append({
                     "name": "磁盘使用率",
                     "data": data,
@@ -178,7 +229,7 @@ async def get_aggregated_metrics(
                     "color": "#f59e0b"
                 })
             elif metric == "network_in":
-                data = generate_mock_data(start_time, end_time, 60, 100.0, 50.0)
+                data = fetch_metric_series("network_in", start_time, end_time)
                 series.append({
                     "name": "网络入流量",
                     "data": data,
@@ -186,7 +237,7 @@ async def get_aggregated_metrics(
                     "color": "#8b5cf6"
                 })
             elif metric == "network_out":
-                data = generate_mock_data(start_time, end_time, 60, 80.0, 40.0)
+                data = fetch_metric_series("network_out", start_time, end_time)
                 series.append({
                     "name": "网络出流量",
                     "data": data,
@@ -194,7 +245,7 @@ async def get_aggregated_metrics(
                     "color": "#ec4899"
                 })
             elif metric == "request_count":
-                data = generate_mock_data(start_time, end_time, 60, 500.0, 200.0)
+                data = fetch_metric_series("request_count", start_time, end_time)
                 series.append({
                     "name": "请求数量",
                     "data": data,
@@ -202,7 +253,7 @@ async def get_aggregated_metrics(
                     "color": "#06b6d4"
                 })
             elif metric == "error_rate":
-                data = generate_mock_data(start_time, end_time, 60, 2.0, 1.5)
+                data = fetch_metric_series("error_rate", start_time, end_time)
                 series.append({
                     "name": "错误率",
                     "data": data,
@@ -210,7 +261,7 @@ async def get_aggregated_metrics(
                     "color": "#ef4444"
                 })
             elif metric == "response_time":
-                data = generate_mock_data(start_time, end_time, 60, 150.0, 50.0)
+                data = fetch_metric_series("response_time", start_time, end_time)
                 series.append({
                     "name": "响应时间",
                     "data": data,
@@ -218,8 +269,8 @@ async def get_aggregated_metrics(
                     "color": "#f97316"
                 })
             else:
-                # 默认生成通用数据
-                data = generate_mock_data(start_time, end_time, 60, 100.0, 20.0)
+                # 未知指标：直接按指标名查询后端
+                data = fetch_metric_series(metric, start_time, end_time)
                 series.append({
                     "name": metric,
                     "data": data,
@@ -263,73 +314,56 @@ async def get_aggregated_alerts(
     try:
         start_time, end_time = get_time_range_from_preset(time_range)
         
-        # 模拟告警数据
+        # 真实聚合：读取告警引擎的告警历史并按分组键统计
+        from collections import Counter
+
+        from core.alert_engine import alert_history
+
+        def _normalise(raw: Any) -> str:
+            value = getattr(raw, "value", raw)
+            text = str(value).strip() if value is not None else ""
+            return text or "unknown"
+
+        def _alert_time(alert: Dict[str, Any]) -> Optional[datetime]:
+            raw = alert.get("detected_at") or alert.get("metric_time") or alert.get("raw_time")
+            if isinstance(raw, datetime):
+                return raw if raw.tzinfo else raw.replace(tzinfo=timezone.utc)
+            if isinstance(raw, str):
+                try:
+                    parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+                except ValueError:
+                    return None
+            return None
+
         if group_by == "severity":
-            data = [
-                {
-                    "name": "Critical",
-                    "value": 15,
-                    "color": "#ef4444"
-                },
-                {
-                    "name": "Warning",
-                    "value": 42,
-                    "color": "#f59e0b"
-                },
-                {
-                    "name": "Info",
-                    "value": 128,
-                    "color": "#3b82f6"
-                }
-            ]
+            def _key(alert: Dict[str, Any]) -> str:
+                return _normalise(alert.get("level"))
         elif group_by == "category":
-            data = [
-                {
-                    "name": "系统",
-                    "value": 45,
-                    "color": "#3b82f6"
-                },
-                {
-                    "name": "网络",
-                    "value": 32,
-                    "color": "#10b981"
-                },
-                {
-                    "name": "应用",
-                    "value": 78,
-                    "color": "#f59e0b"
-                },
-                {
-                    "name": "数据库",
-                    "value": 30,
-                    "color": "#8b5cf6"
-                }
-            ]
+            def _key(alert: Dict[str, Any]) -> str:
+                return _normalise(alert.get("category"))
         elif group_by == "source":
-            data = [
-                {
-                    "name": "Prometheus",
-                    "value": 67,
-                    "color": "#c73e3d"
-                },
-                {
-                    "name": "Zabbix",
-                    "value": 45,
-                    "color": "#e55a32"
-                },
-                {
-                    "name": "CloudWatch",
-                    "value": 28,
-                    "color": "#ff9900"
-                },
-                {
-                    "name": "自定义",
-                    "value": 45,
-                    "color": "#6b7280"
-                }
-            ]
+            def _key(alert: Dict[str, Any]) -> str:
+                return _normalise(alert.get("source") or alert.get("platform"))
         else:
-            data = []
+            def _key(alert: Dict[str, Any]) -> str:
+                return _normalise(alert.get("alert_type") or alert.get("metric"))
+
+        selected = []
+        for alert in alert_history:
+            if severity and _normalise(alert.get("level")).lower() != severity.lower():
+                continue
+            detected = _alert_time(alert)
+            if detected is not None and not (start_time <= detected <= end_time):
+                continue
+            selected.append(alert)
+
+        palette = ["#ef4444", "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6", "#6b7280"]
+        counts = Counter(_key(alert) for alert in selected)
+        data = [
+            {"name": name, "value": count, "color": palette[i % len(palette)]}
+            for i, (name, count) in enumerate(sorted(counts.items()))
+        ]
         
         return {
             "title": "告警统计",
@@ -368,10 +402,10 @@ async def get_aggregated_performance(
         start_time, end_time = get_time_range_from_preset(time_range)
         
         # 生成性能数据
-        response_time_data = generate_mock_data(start_time, end_time, 60, 150.0, 50.0)
-        throughput_data = generate_mock_data(start_time, end_time, 60, 500.0, 200.0)
-        error_rate_data = generate_mock_data(start_time, end_time, 60, 2.0, 1.5)
-        concurrency_data = generate_mock_data(start_time, end_time, 60, 50.0, 20.0)
+        response_time_data = fetch_metric_series("response_time", start_time, end_time)
+        throughput_data = fetch_metric_series("request_count", start_time, end_time)
+        error_rate_data = fetch_metric_series("error_rate", start_time, end_time)
+        concurrency_data = fetch_metric_series("concurrency", start_time, end_time)
         
         series = [
             {
@@ -436,32 +470,21 @@ async def get_trend_analysis(
     try:
         start_time, end_time = get_time_range_from_preset(time_range)
         
-        # 生成历史数据
-        historical_data = generate_mock_data(start_time, end_time, 60, 100.0, 30.0)
-        
-        # 生成趋势线（简化版）
-        trend_data = []
-        for i, point in enumerate(historical_data):
-            trend_value = 100.0 + (i * 0.5)  # 简单的线性趋势
-            trend_data.append({
-                "timestamp": point["timestamp"],
-                "value": round(trend_value, 2)
-            })
-        
-        # 生成预测数据
+        # 历史数据来自指标后端
+        historical_data = fetch_metric_series(metric_name, start_time, end_time)
+
+        # 趋势线 = 对真实历史数据做最小二乘拟合
+        trend_data = _linear_trend(historical_data)
+
+        # 预测数据 = 后端 predict_linear 的真实外推
         prediction_start = end_time
         prediction_end = end_time + timedelta(hours=prediction_hours)
-        prediction_data = generate_mock_data(prediction_start, prediction_end, 60, 115.0, 15.0)
-        
-        # 识别异常点（简化版）
-        anomalies = []
-        for i, point in enumerate(historical_data):
-            if point["value"] > 130.0 or point["value"] < 70.0:
-                anomalies.append({
-                    "timestamp": point["timestamp"],
-                    "value": point["value"],
-                    "type": "high" if point["value"] > 130.0 else "low"
-                })
+        prediction_data = fetch_metric_prediction(
+            metric_name, prediction_start, prediction_end, prediction_hours * 3600
+        )
+
+        # 异常点 = 真实数据上的 2σ 离群点
+        anomalies = _detect_anomalies(historical_data)
         
         return {
             "title": f"{metric_name} 趋势分析",
@@ -509,8 +532,9 @@ async def get_comparison_data(
         colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"]
         
         for i, entity in enumerate(entity_list):
-            base_value = 100.0 + (i * 20.0)  # 不同实体有不同的基准值
-            data = generate_mock_data(start_time, end_time, 60, base_value, 25.0)
+            data = fetch_metric_series(
+                metric_name, start_time, end_time, service=entity.strip()
+            )
             series.append({
                 "name": entity.strip(),
                 "data": data,
@@ -533,3 +557,47 @@ async def get_comparison_data(
     except Exception as e:
         logger.error(f"获取对比数据失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取对比数据失败: {str(e)[:200]}")
+
+def _linear_trend(points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Least-squares linear trend fitted on the real samples."""
+    if len(points) < 2:
+        return []
+    values = [float(p["value"]) for p in points]
+    n = len(values)
+    xs = list(range(n))
+    mean_x = sum(xs) / n
+    mean_y = sum(values) / n
+    denom = sum((x - mean_x) ** 2 for x in xs)
+    if denom == 0:
+        slope = 0.0
+    else:
+        slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, values)) / denom
+    intercept = mean_y - slope * mean_x
+    return [
+        {"timestamp": point["timestamp"], "value": round(slope * i + intercept, 4)}
+        for i, point in enumerate(points)
+    ]
+
+
+def _detect_anomalies(points: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Flag samples deviating more than 2 standard deviations from the mean."""
+    if len(points) < 3:
+        return []
+    values = [float(p["value"]) for p in points]
+    mean = sum(values) / len(values)
+    variance = sum((v - mean) ** 2 for v in values) / len(values)
+    stddev = variance ** 0.5
+    if stddev == 0:
+        return []
+    anomalies = []
+    for point in points:
+        value = float(point["value"])
+        if abs(value - mean) > 2 * stddev:
+            anomalies.append(
+                {
+                    "timestamp": point["timestamp"],
+                    "value": point["value"],
+                    "type": "high" if value > mean else "low",
+                }
+            )
+    return anomalies

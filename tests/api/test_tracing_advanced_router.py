@@ -23,8 +23,8 @@ from fastapi.testclient import TestClient
 from api.tracing_advanced_router import (
     AnalyticsCreate,
     OperationCreate,
-    SearchRequest,
-    ServiceCreate,
+    TracingAdvancedSearchRequest,
+    TracingAdvancedServiceCreate,
     SpanCreate,
     TraceCreate,
     TraceUpdate,
@@ -190,7 +190,7 @@ class TestTraceManagementEndpoints:
     def test_list_traces_empty(self, client):
         """Test listing traces when empty (should return synthetic)"""
         response = client.get("/api/v1/tracing/traces")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -202,7 +202,7 @@ class TestTraceManagementEndpoints:
         _traces["trace-123"] = sample_trace_data
 
         response = client.get("/api/v1/tracing/traces")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -221,7 +221,7 @@ class TestTraceManagementEndpoints:
         _traces["trace-2"] = trace2
 
         response = client.get("/api/v1/tracing/traces?service_name=service-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -240,7 +240,7 @@ class TestTraceManagementEndpoints:
         _traces["trace-2"] = trace2
 
         response = client.get("/api/v1/tracing/traces?operation=/api/v1/status")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -258,7 +258,7 @@ class TestTraceManagementEndpoints:
         _traces["trace-2"] = trace2
 
         response = client.get("/api/v1/tracing/traces?status=ok")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -276,7 +276,7 @@ class TestTraceManagementEndpoints:
         _traces["trace-2"] = trace2
 
         response = client.get("/api/v1/tracing/traces?min_duration=150")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -290,7 +290,7 @@ class TestTraceManagementEndpoints:
             _traces[f"trace-{i}"] = trace
 
         response = client.get("/api/v1/tracing/traces?limit=5")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 5
@@ -298,7 +298,7 @@ class TestTraceManagementEndpoints:
     def test_create_trace_success(self, client, sample_trace_data):
         """Test creating a trace successfully"""
         response = client.post("/api/v1/tracing/traces", json=sample_trace_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["trace_id"] == "trace-123"
@@ -319,14 +319,14 @@ class TestTraceManagementEndpoints:
         invalid_data = {"trace_id": "", "root_service": "test"}  # Empty ID should fail
 
         response = client.post("/api/v1/tracing/traces", json=invalid_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_trace_by_id_success(self, client, sample_trace_data):
         """Test getting a trace by ID successfully"""
         _traces["trace-123"] = sample_trace_data
 
         response = client.get("/api/v1/tracing/traces/trace-123")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["trace_id"] == "trace-123"
@@ -348,7 +348,7 @@ class TestTraceManagementEndpoints:
         _spans["span-123"] = sample_span_data
 
         response = client.get("/api/v1/tracing/traces/trace-123")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "spans" in data
@@ -361,7 +361,7 @@ class TestTraceManagementEndpoints:
         update_data = {"status": "error", "duration_ms": 200.0}
 
         response = client.patch("/api/v1/tracing/traces/trace-123", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "error"
@@ -381,7 +381,7 @@ class TestTraceManagementEndpoints:
         _spans["span-123"] = sample_span_data
 
         response = client.delete("/api/v1/tracing/traces/trace-123")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["message"] == "Trace deleted successfully"
@@ -407,7 +407,7 @@ class TestSpanManagementEndpoints:
     def test_list_spans_empty(self, client):
         """Test listing spans when empty"""
         response = client.get("/api/v1/tracing/spans")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -418,7 +418,7 @@ class TestSpanManagementEndpoints:
         _spans["span-123"] = sample_span_data
 
         response = client.get("/api/v1/tracing/spans")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -436,7 +436,7 @@ class TestSpanManagementEndpoints:
         _spans["span-2"] = span2
 
         response = client.get("/api/v1/tracing/spans?trace_id=trace-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -455,7 +455,7 @@ class TestSpanManagementEndpoints:
         _spans["span-2"] = span2
 
         response = client.get("/api/v1/tracing/spans?service=service-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -473,7 +473,7 @@ class TestSpanManagementEndpoints:
         _spans["span-2"] = span2
 
         response = client.get("/api/v1/tracing/spans?status=ok")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -486,7 +486,7 @@ class TestSpanManagementEndpoints:
             _spans[f"span-{i}"] = span
 
         response = client.get("/api/v1/tracing/spans?limit=5")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 5
@@ -496,7 +496,7 @@ class TestSpanManagementEndpoints:
         _traces["trace-123"] = sample_trace_data
 
         response = client.post("/api/v1/tracing/spans", json=sample_span_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["span_id"] == "span-123"
@@ -506,7 +506,7 @@ class TestSpanManagementEndpoints:
     def test_create_span_without_trace(self, client, sample_span_data):
         """Test creating a span without existing trace (should create placeholder)"""
         response = client.post("/api/v1/tracing/spans", json=sample_span_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["span_id"] == "span-123"
@@ -526,7 +526,7 @@ class TestSpanManagementEndpoints:
         _spans["span-123"] = sample_span_data
 
         response = client.get("/api/v1/tracing/spans/span-123")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["span_id"] == "span-123"
@@ -541,7 +541,7 @@ class TestSpanManagementEndpoints:
         _spans["span-123"] = sample_span_data
 
         response = client.delete("/api/v1/tracing/spans/span-123")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert "span-123" not in _spans
 
@@ -608,7 +608,7 @@ class TestOperationManagementEndpoints:
     def test_list_operations_empty(self, client):
         """Test listing operations when empty"""
         response = client.get("/api/v1/tracing/operations")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -626,7 +626,7 @@ class TestOperationManagementEndpoints:
         }
 
         response = client.get("/api/v1/tracing/operations")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -652,7 +652,7 @@ class TestOperationManagementEndpoints:
         _operations["service-2:/api/v1/health"] = op2
 
         response = client.get("/api/v1/tracing/operations?service=service-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -679,7 +679,7 @@ class TestOperationManagementEndpoints:
         _operations["service-2:query"] = op2
 
         response = client.get("/api/v1/tracing/operations?type=http")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -687,7 +687,7 @@ class TestOperationManagementEndpoints:
     def test_create_operation_success(self, client, sample_operation_data):
         """Test creating an operation successfully"""
         response = client.post("/api/v1/tracing/operations", json=sample_operation_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "/api/v1/status"
@@ -698,7 +698,7 @@ class TestOperationManagementEndpoints:
         """Test creating a duplicate operation"""
         # Create first
         response = client.post("/api/v1/tracing/operations", json=sample_operation_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Try to create duplicate
         response = client.post("/api/v1/tracing/operations", json=sample_operation_data)
@@ -726,7 +726,7 @@ class TestOperationManagementEndpoints:
         }
 
         response = client.delete(f"/api/v1/tracing/operations/{simple_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert simple_id not in _operations
 
@@ -747,7 +747,7 @@ class TestAnalyticsEndpoints:
     def test_get_analytics_empty(self, client):
         """Test getting analytics when empty"""
         response = client.get("/api/v1/tracing/analytics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -759,7 +759,7 @@ class TestAnalyticsEndpoints:
         _analytics["analytics-1"] = sample_analytics_data
 
         response = client.get("/api/v1/tracing/analytics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -775,7 +775,7 @@ class TestAnalyticsEndpoints:
         _analytics["analytics-2"] = analytics2
 
         response = client.get("/api/v1/tracing/analytics?service=service-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -791,7 +791,7 @@ class TestAnalyticsEndpoints:
         _analytics["analytics-2"] = analytics2
 
         response = client.get("/api/v1/tracing/analytics?metric_type=latency")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -810,7 +810,7 @@ class TestAnalyticsEndpoints:
 
         start_time = (now - timedelta(hours=1)).isoformat()
         response = client.get(f"/api/v1/tracing/analytics?start_time={start_time}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -823,7 +823,7 @@ class TestAnalyticsEndpoints:
             _analytics[f"analytics-{i}"] = analytics
 
         response = client.get("/api/v1/tracing/analytics")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "aggregations" in data
@@ -834,7 +834,7 @@ class TestAnalyticsEndpoints:
     def test_create_analytics_success(self, client, sample_analytics_data):
         """Test creating analytics data successfully"""
         response = client.post("/api/v1/tracing/analytics", json=sample_analytics_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["service"] == "aiops-agent"
@@ -853,7 +853,7 @@ class TestSearchEndpoints:
     def test_search_traces_empty(self, client, sample_search_request):
         """Test searching traces when empty (should return synthetic)"""
         response = client.post("/api/v1/tracing/search", json=sample_search_request)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -865,7 +865,7 @@ class TestSearchEndpoints:
         _traces["trace-123"] = sample_trace_data
 
         response = client.post("/api/v1/tracing/search", json=sample_search_request)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -880,7 +880,7 @@ class TestSearchEndpoints:
         search_request = {"query": "error", "limit": 50}
 
         response = client.post("/api/v1/tracing/search", json=search_request)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) >= 1
@@ -895,7 +895,7 @@ class TestSearchEndpoints:
         search_request = {"query": "test", "service_name": "service-1", "limit": 50}
 
         response = client.post("/api/v1/tracing/search", json=search_request)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # May return synthetic traces, so just check structure
@@ -911,7 +911,7 @@ class TestSearchEndpoints:
         search_request = {"query": "test", "status": "error", "limit": 50}
 
         response = client.post("/api/v1/tracing/search", json=search_request)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # May return synthetic traces, so just check structure
@@ -932,7 +932,7 @@ class TestSearchEndpoints:
         search_request = {"query": "test", "min_duration": 150, "max_duration": 250, "limit": 50}
 
         response = client.post("/api/v1/tracing/search", json=search_request)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # May return synthetic traces, so just check structure
@@ -956,7 +956,7 @@ class TestSearchEndpoints:
         search_request = {"query": "test", "start_time": start_time, "limit": 50}
 
         response = client.post("/api/v1/tracing/search", json=search_request)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # May return synthetic traces, so just check structure
@@ -974,7 +974,7 @@ class TestPerformanceEndpoints:
     def test_get_performance_empty(self, client):
         """Test getting performance metrics when empty (should return synthetic)"""
         response = client.get("/api/v1/tracing/performance")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "metrics" in data
@@ -990,7 +990,7 @@ class TestPerformanceEndpoints:
             _traces[f"trace-{i}"] = trace
 
         response = client.get("/api/v1/tracing/performance")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["total_traces"] == 10
@@ -1009,7 +1009,7 @@ class TestPerformanceEndpoints:
         _traces["trace-2"] = trace2
 
         response = client.get("/api/v1/tracing/performance?service=service-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["service"] == "service-1"
@@ -1027,7 +1027,7 @@ class TestPerformanceEndpoints:
         _traces["trace-2"] = trace2
 
         response = client.get("/api/v1/tracing/performance?operation=/api/v1/status")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["operation"] == "/api/v1/status"
@@ -1042,7 +1042,7 @@ class TestPerformanceEndpoints:
             _traces[f"trace-{i}"] = trace
 
         response = client.get("/api/v1/tracing/performance")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         metrics = data["metrics"]
@@ -1057,7 +1057,7 @@ class TestPerformanceEndpoints:
     def test_get_performance_time_series(self, client, sample_trace_data):
         """Test that performance returns time series data"""
         response = client.get("/api/v1/tracing/performance")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         time_series = data["time_series"]
@@ -1078,7 +1078,7 @@ class TestPerformanceEndpoints:
             _traces[f"trace-{i}"] = trace
 
         response = client.get("/api/v1/tracing/performance")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         metrics = data["metrics"]
@@ -1098,7 +1098,7 @@ class TestAlternativeRouterEndpoints:
     def test_list_traces_alt(self, client_alt):
         """Test listing traces via alt router"""
         response = client_alt.get("/api/tracing/traces")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -1108,7 +1108,7 @@ class TestAlternativeRouterEndpoints:
         _traces["trace-123"] = sample_trace_data
 
         response = client_alt.get("/api/tracing/trace/trace-123")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["trace_id"] == "trace-123"
@@ -1125,7 +1125,7 @@ class TestV1RouterEndpoints:
     def test_list_traces_v1(self, client_v1):
         """Test listing traces via v1 router"""
         response = client_v1.get("/api/v1/tracing/traces")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "items" in data
@@ -1135,7 +1135,7 @@ class TestV1RouterEndpoints:
         _traces["trace-123"] = sample_trace_data
 
         response = client_v1.get("/api/v1/tracing/traces/trace-123")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["trace_id"] == "trace-123"
@@ -1240,16 +1240,16 @@ class TestDataValidation:
             )
 
     def test_service_create_valid(self):
-        """Test valid ServiceCreate model"""
+        """Test valid TracingAdvancedServiceCreate model"""
         data = {"name": "aiops-agent", "type": "application", "version": "1.0.0"}
-        service = ServiceCreate(**data)
+        service = TracingAdvancedServiceCreate(**data)
         assert service.name == "aiops-agent"
         assert service.type == "application"
 
     def test_service_create_invalid_empty_name(self):
-        """Test ServiceCreate with empty name"""
+        """Test TracingAdvancedServiceCreate with empty name"""
         with pytest.raises(Exception):
-            ServiceCreate(name="", type="application")
+            TracingAdvancedServiceCreate(name="", type="application")
 
     def test_operation_create_valid(self):
         """Test valid OperationCreate model"""
@@ -1271,21 +1271,21 @@ class TestDataValidation:
         assert analytics.metric_type == "latency"
 
     def test_search_request_valid(self):
-        """Test valid SearchRequest model"""
+        """Test valid TracingAdvancedSearchRequest model"""
         data = {"query": "error", "service_name": "aiops-agent", "status": "error", "limit": 50}
-        search = SearchRequest(**data)
+        search = TracingAdvancedSearchRequest(**data)
         assert search.query == "error"
         assert search.limit == 50
 
     def test_search_request_invalid_limit_too_low(self):
-        """Test SearchRequest with limit too low"""
+        """Test TracingAdvancedSearchRequest with limit too low"""
         with pytest.raises(Exception):
-            SearchRequest(query="test", limit=0)
+            TracingAdvancedSearchRequest(query="test", limit=0)
 
     def test_search_request_invalid_limit_too_high(self):
-        """Test SearchRequest with limit too high"""
+        """Test TracingAdvancedSearchRequest with limit too high"""
         with pytest.raises(Exception):
-            SearchRequest(query="test", limit=1000)
+            TracingAdvancedSearchRequest(query="test", limit=1000)
 
 
 # ============================================================
@@ -1354,7 +1354,7 @@ class TestErrorHandling:
     def test_422_response_format(self, client):
         """Test that 422 responses have correct format"""
         response = client.post("/api/v1/tracing/traces", json={})
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "detail" in data
@@ -1372,38 +1372,38 @@ class TestIntegration:
         """Test complete lifecycle of a trace"""
         # Create
         response = client.post("/api/v1/tracing/traces", json=sample_trace_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             trace_id = response.json()["trace_id"]
 
         # Read
         response = client.get(f"/api/v1/tracing/traces/{trace_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update
         response = client.patch(f"/api/v1/tracing/traces/{trace_id}", json={"status": "error"})
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete
         response = client.delete(f"/api/v1/tracing/traces/{trace_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_trace_with_spans(self, client, sample_trace_data, sample_span_data):
         """Test trace with associated spans"""
         # Create trace
         response = client.post("/api/v1/tracing/traces", json=sample_trace_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Create spans
         for i in range(3):
             span = sample_span_data.copy()
             span["span_id"] = f"span-{i}"
             response = client.post("/api/v1/tracing/spans", json=span)
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
 
         # Get trace with spans
         response = client.get("/api/v1/tracing/traces/trace-123")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["spans"]) == 3

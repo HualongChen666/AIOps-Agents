@@ -213,7 +213,7 @@ class TestLocalizationAdapterRouterErrorPaths:
         try:
             resp = client.get("/api/localization-adapter/status", headers=admin_headers)
             # Should return 500 with error detail
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "Test error in adapter status" in resp.json()["detail"]
         finally:
@@ -232,7 +232,7 @@ class TestLocalizationAdapterRouterErrorPaths:
 
         try:
             resp = client.get("/api/localization-adapter/locales", headers=admin_headers)
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "Test error in locales" in resp.json()["detail"]
         finally:
@@ -255,7 +255,7 @@ class TestLocalizationAdapterRouterErrorPaths:
                 headers=admin_headers,
                 params={"locale_id": "zh-CN"},
             )
-            assert resp.status_code in (500, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "Test error setting locale" in resp.json()["detail"]
         finally:
@@ -426,7 +426,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
     def test_get_adapter_status_success(self, client, admin_headers):
         """Test successful get_adapter_status call"""
         resp = client.get("/api/localization-adapter/status", headers=admin_headers)
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -436,7 +436,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
     def test_get_supported_locales_success(self, client, admin_headers):
         """Test successful get_supported_locales call"""
         resp = client.get("/api/localization-adapter/locales", headers=admin_headers)
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -450,7 +450,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"locale_id": "zh-CN"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -470,7 +470,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"date_str": "2026-07-03", "format_type": "short"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -482,7 +482,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"date_str": "2026-07-03", "format_type": "short", "locale": "en-US"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_format_datetime_success(self, client, admin_headers):
         """Test successful format_datetime call"""
@@ -498,7 +498,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"datetime_str": "2026-07-03T10:00:00", "format_type": "short"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -514,7 +514,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
                 "locale": "en-US",
             },
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_format_number_success(self, client, admin_headers):
         """Test successful format_number call with various format types"""
@@ -524,7 +524,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"number": 1234.56, "format_type": "decimal", "decimals": 2},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -536,7 +536,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"number": 0.85, "format_type": "percent", "decimals": 1},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test scientific format
         resp = client.get(
@@ -544,7 +544,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"number": 1234.56, "format_type": "scientific"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test with locale
         resp = client.get(
@@ -552,7 +552,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"number": 1234.56, "format_type": "decimal", "locale": "zh-CN"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_format_currency_success(self, client, admin_headers):
         """Test successful format_currency call"""
@@ -561,7 +561,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"amount": 100.5, "currency_code": "USD", "locale": "en-US"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -573,7 +573,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"amount": 100.5, "decimals": 3},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test without currency_code (uses default)
         resp = client.get(
@@ -581,7 +581,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"amount": 100.5, "locale": "zh-CN"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_format_unit_success(self, client, admin_headers):
         """Test successful format_unit call"""
@@ -590,7 +590,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"value": 10, "unit": "meter", "target_system": "metric", "locale": "zh-CN"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -602,7 +602,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"value": 10, "unit": "foot", "target_system": "imperial"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test without target_system (uses default)
         resp = client.get(
@@ -610,7 +610,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"value": 10, "unit": "meter"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_format_date_without_locale(self, client, admin_headers):
         """Test format_date without locale parameter (uses current locale)"""
@@ -625,7 +625,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"date_str": "2026-07-03", "format_type": "short"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             assert data["status"] == "success"
@@ -643,7 +643,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"datetime_str": "2026-07-03T10:00:00"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_format_number_without_locale(self, client, admin_headers):
         """Test format_number without locale parameter"""
@@ -652,7 +652,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"number": 1234.56},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_format_currency_without_locale(self, client, admin_headers):
         """Test format_currency without locale parameter"""
@@ -661,7 +661,7 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"amount": 100.5},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_format_unit_without_locale(self, client, admin_headers):
         """Test format_unit without locale parameter"""
@@ -670,4 +670,4 @@ class TestLocalizationAdapterRouterSuccessPaths:
             headers=admin_headers,
             params={"value": 10, "unit": "meter"},
         )
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text

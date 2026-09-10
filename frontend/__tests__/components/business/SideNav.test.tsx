@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { SideNav } from '@/components/SideNav';
 import { usePathname } from 'next/navigation';
 
@@ -41,13 +41,38 @@ jest.mock('@/lib/api', () => ({
 // Mock lib/i18n
 jest.mock('@/lib/i18n', () => ({
   useI18n: jest.fn(() => (key: string) => key),
-  useLocale: jest.fn(() => 'en'),
+  // useLocale() returns the context value — `{ locale, setLocale }` — not a bare string.
+  useLocale: jest.fn(() => ({ locale: 'en', setLocale: jest.fn() })),
 }));
 
 describe('SideNav Component', () => {
   beforeEach(() => {
     (usePathname as jest.Mock).mockReturnValue('/dashboard');
     localStorage.clear();
+
+    // `clearMocks` clears call history but NOT implementations, so a
+    // `mockReturnValue()` set by one test would leak into the next. Re-assert the
+    // suite defaults before every test.
+    const { getNavGroups } = require('@/lib/nav');
+    getNavGroups.mockReturnValue([
+      {
+        title: 'Monitoring',
+        items: [
+          { href: '/dashboard', label: 'Dashboard' },
+          { href: '/alerts', label: 'Alerts' },
+        ],
+      },
+      {
+        title: 'Operations',
+        items: [
+          { href: '/topology', label: 'Topology' },
+          { href: '/workflow', label: 'Workflow' },
+        ],
+      },
+    ]);
+    const { useI18n, useLocale } = require('@/lib/i18n');
+    useI18n.mockImplementation(() => (key: string) => key);
+    useLocale.mockImplementation(() => ({ locale: 'en', setLocale: jest.fn() }));
   });
 
   describe('Rendering', () => {
@@ -61,8 +86,14 @@ describe('SideNav Component', () => {
     it('should render navigation items', () => {
       render(<SideNav />);
       
+      // The first group is expanded by default…
       expect(screen.getByText('Dashboard')).toBeInTheDocument();
       expect(screen.getByText('Alerts')).toBeInTheDocument();
+      // …the second stays collapsed until its header is toggled.
+      expect(screen.queryByText('Topology')).not.toBeInTheDocument();
+      
+      fireEvent.click(screen.getByText('Operations'));
+      
       expect(screen.getByText('Topology')).toBeInTheDocument();
       expect(screen.getByText('Workflow')).toBeInTheDocument();
     });
@@ -216,7 +247,7 @@ describe('SideNav Component', () => {
     it('should apply correct group button styles', () => {
       render(<SideNav />);
       
-      const groupButton = screen.getByText('Monitoring');
+      const groupButton = screen.getByText('Monitoring').closest('button');
       expect(groupButton).toHaveClass('uppercase');
       expect(groupButton).toHaveClass('tracking-wider');
     });
@@ -274,6 +305,7 @@ describe('SideNav Component', () => {
     it('should use i18n for labels', () => {
       const { useI18n } = require('@/lib/i18n');
       useI18n.mockReturnValue((key: string) => `Translated: ${key}`);
+      localStorage.setItem('user', JSON.stringify({ username: 'admin', role: 'admin' }));
       
       render(<SideNav />);
       

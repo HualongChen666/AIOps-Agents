@@ -1,723 +1,348 @@
 /**
- * Comprehensive API Error Handling Tests
- * Tests network errors, timeouts, server errors, and error recovery mechanisms
+ * API Error Handling Tests
+ *
+ * Exercises the error paths of lib/api against its CURRENT contract:
+ *  - requests go through `instance.request(...)` (wrapped with client-side rate limiting),
+ *  - the session is an HttpOnly cookie; the client only keeps a non-sensitive
+ *    user profile in localStorage (there is deliberately no getToken()),
+ *  - a single response interceptor handles 401 redirects and error toasts.
+ *
+ * The axios mock installs a working instance (with interceptors) so that
+ * lib/api's real interceptor is the code under test.
  */
 
-import axios from 'axios';
-import { login, logout, getCurrentUser, getToken, isAuthenticated } from '@/lib/api';
-import toast from 'react-hot-toast';
+jest.mock('axios', () => {
+  const handlers: { fulfilled?: (r: any) => any; rejected?: (e: any) => any } = {};
 
-// Mock axios
-jest.mock('axios');
+  const instance: any = {
+    request: jest.fn(),
+    get: jest.fn(),
+    post: jest.fn(),
+    put: jest.fn(),
+    patch: jest.fn(),
+    delete: jest.fn(),
+    interceptors: {
+      request: { use: jest.fn() },
+      response: {
+        use: jest.fn((fulfilled: (r: any) => any, rejected: (e: any) => any) => {
+          handlers.fulfilled = fulfilled;
+          handlers.rejected = rejected;
+          return 1;
+        }),
+      },
+    },
+    __handlers: handlers,
+    __nextError: null,
+  };
+
+  // Axios runs a rejected request through the response interceptor's onRejected
+  // handler; emulate that so the real interceptor logic is what gets asserted.
+  const route = (config: any): Promise<never> => {
+    const err = instance.__nextError;
+    err.config = { ...(err.config || {}), ...(config || {}) };
+    return handlers.rejected ? handlers.rejected(err) : Promise.reject(err);
+  };
+  const ok = () => Promise.resolve({ data: {} });
+
+  instance.request.mockImplementation((c: any) => (instance.__nextError ? route(c) : ok()));
+  instance.get.mockImplementation(() => (instance.__nextError ? route({ method: 'get' }) : ok()));
+  instance.post.mockImplementation(() => (instance.__nextError ? route({ method: 'post' }) : ok()));
+  instance.put.mockImplementation(() => (instance.__nextError ? route({ method: 'put' }) : ok()));
+  instance.patch.mockImplementation(() => (instance.__nextError ? route({ method: 'patch' }) : ok()));
+  instance.delete.mockImplementation(() => (instance.__nextError ? route({ method: 'delete' }) : ok()));
+
+  const create = jest.fn(() => instance);
+  return { __esModule: true, default: { create }, create, __instance: instance };
+});
+
 jest.mock('react-hot-toast');
 
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-const mockedToast = toast as jest.Mocked<typeof toast>;
+import toast from 'react-hot-toast';
+
+let mockedToast: jest.Mocked<typeof toast>;
+let instanceMock: any;
+let api: typeof import('@/lib/api');
+
+/** Make the next request fail, routed through the response interceptor. */
+function failNextWith(error: any) {
+  instanceMock.__nextError = error;
+}
+
+/** Make the next request succeed with the given payload. */
+function succeedNextWith(data: any) {
+  instanceMock.__nextError = null;
+  instanceMock.request.mockImplementationOnce(async () => ({ data }) as any);
+}
 
 describe('API Error Handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    // Mock localStorage
+    // Isolate module state (frontend rate-limiter buckets, axios instance, api
+    // client) so bursts of requests across tests never exhaust a shared bucket.
+    jest.resetModules();
+
+    instanceMock = (jest.requireMock('axios') as any).__instance;
+    // Resolve the toast mock exactly the way lib/api does (default import), so
+    // the spy and the code under test share one instance after resetModules().
+    const toastModule = require('react-hot-toast');
+    mockedToast = (toastModule.default ?? toastModule) as jest.Mocked<typeof toast>;
+    instanceMock.__nextError = null;
+
     const localStorageMock = {
-      getItem: jest.fn(),
+      getItem: jest.fn().mockReturnValue(null),
       setItem: jest.fn(),
       removeItem: jest.fn(),
       clear: jest.fn(),
     };
-    global.localStorage = localStorageMock as any;
-
-    // Mock document.cookie
-    Object.defineProperty(document, 'cookie', {
+    Object.defineProperty(global, 'localStorage', {
+      configurable: true,
       writable: true,
-      value: '',
+      value: localStorageMock,
     });
 
-    // Mock window.location
-    delete (window as any).location;
-    (window as any).location = { href: '' };
+    try {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        writable: true,
+        value: { href: '', pathname: '/dashboard' },
+      });
+    } catch {
+      /* jsdom may freeze location; assertions fall back to state checks */
+    }
+
+    api = require('@/lib/api');
   });
 
   describe('Network Error Handling', () => {
-    it('should handle network connection errors', async () => {
-      const networkError = new Error('Network Error');
-      networkError.message = 'Network Error';
-
-      mockedAxios.create.mockReturnValue({
-        post: jest.fn().mockRejectedValue(networkError),
-        get: jest.fn(),
-        interceptors: {
-          request: { use: jest.fn() },
-          response: { use: jest.fn() },
-        },
-      } as any);
-
-      await expect(login('testuser', 'password')).rejects.toThrow('Network Error');
+    it('should propagate network connection errors', async () => {
+      failNextWith(new Error('Network Error'));
+      await expect(api.login('testuser', 'password')).rejects.toThrow('Network Error');
     });
 
-    it('should handle connection timeout errors', async () => {
-      const timeoutError = new Error('timeout of 15000ms exceeded');
-      (timeoutError as any).code = 'ECONNABORTED';
-
-      mockedAxios.create.mockReturnValue({
-        post: jest.fn().mockRejectedValue(timeoutError),
-        get: jest.fn(),
-        interceptors: {
-          request: { use: jest.fn() },
-          response: { use: jest.fn() },
-        },
-      } as any);
-
-      await expect(login('testuser', 'password')).rejects.toThrow();
+    it('should propagate connection timeout errors', async () => {
+      const timeoutError: any = new Error('timeout of 15000ms exceeded');
+      timeoutError.code = 'ECONNABORTED';
+      failNextWith(timeoutError);
+      await expect(api.login('testuser', 'password')).rejects.toThrow('timeout');
     });
 
-    it('should handle connection refused errors', async () => {
-      const connectionRefusedError = new Error('connect ECONNREFUSED');
-      (connectionRefusedError as any).code = 'ECONNREFUSED';
-
-      mockedAxios.create.mockReturnValue({
-        post: jest.fn().mockRejectedValue(connectionRefusedError),
-        get: jest.fn(),
-        interceptors: {
-          request: { use: jest.fn() },
-          response: { use: jest.fn() },
-        },
-      } as any);
-
-      await expect(login('testuser', 'password')).rejects.toThrow();
+    it('should propagate connection refused errors', async () => {
+      const refused: any = new Error('connect ECONNREFUSED');
+      refused.code = 'ECONNREFUSED';
+      failNextWith(refused);
+      await expect(api.login('testuser', 'password')).rejects.toThrow('ECONNREFUSED');
     });
 
-    it('should handle DNS resolution errors', async () => {
-      const dnsError = new Error('getaddrinfo ENOTFOUND');
-      (dnsError as any).code = 'ENOTFOUND';
-
-      mockedAxios.create.mockReturnValue({
-        post: jest.fn().mockRejectedValue(dnsError),
-        get: jest.fn(),
-        interceptors: {
-          request: { use: jest.fn() },
-          response: { use: jest.fn() },
-        },
-      } as any);
-
-      await expect(login('testuser', 'password')).rejects.toThrow();
+    it('should propagate DNS resolution errors', async () => {
+      const dnsError: any = new Error('getaddrinfo ENOTFOUND');
+      dnsError.code = 'ENOTFOUND';
+      failNextWith(dnsError);
+      await expect(api.login('testuser', 'password')).rejects.toThrow('ENOTFOUND');
     });
 
-    it('should handle CORS errors', async () => {
-      const corsError = new Error('Network Error');
-      (corsError as any).response = undefined;
+    it('should not toast for GET requests', async () => {
+      const err: any = new Error('Network Error');
+      err.config = { method: 'get', url: '/api/v1/alerts' };
+      failNextWith(err);
 
-      mockedAxios.create.mockReturnValue({
-        post: jest.fn().mockRejectedValue(corsError),
-        get: jest.fn(),
-        interceptors: {
-          request: { use: jest.fn() },
-          response: { use: jest.fn() },
-        },
-      } as any);
-
-      await expect(login('testuser', 'password')).rejects.toThrow();
+      await expect(api.getCurrentUser()).rejects.toThrow('Network Error');
+      expect(mockedToast.error).not.toHaveBeenCalled();
     });
   });
 
   describe('Server Error Handling', () => {
-    it('should handle 500 Internal Server Error', async () => {
-      const serverError = {
-        response: {
-          status: 500,
-          data: { detail: 'Internal Server Error' },
-        },
+    const serverCases: Array<[number, string]> = [
+      [500, 'Internal Server Error'],
+      [502, 'Bad Gateway'],
+      [503, 'Service Unavailable'],
+      [504, 'Gateway Timeout'],
+    ];
+
+    it.each(serverCases)('should handle %i and toast its detail', async (status, detail) => {
+      failNextWith({
+        response: { status, data: { detail } },
         config: { method: 'post', url: '/api/v1/auth/login' },
-      };
+      });
 
-      mockedAxios.create.mockReturnValue({
-        post: jest.fn().mockRejectedValue(serverError),
-        get: jest.fn(),
-        interceptors: {
-          request: { use: jest.fn() },
-          response: {
-            use: jest.fn((success) => success, (error) => {
-              if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-                mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-              }
-              return Promise.reject(error);
-            }),
-          },
-        },
-      } as any);
+      await expect(api.login('testuser', 'password')).rejects.toHaveProperty('response.status', status);
+      expect(mockedToast.error).toHaveBeenCalledWith(detail);
+    });
+  });
 
-      await expect(login('testuser', 'password')).rejects.toEqual(serverError);
-      expect(mockedToast.error).toHaveBeenCalledWith('Internal Server Error');
+  describe('Client Error Handling', () => {
+    it('should toast the detail on 400 Bad Request', async () => {
+      failNextWith({
+        response: { status: 400, data: { detail: 'Bad Request' } },
+        config: { method: 'post', url: '/api/v1/alerts' },
+      });
+
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect(mockedToast.error).toHaveBeenCalledWith('Bad Request');
     });
 
-    it('should handle 502 Bad Gateway', async () => {
-      const badGatewayError = {
-        response: {
-          status: 502,
-          data: { detail: 'Bad Gateway' },
-        },
+    it('should clear the session and redirect on 401 for a protected endpoint', async () => {
+      failNextWith({
+        response: { status: 401, data: { detail: 'Unauthorized' } },
+        config: { method: 'get', url: '/api/v1/alerts' },
+      });
+
+      await expect(api.getCurrentUser()).rejects.toBeDefined();
+      expect((global as any).localStorage.removeItem).toHaveBeenCalledWith('user');
+    });
+
+    it('should NOT clear the session on 401 for public endpoints', async () => {
+      failNextWith({
+        response: { status: 401, data: { detail: 'Unauthorized' } },
         config: { method: 'post', url: '/api/v1/auth/login' },
-      };
+      });
 
-      mockedAxios.create.mockReturnValue({
-        post: jest.fn().mockRejectedValue(badGatewayError),
-        get: jest.fn(),
-        interceptors: {
-          request: { use: jest.fn() },
-          response: {
-            use: jest.fn((success) => success, (error) => {
-              if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-                mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-              }
-              return Promise.reject(error);
-            })),
-        },
-      } as any);
-
-  await expect(login('testuser', 'password')).rejects.toEqual(badGatewayError);
-  expect(mockedToast.error).toHaveBeenCalledWith('Bad Gateway');
-});
-
-it('should handle 503 Service Unavailable', async () => {
-  const serviceUnavailableError = {
-    response: {
-      status: 503,
-      data: { detail: 'Service Unavailable' },
-    },
-    config: { method: 'post', url: '/api/v1/auth/login' },
-  };
-
-  mockedAxios.create.mockReturnValue({
-    post: jest.fn().mockRejectedValue(serviceUnavailableError),
-    get: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-            mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
-
-await expect(login('testuser', 'password')).rejects.toEqual(serviceUnavailableError);
-expect(mockedToast.error).toHaveBeenCalledWith('Service Unavailable');
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect((global as any).localStorage.removeItem).not.toHaveBeenCalled();
+      // login is a POST, so the error is still surfaced to the user
+      expect(mockedToast.error).toHaveBeenCalledWith('Unauthorized');
     });
 
-it('should handle 504 Gateway Timeout', async () => {
-  const gatewayTimeoutError = {
-    response: {
-      status: 504,
-      data: { detail: 'Gateway Timeout' },
-    },
-    config: { method: 'post', url: '/api/v1/auth/login' },
-  };
+    it('should toast on 403 Forbidden', async () => {
+      failNextWith({
+        response: { status: 403, data: { detail: 'Forbidden' } },
+        config: { method: 'post', url: '/api/v1/alerts' },
+      });
 
-  mockedAxios.create.mockReturnValue({
-    post: jest.fn().mockRejectedValue(gatewayTimeoutError),
-    get: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-            mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect(mockedToast.error).toHaveBeenCalledWith('Forbidden');
+    });
 
-await expect(login('testuser', 'password')).rejects.toEqual(gatewayTimeoutError);
-expect(mockedToast.error).toHaveBeenCalledWith('Gateway Timeout');
+    it('should toast on 404 Not Found', async () => {
+      failNextWith({
+        response: { status: 404, data: { detail: 'Not Found' } },
+        config: { method: 'post', url: '/api/v1/alerts/1' },
+      });
+
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect(mockedToast.error).toHaveBeenCalledWith('Not Found');
+    });
+
+    it('should toast on 409 Conflict', async () => {
+      failNextWith({
+        response: { status: 409, data: { detail: 'Conflict' } },
+        config: { method: 'post', url: '/api/v1/alerts' },
+      });
+
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect(mockedToast.error).toHaveBeenCalledWith('Conflict');
+    });
+
+    it('should toast on 422 Unprocessable Entity', async () => {
+      failNextWith({
+        response: { status: 422, data: { detail: 'Validation failed' } },
+        config: { method: 'post', url: '/api/v1/auth/login' },
+      });
+
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect(mockedToast.error).toHaveBeenCalledWith('Validation failed');
+    });
+
+    it('should toast on 429 Too Many Requests', async () => {
+      failNextWith({
+        response: { status: 429, data: { detail: 'Too Many Requests' } },
+        config: { method: 'post', url: '/api/v1/alerts' },
+      });
+
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect(mockedToast.error).toHaveBeenCalledWith('Too Many Requests');
     });
   });
 
-describe('Client Error Handling', () => {
-  it('should handle 400 Bad Request', async () => {
-    const badRequestError = {
-      response: {
-        status: 400,
-        data: { detail: 'Bad Request: Invalid input' },
-      },
-      config: { method: 'post', url: '/api/v1/auth/login' },
-    };
+  describe('Logout', () => {
+    it('should still clear the session when the server call fails', async () => {
+      failNextWith(new Error('Network Error'));
 
-    mockedAxios.create.mockReturnValue({
-      post: jest.fn().mockRejectedValue(badRequestError),
-      get: jest.fn(),
-      interceptors: {
-        request: { use: jest.fn() },
-        response: {
-          use: jest.fn((success) => success, (error) => {
-            if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-              mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-            }
-            return Promise.reject(error);
-          })),
-        },
-      } as any);
+      await api.logout();
 
-await expect(login('testuser', 'password')).rejects.toEqual(badRequestError);
-expect(mockedToast.error).toHaveBeenCalledWith('Bad Request: Invalid input');
+      expect((global as any).localStorage.removeItem).toHaveBeenCalledWith('user');
     });
 
-it('should handle 401 Unauthorized on protected endpoints', async () => {
-  const unauthorizedError = {
-    response: {
-      status: 401,
-      data: { detail: 'Unauthorized' },
-    },
-    config: { method: 'get', url: '/api/v1/protected' },
-  };
+    it('should clear the session after a successful server call', async () => {
+      instanceMock.__nextError = null;
 
-  mockedAxios.create.mockReturnValue({
-    get: jest.fn().mockRejectedValue(unauthorizedError),
-    post: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.response?.status === 401 && typeof window !== 'undefined') {
-            const PUBLIC_401_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register-admin', '/api/v1/health/ping'];
-            const isPublicEndpoint = PUBLIC_401_ENDPOINTS.some((p) => error.config?.url?.endsWith(p));
-            if (!isPublicEndpoint) {
-              global.localStorage?.removeItem('auth_token');
-              global.localStorage?.removeItem('user');
-              if ((window as any).location.pathname !== '/login') {
-                (window as any).location.href = '/login';
-              }
-            }
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
+      await api.logout();
 
-(global.localStorage as any).getItem.mockReturnValue('test-token');
-
-await expect(getCurrentUser()).rejects.toEqual(unauthorizedError);
-expect(global.localStorage?.removeItem).toHaveBeenCalledWith('auth_token');
-expect(global.localStorage?.removeItem).toHaveBeenCalledWith('user');
-expect((window as any).location.href).toBe('/login');
-    });
-
-it('should not redirect on 401 for public endpoints', async () => {
-  const unauthorizedError = {
-    response: {
-      status: 401,
-      data: { detail: 'Unauthorized' },
-    },
-    config: { method: 'post', url: '/api/v1/auth/login' },
-  };
-
-  mockedAxios.create.mockReturnValue({
-    post: jest.fn().mockRejectedValue(unauthorizedError),
-    get: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.response?.status === 401 && typeof window !== 'undefined') {
-            const PUBLIC_401_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register-admin', '/api/v1/health/ping'];
-            const isPublicEndpoint = PUBLIC_401_ENDPOINTS.some((p) => error.config?.url?.endsWith(p));
-            if (!isPublicEndpoint) {
-              global.localStorage?.removeItem('auth_token');
-              global.localStorage?.removeItem('user');
-              if ((window as any).location.pathname !== '/login') {
-                (window as any).location.href = '/login';
-              }
-            }
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
-
-(global.localStorage as any).getItem.mockReturnValue('test-token');
-
-await expect(login('testuser', 'password')).rejects.toEqual(unauthorizedError);
-expect(global.localStorage?.removeItem).not.toHaveBeenCalled();
-expect((window as any).location.href).toBe('');
-    });
-
-it('should handle 403 Forbidden', async () => {
-  const forbiddenError = {
-    response: {
-      status: 403,
-      data: { detail: 'Forbidden: Insufficient permissions' },
-    },
-    config: { method: 'post', url: '/api/v1/admin' },
-  };
-
-  mockedAxios.create.mockReturnValue({
-    post: jest.fn().mockRejectedValue(forbiddenError),
-    get: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-            mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
-
-await expect(login('testuser', 'password')).rejects.toEqual(forbiddenError);
-expect(mockedToast.error).toHaveBeenCalledWith('Forbidden: Insufficient permissions');
-    });
-
-it('should handle 404 Not Found', async () => {
-  const notFoundError = {
-    response: {
-      status: 404,
-      data: { detail: 'Resource not found' },
-    },
-    config: { method: 'get', url: '/api/v1/nonexistent' },
-  };
-
-  mockedAxios.create.mockReturnValue({
-    get: jest.fn().mockRejectedValue(notFoundError),
-    post: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-            mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
-
-await expect(getCurrentUser()).rejects.toEqual(notFoundError);
-expect(mockedToast.error).not.toHaveBeenCalled(); // GET requests don't show toast
-    });
-
-it('should handle 409 Conflict', async () => {
-  const conflictError = {
-    response: {
-      status: 409,
-      data: { detail: 'Resource already exists' },
-    },
-    config: { method: 'post', url: '/api/v1/users' },
-  };
-
-  mockedAxios.create.mockReturnValue({
-    post: jest.fn().mockRejectedValue(conflictError),
-    get: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-            mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
-
-await expect(login('testuser', 'password')).rejects.toEqual(conflictError);
-expect(mockedToast.error).toHaveBeenCalledWith('Resource already exists');
-    });
-
-it('should handle 422 Unprocessable Entity', async () => {
-  const validationError = {
-    response: {
-      status: 422,
-      data: { detail: 'Validation error: Invalid email format' },
-    },
-    config: { method: 'post', url: '/api/v1/users' },
-  };
-
-  mockedAxios.create.mockReturnValue({
-    post: jest.fn().mockRejectedValue(validationError),
-    get: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-            mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
-
-await expect(login('testuser', 'password')).rejects.toEqual(validationError);
-expect(mockedToast.error).toHaveBeenCalledWith('Validation error: Invalid email format');
-    });
-
-it('should handle 429 Too Many Requests', async () => {
-  const rateLimitError = {
-    response: {
-      status: 429,
-      data: { detail: 'Rate limit exceeded' },
-    },
-    config: { method: 'post', url: '/api/v1/auth/login' },
-  };
-
-  mockedAxios.create.mockReturnValue({
-    post: jest.fn().mockRejectedValue(rateLimitError),
-    get: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-            mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
-
-await expect(login('testuser', 'password')).rejects.toEqual(rateLimitError);
-expect(mockedToast.error).toHaveBeenCalledWith('Rate limit exceeded');
+      expect(instanceMock.post).toHaveBeenCalledWith('/api/v1/auth/logout');
+      expect((global as any).localStorage.removeItem).toHaveBeenCalledWith('user');
     });
   });
 
-describe('Error Recovery Mechanisms', () => {
-  it('should handle logout gracefully even if server call fails', async () => {
-    mockedAxios.create.mockReturnValue({
-      post: jest.fn().mockRejectedValue(new Error('Server error')),
-      get: jest.fn(),
-      interceptors: {
-        request: { use: jest.fn() },
-        response: {
-          use: jest.fn(),
-        },
-      } as any);
+  describe('Malformed error payloads', () => {
+    it('should fall back to a generic message when detail is missing', async () => {
+      failNextWith({
+        response: { status: 500, data: {} },
+        message: 'Request failed',
+        config: { method: 'post', url: '/api/v1/alerts' },
+      });
 
-    await logout();
-
-    expect(global.localStorage?.removeItem).toHaveBeenCalledWith('auth_token');
-    expect(global.localStorage?.removeItem).toHaveBeenCalledWith('user');
-    expect((window as any).location.href).toBe('/login');
-  });
-
-  it('should handle logout with successful server call', async () => {
-    mockedAxios.create.mockReturnValue({
-      post: jest.fn().mockResolvedValue({ data: { success: true } }),
-      get: jest.fn(),
-      interceptors: {
-        request: { use: jest.fn() },
-        response: {
-          use: jest.fn(),
-        },
-      } as any);
-
-    await logout();
-
-    expect(global.localStorage?.removeItem).toHaveBeenCalledWith('auth_token');
-    expect(global.localStorage?.removeItem).toHaveBeenCalledWith('user');
-    expect((window as any).location.href).toBe('/login');
-  });
-
-  it('should handle missing error response data', async () => {
-    const errorWithoutData = {
-      response: {
-        status: 500,
-      },
-      config: { method: 'post', url: '/api/v1/auth/login' },
-    };
-
-    mockedAxios.create.mockReturnValue({
-      post: jest.fn().mockRejectedValue(errorWithoutData),
-      get: jest.fn(),
-      interceptors: {
-        request: { use: jest.fn() },
-        response: {
-          use: jest.fn((success) => success, (error) => {
-            if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-              mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-            }
-            return Promise.reject(error);
-          })),
-        },
-      } as any);
-
-await expect(login('testuser', 'password')).rejects.toEqual(errorWithoutData);
-expect(mockedToast.error).toHaveBeenCalledWith('请求失败');
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect(mockedToast.error).toHaveBeenCalledWith('Request failed');
     });
 
-it('should handle error without response', async () => {
-  const errorWithoutResponse = {
-    message: 'Request failed',
-    config: { method: 'post', url: '/api/v1/auth/login' },
-  };
+    it('should fall back to the default message when response and message are absent', async () => {
+      failNextWith({ config: { method: 'post', url: '/api/v1/alerts' } });
 
-  mockedAxios.create.mockReturnValue({
-    post: jest.fn().mockRejectedValue(errorWithoutResponse),
-    get: jest.fn(),
-    interceptors: {
-      request: { use: jest.fn() },
-      response: {
-        use: jest.fn((success) => success, (error) => {
-          if (error.config?.method !== 'get' && error.config?.method !== 'head') {
-            mockedToast.error(error.response?.data?.detail || error.message || '请求失败');
-          }
-          return Promise.reject(error);
-        })),
-        },
-      } as any);
-
-await expect(login('testuser', 'password')).rejects.toEqual(errorWithoutResponse);
-expect(mockedToast.error).toHaveBeenCalledWith('Request failed');
+      await expect(api.login('testuser', 'password')).rejects.toBeDefined();
+      expect(mockedToast.error).toHaveBeenCalledWith('请求失败');
     });
   });
 
-describe('Token Management Error Handling', () => {
-  it('should handle missing token gracefully', () => {
-    (global.localStorage as any).getItem.mockReturnValue(null);
-
-    const token = getToken();
-    expect(token).toBeNull();
-  });
-
-  it('should handle empty token', () => {
-    (global.localStorage as any).getItem.mockReturnValue('');
-
-    const token = getToken();
-    expect(token).toBeNull();
-  });
-
-  it('should handle whitespace-only token', () => {
-    (global.localStorage as any).getItem.mockReturnValue('   ');
-
-    const token = getToken();
-    expect(token).toBeNull();
-  });
-
-  it('should handle valid token with whitespace', () => {
-    (global.localStorage as any).getItem.mockReturnValue('  valid-token  ');
-
-    const token = getToken();
-    expect(token).toBe('valid-token');
-  });
-
-  it('should return false for isAuthenticated when no token', () => {
-    (global.localStorage as any).getItem.mockReturnValue(null);
-
-    const authenticated = isAuthenticated();
-    expect(authenticated).toBe(false);
-  });
-
-  it('should return true for isAuthenticated when token exists', () => {
-    (global.localStorage as any).getItem.mockReturnValue('valid-token');
-
-    const authenticated = isAuthenticated();
-    expect(authenticated).toBe(true);
-  });
-});
-
-describe('Request Interceptor Error Handling', () => {
-  it('should handle missing internal API key gracefully', () => {
-    const mockConfig = { headers: {} };
-
-    mockedAxios.create.mockReturnValue({
-      post: jest.fn(),
-      get: jest.fn(),
-      interceptors: {
-        request: {
-          use: jest.fn((callback) => {
-            const result = callback(mockConfig);
-            expect(result.headers.Authorization).toBeUndefined();
-            expect(result.headers['X-Internal-Key']).toBeUndefined();
-          }),
-        },
-        response: { use: jest.fn() },
-      },
-    } as any);
-
-    (global.localStorage as any).getItem.mockReturnValue(null);
-    delete process.env.NEXT_PUBLIC_INTERNAL_API_KEY;
-  });
-
-  it('should add authorization header when token exists', () => {
-    const mockConfig = { headers: {} };
-
-    mockedAxios.create.mockReturnValue({
-      post: jest.fn(),
-      get: jest.fn(),
-      interceptors: {
-        request: {
-          use: jest.fn((callback) => {
-            (global.localStorage as any).getItem.mockReturnValue('test-token');
-            const result = callback(mockConfig);
-            expect(result.headers.Authorization).toBe('Bearer test-token');
-          }),
-        },
-        response: { use: jest.fn() },
-      },
-    } as any);
-  });
-
-  it('should add internal API key when available', () => {
-    const mockConfig = { headers: {} };
-
-    mockedAxios.create.mockReturnValue({
-      post: jest.fn(),
-      get: jest.fn(),
-      interceptors: {
-        request: {
-          use: jest.fn((callback) => {
-            process.env.NEXT_PUBLIC_INTERNAL_API_KEY = 'internal-key';
-            const result = callback(mockConfig);
-            expect(result.headers['X-Internal-Key']).toBe('internal-key');
-          }),
-        },
-        response: { use: jest.fn() },
-      },
-    } as any);
-  });
-});
-
-describe('Error Logging and Monitoring', () => {
-  it('should log errors to console in development', () => {
-    const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
-
-    const error = new Error('Test error');
-    console.error('Test error message', error);
-
-    expect(consoleSpy).toHaveBeenCalledWith('Test error message', error);
-    consoleSpy.mockRestore();
-  });
-});
-
-describe('Cookie Error Handling', () => {
-  it('should handle cookie operations in non-browser environment', () => {
-    // Mock window as undefined to simulate SSR
-    const originalWindow = global.window;
-    (global as any).window = undefined;
-
-    const token = getToken();
-    expect(token).toBeNull();
-
-    global.window = originalWindow;
-  });
-
-  it('should handle document.cookie errors gracefully', () => {
-    const originalCookie = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
-    Object.defineProperty(document, 'cookie', {
-      get: () => { throw new Error('Cookie access denied'); },
-      set: () => { throw new Error('Cookie access denied'); },
+  describe('Session marker management', () => {
+    it('should return null when nothing is stored', () => {
+      (global as any).localStorage.getItem.mockReturnValue(null);
+      expect(api.getStoredUser()).toBeNull();
     });
 
-    (global.localStorage as any).getItem.mockReturnValue('test-token');
-    const token = getToken();
-    expect(token).toBe('test-token');
+    it('should return null for an empty stored value', () => {
+      (global as any).localStorage.getItem.mockReturnValue('');
+      expect(api.getStoredUser()).toBeNull();
+    });
 
-    // Restore original cookie descriptor
-    if (originalCookie) {
-      Object.defineProperty(document, 'cookie', originalCookie);
-    }
+    it('should return null for corrupted JSON', () => {
+      (global as any).localStorage.getItem.mockReturnValue('{not-json');
+      expect(api.getStoredUser()).toBeNull();
+    });
+
+    it('should parse a valid stored profile', () => {
+      (global as any).localStorage.getItem.mockReturnValue(JSON.stringify({ username: 'alice' }));
+      expect(api.getStoredUser()).toEqual({ username: 'alice' });
+    });
+
+    it('should report the user as unauthenticated when no profile is stored', () => {
+      (global as any).localStorage.getItem.mockReturnValue(null);
+      expect(api.isAuthenticated()).toBe(false);
+    });
+
+    it('should report the user as authenticated when a profile is stored', () => {
+      (global as any).localStorage.getItem.mockReturnValue(JSON.stringify({ username: 'alice' }));
+      expect(api.isAuthenticated()).toBe(true);
+    });
+
+    it('should persist the profile returned by a successful login', async () => {
+      succeedNextWith({ user: { username: 'alice' }, access_token: 'opaque' });
+
+      await api.login('alice', 'secret');
+
+      expect((global as any).localStorage.setItem).toHaveBeenCalledWith(
+        'user',
+        JSON.stringify({ username: 'alice' })
+      );
+    });
   });
-});
+
+  describe('Error logging', () => {
+    it('should log errors to console in development', () => {
+      const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
+
+      console.error('Test error message', new Error('Test error'));
+
+      expect(consoleSpy).toHaveBeenCalledWith('Test error message', expect.any(Error));
+      consoleSpy.mockRestore();
+    });
+  });
 });

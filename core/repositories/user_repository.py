@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``user_repository`` module.
+
+Top-level classes: UserRepository"""
+
 # core/repositories/user_repository.py
 # 统一的用户Repository层 - 实现数据库持久化
 

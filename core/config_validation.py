@@ -1,5 +1,3 @@
-import os
-
 # -*- coding: utf-8 -*-
 """
 Configuration Validation Mechanism
@@ -8,6 +6,8 @@ Configuration Validation Mechanism
 Comprehensive configuration validation system for the AIOps Agent.
 Provides validation rules, schema validation, and health checks.
 """
+
+import os
 
 from dataclasses import dataclass
 from enum import Enum

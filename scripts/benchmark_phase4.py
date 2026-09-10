@@ -4,11 +4,13 @@
 
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
 
-sys.path.insert(0, "C:/AIOps_Agent_bak")
+REPO_ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(REPO_ROOT))
 
 SERVICES = [
     "prometheus_integration_service",
@@ -66,7 +68,7 @@ def main() -> int:
     for svc in SERVICES:
         print(f"Benchmarking {svc} ...")
         results.append(benchmark(svc))
-    out = Path("C:/AIOps_Agent_bak/verify_logs/phase4_performance_report.json")
+    out = REPO_ROOT / "verify_logs" / "phase4_performance_report.json"
     out.write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"Wrote {out}")
     return 0

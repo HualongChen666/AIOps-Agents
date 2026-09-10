@@ -67,7 +67,7 @@ def _is_expired(report: dict[str, Any], max_age_days: int) -> bool:
         created_dt = datetime.datetime.fromisoformat(created)
     except ValueError:
         return True
-    return datetime.datetime.utcnow() - created_dt > datetime.timedelta(days=max_age_days)
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None) - created_dt > datetime.timedelta(days=max_age_days)
 
 
 def prune_reports(max_age_days: int = DEFAULT_MAX_AGE_DAYS) -> int:
@@ -87,7 +87,7 @@ def save_reports(reports: list[dict[str, Any]]) -> list[str]:
     prune_reports()
     data = _load()
     ids: list[str] = []
-    now = datetime.datetime.utcnow().isoformat()
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat()
     for report in reports:
         report_id = str(uuid.uuid4())
         report["id"] = report_id

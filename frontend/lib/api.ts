@@ -1,51 +1,46 @@
-import axios from 'axios';
+import axios, { type AxiosResponse } from 'axios';
 import toast from 'react-hot-toast';
 import { withRateLimit } from '@/lib/rateLimiter';
 
 const instance = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_BASE || '', // 使用空baseURL，让调用自己包含完整路径
   timeout: 15000,
+  // Send the HttpOnly session cookie with every request (same-origin by default
+  // via the /api rewrite; explicit for deployments with a different API origin).
+  withCredentials: true,
 });
 
-function setCookie(name: string, value: string, days = 7) {
-  if (typeof document === 'undefined') return;
-  const expires = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toUTCString();
-  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax`;
-}
+// ---------------------------------------------------------------------------
+// Session storage
+//
+// The access token lives exclusively in an HttpOnly cookie issued by
+// `POST /api/v1/auth/login`; JavaScript can never read it, so an XSS cannot
+// exfiltrate credentials. Only the non-sensitive user profile is kept locally,
+// and it is used purely as a client-side routing marker — every API call is
+// authorised server-side by the cookie.
+// ---------------------------------------------------------------------------
+const USER_KEY = 'user';
 
-function getCookie(name: string): string | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function removeCookie(name: string) {
-  if (typeof document === 'undefined') return;
-  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-}
-
-export function getToken(): string | null {
+export function getStoredUser(): Record<string, unknown> | null {
   if (typeof window === 'undefined') return null;
-  const token = localStorage.getItem('auth_token');
-  if (token && token.trim()) return token.trim();
-  const cookieToken = getCookie('auth_token');
-  if (cookieToken && cookieToken.trim()) return cookieToken.trim();
-  return null;
+  const raw = localStorage.getItem(USER_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
-instance.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined') {
-    const token = getToken();
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    const internalKey = localStorage.getItem('internal_key'); // Internal key stored securely in HttpOnly cookie or secure storage
-    if (internalKey && internalKey.trim()) {
-      config.headers['X-Internal-Key'] = internalKey.trim();
-    }
-  }
-  return config;
-});
+function setStoredUser(user: unknown) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(USER_KEY, JSON.stringify(user || {}));
+}
+
+function clearStoredUser() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem(USER_KEY);
+}
 
 const PUBLIC_401_ENDPOINTS = ['/api/v1/auth/login', '/api/v1/auth/register-admin', '/api/v1/health/ping'];
 
@@ -58,9 +53,7 @@ instance.interceptors.response.use(
     if (error.response?.status === 401 && typeof window !== 'undefined') {
       const isPublicEndpoint = PUBLIC_401_ENDPOINTS.some((p) => url.endsWith(p));
       if (!isPublicEndpoint) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user');
-        removeCookie('auth_token');
+        clearStoredUser();
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
         }
@@ -75,33 +68,36 @@ instance.interceptors.response.use(
   }
 );
 
-// Generic request wrapper applying rate limiting per endpoint
-async function requestWithRateLimit<T>(method: string, url: string, data?: any): Promise<T> {
+// Generic request wrapper applying rate limiting per endpoint.
+// NOTE: the return type is the axios response (not the unwrapped payload), which
+// is what every caller destructures via `response.data`.
+async function requestWithRateLimit<T>(
+  method: string,
+  url: string,
+  data?: any
+): Promise<AxiosResponse<T>> {
   const key = `${method.toUpperCase()}_${url}`;
   return withRateLimit(key, () => instance.request<T>({ method, url, data }));
 }
 
 export async function login(username: string, password: string) {
   const response = await requestWithRateLimit<any>('POST', '/api/v1/auth/login', { username, password });
-  const { access_token, user } = response.data || {};
-  if (access_token && typeof window !== 'undefined') {
-    localStorage.setItem('auth_token', access_token);
-    localStorage.setItem('user', JSON.stringify(user || {}));
-    setCookie('auth_token', access_token);
-  }
+  const { user } = response.data || {};
+  // The access token is NOT stored: the server has already set it as an
+  // HttpOnly cookie in this same response.
+  setStoredUser(user);
   return response.data;
 }
 
 export async function logout() {
   if (typeof window !== 'undefined') {
     try {
+      // Clears the HttpOnly cookie and blacklists the JWT server-side.
       await instance.post('/api/v1/auth/logout');
     } catch {
-      // ignore: always clear local session even if server call fails
+      // ignore: always clear the local session even if the server call fails
     }
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user');
-    removeCookie('auth_token');
+    clearStoredUser();
     window.location.href = '/login';
   }
 }
@@ -113,7 +109,7 @@ export async function getCurrentUser() {
 
 export function isAuthenticated() {
   if (typeof window === 'undefined') return false;
-  return Boolean(getToken());
+  return getStoredUser() !== null;
 }
 
 export default instance;

@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Set, cast
 
 from loguru import logger
 
-from services.topology_service.metrics import TOPOLOGY_REALTIME_MESSAGES
+from .metrics import TOPOLOGY_REALTIME_MESSAGES
 
 
 class RealtimeTopologyManager:

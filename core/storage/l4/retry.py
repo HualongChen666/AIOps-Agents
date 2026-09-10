@@ -5,6 +5,7 @@ Provides retry logic, connection pooling, and fallback mechanisms
 """
 
 import asyncio
+import random
 import time
 from functools import wraps
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -83,7 +84,7 @@ def with_retry(config: Optional[RetryConfig] = None):
 
                     # Add jitter to avoid thundering herd
                     if config.jitter:
-                        delay = delay * (0.5 + (0.5 * asyncio.get_event_loop().time() % 1))
+                        delay = delay * (0.5 + 0.5 * random.random())
 
                     logger.warning(
                         f"Function {func.__name__} failed (attempt {attempt + 1}/"

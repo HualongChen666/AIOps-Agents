@@ -8,9 +8,9 @@ interface DialogProps {
   children: React.ReactNode;
 }
 
-interface DialogContentProps {
+interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
   className?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   onClose?: () => void;
 }
 
@@ -29,12 +29,17 @@ export const Dialog = ({ open = false, onOpenChange, children }: DialogProps) =>
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="fixed inset-0 bg-black/50" onClick={() => handleOpenChange(false)} />
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child)) {
+          const childOnClose = (child.props as { onClose?: () => void }).onClose;
           return React.cloneElement(child as React.ReactElement<DialogContentProps>, {
-            onClose: () => handleOpenChange(false),
+            onClose: () => {
+              // Preserve a handler supplied by the caller.
+              childOnClose?.();
+              handleOpenChange(false);
+            },
           });
         }
         return child;
@@ -43,11 +48,19 @@ export const Dialog = ({ open = false, onOpenChange, children }: DialogProps) =>
   );
 };
 
-export const DialogContent = ({ className = '', children, onClose }: DialogContentProps) => {
+export const DialogContent = ({ className = '', children, onClose, ...props }: DialogContentProps) => {
   return (
-    <div className={`relative z-50 w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-lg ${className}`}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      className={`relative z-50 w-full max-w-lg rounded-lg border border-gray-200 bg-white p-6 shadow-lg ${className}`}
+      {...props}
+    >
       <button
-        onClick={onClose}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose?.();
+        }}
         aria-label="关闭对话框"
         className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-white transition-opacity hover:opacity-100"
       >

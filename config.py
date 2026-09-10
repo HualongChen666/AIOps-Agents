@@ -227,7 +227,7 @@ LLM_MAX_COST_PER_DAY: float = _llm_cost_monitor_for_config.max_cost_per_day
 REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost").strip()
 REDIS_PORT: int = _safe_int("REDIS_PORT", default=6379, min_val=1, max_val=65535)
 REDIS_DB: int = _safe_int("REDIS_DB", default=0, min_val=0, max_val=15)
-REDIS_URL: str = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+REDIS_URL: str = os.getenv("REDIS_URL", "").strip() or f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 # ============================================================
 # PostgreSQL Database Configuration

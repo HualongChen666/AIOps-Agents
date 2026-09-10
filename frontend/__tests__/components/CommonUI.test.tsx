@@ -256,34 +256,34 @@ describe('Tooltip', () => {
   it('should position tooltip at top by default', () => {
     render(<Tooltip content="Tooltip content">Trigger</Tooltip>);
     fireEvent.mouseEnter(screen.getByText('Trigger'));
-    const tooltip = screen.getByText('Tooltip content').parentElement;
+    const tooltip = screen.getByText('Tooltip content');
     expect(tooltip).toHaveClass('bottom-full', 'mb-2');
   });
 
   it('should position tooltip at bottom when specified', () => {
     render(<Tooltip content="Tooltip content" position="bottom">Trigger</Tooltip>);
     fireEvent.mouseEnter(screen.getByText('Trigger'));
-    const tooltip = screen.getByText('Tooltip content').parentElement;
+    const tooltip = screen.getByText('Tooltip content');
     expect(tooltip).toHaveClass('top-full', 'mt-2');
   });
 
   it('should position tooltip at left when specified', () => {
     render(<Tooltip content="Tooltip content" position="left">Trigger</Tooltip>);
     fireEvent.mouseEnter(screen.getByText('Trigger'));
-    const tooltip = screen.getByText('Tooltip content').parentElement;
+    const tooltip = screen.getByText('Tooltip content');
     expect(tooltip).toHaveClass('right-full', 'mr-2');
   });
 
   it('should position tooltip at right when specified', () => {
     render(<Tooltip content="Tooltip content" position="right">Trigger</Tooltip>);
     fireEvent.mouseEnter(screen.getByText('Trigger'));
-    const tooltip = screen.getByText('Tooltip content').parentElement;
+    const tooltip = screen.getByText('Tooltip content');
     expect(tooltip).toHaveClass('left-full', 'ml-2');
   });
 
   it('should render with custom className', () => {
     render(<Tooltip content="Tooltip content" className="custom-class">Trigger</Tooltip>);
-    const wrapper = screen.getByText('Trigger').parentElement;
+    const wrapper = screen.getByText('Trigger');
     expect(wrapper).toHaveClass('custom-class');
   });
 });
@@ -376,20 +376,20 @@ describe('SearchInput', () => {
 
   it('should show clear button when value is present', () => {
     render(<SearchInput value="test" onChange={() => {}} onClear={() => {}} />);
-    const clearButton = document.querySelector('button');
+    const clearButton = document.querySelector<HTMLButtonElement>('button')!;
     expect(clearButton).toBeInTheDocument();
   });
 
   it('should not show clear button when value is empty', () => {
     render(<SearchInput value="" onChange={() => {}} onClear={() => {}} />);
-    const clearButton = document.querySelector('button');
+    const clearButton = document.querySelector<HTMLButtonElement>('button')!;
     expect(clearButton).not.toBeInTheDocument();
   });
 
   it('should call onClear when clear button is clicked', () => {
     const handleClear = jest.fn();
     render(<SearchInput value="test" onChange={() => {}} onClear={handleClear} />);
-    const clearButton = document.querySelector('button');
+    const clearButton = document.querySelector<HTMLButtonElement>('button')!;
 
     fireEvent.click(clearButton);
 

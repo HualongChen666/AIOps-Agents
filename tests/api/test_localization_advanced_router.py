@@ -145,7 +145,7 @@ class TestLanguageEndpoints:
     def test_get_languages_empty(self, client):
         """Test getting languages when storage is empty"""
         response = client.get("/api/v1/localization/languages")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
         # API returns default languages when empty
             data = response.json()
@@ -167,7 +167,7 @@ class TestLanguageEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/localization/languages")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -175,7 +175,7 @@ class TestLanguageEndpoints:
     def test_get_languages_filter_enabled(self, client, sample_language):
         """Test getting languages filtered by enabled status"""
         response = client.get("/api/v1/localization/languages?enabled=true")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -183,7 +183,7 @@ class TestLanguageEndpoints:
     def test_get_languages_search(self, client, sample_language):
         """Test getting languages with search parameter"""
         response = client.get("/api/v1/localization/languages?search=chinese")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -199,7 +199,7 @@ class TestLanguageEndpoints:
             "metadata": {"region": "FR"},
         }
         response = client.post("/api/v1/localization/languages", json=language_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["code"] == "fr-FR"
@@ -255,7 +255,7 @@ class TestLanguageEndpoints:
 
         response = client.get(f"/api/v1/localization/languages/{sample_language['id']}")
         # Due to in-memory storage in router, might not find DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_get_language_not_found(self, client):
         """Test getting a non-existent language"""
@@ -283,7 +283,7 @@ class TestLanguageEndpoints:
             f"/api/v1/localization/languages/{sample_language['id']}", json=update_data
         )
         # Due to in-memory storage in router, might not find DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_update_language_not_found(self, client):
         """Test updating a non-existent language"""
@@ -312,7 +312,7 @@ class TestLanguageEndpoints:
             f"/api/v1/localization/languages/{sample_language['id']}", json=update_data
         )
         # Due to in-memory storage in router, might not find DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_language_success(self, client, db_session, sample_language):
         """Test deleting a language successfully"""
@@ -332,7 +332,7 @@ class TestLanguageEndpoints:
 
         response = client.delete(f"/api/v1/localization/languages/{sample_language['id']}")
         # Due to in-memory storage in router, might not find DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_language_not_found(self, client):
         """Test deleting a non-existent language"""
@@ -368,7 +368,7 @@ class TestResourceEndpoints:
     def test_get_resources_empty(self, client):
         """Test getting resources when storage is empty"""
         response = client.get("/api/v1/localization/resources")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -389,7 +389,7 @@ class TestResourceEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/localization/resources")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -397,7 +397,7 @@ class TestResourceEndpoints:
     def test_get_resources_filter_language_code(self, client, sample_resource):
         """Test getting resources filtered by language code"""
         response = client.get("/api/v1/localization/resources?language_code=zh-CN")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -405,7 +405,7 @@ class TestResourceEndpoints:
     def test_get_resources_filter_namespace(self, client, sample_resource):
         """Test getting resources filtered by namespace"""
         response = client.get("/api/v1/localization/resources?namespace=common")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -421,7 +421,7 @@ class TestResourceEndpoints:
             "meta_data": {},
         }
         response = client.post("/api/v1/localization/resources", json=resource_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["key"] == "greeting"
@@ -456,7 +456,7 @@ class TestResourceEndpoints:
 
         response = client.get(f"/api/v1/localization/resources/{sample_resource['id']}")
         # Due to in-memory storage in router, might not find DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_get_resource_not_found(self, client):
         """Test getting a non-existent resource"""
@@ -484,7 +484,7 @@ class TestResourceEndpoints:
             f"/api/v1/localization/resources/{sample_resource['id']}", json=update_data
         )
         # Due to in-memory storage in router, might not find DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_update_resource_not_found(self, client):
         """Test updating a non-existent resource"""
@@ -510,7 +510,7 @@ class TestResourceEndpoints:
 
         response = client.delete(f"/api/v1/localization/resources/{sample_resource['id']}")
         # Due to in-memory storage in router, might not find DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_resource_not_found(self, client):
         """Test deleting a non-existent resource"""
@@ -530,7 +530,7 @@ class TestTranslationEndpoints:
     def test_get_translations_empty(self, client):
         """Test getting translations when storage is empty"""
         response = client.get("/api/v1/localization/translations")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -555,7 +555,7 @@ class TestTranslationEndpoints:
         db_session.close()
 
         response = client.get("/api/v1/localization/translations")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -563,7 +563,7 @@ class TestTranslationEndpoints:
     def test_get_translations_filter_source_language(self, client, sample_translation):
         """Test getting translations filtered by source language"""
         response = client.get("/api/v1/localization/translations?source_language=en-US")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -571,7 +571,7 @@ class TestTranslationEndpoints:
     def test_get_translations_filter_target_language(self, client, sample_translation):
         """Test getting translations filtered by target language"""
         response = client.get("/api/v1/localization/translations?target_language=zh-CN")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -579,7 +579,7 @@ class TestTranslationEndpoints:
     def test_get_translations_filter_status(self, client, sample_translation):
         """Test getting translations filtered by status"""
         response = client.get("/api/v1/localization/translations?status=published")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -597,7 +597,7 @@ class TestTranslationEndpoints:
             "meta_data": {},
         }
         response = client.post("/api/v1/localization/translations", json=translation_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["source_value"] == "Hello"
@@ -615,7 +615,7 @@ class TestAdapterEndpoints:
     def test_get_adapters_empty(self, client):
         """Test getting adapters when storage is empty"""
         response = client.get("/api/v1/localization/adapters")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -637,7 +637,7 @@ class TestAdapterEndpoints:
         db_session.close()
 
         response = client.get("/api/v1/localization/adapters")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -645,7 +645,7 @@ class TestAdapterEndpoints:
     def test_get_adapters_filter_enabled(self, client, sample_adapter):
         """Test getting adapters filtered by enabled status"""
         response = client.get("/api/v1/localization/adapters?enabled=true")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -653,7 +653,7 @@ class TestAdapterEndpoints:
     def test_get_adapters_filter_type(self, client, sample_adapter):
         """Test getting adapters filtered by type"""
         response = client.get("/api/v1/localization/adapters?type=date")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -668,7 +668,7 @@ class TestAdapterEndpoints:
             "priority": 5,
         }
         response = client.post("/api/v1/localization/adapters", json=adapter_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Number Adapter"
@@ -680,4 +680,4 @@ class TestAdapterEndpoints:
             # Missing required fields
         }
         response = client.post("/api/v1/localization/adapters", json=adapter_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text

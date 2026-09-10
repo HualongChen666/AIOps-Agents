@@ -9,9 +9,9 @@ from typing import Any, Dict
 
 from loguru import logger
 
-from services.topology_service.metrics import TOPOLOGY_AUDIT_EVENTS
-from services.topology_service.repository import InMemoryAuditRepository
-from services.topology_service.schemas import TopologyAuditEvent
+from .metrics import TOPOLOGY_AUDIT_EVENTS
+from .repository import InMemoryAuditRepository
+from .schemas import TopologyAuditEvent
 
 
 class TopologyAuditStore:

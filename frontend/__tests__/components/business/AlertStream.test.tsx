@@ -2,22 +2,29 @@ import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import { AlertStream } from '@/components/AlertStream';
 
-// Mock the WebSocket hook
-jest.mock('react-use-websocket', () => ({
-  __esModule: true,
-  useWebSocket: jest.fn(() => ({
+// Mock the WebSocket hook.
+// react-use-websocket exposes `useWebSocket` as its default export (and also as
+// a named export); the component imports the default, so the mock must provide
+// the SAME jest.fn under both keys.
+jest.mock('react-use-websocket', () => {
+  const useWebSocket = jest.fn(() => ({
     sendMessage: jest.fn(),
     lastMessage: null,
     readyState: 3, // CLOSED
-  })),
-  ReadyState: {
-    CONNECTING: 0,
-    OPEN: 1,
-    CLOSING: 2,
-    CLOSED: 3,
-    UNINSTANTIATED: 4,
-  },
-}));
+  }));
+  return {
+    __esModule: true,
+    default: useWebSocket,
+    useWebSocket,
+    ReadyState: {
+      CONNECTING: 0,
+      OPEN: 1,
+      CLOSING: 2,
+      CLOSED: 3,
+      UNINSTANTIATED: 4,
+    },
+  };
+});
 
 describe('AlertStream Component', () => {
   beforeEach(() => {

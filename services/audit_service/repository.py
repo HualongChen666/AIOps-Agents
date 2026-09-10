@@ -136,5 +136,13 @@ class InMemoryAuditRepository(AuditRepository):
 
 
 async def get_repository(use_in_memory: bool = True) -> AuditRepository:
-    """Return repository instance based on configuration."""
-    return InMemoryAuditRepository()
+    """Return a repository instance based on configuration."""
+    if use_in_memory:
+        return InMemoryAuditRepository()
+
+    from services.audit_service.config import settings
+    from services.audit_service.persistence import SQLAlchemyAuditRepository
+
+    repository = SQLAlchemyAuditRepository(settings.database_url)
+    await repository.init_schema()
+    return repository

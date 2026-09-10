@@ -8,7 +8,7 @@ from typing import Any, Callable, Optional
 import bcrypt as _bcrypt_mod
 import jwt
 import passlib.handlers.bcrypt as _passlib_bcrypt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
@@ -34,6 +34,61 @@ oauth2_scheme = OAuth2PasswordBearer(
     tokenUrl="/api/v1/auth/login",
     auto_error=False,
 )
+
+# Name of the HttpOnly cookie that carries the access token for browser clients.
+# JavaScript can never read it, which removes the XSS token-theft surface of the
+# previous localStorage/inline-cookie design.
+ACCESS_TOKEN_COOKIE = "access_token"
+
+
+def _cookie_secure() -> bool:
+    """Cookies are ``Secure`` outside development (production/staging)."""
+    return getattr(config, "ENVIRONMENT", "development") == "production"
+
+
+def set_auth_cookie(response: Response, token: str) -> None:
+    """Attach the access token as an HttpOnly session cookie.
+
+    Args:
+        response: FastAPI response the cookie is written to.
+        token: Encoded JWT access token.
+    """
+    response.set_cookie(
+        key=ACCESS_TOKEN_COOKIE,
+        value=token,
+        max_age=int(config.JWT_ACCESS_EXPIRE_MINUTES) * 60,
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite="lax",
+        path="/",
+    )
+
+
+def clear_auth_cookie(response: Response) -> None:
+    """Remove the session cookie (logout)."""
+    response.delete_cookie(
+        key=ACCESS_TOKEN_COOKIE,
+        path="/",
+        httponly=True,
+        secure=_cookie_secure(),
+        samesite="lax",
+    )
+
+
+def token_from_request(request: Optional[Request]) -> Optional[str]:
+    """Resolve the caller's raw JWT from the Authorization header or the cookie.
+
+    The header takes precedence so machine clients keep working unchanged.
+    """
+    if request is None:
+        return None
+    auth_header = request.headers.get("authorization") or ""
+    if auth_header.lower().startswith("bearer "):
+        return auth_header[7:].strip() or None
+    if auth_header.strip():
+        return auth_header.strip()
+    cookie_token = request.cookies.get(ACCESS_TOKEN_COOKIE)
+    return cookie_token.strip() if cookie_token and cookie_token.strip() else None
 
 
 def hash_password(password: str) -> str:
@@ -134,11 +189,18 @@ def decode_token(token: str) -> dict[str, Any]:
     return payload
 
 
-def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> User:
+def get_current_user(
+    token: Optional[str] = Depends(oauth2_scheme),
+    request: Request = None,
+) -> User:
     """Get current authenticated user from JWT token.
+
+    The token is taken from the ``Authorization: Bearer`` header when present,
+    otherwise from the HttpOnly ``access_token`` cookie (browser clients).
 
     Args:
         token: Bearer token from authorization header (optional)
+        request: Incoming request, used to read the session cookie
 
     Returns:
         User: Current authenticated user with tenant_id attached
@@ -151,6 +213,8 @@ def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> User:
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        token = token_from_request(request)
     if not token:
         raise credentials_exception
     payload = decode_token(token)

@@ -8,12 +8,12 @@ services:
 
   cache_service:
     build:
-      context: ../..
-      dockerfile: services/cache_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/cache_service/Dockerfile
     command:
       [
         "uvicorn",
-        "services.cache_service.main_app:app",
+        "extensions.addons.infrastructure.cache_service.main_app:app",
         "--host",
         "0.0.0.0",
         "--port",

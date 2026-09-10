@@ -21,8 +21,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - MICROSERVICE_MODE=remote
       - ALERT_SERVICE_URL=http://alert_service:8001
-      - REPAIR_SERVICE_URL=http://repair_service:8002
-      - AGENT_ORCHESTRATION_SERVICE_URL=http://agent_orchestration:8003
+      - REPAIR_SERVICE_URL=http://repair_service:9001
+      - AGENT_ORCHESTRATION_SERVICE_URL=http://agent_orchestration:9407
     command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
@@ -63,15 +63,15 @@ services:
       dockerfile: services/repair_service/Dockerfile
     container_name: aiops-e2e-repair
     ports:
-      - "8002:8002"
+      - "9001:9001"
     environment:
       - UVICORN_HOST=0.0.0.0
-      - UVICORN_PORT=8002
+      - UVICORN_PORT=9001
       - POSTGRES_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/aiops
       - HEAL_EXECUTE_ENABLED=false
       - HARDWARE_EXECUTE_ENABLED=false
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-    command: ["uvicorn", "services.repair_service.main:app", "--host", "0.0.0.0", "--port", "8002"]
+    command: ["uvicorn", "services.repair_service.main:app", "--host", "0.0.0.0", "--port", "9001"]
     depends_on:
       - postgres
 
@@ -81,15 +81,15 @@ services:
       dockerfile: services/agent_orchestration_service/Dockerfile
     container_name: aiops-e2e-orchestration
     ports:
-      - "8003:8003"
+      - "9407:9407"
     environment:
       - UVICORN_HOST=0.0.0.0
-      - UVICORN_PORT=8003
+      - UVICORN_PORT=9407
       - POSTGRES_URL=postgresql+asyncpg://postgres:postgres:5432/aiops
       - HEAL_EXECUTE_ENABLED=false
       - HARDWARE_EXECUTE_ENABLED=false
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-    command: ["uvicorn", "services.agent_orchestration_service.main:app", "--host", "0.0.0.0", "--port", "8003"]
+    command: ["uvicorn", "services.agent_orchestration_service.main:app", "--host", "0.0.0.0", "--port", "9407"]
     depends_on:
       - postgres
 

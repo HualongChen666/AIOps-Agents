@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``command_guard`` module.
+
+Top-level classes: RiskLevel
+
+Top-level functions: register_self_pid, unregister_self_pid, get_protected_pids, analyze_command, is_command_allowed, rewrite_to_safe, dry_run_preview, record_audit, get_audit_log, clear_audit_log"""
+
 # core/command_guard.py
 # 高危指令护栏系统(Linux + Windows 双平台通用)
 #

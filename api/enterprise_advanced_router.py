@@ -35,7 +35,7 @@ except ImportError:
 
 
 # Pydantic Models
-class TenantCreate(BaseModel):
+class EnterpriseAdvancedTenantCreate(BaseModel):
     """Request model for creating a tenant"""
 
     tenant_id: Optional[str] = Field(None, description="Tenant ID (auto-generated if not provided)")
@@ -57,7 +57,7 @@ class TenantCreate(BaseModel):
     }
 
 
-class TenantUpdate(BaseModel):
+class EnterpriseAdvancedTenantUpdate(BaseModel):
     """Request model for updating a tenant"""
 
     name: Optional[str] = Field(None, description="Tenant name")
@@ -70,7 +70,7 @@ class TenantUpdate(BaseModel):
     model_config = {"json_schema_extra": {"example": {"name": "Updated Name", "status": "active"}}}
 
 
-class UserCreate(BaseModel):
+class EnterpriseAdvancedUserCreate(BaseModel):
     """Request model for creating a user"""
 
     user_id: Optional[str] = Field(None, description="User ID (auto-generated if not provided)")
@@ -97,7 +97,7 @@ class UserCreate(BaseModel):
     }
 
 
-class UserUpdate(BaseModel):
+class EnterpriseAdvancedUserUpdate(BaseModel):
     """Request model for updating a user"""
 
     username: Optional[str] = Field(None, description="Username")
@@ -183,7 +183,7 @@ class PermissionUpdate(BaseModel):
     model_config = {"json_schema_extra": {"example": {"description": "Updated description"}}}
 
 
-class SettingsUpdate(BaseModel):
+class EnterpriseAdvancedSettingsUpdate(BaseModel):
     """Request model for updating enterprise settings"""
 
     tenant_isolation_enabled: Optional[bool] = Field(None, description="Enable tenant isolation")
@@ -274,7 +274,7 @@ async def list_tenants(
     },
     status_code=status.HTTP_201_CREATED,
 )
-async def create_tenant(request: TenantCreate) -> Dict[str, Any]:
+async def create_tenant(request: EnterpriseAdvancedTenantCreate) -> Dict[str, Any]:
     """
     创建新租户
     """
@@ -353,7 +353,7 @@ async def get_tenant(tenant_id: str) -> Dict[str, Any]:
         500: {"description": "更新失败"},
     },
 )
-async def update_tenant(tenant_id: str, request: TenantUpdate) -> Dict[str, Any]:
+async def update_tenant(tenant_id: str, request: EnterpriseAdvancedTenantUpdate) -> Dict[str, Any]:
     """
     更新租户信息
     """
@@ -478,7 +478,7 @@ async def list_users(
     },
     status_code=status.HTTP_201_CREATED,
 )
-async def create_user(request: UserCreate) -> Dict[str, Any]:
+async def create_user(request: EnterpriseAdvancedUserCreate) -> Dict[str, Any]:
     """
     创建新用户
     """
@@ -817,7 +817,7 @@ async def get_settings() -> Dict[str, Any]:
         500: {"description": "更新失败"},
     },
 )
-async def update_settings(request: SettingsUpdate) -> Dict[str, Any]:
+async def update_settings(request: EnterpriseAdvancedSettingsUpdate) -> Dict[str, Any]:
     """
     更新企业级设置
     """

@@ -237,7 +237,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.get(f"/api/v1/service-mesh/configurations/{sample_mesh_config.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 5. PATCH /configurations/{config_id}
     def test_update_configuration(self, client, mock_db, sample_mesh_config):
@@ -249,7 +249,7 @@ class TestOriginalEndpoints:
 
             update_data = {"name": "updated-mesh"}
             response = client.patch(f"/api/v1/service-mesh/configurations/{sample_mesh_config.id}", json=update_data)
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 6. DELETE /configurations/{config_id}
     def test_delete_configuration(self, client, mock_db, sample_mesh_config):
@@ -260,7 +260,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.delete(f"/api/v1/service-mesh/configurations/{sample_mesh_config.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 7. GET /traffic
     def test_list_traffic_rules(self, client, mock_db, mock_service_mesh_manager, sample_traffic_rule):
@@ -303,7 +303,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.get(f"/api/v1/service-mesh/traffic/{sample_traffic_rule.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 10. PATCH /traffic/{rule_id}
     def test_update_traffic_rule(self, client, mock_db, sample_traffic_rule):
@@ -315,7 +315,7 @@ class TestOriginalEndpoints:
 
             update_data = {"weight": 50}
             response = client.patch(f"/api/v1/service-mesh/traffic/{sample_traffic_rule.id}", json=update_data)
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 11. DELETE /traffic/{rule_id}
     def test_delete_traffic_rule(self, client, mock_db, sample_traffic_rule):
@@ -326,7 +326,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.delete(f"/api/v1/service-mesh/traffic/{sample_traffic_rule.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 12. GET /security
     def test_list_security_policies(self, client, mock_db, sample_security_policy):
@@ -364,7 +364,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.get(f"/api/v1/service-mesh/security/{sample_security_policy.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 15. PATCH /security/{policy_id}
     def test_update_security_policy(self, client, mock_db, sample_security_policy):
@@ -376,7 +376,7 @@ class TestOriginalEndpoints:
 
             update_data = {"mtls_mode": "PERMISSIVE"}
             response = client.patch(f"/api/v1/service-mesh/security/{sample_security_policy.id}", json=update_data)
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 16. DELETE /security/{policy_id}
     def test_delete_security_policy(self, client, mock_db, sample_security_policy):
@@ -387,7 +387,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.delete(f"/api/v1/service-mesh/security/{sample_security_policy.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 17. GET /observability
     def test_list_observability_configs(self, client, mock_db, sample_observability_config):
@@ -425,7 +425,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.get(f"/api/v1/service-mesh/observability/{sample_observability_config.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 20. PATCH /observability/{config_id}
     def test_update_observability_config(self, client, mock_db, sample_observability_config):
@@ -437,7 +437,7 @@ class TestOriginalEndpoints:
 
             update_data = {"sampling_rate": 0.5}
             response = client.patch(f"/api/v1/service-mesh/observability/{sample_observability_config.id}", json=update_data)
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 21. DELETE /observability/{config_id}
     def test_delete_observability_config(self, client, mock_db, sample_observability_config):
@@ -448,7 +448,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.delete(f"/api/v1/service-mesh/observability/{sample_observability_config.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 22. GET /policies
     def test_list_policies(self, client, mock_db, sample_policy):
@@ -487,7 +487,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.get(f"/api/v1/service-mesh/policies/{sample_policy.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 25. PATCH /policies/{policy_id}
     def test_update_policy(self, client, mock_db, sample_policy):
@@ -499,7 +499,7 @@ class TestOriginalEndpoints:
 
             update_data = {"enabled": False}
             response = client.patch(f"/api/v1/service-mesh/policies/{sample_policy.id}", json=update_data)
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 26. DELETE /policies/{policy_id}
     def test_delete_policy(self, client, mock_db, sample_policy):
@@ -510,7 +510,7 @@ class TestOriginalEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.delete(f"/api/v1/service-mesh/policies/{sample_policy.id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -644,7 +644,7 @@ class TestNewEndpoints:
 
             gateway_id = str(uuid.uuid4())
             response = client.get(f"/api/v1/service-mesh/gateways/{gateway_id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 34. GET /gateways
     def test_list_gateways(self, client, mock_db):
@@ -719,7 +719,7 @@ class TestNewEndpoints:
 
             cb_id = str(uuid.uuid4())
             response = client.get(f"/api/v1/service-mesh/circuit-breakers/{cb_id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 39. GET /circuit-breakers
     def test_list_circuit_breakers(self, client, mock_db):
@@ -782,7 +782,7 @@ class TestNewEndpoints:
 
             policy_id = str(uuid.uuid4())
             response = client.get(f"/api/v1/service-mesh/retry-policies/{policy_id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 43. GET /retry-policies
     def test_list_retry_policies(self, client, mock_db):
@@ -828,7 +828,7 @@ class TestNewEndpoints:
 
             policy_id = str(uuid.uuid4())
             response = client.get(f"/api/v1/service-mesh/timeout-policies/{policy_id}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 46. GET /timeout-policies
     def test_list_timeout_policies(self, client, mock_db):
@@ -853,7 +853,7 @@ class TestNewEndpoints:
             mock_db.query.return_value = mock_repo
 
             response = client.get(f"/api/v1/service-mesh/configurations/{sample_mesh_config.id}/export")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 48. POST /configurations/import
     def test_import_configuration(self, client, mock_db, mock_current_user, sample_mesh_config):
@@ -965,7 +965,7 @@ class TestNewEndpoints:
             config_id_1 = str(uuid.uuid4())
             config_id_2 = str(uuid.uuid4())
             response = client.post(f"/api/v1/service-mesh/configurations/diff?config_id_1={config_id_1}&config_id_2={config_id_2}")
-            assert response.status_code in [200, 404, 500]
+            assert response.status_code != 404, response.text
 
     # 56. POST /configurations/{config_id}/clone
     def test_clone_configuration(self, client, mock_db, mock_current_user, sample_mesh_config):

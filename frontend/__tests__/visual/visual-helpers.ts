@@ -77,16 +77,16 @@ export async function captureScreenshot(
   name: string,
   options: {
     fullPage?: boolean;
-    clip?: { x: number; y: number; width: number; height: number };
+    clip?: { x: number; y: number; width: number; height: number } | null;
     maxDiffPixels?: number;
     threshold?: number;
   } = {}
 ): Promise<void> {
   const { fullPage = true, clip, maxDiffPixels = 0, threshold = 0.2 } = options;
-  
+
   await expect(page).toHaveScreenshot(name, {
     fullPage,
-    clip,
+    ...(clip ? { clip } : {}),
     maxDiffPixels,
     threshold,
     animations: 'disabled',

@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+"""Package initializer for ``core.middleware``.
+
+Contents (from package tree, nothing is re-exported here yet):
+- submodules: auth_middleware, rate_limit_middleware"""
+
 # core/middleware/__init__.py
 # 中间件层初始化
 
@@ -26,6 +31,6 @@ __all__ = [
     "require_permission",
     "require_role",
     "rate_limit_dependency",
-    "rate_limit_limiter",
+    "rate_limiter",
     "rate_limit_middleware",
 ]

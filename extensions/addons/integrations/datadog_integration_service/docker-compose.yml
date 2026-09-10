@@ -6,11 +6,11 @@ services:
 
   datadog-integration:
     build:
-      context: ../..
-      dockerfile: services/datadog_integration_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/integrations/datadog_integration_service/Dockerfile
     command: [
       "uvicorn",
-      "services.datadog_integration_service.main_app:app",
+      "extensions.addons.integrations.datadog_integration_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9533",
     ]

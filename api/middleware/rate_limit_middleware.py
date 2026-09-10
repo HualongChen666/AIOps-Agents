@@ -9,11 +9,19 @@ import os
 from typing import Optional
 
 from fastapi import Request, HTTPException, status
+from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+from core.auth import (
+    check_rate_limit as _core_check_rate_limit,
+    get_remaining_requests as _core_get_remaining_requests,
+    parse_rate_limit_per_minute as _parse_limit_per_minute,
+)
+
 logger = logging.getLogger(__name__)
+
 
 # Create limiter instance
 limiter = Limiter(
@@ -28,13 +36,16 @@ def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded)
     logger.warning(
         f"Rate limit exceeded for {request.client.host if request.client else 'unknown'}: {exc.detail}"
     )
-    return HTTPException(
+    retry_after = str(exc.retry_after) if hasattr(exc, "retry_after") else "60"
+    # slowapi exception handlers must return a Response, not raise.
+    return JSONResponse(
         status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-        detail={
+        content={
             "error": "请求过于频繁",
             "message": exc.detail,
-            "retry_after": str(exc.retry_after) if hasattr(exc, 'retry_after') else "60",
+            "retry_after": retry_after,
         },
+        headers={"Retry-After": retry_after},
     )
 
 
@@ -92,21 +103,19 @@ def get_rate_limit(endpoint: str) -> str:
 
 def check_rate_limit(request: Request, limit: str = "100/minute"):
     """
-    检查速率限制
-    
+   检查速率限制
+
     Args:
         request: FastAPI请求对象
         limit: 速率限制字符串（如: "100/minute", "1000/hour"）
-    
+
     Raises:
         HTTPException: 如果超出速率限制
     """
-    try:
-        # The limiter will handle the check
-        # This is a placeholder for custom rate limit logic if needed
-        pass
-    except RateLimitExceeded as e:
-        raise custom_rate_limit_exceeded_handler(request, e)
+    identifier = get_remote_address(request)
+    _core_check_rate_limit(
+        identifier, requests_per_minute=_parse_limit_per_minute(limit)
+    )
 
 
 class RateLimiter:
@@ -126,9 +135,14 @@ class RateLimiter:
         Returns:
             是否允许请求
         """
-        # In production, this would use Redis or a database to track per-user limits
-        # For now, we rely on the IP-based limiter
-        return True
+        try:
+            _core_check_rate_limit(
+                f"user:{user_id}",
+                requests_per_minute=_parse_limit_per_minute(limit),
+            )
+            return True
+        except HTTPException:
+            return False
     
     def check_endpoint_rate_limit(self, endpoint: str, limit: Optional[str] = None) -> str:
         """
@@ -155,9 +169,11 @@ class RateLimiter:
         Returns:
             剩余请求次数
         """
-        # In production, this would query the rate limit storage
-        # For now, return a placeholder value
-        return 100
+        identifier = get_remote_address(request)
+        limit = get_rate_limit(request.url.path)
+        return _core_get_remaining_requests(
+            identifier, requests_per_minute=_parse_limit_per_minute(limit)
+        )
 
 
 def get_rate_limiter() -> RateLimiter:

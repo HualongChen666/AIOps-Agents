@@ -130,7 +130,12 @@ def apply_python_optimizations() -> Dict[str, Any]:
 
         # Configure asyncio thread pool size
         try:
-            asyncio.get_event_loop().set_default_executor(
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            loop.set_default_executor(
                 ThreadPoolExecutor(max_workers=PERFORMANCE_TUNING_CONFIG["pyasyncio_threads"])
             )
             results["asyncio_threads"] = f"Set to {PERFORMANCE_TUNING_CONFIG['pyasyncio_threads']}"

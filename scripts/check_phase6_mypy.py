@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 """Run mypy on Phase 6 generated services."""
 
+import os
 import sys
 from pathlib import Path
 
 from core.security import subprocess_runner
 
-ROOT = Path("C:/AIOps_Agent_bak")
+ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 NAMES = [
     "sphinx_documentation",
     "security_audit",

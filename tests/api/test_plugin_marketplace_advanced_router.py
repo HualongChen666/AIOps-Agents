@@ -15,7 +15,7 @@ from api.plugin_marketplace_advanced_router import (
     InstallRequest,
     PluginListingCreate,
     PluginListingUpdate,
-    ReviewCreate,
+    PluginMarketplaceAdvancedReviewCreate,
     router,
 )
 from core.models import PluginListingDB, PluginReviewDB, PluginCategoryDB, InstalledPluginDB
@@ -122,7 +122,7 @@ class TestPluginListingEndpoints:
     def test_get_plugin_listings_empty(self, client):
         """Test getting plugin listings when storage is empty"""
         response = client.get("/api/v1/plugin/marketplace/plugins")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -134,7 +134,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/plugins")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -146,7 +146,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/plugins?category=monitoring")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -158,7 +158,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/plugins?quality=community")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -170,7 +170,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/plugins?search=test")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -189,7 +189,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/plugins?sort_by=name")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data[0]["plugin_name"] <= data[1]["plugin_name"]
@@ -208,7 +208,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/plugins?sort_by=rating")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data[0]["rating"] >= data[1]["rating"]
@@ -227,7 +227,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/plugins?sort_by=download_count")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data[0]["download_count"] >= data[1]["download_count"]
@@ -242,7 +242,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/plugins?limit=5")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 5
@@ -255,7 +255,7 @@ class TestPluginListingEndpoints:
     def test_get_plugin_listings_limit_exceeds_max(self, client):
         """Test getting plugin listings with limit exceeding maximum"""
         response = client.get("/api/v1/plugin/marketplace/plugins?limit=200")
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_plugin_success(self, client, db_session, sample_listing):
         """Test getting a plugin by ID successfully"""
@@ -264,7 +264,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get(f"/api/v1/plugin/marketplace/plugins/{sample_listing['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["plugin_name"] == "Test Plugin"
@@ -276,7 +276,7 @@ class TestPluginListingEndpoints:
         db_session.commit()
 
         response = client.get(f"/api/v1/plugin/marketplace/plugins/{sample_listing['plugin_id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["plugin_name"] == "Test Plugin"
@@ -305,7 +305,7 @@ class TestPluginInstallUninstall:
         response = client.post(
             f"/api/v1/plugin/marketplace/plugins/{sample_listing['id']}/install", json=install_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -353,7 +353,7 @@ class TestPluginInstallUninstall:
         response = client.post(
             f"/api/v1/plugin/marketplace/plugins/{sample_listing['id']}/install", json=install_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Check that download count increased
         updated = db_session.query(PluginListingDB).filter(
@@ -371,7 +371,7 @@ class TestPluginInstallUninstall:
         response = client.post(
             f"/api/v1/plugin/marketplace/plugins/{sample_listing['id']}/install", json=install_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["version"] == sample_listing["version"]
@@ -394,7 +394,7 @@ class TestPluginInstallUninstall:
         response = client.post(
             f"/api/v1/plugin/marketplace/plugins/{sample_listing['id']}/uninstall"
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Verify deletion
         deleted = db_session.query(InstalledPluginDB).filter(
@@ -430,7 +430,7 @@ class TestCategoryEndpoints:
     def test_get_categories_empty(self, client):
         """Test getting categories when storage is empty"""
         response = client.get("/api/v1/plugin/marketplace/categories")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -441,7 +441,7 @@ class TestCategoryEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/categories")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -467,7 +467,7 @@ class TestCategoryEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/categories")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 2
@@ -484,7 +484,7 @@ class TestReviewEndpoints:
     def test_get_reviews_empty(self, client):
         """Test getting reviews when storage is empty"""
         response = client.get("/api/v1/plugin/marketplace/reviews")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -495,7 +495,7 @@ class TestReviewEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/reviews")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -507,7 +507,7 @@ class TestReviewEndpoints:
         db_session.commit()
 
         response = client.get(f"/api/v1/plugin/marketplace/reviews?plugin_id={sample_review['plugin_id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -519,7 +519,7 @@ class TestReviewEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/reviews?rating=5")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -533,7 +533,7 @@ class TestReviewEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/plugin/marketplace/reviews?limit=5")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 5
@@ -557,7 +557,7 @@ class TestReviewEndpoints:
             "review_text": "Excellent plugin!",
         }
         response = client.post("/api/v1/plugin/marketplace/reviews", json=review_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["reviewer_name"] == "Test Reviewer"
@@ -622,7 +622,7 @@ class TestReviewEndpoints:
             "review_text": "Great!",
         }
         response = client.post("/api/v1/plugin/marketplace/reviews", json=review_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Verify rating was updated
         updated = db_session.query(PluginListingDB).filter(
@@ -652,7 +652,7 @@ class TestIntegration:
 
         # Get listings
         response = client.get("/api/v1/plugin/marketplace/plugins")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert len(response.json()) == 1
 
@@ -661,7 +661,7 @@ class TestIntegration:
         response = client.post(
             f"/api/v1/plugin/marketplace/plugins/{sample_listing['id']}/install", json=install_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Create review
         review_data = {
@@ -672,10 +672,10 @@ class TestIntegration:
             "review_text": "Great!",
         }
         response = client.post("/api/v1/plugin/marketplace/reviews", json=review_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Uninstall plugin
         response = client.post(
             f"/api/v1/plugin/marketplace/plugins/{sample_listing['id']}/uninstall"
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text

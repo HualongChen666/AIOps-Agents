@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react';
+import api from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -70,11 +71,8 @@ export default function MaturityPage() {
   const fetchMaturity = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/maturity/assess');
-      if (!res.ok) {
-        throw new Error(`评估接口返回 ${res.status}`);
-      }
-      const data = await res.json();
+      const res = await api.get('/api/maturity/assess');
+      const data = res.data;
       setDimensions((data.dimensions || []) as MaturityDimension[]);
       setSuggestions((data.recommendations || []) as ImprovementSuggestion[]);
     } catch (err) {

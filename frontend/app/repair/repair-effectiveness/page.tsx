@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select-shadcn';
 
 interface RepairEffectiveness {
   id: string;
@@ -120,7 +120,7 @@ export default function RepairEffectivenessPage() {
             <CardTitle className="text-sm font-medium text-gray-600">总成功率</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className={`text-2xl font-bold ${getSuccessRateColor(parseFloat(overallSuccessRate))}`}>
+            <div className={`text-2xl font-bold ${getSuccessRateColor(parseFloat(String(overallSuccessRate)))}`}>
               {overallSuccessRate}%
             </div>
           </CardContent>

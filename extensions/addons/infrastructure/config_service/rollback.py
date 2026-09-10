@@ -6,8 +6,8 @@ from __future__ import annotations
 from datetime import datetime
 from typing import List
 
-from services.config_service.repository import ConfigRepository
-from services.config_service.schemas import ConfigSnapshot
+from .repository import ConfigRepository
+from .schemas import ConfigSnapshot
 
 
 class RollbackManager:
@@ -33,7 +33,7 @@ class RollbackManager:
             return []
         restored = []
         for key, value in snapshot.configs.items():
-            from services.config_service.schemas import ConfigValue
+            from .schemas import ConfigValue
 
             config = ConfigValue(
                 config_id=f"{snapshot.namespace}-{key}",

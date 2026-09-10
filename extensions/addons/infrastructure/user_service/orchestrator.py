@@ -5,13 +5,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-from services.user_service.audit_logger import UserAuditLogger
-from services.user_service.auth import AuthManager
-from services.user_service.organization import OrganizationManager
-from services.user_service.rbac import RBACManager
-from services.user_service.repository import UserRepository
-from services.user_service.saga import UserSagaOrchestrator
-from services.user_service.schemas import (
+from .audit_logger import UserAuditLogger
+from .auth import AuthManager
+from .organization import OrganizationManager
+from .rbac import RBACManager
+from .repository import UserRepository
+from .saga import UserSagaOrchestrator
+from .schemas import (
     AuthToken,
     Organization,
     Role,
@@ -20,8 +20,8 @@ from services.user_service.schemas import (
     User,
     UserCreate,
 )
-from services.user_service.session import SessionManager
-from services.user_service.user_manager import UserManager
+from .session import SessionManager
+from .user_manager import UserManager
 
 
 class UserOrchestrator:

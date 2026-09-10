@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { GitMerge, RefreshCw, TestTube, Settings, GitCommit, Sync } from 'lucide-react';
+import { GitMerge, RefreshCw, TestTube, Settings, GitCommit } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLoadingState, useToast } from '@/hooks/useEnhancements';
 import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
@@ -320,7 +320,7 @@ export default function GitOpsPage() {
                     onClick={() => syncMutation.mutate(app.app_id)}
                     disabled={syncMutation.isPending}
                   >
-                    <Sync className="h-4 w-4 mr-1" />
+                    <RefreshCw className="h-4 w-4 mr-1" />
                     同步
                   </Button>
                 </div>
@@ -333,7 +333,7 @@ export default function GitOpsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sync className="h-5 w-5" />
+            <RefreshCw className="h-5 w-5" />
             同步历史
           </CardTitle>
         </CardHeader>

@@ -202,7 +202,9 @@ describe('AlertItem Component', () => {
     });
 
     it('should handle different timestamp formats', () => {
-      render(<AlertItem {...defaultProps} timestamp="2024-12-31T23:59:59Z" />);
+      // Mid-year date keeps the calendar year stable across timezones (the host
+      // runs in UTC+8, so a 2024-12-31T23:59:59Z timestamp would roll over to 2025).
+      render(<AlertItem {...defaultProps} timestamp="2024-06-15T12:00:00Z" />);
       expect(screen.getByText(/2024/)).toBeInTheDocument();
     });
   });
@@ -251,7 +253,7 @@ describe('AlertItem Component', () => {
   describe('Styling', () => {
     it('should have correct base styles', () => {
       render(<AlertItem {...defaultProps} />);
-      const container = screen.getByText('Test Alert').parentElement?.parentElement;
+      const container = screen.getByTestId('alert-item');
       expect(container).toHaveClass('flex', 'items-start', 'gap-4', 'p-4', 'border', 'rounded-lg', 'hover:bg-gray-50', 'transition');
     });
 
@@ -275,8 +277,8 @@ describe('AlertItem Component', () => {
 
     it('should have correct timestamp styling', () => {
       render(<AlertItem {...defaultProps} />);
-      const timestamp = screen.getByText(/2024/);
-      expect(timestamp).toHaveClass('text-xs', 'text-gray-500');
+      const timestampRow = screen.getByText(/2024/).parentElement;
+      expect(timestampRow).toHaveClass('text-xs', 'text-gray-500');
     });
   });
 

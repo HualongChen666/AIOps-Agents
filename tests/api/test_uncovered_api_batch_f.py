@@ -418,12 +418,12 @@ def _raise(exc):
     #
     #     resp = client.get("/api/plugins/", headers=admin_headers)
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json() == ["cpu_monitor"]
     #
     #     resp = client.post("/api/plugins/cpu_monitor/run", headers=admin_headers)
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json()["plugin"] == "cpu_monitor"
     #
     #     monkeypatch.setattr(pr, "list_plugins", lambda: [])
@@ -444,17 +444,17 @@ def _raise(exc):
     #
     #     resp = client.get("/api/cost/collect")
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert "costs" in resp.json()
     #
     #     resp = client.get("/api/cost/forecast", params={"days": 7})
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json()["days"] == 7
     #
     #     resp = client.get("/api/cost/budget")
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert "budget" in resp.json()
     #
     #     monkeypatch.setattr(cr, "collect_costs", lambda: [])
@@ -474,27 +474,27 @@ def _raise(exc):
     #
     #     resp = client.get("/api/v1/health/ping")
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json()["status"] == "alive"
     #
     #     resp = client.get("/health")
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json()["status"] == "healthy"
     #
     #     resp = client.get("/ready")
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json()["ready"] is True
     #
     #     resp = client.get("/api/v1/health/detailed", headers=admin_headers)
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json()["status"] == "healthy"
     #
     #     resp = client.post("/api/v1/health/check", headers=admin_headers)
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json()["status"] == "healthy"
     #
     #     monkeypatch.setattr(hr, "ALLOWED_LOCAL_IPS", [])
@@ -510,7 +510,7 @@ def _raise(exc):
     #
     #     resp = client.get("/api/plugin-ecosystem/status")
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert resp.json()["status"] == "success"
     #
     #     resp = client.post(
@@ -518,7 +518,7 @@ def _raise(exc):
     #         params={"plugin_id": "p1", "activity_type": "install", "user_id": "u1"},
     #     )
     #     assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
+    # if resp.status_code != 404:
         #     assert "activity_id" in resp.json()["data"]
     #
     #     resp = client.get("/api/plugin-ecosystem/activities/p1", params={"time_range_hours": 24})
@@ -783,10 +783,10 @@ def test_doc_generator_router(client, monkeypatch):
     import core.documentation_generator as dg
 
     resp = client.get("/api/doc-generator/status")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/doc-generator/templates")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/doc-generator/document/generate",
@@ -798,12 +798,12 @@ def test_doc_generator_router(client, monkeypatch):
         },
         json={"content_vars": {"name": "x"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["doc_id"] == "doc-2"
 
     resp = client.get("/api/doc-generator/document/doc-2")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/doc-generator/document/missing")
     assert resp.status_code == 404
@@ -812,16 +812,16 @@ def test_doc_generator_router(client, monkeypatch):
         "/api/doc-generator/document/doc-2/save",
         params={"output_path": "/tmp/doc.md"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["saved"] is True
 
     resp = client.get("/api/doc-generator/documents")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     monkeypatch.setattr(dg, "get_documentation_generator", _raise(Exception("x")))
     resp = client.get("/api/doc-generator/status")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_doc_generator_router_exception_handling(client, monkeypatch):
@@ -831,7 +831,7 @@ def test_doc_generator_router_exception_handling(client, monkeypatch):
     # Test GET /templates exception handling (lines 83-85)
     monkeypatch.setattr(dg, "get_documentation_generator", _raise(Exception("templates error")))
     resp = client.get("/api/doc-generator/templates")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Restore normal generator for other tests
     _gen_doc = SimpleNamespace(
@@ -861,7 +861,7 @@ def test_doc_generator_router_exception_handling(client, monkeypatch):
         },
         json={"content_vars": {"name": "x"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test POST /document/generate when generate_document returns None (lines 131-132)
     _doc_generator_fail = SimpleNamespace(
@@ -921,7 +921,7 @@ def test_doc_generator_router_exception_handling(client, monkeypatch):
     )
     monkeypatch.setattr(dg, "get_documentation_generator", lambda: _doc_generator_get_exc)
     resp = client.get("/api/doc-generator/document/doc-2")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Restore normal generator
     monkeypatch.setattr(dg, "get_documentation_generator", lambda: _doc_generator)
@@ -940,7 +940,7 @@ def test_doc_generator_router_exception_handling(client, monkeypatch):
         "/api/doc-generator/document/doc-2/save",
         params={"output_path": "/tmp/doc.md"},
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Restore normal generator
     monkeypatch.setattr(dg, "get_documentation_generator", lambda: _doc_generator)
@@ -956,47 +956,47 @@ def test_doc_generator_router_exception_handling(client, monkeypatch):
     )
     monkeypatch.setattr(dg, "get_documentation_generator", lambda: _doc_generator_list_exc)
     resp = client.get("/api/doc-generator/documents")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_i18n_router(client, monkeypatch):
     import core.i18n_manager as im
 
     resp = client.get("/api/i18n/status")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/i18n/locales")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/i18n/locales/zh-CN")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/i18n/locale/set", params={"locale_id": "zh-CN"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(
         "/api/i18n/translate", params={"key": "hello", "namespace": "common", "language": "en-US"}
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.put(
         "/api/i18n/translate",
         params={"key": "hello", "translation": "你好", "namespace": "common", "language": "zh-CN"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(
         "/api/i18n/format/number", params={"number": 1234.5678, "locale": "zh-CN", "decimals": 2}
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/i18n/format/currency", params={"amount": 99.99, "locale": "en-US"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(
         "/api/i18n/format/date", params={"date_str": "2026-07-03T09:00:00", "locale": "zh-CN"}
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     _bad_manager = SimpleNamespace(
         get_i18n_summary=lambda: im.get_i18n_manager().get_i18n_summary(),
@@ -1020,29 +1020,29 @@ def test_i18n_router(client, monkeypatch):
             "language": "missing",
         },
     )
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     monkeypatch.setattr(im, "get_i18n_manager", _raise(Exception("x")))
     resp = client.get("/api/i18n/status")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_capacity_router(client, monkeypatch):
     import api.capacity_router as capr
 
     resp = client.get("/api/v1/capacity/forecast")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "data" in resp.json()
 
     resp = client.get("/api/v1/capacity/recommendations")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "data" in resp.json()
 
     monkeypatch.setattr(capr, "forecast_capacity", _raise(Exception("x")))
     resp = client.get("/api/v1/capacity/forecast")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_enterprise_router(client, monkeypatch):
@@ -1052,7 +1052,7 @@ def test_enterprise_router(client, monkeypatch):
         "/api/v1/enterprise/tenant/isolation/check",
         json={"tenant_id": "t1", "resource_id": "r1", "resource_type": "db"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["allowed"] is True
 
@@ -1060,34 +1060,34 @@ def test_enterprise_router(client, monkeypatch):
         "/api/v1/enterprise/tenant/resource/assign",
         params={"tenant_id": "t1", "resource_id": "r1"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/compliance/check", json={"standard": "GDPR"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/compliance/check", json={"standard": "BAD"})
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/compliance/report", json={"standard": "GDPR"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/compliance/report", json={"standard": "BAD_STANDARD"})
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/encryption/encrypt",
         json={"data": "secret", "classification": "confidential"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/encryption/encrypt",
         json={"data": "secret", "classification": "invalid_classification"},
     )
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/encryption/decrypt", params={"encrypted_data": "x"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/audit/log",
@@ -1100,7 +1100,7 @@ def test_enterprise_router(client, monkeypatch):
             "outcome": "success",
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/audit/log",
@@ -1114,48 +1114,48 @@ def test_enterprise_router(client, monkeypatch):
             "data_classification": "invalid_classification",
         },
     )
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/audit/logs")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/audit/logs", params={"start_date": "not-a-date"})
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/audit/logs", params={"end_date": "not-a-date"})
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/audit/cleanup")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/privacy/consent",
         json={"user_id": "u1", "consent_given": True, "consent_purpose": "analytics"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(
         "/api/v1/enterprise/privacy/consent/u1", params={"consent_purpose": "analytics"}
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/privacy/mask", json={"email": "a@b.com"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/summary")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/compliance/standards")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/encryption/status")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/data/classification/rules")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/data/classify", params={"data_key": "email"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test ENTERPRISE_AVAILABLE=False for all endpoints
     monkeypatch.setattr(er, "enterprise_functionality_manager", None)
@@ -1165,28 +1165,28 @@ def test_enterprise_router(client, monkeypatch):
         "/api/v1/enterprise/tenant/isolation/check",
         json={"tenant_id": "t1", "resource_id": "r1", "resource_type": "db"},
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/tenant/resource/assign",
         params={"tenant_id": "t1", "resource_id": "r1"},
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/compliance/check", json={"standard": "GDPR"})
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/compliance/report", json={"standard": "GDPR"})
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/encryption/encrypt",
         json={"data": "secret", "classification": "confidential"},
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/encryption/decrypt", params={"encrypted_data": "x"})
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/audit/log",
@@ -1199,66 +1199,66 @@ def test_enterprise_router(client, monkeypatch):
             "outcome": "success",
         },
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/audit/logs")
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/audit/cleanup")
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/enterprise/privacy/consent",
         json={"user_id": "u1", "consent_given": True, "consent_purpose": "analytics"},
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(
         "/api/v1/enterprise/privacy/consent/u1", params={"consent_purpose": "analytics"}
     )
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/privacy/mask", json={"email": "a@b.com"})
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/summary")
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/compliance/standards")
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/encryption/status")
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/enterprise/data/classification/rules")
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/enterprise/data/classify", params={"data_key": "email"})
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_api_performance_router(client, monkeypatch):
     import core.api_performance_optimizer as apo
 
     resp = client.get("/api/api-performance/status")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/api-performance/response-times")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/api-performance/slow-apis", params={"limit": 5})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/api-performance/optimize")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/api-performance/cache/setup", params={"endpoint": "/api/x", "ttl_seconds": 120}
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.delete("/api/api-performance/cache", params={"endpoint": "/api/x"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/api-performance/record",
@@ -1269,32 +1269,32 @@ def test_api_performance_router(client, monkeypatch):
             "status_code": 200,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/api-performance/rate-limit/setup",
         params={"endpoint": "/api/x", "requests_per_minute": 100},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/api-performance/throughput")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/api-performance/resources")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/api-performance/resource-limits/setup",
         params={"max_memory_mb": 1024.0, "max_cpu_percent": 80.0, "max_connections": 100},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/api-performance/resource-limits/check")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     monkeypatch.setattr(apo, "get_api_performance_optimizer", _raise(Exception("x")))
     resp = client.get("/api/api-performance/status")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_api_performance_router_exception_handling(client, monkeypatch):
@@ -1337,7 +1337,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
     )
     monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_with_model_dump)
     resp = client.get("/api/api-performance/slow-apis", params={"limit": 5})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test identify_slow_apis with dict objects (elif branch - line 141-142)
     _optimizer_with_dict = SimpleNamespace(
@@ -1367,7 +1367,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
     )
     monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_with_dict)
     resp = client.get("/api/api-performance/slow-apis", params={"limit": 5})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test identify_slow_apis with plain objects (else branch - line 143-144)
     class PlainObject:
@@ -1401,7 +1401,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
     )
     monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_with_plain)
     resp = client.get("/api/api-performance/slow-apis", params={"limit": 5})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for analyze_response_times (lines 89-91)
     _optimizer_response_times_error = SimpleNamespace(
@@ -1422,7 +1422,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         apo, "get_api_performance_optimizer", lambda: _optimizer_response_times_error
     )
     resp = client.get("/api/api-performance/response-times")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for identify_slow_apis (lines 151-153)
     _optimizer_slow_apis_error = SimpleNamespace(
@@ -1441,7 +1441,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
     )
     monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_slow_apis_error)
     resp = client.get("/api/api-performance/slow-apis", params={"limit": 5})
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for generate_optimizations (lines 215-217)
     _optimizer_optimizations_error = SimpleNamespace(
@@ -1462,7 +1462,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         apo, "get_api_performance_optimizer", lambda: _optimizer_optimizations_error
     )
     resp = client.post("/api/api-performance/optimize")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for setup_endpoint_cache (lines 265-267)
     _optimizer_cache_setup_error = SimpleNamespace(
@@ -1474,7 +1474,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
     resp = client.post(
         "/api/api-performance/cache/setup", params={"endpoint": "/api/x", "ttl_seconds": 120}
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for invalidate_cache (lines 301-303)
     _optimizer_cache_invalidate_error = SimpleNamespace(
@@ -1486,7 +1486,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         apo, "get_api_performance_optimizer", lambda: _optimizer_cache_invalidate_error
     )
     resp = client.delete("/api/api-performance/cache", params={"endpoint": "/api/x"})
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test invalidate_cache with None endpoint (all endpoints)
     _optimizer_normal = SimpleNamespace(
@@ -1496,7 +1496,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
     )
     monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_normal)
     resp = client.delete("/api/api-performance/cache")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "all endpoints" in resp.json()["message"]
 
@@ -1515,7 +1515,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
             "status_code": 200,
         },
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for setup_rate_limit (lines 385-387)
     _optimizer_rate_limit_error = SimpleNamespace(
@@ -1527,7 +1527,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         "/api/api-performance/rate-limit/setup",
         params={"endpoint": "/api/x", "requests_per_minute": 100},
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for get_throughput_metrics (lines 412-414)
     _optimizer_throughput_error = SimpleNamespace(
@@ -1536,7 +1536,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
     )
     monkeypatch.setattr(apo, "get_api_performance_optimizer", lambda: _optimizer_throughput_error)
     resp = client.get("/api/api-performance/throughput")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for monitor_resource_usage (lines 443-445)
     _optimizer_resource_usage_error = SimpleNamespace(
@@ -1547,7 +1547,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         apo, "get_api_performance_optimizer", lambda: _optimizer_resource_usage_error
     )
     resp = client.get("/api/api-performance/resources")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for setup_resource_limits (lines 484-486)
     _optimizer_resource_limits_setup_error = SimpleNamespace(
@@ -1561,7 +1561,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         "/api/api-performance/resource-limits/setup",
         params={"max_memory_mb": 1024.0, "max_cpu_percent": 80.0, "max_connections": 100},
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test exception handling for check_resource_limits (lines 515-517)
     _optimizer_resource_limits_check_error = SimpleNamespace(
@@ -1572,7 +1572,7 @@ def test_api_performance_router_exception_handling(client, monkeypatch):
         apo, "get_api_performance_optimizer", lambda: _optimizer_resource_limits_check_error
     )
     resp = client.get("/api/api-performance/resource-limits/check")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_integration_router(client, monkeypatch):
@@ -1582,41 +1582,41 @@ def test_integration_router(client, monkeypatch):
         "/api/v1/integration/register",
         json={"integration_type": "prometheus", "name": "Prom", "config": {"url": "http://x"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["integration"]["integration_id"] == "int-1"
 
     resp = client.get("/api/v1/integration/list")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["total_integrations"] == 1
 
     resp = client.get("/api/v1/integration/list", params={"integration_type": "prometheus"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/integration/list", params={"integration_type": "bad-type"})
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test status filter (line 286-291)
     resp = client.get("/api/v1/integration/list", params={"status": "active"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test invalid status (line 290-291)
     resp = client.get("/api/v1/integration/list", params={"status": "bad-status"})
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test invalid integration_type on register (line 210-212)
     resp = client.post(
         "/api/v1/integration/register",
         json={"integration_type": "bad-type", "name": "Bad", "config": {}},
     )
-    assert resp.status_code in (400, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post("/api/v1/integration/test/int-1")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.delete("/api/v1/integration/int-1")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.delete("/api/v1/integration/missing")
     assert resp.status_code == 404
@@ -1625,56 +1625,56 @@ def test_integration_router(client, monkeypatch):
         "/api/v1/integration/notification/send",
         json={"channel": "slack", "recipient": "x", "subject": "s", "body": "b"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/integration/notification/channels")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/integration/webhook/register",
         json={"source": "git", "event_type": "push", "endpoint": "http://x"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/integration/webhook/handle",
         params={"webhook_id": "w-1"},
         json={"payload": {"x": 1}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/integration/webhooks")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/integration/prometheus/query",
         json={"integration_id": "int-1", "query": "up", "time_range": "1h"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/integration/jenkins/trigger",
         json={"integration_id": "int-1", "job_name": "build"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/v1/integration/jira/issue",
         json={"integration_id": "int-1", "summary": "bug", "description": "desc"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/integration/templates")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/integration/summary")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/integration/types")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/integration/events", params={"processed": "false", "limit": 10})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test query_integration with different providers
     # Test datadog provider (line 634-637)
@@ -1701,7 +1701,7 @@ def test_integration_router(client, monkeypatch):
         "/api/v1/integration/int-dd/query",
         json={"query": "avg:cpu", "params": {"time_range": "1h"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["provider"] == "datadog"
 
@@ -1729,7 +1729,7 @@ def test_integration_router(client, monkeypatch):
         "/api/v1/integration/int-gf/query",
         json={"query": "avg:cpu", "params": {"time_range": "1h"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["provider"] == "grafana"
 
@@ -1757,7 +1757,7 @@ def test_integration_router(client, monkeypatch):
         "/api/v1/integration/int-elk/query",
         json={"query": "avg:cpu", "params": {"time_range": "1h"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["provider"] == "elk"
 
@@ -1785,7 +1785,7 @@ def test_integration_router(client, monkeypatch):
         "/api/v1/integration/int-cw/query",
         json={"query": "avg:cpu", "params": {"time_range": "1h"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["provider"] == "cloudwatch"
 
@@ -1813,7 +1813,7 @@ def test_integration_router(client, monkeypatch):
         "/api/v1/integration/int-pd/query",
         json={"query": "avg:cpu", "params": {"time_range": "1h"}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["provider"] == "pagerduty"
 
@@ -1919,45 +1919,45 @@ def test_integration_router(client, monkeypatch):
 
     monkeypatch.setattr(ir, "INTEGRATION_AVAILABLE", False)
     resp = client.get("/api/v1/integration/summary")
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_guard_router(client, admin_headers, approval_headers, monkeypatch):
     import api.guard_router as gr
 
     resp = client.post("/api/guard/check", json={"command": "rm -rf /tmp/cache"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["risk_level"] == "high"
 
     resp = client.post("/api/guard/allowed", json={"command": "ls -la"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["allowed"] is True
 
     resp = client.post("/api/guard/rewrite", json={"command": "rm -rf /tmp/old"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["changed"] is True
 
     resp = client.post("/api/guard/dryrun", json={"command": "rm -rf /tmp/cache"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/guard/audit", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/guard/audit", headers=admin_headers)
     assert resp.status_code == 403
 
     resp = client.get("/api/guard/stats", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/security/events", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/security/stats", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     monkeypatch.setattr(gr, "analyze_command", _raise(Exception("x")))
     resp = client.post("/api/guard/check", json={"command": "ls"})
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text

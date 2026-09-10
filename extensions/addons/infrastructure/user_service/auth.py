@@ -10,9 +10,9 @@ from typing import Any, Dict, Optional, cast
 
 from jose import JWTError, jwt
 
-from services.user_service.config import settings
-from services.user_service.repository import UserRepository
-from services.user_service.schemas import AuthToken, User
+from .config import settings
+from .repository import UserRepository
+from .schemas import AuthToken, User
 
 
 class AuthManager:

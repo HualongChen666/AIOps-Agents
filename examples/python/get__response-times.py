@@ -3,9 +3,11 @@ import requests
 
 # 示例：GET /response-times
 # 使用 GET 方法请求 /response-times
-url = "http://localhost:8080/api/v1/response-times"
+url = "http://localhost:8000/api/v1/response-times"
+headers = {"Authorization": "Bearer YOUR_TOKEN"}
+
 try:
-    response = requests.get(url)
+    response = requests.get(url, headers=headers)
     print("Status:", response.status_code)
     print("Response:", response.json())
 except Exception as e:

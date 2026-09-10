@@ -65,7 +65,7 @@ describe('HealTimeline Component', () => {
     it('should render alert ID', () => {
       render(<HealTimeline events={[mockEvents[0]]} />);
       
-      expect(screen.getByText('ALT-001')).toBeInTheDocument();
+      expect(screen.getByText(/ALT-001/)).toBeInTheDocument();
     });
 
     it('should render timestamp', () => {
@@ -77,8 +77,9 @@ describe('HealTimeline Component', () => {
     it('should render type icon', () => {
       render(<HealTimeline events={mockEvents} />);
       
-      expect(screen.getByText('🤖')).toBeInTheDocument();
-      expect(screen.getByText('👤')).toBeInTheDocument();
+      // Two auto events and one manual event in the fixture.
+      expect(screen.getAllByText('🤖').length).toBe(2);
+      expect(screen.getAllByText('👤').length).toBe(1);
     });
   });
 
@@ -156,7 +157,7 @@ describe('HealTimeline Component', () => {
       const eventCard = screen.getByText('Auto-fixed CPU issue').closest('div');
       await user.click(eventCard!);
       
-      expect(screen.getByText('记录详情')).toBeInTheDocument();
+      expect(screen.getByText('自动修复操作的详细信息...')).toBeInTheDocument();
     });
 
     it('should hide details when different event selected', async () => {
@@ -186,7 +187,7 @@ describe('HealTimeline Component', () => {
     it('should apply correct event card styles', () => {
       render(<HealTimeline events={[mockEvents[0]]} />);
       
-      const card = screen.getByText('Auto-fixed CPU issue').closest('div');
+      const card = screen.getByTestId('heal-event-card');
       expect(card).toHaveClass('rounded-lg');
       expect(card).toHaveClass('border');
     });
@@ -194,7 +195,7 @@ describe('HealTimeline Component', () => {
     it('should apply hover styles to event cards', () => {
       render(<HealTimeline events={[mockEvents[0]]} />);
       
-      const card = screen.getByText('Auto-fixed CPU issue').closest('div');
+      const card = screen.getByTestId('heal-event-card');
       expect(card).toHaveClass('hover:shadow-md');
     });
 
@@ -202,8 +203,8 @@ describe('HealTimeline Component', () => {
       const user = userEvent.setup();
       render(<HealTimeline events={[mockEvents[0]]} />);
       
-      const card = screen.getByText('Auto-fixed CPU issue').closest('div');
-      await user.click(card!);
+      const card = screen.getByTestId('heal-event-card');
+      await user.click(card);
       
       expect(card).toHaveClass('border-blue-500');
     });
@@ -220,7 +221,8 @@ describe('HealTimeline Component', () => {
       const eventsWithDifferentTimestamps = [
         {
           ...mockEvents[0],
-          timestamp: '2024-12-31T23:59:59Z',
+          // Mid-year date keeps the calendar year stable across timezones.
+          timestamp: '2024-06-15T12:00:00Z',
         },
       ];
       
@@ -254,7 +256,7 @@ describe('HealTimeline Component', () => {
       
       render(<HealTimeline events={[longDescriptionEvent]} />);
       
-      expect(screen.getByText(/A+/)).toBeInTheDocument();
+      expect(screen.getByText('A'.repeat(1000))).toBeInTheDocument();
     });
 
     it('should handle events with unknown status', () => {
@@ -265,7 +267,9 @@ describe('HealTimeline Component', () => {
       
       render(<HealTimeline events={[unknownStatusEvent]} />);
       
-      expect(screen.getByText('Test')).toBeInTheDocument();
+      // Unknown status still renders the event and falls back to the pending label.
+      expect(screen.getByText('Auto-fixed CPU issue')).toBeInTheDocument();
+      expect(screen.getByText('进行中')).toBeInTheDocument();
     });
   });
 
@@ -273,7 +277,7 @@ describe('HealTimeline Component', () => {
     it('should have clickable event cards', () => {
       render(<HealTimeline events={[mockEvents[0]]} />);
       
-      const card = screen.getByText('Auto-fixed CPU issue').closest('div');
+      const card = screen.getByTestId('heal-event-card');
       expect(card).toHaveClass('cursor-pointer');
     });
 

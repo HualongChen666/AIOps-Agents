@@ -21,15 +21,14 @@ logger = logging.getLogger(__name__)
 def _run_async(coro):
     """Run an async coroutine synchronously when safe to do so."""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # We are inside a running event loop (e.g. FastAPI). Synchronous
-            # blocking is not safe, so we skip the call and rely on the async
-            # caller to flush experiences explicitly.
-            return None
-        return loop.run_until_complete(coro)
+        asyncio.get_running_loop()
     except RuntimeError:
+        # No running event loop: safe to drive the coroutine to completion.
         return asyncio.run(coro)
+    # We are inside a running event loop (e.g. FastAPI). Synchronous
+    # blocking is not safe, so we skip the call and rely on the async
+    # caller to flush experiences explicitly.
+    return None
 
 
 class MemoryBridge:

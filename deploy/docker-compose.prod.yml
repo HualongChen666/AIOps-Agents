@@ -18,8 +18,8 @@ services:
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-me-in-production}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///data/aiops.db}
+      - "JWT_SECRET_KEY=${JWT_SECRET_KEY:?JWT_SECRET_KEY must be set (>=32 chars)}"
+      - "DATABASE_URL=${DATABASE_URL:?DATABASE_URL must be set for production}"
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
       - METRICS_ENABLED=true
       - RATE_LIMIT_ENABLED=true
@@ -78,17 +78,18 @@ services:
       retries: 3
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.2.0
     container_name: aiops-grafana
     restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - "GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set}"
       - GF_INSTALL_PLUGINS=
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - aiops-network
     depends_on:

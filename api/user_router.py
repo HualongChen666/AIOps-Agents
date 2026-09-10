@@ -23,18 +23,7 @@ from core.user_service import user_service
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", auto_error=False)
 
-# 开发环境占位：无 token 时返回 admin 用户，避免前端 settings 等页面因未登录 401
-FAKE_ADMIN = UserInDB(
-    username="dev-admin",
-    full_name="Dev Admin",
-    email="dev@example.com",
-    role="admin",
-    disabled=False,
-    hashed_password="",
-)
-
-
-class UserCreate(BaseModel):
+class UserUserCreate(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: Optional[str] = None
     full_name: Optional[str] = Field(None, max_length=100)
@@ -55,7 +44,7 @@ class UserCreate(BaseModel):
     }
 
 
-class UserUpdate(BaseModel):
+class UserUserUpdate(BaseModel):
     email: Optional[str] = None
     full_name: Optional[str] = Field(None, max_length=100)
     role: Optional[str] = Field(None, pattern="^(admin|user|operator)$")
@@ -74,7 +63,7 @@ class UserUpdate(BaseModel):
     }
 
 
-class PasswordChange(BaseModel):
+class UserPasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=12)
 
@@ -89,7 +78,7 @@ class PasswordChange(BaseModel):
     }
 
 
-class MFAEnableRequest(BaseModel):
+class UserMFAEnableRequest(BaseModel):
     password: str
 
     model_config = {
@@ -98,7 +87,7 @@ class MFAEnableRequest(BaseModel):
     }
 
 
-class MFAVerifyRequest(BaseModel):
+class UserMFAVerifyRequest(BaseModel):
     token: str = Field(..., min_length=6, max_length=6)
 
     model_config = {
@@ -107,7 +96,7 @@ class MFAVerifyRequest(BaseModel):
     }
 
 
-class UserResponse(BaseModel):
+class UserUserResponse(BaseModel):
     id: int
     username: str
     email: Optional[str]
@@ -136,7 +125,7 @@ class UserResponse(BaseModel):
     }
 
 
-class AuditLogResponse(BaseModel):
+class UserAuditLogResponse(BaseModel):
     id: int
     action: str
     resource_type: str
@@ -166,18 +155,23 @@ class AuditLogResponse(BaseModel):
 
 
 async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> UserInDB:
-    """获取当前用户；无 token 时返回开发占位 admin。"""
+    """获取当前用户；token 缺失/无效/用户不存在时返回 401（AGENTS.md §5：禁止占位放行）。"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     if not token:
-        return FAKE_ADMIN
+        raise credentials_exception
     payload = verify_token(token)
     if not payload:
-        return FAKE_ADMIN
+        raise credentials_exception
     username = payload.get("sub")
     if not username:
-        return FAKE_ADMIN
+        raise credentials_exception
     user = await get_user(username)
     if not user:
-        return FAKE_ADMIN
+        raise credentials_exception
     if user.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled"
@@ -204,7 +198,7 @@ def get_client_ip(request: Request) -> str:
 
 @router.post(
     "/",
-    response_model=UserResponse,
+    response_model=UserUserResponse,
     status_code=status.HTTP_201_CREATED,
     summary="创建新用户",
     responses={
@@ -217,8 +211,8 @@ def get_client_ip(request: Request) -> str:
     },
 )
 async def create_user(
-    user_data: UserCreate, request: Request, current_user: UserInDB = Depends(require_admin)
-) -> UserResponse:
+    user_data: UserUserCreate, request: Request, current_user: UserInDB = Depends(require_admin)
+) -> UserUserResponse:
     """创建新用户（仅管理员）"""
     is_valid, error_msg = validate_password_complexity(user_data.password)
     if not is_valid:
@@ -253,7 +247,7 @@ async def create_user(
         status="success",
         details=f"Created user: {user_data.username}",
     )
-    return UserResponse(
+    return UserUserResponse(
         id=int(new_user.id) if new_user.id is not None else 0,
         username=str(new_user.username),
         email=str(new_user.email) if new_user.email is not None else None,
@@ -268,7 +262,7 @@ async def create_user(
 
 @router.get(
     "/",
-    response_model=List[UserResponse],
+    response_model=List[UserUserResponse],
     summary="列出所有用户",
     responses={
         (200): {"description": "用户列表"},
@@ -278,11 +272,11 @@ async def create_user(
 )
 async def list_users(
     limit: int = 100, offset: int = 0, current_user: UserInDB = Depends(require_admin)
-) -> List[UserResponse]:
+) -> List[UserUserResponse]:
     """列出所有用户（仅管理员）"""
     users = await user_service.list_users(limit=limit, offset=offset)
     return [
-        UserResponse(
+        UserUserResponse(
             id=int(u.id) if u.id is not None else 0,
             username=str(u.username),
             email=str(u.email) if u.email is not None else None,
@@ -299,15 +293,15 @@ async def list_users(
 
 @router.get(
     "/me",
-    response_model=UserResponse,
+    response_model=UserUserResponse,
     summary="获取当前用户信息",
     responses={(200): {"description": "当前用户信息"}, (401): {"description": "未授权"}},
 )
 async def get_current_user_info(
     current_user: UserInDB = Depends(get_current_user),
-) -> UserResponse:
+) -> UserUserResponse:
     """获取当前用户信息"""
-    return UserResponse(
+    return UserUserResponse(
         id=current_user.id if current_user.id is not None else 0,
         username=current_user.username,
         email=current_user.email,
@@ -322,7 +316,7 @@ async def get_current_user_info(
 
 @router.get(
     "/audit-logs",
-    response_model=List[AuditLogResponse],
+    response_model=List[UserAuditLogResponse],
     summary="获取所有审计日志",
     responses={
         (200): {"description": "审计日志列表"},
@@ -336,17 +330,17 @@ async def get_all_audit_logs(
     action: Optional[str] = None,
     resource_type: Optional[str] = None,
     current_user: UserInDB = Depends(require_admin),
-) -> List[AuditLogResponse]:
+) -> List[UserAuditLogResponse]:
     """获取所有审计日志（仅管理员）"""
     logs = await audit_service.get_audit_logs(
         limit=limit, offset=offset, action=action, resource_type=resource_type
     )
-    return [AuditLogResponse(**log) for log in logs]
+    return [UserAuditLogResponse(**log) for log in logs]
 
 
 @router.get(
     "/{username}",
-    response_model=UserResponse,
+    response_model=UserUserResponse,
     summary="获取指定用户信息",
     responses={
         (200): {"description": "用户信息"},
@@ -357,12 +351,12 @@ async def get_all_audit_logs(
 )
 async def get_user_by_username_endpoint(
     username: str, current_user: UserInDB = Depends(require_admin)
-) -> UserResponse:
+) -> UserUserResponse:
     """获取指定用户信息（仅管理员）"""
     user = await user_service.get_user_by_username(username)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return UserResponse(
+    return UserUserResponse(
         id=int(user.id) if user.id is not None else 0,
         username=str(user.username),
         email=str(user.email) if user.email is not None else None,
@@ -377,7 +371,7 @@ async def get_user_by_username_endpoint(
 
 @router.put(
     "/{username}",
-    response_model=UserResponse,
+    response_model=UserUserResponse,
     summary="更新用户信息",
     responses={
         (200): {"description": "用户信息更新成功"},
@@ -389,10 +383,10 @@ async def get_user_by_username_endpoint(
 )
 async def update_user(
     username: str,
-    user_update: UserUpdate,
+    user_update: UserUserUpdate,
     request: Request,
     current_user: UserInDB = Depends(require_admin),
-) -> UserResponse:
+) -> UserUserResponse:
     """更新用户信息（仅管理员）"""
     success = await user_service.update_user(
         username=username,
@@ -420,7 +414,7 @@ async def update_user(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found after update"
         )
-    return UserResponse(
+    return UserUserResponse(
         id=int(user.id) if user.id is not None else 0,
         username=str(user.username),
         email=str(user.email) if user.email is not None else None,
@@ -484,7 +478,7 @@ async def delete_user(
     },
 )
 async def change_password(
-    password_change: PasswordChange,
+    password_change: UserPasswordChange,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
 ) -> dict[str, str]:
@@ -547,7 +541,7 @@ async def change_password(
     },
 )
 async def enable_mfa(
-    mfa_request: MFAEnableRequest,
+    mfa_request: UserMFAEnableRequest,
     request: Request,
     current_user: UserInDB = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -629,23 +623,23 @@ async def get_mfa_status(current_user: UserInDB = Depends(get_current_user)) -> 
 
 @router.get(
     "/me/audit-logs",
-    response_model=List[AuditLogResponse],
+    response_model=List[UserAuditLogResponse],
     summary="获取当前用户的审计日志",
     responses={(200): {"description": "审计日志列表"}, (401): {"description": "未授权"}},
 )
 async def get_my_audit_logs(
     limit: int = 100, offset: int = 0, current_user: UserInDB = Depends(get_current_user)
-) -> List[AuditLogResponse]:
+) -> List[UserAuditLogResponse]:
     """获取当前用户的审计日志"""
     logs = await audit_service.get_audit_logs(
         limit=limit, offset=offset, username=current_user.username
     )
-    return [AuditLogResponse(**log) for log in logs]
+    return [UserAuditLogResponse(**log) for log in logs]
 
 
 @router.get(
     "/{username}/audit-logs",
-    response_model=List[AuditLogResponse],
+    response_model=List[UserAuditLogResponse],
     summary="获取指定用户的审计日志",
     responses={
         (200): {"description": "审计日志列表"},
@@ -658,7 +652,7 @@ async def get_user_audit_logs(
     limit: int = 100,
     offset: int = 0,
     current_user: UserInDB = Depends(require_admin),
-) -> List[AuditLogResponse]:
+) -> List[UserAuditLogResponse]:
     """获取指定用户的审计日志（仅管理员）"""
     logs = await audit_service.get_audit_logs(limit=limit, offset=offset, username=username)
-    return [AuditLogResponse(**log) for log in logs]
+    return [UserAuditLogResponse(**log) for log in logs]

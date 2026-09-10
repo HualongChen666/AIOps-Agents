@@ -86,7 +86,7 @@ export function AlertItem({
   };
 
   return (
-    <div className="flex items-start gap-4 p-4 border rounded-lg hover:bg-gray-50 transition">
+    <div data-testid="alert-item" className="flex items-start gap-4 p-4 border rounded-lg hover:bg-gray-50 transition">
       <div className="flex-shrink-0 mt-1">{getStatusIcon()}</div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">

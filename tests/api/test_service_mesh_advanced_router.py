@@ -207,7 +207,7 @@ class TestListMeshServices:
             }
 
             response = client.get("/api/v1/service-mesh/services")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -253,7 +253,7 @@ class TestListMeshServices:
             }
 
             response = client.get("/api/v1/service-mesh/services?mesh_type=istio")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert all(s["mesh_type"] == "istio" for s in data["data"]["services"])
@@ -297,7 +297,7 @@ class TestListMeshServices:
             }
 
             response = client.get("/api/v1/service-mesh/services?status=active")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert all(s["status"] == "active" for s in data["data"]["services"])
@@ -326,7 +326,7 @@ class TestListMeshServices:
                 }
 
             response = client.get("/api/v1/service-mesh/services?limit=2&offset=0")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert len(data["data"]["services"]) == 2
@@ -347,7 +347,7 @@ class TestListMeshServices:
             mock_get_manager.side_effect = Exception("Manager error")
 
             response = client.get("/api/v1/service-mesh/services")
-            assert response.status_code in (500, 404)
+            assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -381,7 +381,7 @@ class TestListConfigurations:
             }
 
             response = client.get("/api/v1/service-mesh/configurations")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -428,7 +428,7 @@ class TestListConfigurations:
             response = client.get(
                 "/api/v1/service-mesh/configurations?mesh_type=istio&status=active"
             )
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert all(
@@ -479,7 +479,7 @@ class TestCreateConfiguration:
             }
 
             response = client.post("/api/v1/service-mesh/configurations", json=config_data)
-            assert response.status_code in (201, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
             # Verify that mTLS config was generated
                 mock_service_mesh_manager.generate_mtls_config.assert_called_once()
@@ -497,7 +497,7 @@ class TestCreateConfiguration:
             }
 
             response = client.post("/api/v1/service-mesh/configurations", json=config_data)
-            assert response.status_code in (201, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
             # Linkerd should not trigger Istio-specific config generation
                 mock_service_mesh_manager.generate_istio_control_plane_config.assert_not_called()
@@ -520,7 +520,7 @@ class TestCreateConfiguration:
             response = client.post(
                 "/api/v1/service-mesh/configurations", json=sample_mesh_config_create.dict()
             )
-            assert response.status_code in (500, 404)
+            assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -554,7 +554,7 @@ class TestGetConfiguration:
             }
 
             response = client.get(f"/api/v1/service-mesh/configurations/{config_id}")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -598,7 +598,7 @@ class TestUpdateConfiguration:
         response = client.patch(
             f"/api/v1/service-mesh/configurations/{config_id}", json=sample_mesh_config_update.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "success"
@@ -642,7 +642,7 @@ class TestDeleteConfiguration:
         }
 
         response = client.delete(f"/api/v1/service-mesh/configurations/{config_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "success"
@@ -792,7 +792,7 @@ class TestGeneralPolicies:
     def test_create_policy_success(self, client, sample_policy_create):
         """Test successful policy creation"""
         response = client.post("/api/v1/service-mesh/policies", json=sample_policy_create.dict())
-        assert response.status_code in (201, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "success"
@@ -802,7 +802,7 @@ class TestGeneralPolicies:
     def test_get_policies_success(self, client):
         """Test getting policies"""
         response = client.get("/api/v1/service-mesh/policies")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "success"
@@ -824,4 +824,4 @@ class TestGeneralPolicies:
 
         response = client.delete(f"/api/v1/service-mesh/policies/{policy_id}")
         # Endpoint may not be implemented (404)
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text

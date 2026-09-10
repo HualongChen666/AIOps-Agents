@@ -60,7 +60,7 @@ def test_audit_router_endpoints(client, approval_headers, monkeypatch):
     monkeypatch.setattr(ar, "get_audit_log", lambda limit=None: [sample_log])
 
     resp = client.get("/api/v1/audit/export?fmt=csv&limit=10", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "audit_export_csv.csv" in resp.headers.get("content-disposition", "")
     body = resp.content.decode("utf-8")
@@ -68,14 +68,14 @@ def test_audit_router_endpoints(client, approval_headers, monkeypatch):
 
     # Excel export falls back to a 500 when openpyxl is not installed; still covers the branch.
     resp = client.get("/api/v1/audit/export?fmt=excel&limit=10", headers=approval_headers)
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
     if resp.status_code == 200:
         assert "audit_export_excel.xlsx" in resp.headers.get("content-disposition", "")
     else:
         assert "openpyxl" in resp.json()["detail"]
 
     resp = client.get("/api/v1/audit/report?limit=10", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["total"] >= 1
@@ -83,7 +83,7 @@ def test_audit_router_endpoints(client, approval_headers, monkeypatch):
         assert "result_distribution" in data
 
     resp = client.get("/api/v1/audit/?limit=10", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert isinstance(resp.json(), list)
         assert any(item.get("event") == "LOGIN" for item in resp.json())
@@ -170,7 +170,7 @@ def test_service_discovery_router_endpoints(client, admin_headers, monkeypatch):
     monkeypatch.setattr(sdm, "get_service_discovery_manager", lambda: FakeManager())
 
     resp = client.get("/api/service-discovery/status", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["status"] == "success"
 
@@ -185,7 +185,7 @@ def test_service_discovery_router_endpoints(client, admin_headers, monkeypatch):
             "weight": 1,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["instance_id"] == "i-001"
 
@@ -194,12 +194,12 @@ def test_service_discovery_router_endpoints(client, admin_headers, monkeypatch):
         headers=admin_headers,
         params={"service_name": "orders", "instance_id": "i-001"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["success"] is True
 
     resp = client.get("/api/service-discovery/discover/orders", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["count"] == 1
 
@@ -207,12 +207,12 @@ def test_service_discovery_router_endpoints(client, admin_headers, monkeypatch):
         "/api/service-discovery/get-instance/orders?strategy=round_robin",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["host"] == "10.0.0.1"
 
     resp = client.get("/api/service-discovery/details/orders", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "instances" in resp.json()["data"]
 
@@ -245,12 +245,12 @@ def test_unified_repair_router_endpoints(client, admin_headers, monkeypatch):
     monkeypatch.setattr(ps, "get_all_platform_strategies", lambda: {"windows": fake, "linux": fake})
 
     resp = client.get("/api/v1/repairs/scripts", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "scripts" in resp.json()
 
     resp = client.get("/api/v1/repairs/scripts?platform=windows", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert any(s["key"] == "restart" for s in resp.json()["scripts"])
 
@@ -259,17 +259,17 @@ def test_unified_repair_router_endpoints(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={"platform": "windows", "script_key": "restart", "host_name": "win", "params": {}},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is True
 
     resp = client.get("/api/v1/repairs/history?platform=windows&limit=5", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["total"] == 1
 
     resp = client.get("/api/v1/repairs/history", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "records" in resp.json()
 
@@ -312,17 +312,17 @@ def test_chaos_router_endpoints(client, admin_headers, monkeypatch):
     monkeypatch.setattr(cr, "chaos_engine", engine)
 
     resp = client.get("/api/v1/chaos/status", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is True
 
     resp = client.post("/api/v1/chaos/enable", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["enabled"] is True
 
     resp = client.post("/api/v1/chaos/disable", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["enabled"] is False
 
@@ -331,7 +331,7 @@ def test_chaos_router_endpoints(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={"target": "svc"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["success"] is True
@@ -342,17 +342,17 @@ def test_chaos_router_endpoints(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is False
 
     resp = client.get("/api/v1/chaos/experiments?limit=5", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "total" in resp.json()["data"]
 
     resp = client.get("/api/v1/chaos/templates", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert any(t["id"] == "latency_injection" for t in resp.json()["data"]["templates"])
 
@@ -387,12 +387,12 @@ def test_plugin_development_router_endpoints(client, admin_headers, monkeypatch)
     monkeypatch.setattr(pds, "get_plugin_sdk", lambda: FakeSDK())
 
     resp = client.get("/api/plugin-sdk/status", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["version"] == "1.0.0"
 
     resp = client.get("/api/plugin-sdk/templates", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "collector" in resp.json()["data"]["templates"]
 
@@ -407,7 +407,7 @@ def test_plugin_development_router_endpoints(client, admin_headers, monkeypatch)
             "author": "tester",
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()["data"]
         assert data["plugin_name"] == "MyCollector"
@@ -424,7 +424,7 @@ def test_plugin_development_router_endpoints(client, admin_headers, monkeypatch)
             "author": "tester",
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "line_count" in resp.json()["data"]
 
@@ -433,7 +433,7 @@ def test_plugin_development_router_endpoints(client, admin_headers, monkeypatch)
         headers=admin_headers,
         params={"template_type": "collector"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["type"] == "collector"
 
@@ -612,7 +612,7 @@ def test_windows_repair_router_endpoints(client, admin_headers, monkeypatch):
     )
 
     resp = client.get("/api/v1/platforms/windows/repair/scripts", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "restart_service" in resp.json()["scripts"]
 
@@ -625,7 +625,7 @@ def test_windows_repair_router_endpoints(client, admin_headers, monkeypatch):
             "params": {"service_name": "Spooler"},
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is True
 
@@ -633,7 +633,7 @@ def test_windows_repair_router_endpoints(client, admin_headers, monkeypatch):
         "/api/v1/platforms/windows/repair/history?limit=5&host_name=win",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["total"] >= 1
 
@@ -667,53 +667,53 @@ def test_metrics_router_endpoints(client, admin_headers, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "metrics" in resp.json()
 
     resp = client.get("/api/v1/metrics/snapshot", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["cpu"]["usage_percent"] == 10.0
 
     resp = client.get("/api/v1/metrics/history", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "_meta" in resp.json()
 
     resp = client.get("/api/v1/metrics/predictions", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert isinstance(resp.json()["data"], list)
 
     resp = client.get("/api/v1/metrics/processes?limit=5", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["processes"][0]["name"] == "python"
 
     resp = client.get("/api/v1/metrics/summary", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["total_alerts"] == 1
 
     resp = client.delete("/api/v1/metrics/cache", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["snapshot_cleared"] is True
 
     resp = client.get("/api/v1/metrics/agent/feedback-accuracy", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "total" in resp.json()
 
     resp = client.get("/api/v1/metrics/agent/decision-accuracy", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/metrics/kpi/config", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/metrics/kpi/values", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -805,7 +805,7 @@ def test_slo_router_endpoints(client, admin_headers, monkeypatch):
     monkeypatch.setattr(sr, "delete_sla_report", delete_sla_report)
 
     resp = client.get("/api/v1/slo/", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "slos" in resp.json()
 
@@ -822,13 +822,13 @@ def test_slo_router_endpoints(client, admin_headers, monkeypatch):
             "aggregation": "good_ratio",
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         slo_id = resp.json()["id"]
         assert resp.json()["target"] == 99.9
 
     resp = client.get(f"/api/v1/slo/{slo_id}", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["id"] == slo_id
 
@@ -837,31 +837,31 @@ def test_slo_router_endpoints(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={"target": 99.99},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["target"] == 99.99
 
     resp = client.post("/api/v1/slo/reports?period=7d", headers=admin_headers, json={})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "reports" in resp.json()
 
     resp = client.get("/api/v1/slo/reports", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "reports" in resp.json()
 
         report_id = resp.json()["reports"][0]["id"]
     resp = client.get(f"/api/v1/slo/reports/{report_id}", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.delete(f"/api/v1/slo/reports/{report_id}", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["ok"] is True
 
     resp = client.delete(f"/api/v1/slo/{slo_id}", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["ok"] is True
 
@@ -906,7 +906,7 @@ def test_grpc_service_router_endpoints(client, admin_headers, monkeypatch):
     monkeypatch.setattr(gsm, "get_grpc_service_manager", lambda: manager)
 
     resp = client.get("/api/grpc-services/status", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["total"] == 0
 
@@ -927,34 +927,34 @@ def test_grpc_service_router_endpoints(client, admin_headers, monkeypatch):
             "messages": {},
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()["data"]
         assert data["service_name"] == "UserService"
         assert data["method_count"] == 1
 
     resp = client.post("/api/grpc-services/create/monitoring", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["service_name"] == "MonitoringService"
 
     resp = client.post("/api/grpc-services/create/alert", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["service_name"] == "AlertService"
 
     resp = client.post("/api/grpc-services/create/repair", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["data"]["service_name"] == "RepairService"
 
     resp = client.get("/api/grpc-services/export/proto/UserService", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "proto_content" in resp.json()["data"]
 
     resp = client.get("/api/grpc-services/export/python/UserService", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "python_content" in resp.json()["data"]
 
@@ -977,7 +977,7 @@ def test_ai_feedback_router_endpoints(client, admin_headers):
             "rich_context": True,
         },
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["status"] == "ok"
@@ -985,12 +985,12 @@ def test_ai_feedback_router_endpoints(client, admin_headers):
         assert data["stats"]["total"] >= 1
 
     resp = client.get("/api/ai/feedback/stats?today_only=false", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert "accuracy" in resp.json()
 
     resp = client.get("/api/ai/feedback/recent?limit=5", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["total"] >= 1
 
@@ -1027,7 +1027,7 @@ def test_alert_webhook_router_endpoints(client, monkeypatch):
     payload = {"alerts": [{"labels": {"alertname": "HighCPU"}}]}
 
     resp = client.post("/api/v1/alerts/webhook/prometheus", json=payload)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert data["source"] == "prometheus"
@@ -1038,7 +1038,7 @@ def test_alert_webhook_router_endpoints(client, monkeypatch):
     assert resp.status_code == 404
 
     resp = client.post("/api/v1/alerts/prometheus", json=payload)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["source"] == "prometheus"
 
@@ -1067,13 +1067,13 @@ def test_audit_router_error_paths(client, admin_headers, approval_headers, monke
 
     # Empty data still returns a file for CSV and Excel
     resp = client.get("/api/v1/audit/export?fmt=csv&limit=10", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/audit/export?fmt=excel&limit=10", headers=approval_headers)
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/v1/audit/report?limit=10", headers=approval_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["total"] == 0
 
@@ -1231,17 +1231,17 @@ def test_chaos_router_error_paths(client, admin_headers, monkeypatch):
     monkeypatch.setattr(cr, "chaos_engine", BadEngine())
 
     resp = client.get("/api/v1/chaos/status", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is False
 
     resp = client.post("/api/v1/chaos/enable", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is False
 
     resp = client.post("/api/v1/chaos/disable", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is False
 
@@ -1250,12 +1250,12 @@ def test_chaos_router_error_paths(client, admin_headers, monkeypatch):
         headers=admin_headers,
         json={},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is False
 
     resp = client.get("/api/v1/chaos/experiments?limit=5", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["success"] is False
 
@@ -1277,28 +1277,28 @@ def test_plugin_development_router_error_paths(client, admin_headers, monkeypatc
         ("/api/plugin-sdk/templates", "GET"),
     ]:
         resp = client.request(method, path, headers=admin_headers)
-        assert resp.status_code in (500, 404), f"{path}"
+        assert resp.status_code != 404, resp.text
 
     resp = client.post(
         "/api/plugin-sdk/generate",
         headers=admin_headers,
         params={"template_type": "x", "plugin_name": "x", "class_name": "X"},
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(
         "/api/plugin-sdk/generate/code",
         headers=admin_headers,
         params={"template_type": "x", "plugin_name": "x", "class_name": "X"},
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get(
         "/api/plugin-sdk/generate/config",
         headers=admin_headers,
         params={"template_type": "x"},
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_plugin_marketplace_router_error_paths(client, admin_headers, monkeypatch):
@@ -1411,7 +1411,7 @@ def test_windows_repair_router_error_paths(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(wrr, "get_windows_repair_history", bad_history)
     resp = client.get("/api/v1/platforms/windows/repair/history?limit=5", headers=admin_headers)
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_metrics_router_extra_paths(client, admin_headers, monkeypatch):
@@ -1429,7 +1429,7 @@ def test_metrics_router_extra_paths(client, admin_headers, monkeypatch):
     )
 
     resp = client.get("/api/v1/metrics/predictions", headers=admin_headers)
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()["data"]
         assert any(p["priority"] == "high" for p in data)
@@ -1441,11 +1441,11 @@ def test_metrics_router_extra_paths(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(mr, "get_top_processes", bad_top)
     resp = client.get("/api/v1/metrics/processes?limit=5", headers=admin_headers)
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
     # KPI config CRUD
     resp = client.post("/api/v1/metrics/kpi/config", headers=admin_headers, json={"id": "x"})
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     resp = client.put("/api/v1/metrics/kpi/config/x", headers=admin_headers, json={"visible": True})
     assert resp.status_code == 404
@@ -1600,7 +1600,7 @@ def test_alert_webhook_router_error_paths(client, monkeypatch):
     # auto-heal unavailable path
     monkeypatch.setattr(awr, "AUTO_HEAL_AVAILABLE", False)
     resp = client.post("/api/v1/alerts/webhook/prometheus", json={"alerts": []})
-    assert resp.status_code in (503, 404)
+    assert resp.status_code != 404, resp.text
     monkeypatch.setattr(awr, "AUTO_HEAL_AVAILABLE", True)
 
     # skipped (non-firing) alert branch
@@ -1608,7 +1608,7 @@ def test_alert_webhook_router_error_paths(client, monkeypatch):
         "/api/v1/alerts/webhook/prometheus",
         json={"alerts": [{"id": "a-1", "status": "resolved"}]},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["results"][0]["status"] == "skipped"
 
@@ -1617,7 +1617,7 @@ def test_alert_webhook_router_error_paths(client, monkeypatch):
         "/api/v1/alerts/webhook/prometheus",
         json={"alerts": [{"id": "a-2", "status": "firing", "severity": "critical", "host": "h"}]},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         results = resp.json()["results"]
         assert results[0]["status"] == "error"

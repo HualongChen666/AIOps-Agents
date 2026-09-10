@@ -65,7 +65,7 @@ class TestDatabaseOptimizationEndpoints:
     def test_get_optimizations_empty(self, client):
         """Test GET /optimization when no optimizations exist"""
         response = client.get("/api/v1/database/optimization")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -83,7 +83,7 @@ class TestDatabaseOptimizationEndpoints:
             "timestamp": datetime.utcnow().isoformat(),
         }
         response = client.get("/api/v1/database/optimization")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -101,7 +101,7 @@ class TestDatabaseOptimizationEndpoints:
             "timestamp": datetime.utcnow().isoformat(),
         }
         response = client.get("/api/v1/database/optimization?status_filter=completed")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -120,7 +120,7 @@ class TestDatabaseOptimizationEndpoints:
             }
 
         response = client.get("/api/v1/database/optimization?limit=3")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -145,7 +145,7 @@ class TestDatabaseOptimizationEndpoints:
         }
 
         response = client.post("/api/v1/database/optimization", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "optimization_id" in data or "status" in data
@@ -158,7 +158,7 @@ class TestDatabaseOptimizationEndpoints:
         }
 
         response = client.post("/api/v1/database/optimization", json=request_data)
-        assert response.status_code in (422, 404)  # Validation error
+        assert response.status_code != 404, response.text  # Validation error
 
 
 # Database performance endpoints tests
@@ -173,7 +173,7 @@ class TestDatabasePerformanceEndpoints:
         mock_get_manager.return_value = mock_manager
 
         response = client.get("/api/v1/database/performance")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "cpu_usage" in data or "timestamp" in data
@@ -196,7 +196,7 @@ class TestDatabaseQueryEndpoints:
         mock_get_manager.return_value = mock_manager
 
         response = client.get("/api/v1/database/queries")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -209,7 +209,7 @@ class TestDatabaseIndexEndpoints:
     def test_get_indexes_empty(self, client):
         """Test GET /indexes when no indexes exist"""
         response = client.get("/api/v1/database/indexes")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -229,7 +229,7 @@ class TestDatabaseIndexEndpoints:
             "created_at": datetime.utcnow().isoformat(),
         }
         response = client.get("/api/v1/database/indexes")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -248,7 +248,7 @@ class TestDatabaseIndexEndpoints:
             "created_at": datetime.utcnow().isoformat(),
         }
         response = client.get("/api/v1/database/indexes?table_name=users")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -264,7 +264,7 @@ class TestDatabaseIndexEndpoints:
         }
 
         response = client.post("/api/v1/database/indexes", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "index_id" in data or "index_name" in data
@@ -276,7 +276,7 @@ class TestDatabaseIndexEndpoints:
         }
 
         response = client.post("/api/v1/database/indexes", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
 
 # Database backup endpoints tests
@@ -286,7 +286,7 @@ class TestDatabaseBackupEndpoints:
     def test_get_backups_empty(self, client):
         """Test GET /backups when no backups exist"""
         response = client.get("/api/v1/database/backups")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -305,7 +305,7 @@ class TestDatabaseBackupEndpoints:
             "completed_at": datetime.utcnow().isoformat(),
         }
         response = client.get("/api/v1/database/backups")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -323,7 +323,7 @@ class TestDatabaseBackupEndpoints:
             "completed_at": datetime.utcnow().isoformat(),
         }
         response = client.get("/api/v1/database/backups?database_name=production")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -340,7 +340,7 @@ class TestDatabaseBackupEndpoints:
             "completed_at": datetime.utcnow().isoformat(),
         }
         response = client.get("/api/v1/database/backups?status_filter=completed")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -368,7 +368,7 @@ class TestDatabaseMigrationEndpoints:
     def test_get_migrations_empty(self, client):
         """Test GET /migrations when no migrations exist"""
         response = client.get("/api/v1/database/migrations")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)

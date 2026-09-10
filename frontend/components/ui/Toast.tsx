@@ -13,6 +13,12 @@ interface ToastProps {
 export function Toast({ type, message, duration = 3000, onClose }: ToastProps) {
   const [visible, setVisible] = useState(true);
 
+  // Re-show the toast when it is reused for a new message; otherwise a toast
+  // that was dismissed would stay hidden for the next message.
+  useEffect(() => {
+    setVisible(true);
+  }, [message]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setVisible(false);

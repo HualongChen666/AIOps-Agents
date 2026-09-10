@@ -130,7 +130,7 @@ class TestCollectionEndpoints:
                     "points_count": 1000,
                 }
                 response = client.get("/api/vector/collections/test_collection/info")
-                assert response.status_code in [200, 404, 500, 401]
+                assert response.status_code != 404, response.text
 
     def test_clear_collection_requires_admin(self, client, regular_user):
         """Test DELETE /api/vector/collections/{name}/clear requires admin role"""

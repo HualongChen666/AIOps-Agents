@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 from api.assets_router import router as _assets_router
 from api.auth_router import router as _auth_router
 from api.slo_router import router as _slo_router
-from api.users_router import router as _users_router
+from api.user_router import router as _users_router
 from config import INTERNAL_API_KEY
 
 _slo_only_app = FastAPI()

@@ -10,8 +10,8 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
-from services.workflow_service.metrics import WORKFLOW_VERSION_COMMITS
-from services.workflow_service.schemas import WorkflowDefinition, WorkflowVersion
+from .metrics import WORKFLOW_VERSION_COMMITS
+from .schemas import WorkflowDefinition, WorkflowVersion
 
 
 class WorkflowVersionManager:

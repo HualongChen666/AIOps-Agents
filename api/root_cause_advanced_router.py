@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/v1/root-cause", tags=["根因分析"])
 # ==================== Pydantic Models ====================
 
 
-class RootCauseAnalysisRequest(BaseModel):
+class RootCauseAdvancedRootCauseAnalysisRequest(BaseModel):
     """根因分析请求"""
 
     alert: Dict[str, Any] = Field(..., description="告警信息")
@@ -236,7 +236,7 @@ class RootCauseConclusionResponse(BaseModel):
 
 
 @router.post("/analysis", summary="执行根因分析")
-async def analyze_root_cause(request: RootCauseAnalysisRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+async def analyze_root_cause(request: RootCauseAdvancedRootCauseAnalysisRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
     """
     执行根因分析
 
@@ -2305,7 +2305,7 @@ async def export_root_cause_analysis(
         raise HTTPException(status_code=500, detail=f"导出根因分析失败: {str(e)}")
 
 
-class BatchDeleteRequest(BaseModel):
+class RootCauseAdvancedBatchDeleteRequest(BaseModel):
     """批量删除请求"""
 
     resource_type: str = Field(..., description="资源类型 (hypotheses, experiments, evidence, conclusions)")
@@ -2327,7 +2327,7 @@ class BatchDeleteRequest(BaseModel):
 
 @router.post("/batch-delete", summary="批量删除资源")
 async def batch_delete_resources(
-    request: BatchDeleteRequest, db: Session = Depends(get_db)
+    request: RootCauseAdvancedBatchDeleteRequest, db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
     批量删除根因分析资源

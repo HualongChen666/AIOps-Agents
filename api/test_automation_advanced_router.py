@@ -23,30 +23,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/test-automation", tags=["test-automation-advanced"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token", auto_error=False)
 
-# 开发环境占位
-FAKE_ADMIN = UserInDB(
-    username="dev-admin",
-    full_name="Dev Admin",
-    email="dev@example.com",
-    role="admin",
-    disabled=False,
-    hashed_password="",
-)
-
-
 async def get_current_user(token: Optional[str] = Depends(oauth2_scheme)) -> UserInDB:
-    """获取当前用户；无 token 时返回开发占位 admin。"""
+    """获取当前用户；token 缺失/无效/用户不存在时返回 401（AGENTS.md §5：禁止占位放行）。"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     if not token:
-        return FAKE_ADMIN
+        raise credentials_exception
     payload = verify_token(token)
     if not payload:
-        return FAKE_ADMIN
+        raise credentials_exception
     username = payload.get("sub")
     if not username:
-        return FAKE_ADMIN
+        raise credentials_exception
     user = await get_user(username)
     if not user:
-        return FAKE_ADMIN
+        raise credentials_exception
     if user.disabled:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled"

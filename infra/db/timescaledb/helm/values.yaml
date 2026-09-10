@@ -4,8 +4,8 @@ replicaCount: 1
 
 image:
   repository: timescale/timescaledb
-  tag: latest-pg14
-  pullPolicy: IfNotExists
+  tag: 2.15.3-pg14
+  pullPolicy: IfNotPresent
 
 # TimescaleDB configuration
 timescaledb:

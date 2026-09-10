@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``mfa_service`` module.
+
+Top-level classes: MFAService"""
+
 # core/mfa_service.py
 # 🔧 P0-20: 多因素认证（MFA）服务
 # 基于TOTP（Time-based One-Time Password）实现

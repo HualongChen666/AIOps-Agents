@@ -10,8 +10,8 @@ from typing import Any, Dict, List
 
 from loguru import logger
 
-from services.topology_service.metrics import TOPOLOGY_VERSION_COMMITS
-from services.topology_service.schemas import ServiceTopology, TopologyVersion
+from .metrics import TOPOLOGY_VERSION_COMMITS
+from .schemas import ServiceTopology, TopologyVersion
 
 
 class TopologyVersionManager:

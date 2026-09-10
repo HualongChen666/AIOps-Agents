@@ -6,11 +6,11 @@ services:
 
   open-source-license:
     build:
-      context: ../..
-      dockerfile: services/open_source_license_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/open_source_license_service/Dockerfile
     command: [
       "uvicorn",
-      "services.open_source_license_service.main_app:app",
+      "extensions.addons.infrastructure.open_source_license_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9555",
     ]

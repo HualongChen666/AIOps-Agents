@@ -1,6 +1,9 @@
+
+const authToken = process.env.AIOPS_TOKEN || 'YOUR_TOKEN';
 // 示例：Execute auto-heal
-fetch('http://localhost:8080/api/v1/autoheal/execute', {
-    method: 'POST'
+fetch(`http://localhost:8000/api/v1/autoheal/execute`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}` }
 })
 .then(res => res.json())
 .then(data => console.log(data))

@@ -72,8 +72,10 @@ class BundleAnalyzer {
 
   getLargestBundle(): BundleAnalysis | undefined {
     const bundles = this.getAllBundles();
-    return bundles.reduce((max, bundle) =>
-      bundle.size > (max?.size || 0) ? bundle : max, undefined);
+    return bundles.reduce<BundleAnalysis | undefined>(
+      (max, bundle) => (bundle.size > (max?.size || 0) ? bundle : max),
+      undefined
+    );
   }
 
   analyzeCodeSplitting(): {
@@ -105,7 +107,7 @@ class BundleAnalyzer {
     bundles: BundleAnalysis[];
     chunks: ChunkInfo[];
     totalSize: number;
-    codeSplitting: ReturnType<typeof this.analyzeCodeSplitting>;
+    codeSplitting: ReturnType<BundleAnalyzer['analyzeCodeSplitting']>;
     recommendations: string[];
   } {
     const codeSplitting = this.analyzeCodeSplitting();

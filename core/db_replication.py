@@ -1,11 +1,11 @@
-import os
-
 # -*- coding: utf-8 -*-
 """Database replication management for high availability.
 
 This module provides database replication configuration, failover logic,
 and connection pooling for multiple database instances to ensure high availability.
 """
+
+import os
 
 import asyncio
 from datetime import datetime, timezone

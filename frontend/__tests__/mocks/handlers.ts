@@ -289,7 +289,7 @@ export const handlers = [
   }),
 
   http.put('/api/settings/', async ({ request }) => {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({ settings: body });
   }),
 
@@ -318,7 +318,7 @@ export const handlers = [
   }),
 
   http.post('/api/v1/assets/', async ({ request }) => {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({
       id: 3,
       ...body,
@@ -327,7 +327,7 @@ export const handlers = [
   }),
 
   http.put('/api/v1/assets/:id', async ({ request, params }) => {
-    const body = await request.json();
+    const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json({
       id: Number(params.id),
       ...body,

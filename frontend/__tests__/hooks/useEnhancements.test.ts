@@ -79,7 +79,13 @@ describe('useLoadingState', () => {
 });
 
 describe('useDebounce', () => {
-  jest.useFakeTimers();
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
 
   it('should return initial value immediately', () => {
     const { result } = renderHook(() => useDebounce('test', 500));
@@ -119,10 +125,6 @@ describe('useDebounce', () => {
     });
 
     expect(result.current).toBe('initial');
-  });
-
-  afterEach(() => {
-    jest.useRealTimers();
   });
 });
 

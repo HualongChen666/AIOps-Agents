@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
+"""``workflow_repository`` module.
+
+Top-level classes: WorkflowRepository
+
+Top-level functions: get_workflow_repository"""
+
 # core/workflow_repository.py
 # Workflow Repository Layer - Database persistence for workflow definitions and executions
 # 替换内存存储为数据库持久化，确保数据不丢失
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -254,7 +260,7 @@ class WorkflowRepository:
                 triggered_by=triggered_by,
                 trigger_source=trigger_source,
                 executor=executor,
-                started_at=datetime.utcnow(),
+                started_at=datetime.now(timezone.utc).replace(tzinfo=None),
             )
             db.add(execution)
             db.commit()
@@ -300,7 +306,7 @@ class WorkflowRepository:
             if status is not None:
                 execution.status = status
                 if status in ["completed", "failed", "cancelled"]:
-                    execution.completed_at = datetime.utcnow()
+                    execution.completed_at = datetime.now(timezone.utc).replace(tzinfo=None)
                     if execution.started_at:
                         duration = (execution.completed_at - execution.started_at).total_seconds()
                         execution.duration_sec = duration

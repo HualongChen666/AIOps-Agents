@@ -1497,7 +1497,7 @@ async def inject_fault(fault_id: str) -> Dict[str, Any]:
 
 
 # Batch operations endpoints
-class BatchDeleteRequest(BaseModel):
+class ChaosAdvancedBatchDeleteRequest(BaseModel):
     """批量删除请求"""
     experiment_ids: List[str] = Field(..., min_items=1, description="实验ID列表")
 
@@ -1592,7 +1592,7 @@ async def batch_create_experiments(requests: List[CreateExperimentRequest]) -> D
         500: {"description": "服务器错误"},
     },
 )
-async def batch_delete_experiments(request: BatchDeleteRequest) -> Dict[str, Any]:
+async def batch_delete_experiments(request: ChaosAdvancedBatchDeleteRequest) -> Dict[str, Any]:
     """
     批量删除实验
     """

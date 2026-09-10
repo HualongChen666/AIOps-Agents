@@ -1,6 +1,9 @@
+
+const authToken = process.env.AIOPS_TOKEN || 'YOUR_TOKEN';
 // 示例：POST /metrics/reset
-fetch('http://localhost:8080/api/v1/metrics/reset', {
-    method: 'POST'
+fetch(`http://localhost:8000/api/v1/metrics/reset`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}` }
 })
 .then(res => res.json())
 .then(data => console.log(data))

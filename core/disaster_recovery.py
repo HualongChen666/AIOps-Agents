@@ -8,90 +8,174 @@ Supports database backups, Redis backups, configuration backups, and cleanup ope
 """
 
 import json
+import os
 import shutil
 import sqlite3
+import subprocess
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+from urllib.parse import unquote, urlparse
+
+
+def _default_backup_dir() -> str:
+    """Resolve the default backup directory from configuration.
+
+    Uses ``config.BACKUP_LOCATION`` (``BACKUP_LOCATION`` env var) so no
+    platform-specific absolute path is baked into the code.
+    """
+    try:
+        from config import BACKUP_LOCATION
+
+        return BACKUP_LOCATION or "/backups"
+    except Exception:
+        return os.getenv("BACKUP_LOCATION", "/backups")
 
 
 class DisasterRecovery:
     """Disaster Recovery Manager for backup and restore operations."""
 
-    def __init__(self, backup_dir: str = "C:/AIOps_Agent_bak/backups"):
+    def __init__(self, backup_dir: Optional[str] = None):
         """
         Initialize Disaster Recovery Manager.
 
         Args:
-            backup_dir: Directory to store backups
+            backup_dir: Directory to store backups. Defaults to the configured
+                ``BACKUP_LOCATION``.
         """
-        self.backup_dir = Path(backup_dir)
+        self.backup_dir = Path(backup_dir or _default_backup_dir())
         self.backup_dir.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _database_url() -> str:
+        """Resolve the configured database URL (empty string when unavailable)."""
+        try:
+            from config import DATABASE_URL
+
+            return DATABASE_URL or ""
+        except Exception:
+            return ""
 
     def backup_database(self) -> Optional[str]:
         """
-        Backup the database.
+        Backup the configured database with a real dump.
+
+        * ``sqlite``   -> SQL text dump through the sqlite3 module
+        * ``postgres`` -> logical dump through ``pg_dump``
 
         Returns:
-            Path to backup file or None if failed
+            Path to backup file
+
+        Raises:
+            RuntimeError / FileNotFoundError: when no database is configured or
+            the dump fails.  No placeholder file is ever produced.
         """
-        try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        url = self._database_url()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+        if url.startswith("sqlite"):
+            db_path = Path(url.split("///", 1)[-1] or "aiops_agent.db")
+            if not db_path.exists():
+                raise FileNotFoundError(f"SQLite database not found: {db_path}")
             backup_file = self.backup_dir / f"db_backup_{timestamp}.sql"
-
-            # Try to backup SQLite database if it exists
-            db_path = Path("aiops_agent.db")
-            if db_path.exists():
-                # SQLite backup
-                conn = sqlite3.connect(str(db_path))
-                try:
-                    with open(backup_file, "w") as f:
-                        for line in conn.iterdump():
-                            f.write(f"{line}\n")
-                except OSError as exc:
-                    print(f"Failed to write backup file {backup_file}: {exc}")
-                    conn.close()
-                    return None
+            conn = sqlite3.connect(str(db_path))
+            try:
+                with open(backup_file, "w", encoding="utf-8") as f:
+                    for line in conn.iterdump():
+                        f.write(f"{line}\n")
+            except OSError as exc:
+                raise RuntimeError(f"Failed to write backup file {backup_file}: {exc}") from exc
+            finally:
                 conn.close()
-            else:
-                # Create a placeholder backup file
-                try:
-                    with open(backup_file, "w") as f:
-                        f.write(f"-- Database backup created at {timestamp}\n")
-                        f.write("-- Placeholder for database backup\n")
-                except OSError as exc:
-                    print(f"Failed to write placeholder backup file {backup_file}: {exc}")
-                    return None
-
             return str(backup_file)
-        except Exception as e:
-            print(f"Database backup failed: {e}")
-            return None
+
+        if url.startswith("postgres"):
+            parsed = urlparse(url)
+            backup_file = self.backup_dir / f"db_backup_{timestamp}.sql"
+            env = dict(os.environ)
+            if parsed.password:
+                env["PGPASSWORD"] = unquote(parsed.password)
+            cmd = [
+                "pg_dump",
+                "--no-owner",
+                "--no-privileges",
+                "--host",
+                parsed.hostname or "localhost",
+                "--port",
+                str(parsed.port or 5432),
+                "--username",
+                unquote(parsed.username or "postgres"),
+                "--dbname",
+                (parsed.path or "/postgres").lstrip("/"),
+                "--file",
+                str(backup_file),
+            ]
+            result = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
+            if result.returncode != 0:
+                if backup_file.exists():
+                    backup_file.unlink()
+                raise RuntimeError(
+                    f"pg_dump failed ({result.returncode}): {result.stderr.strip()}"
+                )
+            return str(backup_file)
+
+        raise RuntimeError(
+            "No database configured for backup: set DATABASE_URL to a "
+            "sqlite:///... or postgresql://... URL"
+        )
 
     def backup_redis(self) -> Optional[str]:
         """
-        Backup Redis data.
+        Snapshot Redis (BGSAVE) and persist the resulting RDB file.
 
         Returns:
-            Path to backup file or None if failed
+            Path to the copied backup file
+
+        Raises:
+            RuntimeError: when Redis is unreachable or its RDB file is not
+            accessible from this host.  No placeholder file is ever produced.
         """
+        import redis as redis_lib
+
+        from config import REDIS_DB, REDIS_HOST, REDIS_PASSWORD, REDIS_PORT
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        client = None
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            client = redis_lib.Redis(
+                host=REDIS_HOST,
+                port=REDIS_PORT,
+                db=REDIS_DB,
+                password=REDIS_PASSWORD or None,
+                socket_connect_timeout=5,
+            )
+            client.ping()
+            client.bgsave()
+
+            deadline = datetime.now() + timedelta(seconds=30)
+            while client.info("persistence").get("rdb_bgsave_in_progress", 0):
+                if datetime.now() > deadline:
+                    raise RuntimeError("Redis BGSAVE did not complete within 30s")
+                time.sleep(0.2)
+
+            dump_dir = Path(client.config_get("dir").get("dir", "."))
+            dump_name = client.config_get("dbfilename").get("dbfilename", "dump.rdb")
+            source = dump_dir / dump_name
+            if not source.exists():
+                raise RuntimeError(f"Redis RDB file not accessible on this host: {source}")
+
             backup_file = self.backup_dir / f"redis_backup_{timestamp}.rdb"
-
-            # Create a placeholder Redis backup file
-            try:
-                with open(backup_file, "wb") as f:
-                    f.write(b"REDIS_DUMP_VERSION=7\n")
-                    f.write(f"# Redis backup created at {timestamp}\n".encode())
-            except OSError as exc:
-                print(f"Failed to write Redis backup file {backup_file}: {exc}")
-                return None
-
+            shutil.copy2(source, backup_file)
             return str(backup_file)
-        except Exception as e:
-            print(f"Redis backup failed: {e}")
-            return None
+        except redis_lib.RedisError as exc:
+            raise RuntimeError(f"Redis backup failed: {exc}") from exc
+        finally:
+            if client is not None:
+                try:
+                    client.close()
+                except Exception:  # pragma: no cover - best-effort close
+                    pass
 
     def backup_configuration(self) -> Optional[str]:
         """

@@ -200,7 +200,7 @@ class TestBudgetManagement:
 
                 response = client.get("/api/cost-management/budgets/budget-1")
 
-                assert response.status_code in [200, 401, 403, 404]
+                assert response.status_code != 404, response.text
                 if response.status_code == 200:
                     data = response.json()
                     assert data["status"] == "success"
@@ -261,27 +261,27 @@ class TestBudgetManagement:
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.get_budget_management") as mock_get:
-                mock_get.return_value = [
-                    {
-                        "id": "budget-1",
-                        "name": "EC2 Budget",
-                        "service": "Amazon EC2",
-                        "amount": 1000.0,
-                        "spent": 500.0,
-                        "remaining": 500.0,
-                        "status": "on_track",
-                    }
-                ]
+                    mock_get.return_value = [
+                        {
+                            "id": "budget-1",
+                            "name": "EC2 Budget",
+                            "service": "Amazon EC2",
+                            "amount": 1000.0,
+                            "spent": 500.0,
+                            "remaining": 500.0,
+                            "status": "on_track",
+                        }
+                    ]
 
-                update_data = {"name": "Updated EC2 Budget", "amount": 1500.0}
-                response = client.put(
-                    "/api/cost-management/budgets/budget-1", json=update_data
-                )
+                    update_data = {"name": "Updated EC2 Budget", "amount": 1500.0}
+                    response = client.put(
+                        "/api/cost-management/budgets/budget-1", json=update_data
+                    )
 
-                assert response.status_code in [200, 401, 403]
-                if response.status_code == 200:
-                    data = response.json()
-                    assert data["status"] == "success"
+                    assert response.status_code in [200, 401, 403]
+                    if response.status_code == 200:
+                        data = response.json()
+                        assert data["status"] == "success"
 
     def test_update_budget_not_found(self, client, admin_user):
         """Test PUT /budgets/{budget_id} with non-existent budget"""
@@ -300,20 +300,19 @@ class TestBudgetManagement:
     def test_delete_budget_success(self, client, admin_user):
         """Test DELETE /budgets/{budget_id} - delete budget"""
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
-            with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.SessionLocal") as mock_session:
-                mock_db = MagicMock()
-                mock_session.return_value = mock_db
-                mock_db.query.return_value.filter.return_value.first.return_value = MagicMock()
+                    mock_db = MagicMock()
+                    mock_session.return_value = mock_db
+                    mock_db.query.return_value.filter.return_value.first.return_value = MagicMock()
 
-                response = client.delete("/api/cost-management/budgets/budget-1")
+                    response = client.delete("/api/cost-management/budgets/budget-1")
 
-                assert response.status_code in [200, 401, 403]
-                if response.status_code == 200:
-                    data = response.json()
-                    assert data["status"] == "success"
-                    assert "deleted successfully" in data["message"]
+                    assert response.status_code in [200, 401, 403]
+                    if response.status_code == 200:
+                        data = response.json()
+                        assert data["status"] == "success"
+                        assert "deleted successfully" in data["message"]
 
     def test_delete_budget_not_found(self, client, admin_user):
         """Test DELETE /budgets/{budget_id} with non-existent budget"""
@@ -431,47 +430,47 @@ class TestCostOptimization:
         """Test POST /optimizations - create optimization"""
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
-            response = client.post(
-                "/api/cost-management/optimizations", json=sample_optimization_data
-            )
+                response = client.post(
+                    "/api/cost-management/optimizations", json=sample_optimization_data
+                )
 
-            assert response.status_code in [201, 401, 403]
-            if response.status_code == 201:
-                data = response.json()
-                assert data["status"] == "success"
-                assert "optimization" in data
+                assert response.status_code in [201, 401, 403]
+                if response.status_code == 201:
+                    data = response.json()
+                    assert data["status"] == "success"
+                    assert "optimization" in data
 
     def test_approve_optimization_success(self, client, admin_user):
         """Test PUT /optimizations/{id}/approve - approve optimization"""
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.SessionLocal") as mock_session:
-                mock_db = MagicMock()
-                mock_session.return_value = mock_db
-                mock_db.query.return_value.filter.return_value.first.return_value = MagicMock()
+                    mock_db = MagicMock()
+                    mock_session.return_value = mock_db
+                    mock_db.query.return_value.filter.return_value.first.return_value = MagicMock()
 
-                response = client.put("/api/cost-management/optimizations/opt-1/approve")
+                    response = client.put("/api/cost-management/optimizations/opt-1/approve")
 
-                assert response.status_code in [200, 401, 403]
-                if response.status_code == 200:
-                    data = response.json()
-                    assert data["status"] == "success"
-                    assert "approved" in data["message"].lower()
+                    assert response.status_code in [200, 401, 403]
+                    if response.status_code == 200:
+                        data = response.json()
+                        assert data["status"] == "success"
+                        assert "approved" in data["message"].lower()
 
     def test_approve_optimization_not_found(self, client, admin_user):
         """Test PUT /optimizations/{id}/approve with non-existent optimization"""
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.SessionLocal") as mock_session:
-                mock_db = MagicMock()
-                mock_session.return_value = mock_db
-                mock_db.query.return_value.filter.return_value.first.return_value = None
+                    mock_db = MagicMock()
+                    mock_session.return_value = mock_db
+                    mock_db.query.return_value.filter.return_value.first.return_value = None
 
-                response = client.put(
-                    "/api/cost-management/optimizations/non-existent/approve"
-                )
+                    response = client.put(
+                        "/api/cost-management/optimizations/non-existent/approve"
+                    )
 
-                assert response.status_code in [404, 401, 403]
+                    assert response.status_code in [404, 401, 403]
 
     def test_get_savings_summary_success(self, client, admin_user):
         """Test GET /optimizations/savings-summary - get savings summary"""
@@ -556,37 +555,37 @@ class TestCostAnomaly:
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.SessionLocal") as mock_session:
-                mock_db = MagicMock()
-                mock_session.return_value = mock_db
-                mock_anomaly = MagicMock()
-                mock_anomaly.status = "open"
-                mock_anomaly.anomaly_metadata = None
-                mock_db.query.return_value.filter.return_value.first.return_value = mock_anomaly
+                    mock_db = MagicMock()
+                    mock_session.return_value = mock_db
+                    mock_anomaly = MagicMock()
+                    mock_anomaly.status = "open"
+                    mock_anomaly.anomaly_metadata = None
+                    mock_db.query.return_value.filter.return_value.first.return_value = mock_anomaly
 
-                response = client.put(
-                    "/api/cost-management/anomalies/anom-1/resolve?resolution_notes=Fixed"
-                )
+                    response = client.put(
+                        "/api/cost-management/anomalies/anom-1/resolve?resolution_notes=Fixed"
+                    )
 
-                assert response.status_code in [200, 401, 403]
-                if response.status_code == 200:
-                    data = response.json()
-                    assert data["status"] == "success"
-                    assert "resolved" in data["message"].lower()
+                    assert response.status_code in [200, 401, 403]
+                    if response.status_code == 200:
+                        data = response.json()
+                        assert data["status"] == "success"
+                        assert "resolved" in data["message"].lower()
 
     def test_resolve_anomaly_not_found(self, client, admin_user):
         """Test PUT /anomalies/{id}/resolve with non-existent anomaly"""
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.SessionLocal") as mock_session:
-                mock_db = MagicMock()
-                mock_session.return_value = mock_db
-                mock_db.query.return_value.filter.return_value.first.return_value = None
+                    mock_db = MagicMock()
+                    mock_session.return_value = mock_db
+                    mock_db.query.return_value.filter.return_value.first.return_value = None
 
-                response = client.put(
-                    "/api/cost-management/anomalies/non-existent/resolve?resolution_notes=Fixed"
-                )
+                    response = client.put(
+                        "/api/cost-management/anomalies/non-existent/resolve?resolution_notes=Fixed"
+                    )
 
-                assert response.status_code in [404, 401, 403]
+                    assert response.status_code in [404, 401, 403]
 
     def test_get_anomaly_summary_success(self, client, admin_user):
         """Test GET /anomalies/summary - get anomaly summary"""
@@ -703,34 +702,34 @@ class TestCostAlert:
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.SessionLocal") as mock_session:
-                mock_db = MagicMock()
-                mock_session.return_value = mock_db
-                mock_alert = MagicMock()
-                mock_alert.threshold = 800.0
-                mock_db.query.return_value.filter.return_value.first.return_value = mock_alert
-                with patch("api.cost_management_router.collect_costs") as mock_collect:
-                    mock_collect.return_value = [{"cost": 500.0}]
+                    mock_db = MagicMock()
+                    mock_session.return_value = mock_db
+                    mock_alert = MagicMock()
+                    mock_alert.threshold = 800.0
+                    mock_db.query.return_value.filter.return_value.first.return_value = mock_alert
+                    with patch("api.cost_management_router.collect_costs") as mock_collect:
+                        mock_collect.return_value = [{"cost": 500.0}]
 
-                    response = client.post("/api/cost-management/alerts/alert-1/test")
+                        response = client.post("/api/cost-management/alerts/alert-1/test")
 
-                    assert response.status_code in [200, 401, 403]
-                    if response.status_code == 200:
-                        data = response.json()
-                        assert data["status"] == "success"
-                        assert "test_result" in data
+                        assert response.status_code in [200, 401, 403]
+                        if response.status_code == 200:
+                            data = response.json()
+                            assert data["status"] == "success"
+                            assert "test_result" in data
 
     def test_test_alert_not_found(self, client, admin_user):
         """Test POST /alerts/{id}/test with non-existent alert"""
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.SessionLocal") as mock_session:
-                mock_db = MagicMock()
-                mock_session.return_value = mock_db
-                mock_db.query.return_value.filter.return_value.first.return_value = None
+                    mock_db = MagicMock()
+                    mock_session.return_value = mock_db
+                    mock_db.query.return_value.filter.return_value.first.return_value = None
 
-                response = client.post("/api/cost-management/alerts/non-existent/test")
+                    response = client.post("/api/cost-management/alerts/non-existent/test")
 
-                assert response.status_code in [404, 401, 403]
+                    assert response.status_code in [404, 401, 403]
 
 
 # ============================================================================
@@ -899,28 +898,28 @@ class TestCostDataCollection:
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.sync_cost_collection") as mock_sync:
-                mock_sync.return_value = {
-                    "status": "success",
-                    "records_synced": 100,
-                }
+                    mock_sync.return_value = {
+                        "status": "success",
+                        "records_synced": 100,
+                    }
 
-                response = client.post("/api/cost-management/collection/sync")
+                    response = client.post("/api/cost-management/collection/sync")
 
-                assert response.status_code in [200, 401, 403]
-                if response.status_code == 200:
-                    data = response.json()
-                    assert data["status"] == "success"
+                    assert response.status_code in [200, 401, 403]
+                    if response.status_code == 200:
+                        data = response.json()
+                        assert data["status"] == "success"
 
     def test_sync_collection_with_force(self, client, admin_user):
         """Test POST /collection/sync with force parameter"""
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.sync_cost_collection") as mock_sync:
-                mock_sync.return_value = {"status": "success"}
+                    mock_sync.return_value = {"status": "success"}
 
-                response = client.post("/api/cost-management/collection/sync?force=true")
+                    response = client.post("/api/cost-management/collection/sync?force=true")
 
-                assert response.status_code in [200, 401, 403]
+                    assert response.status_code in [200, 401, 403]
 
     def test_get_collection_history_success(self, client, admin_user):
         """Test GET /collection/history - get collection history"""
@@ -1033,18 +1032,18 @@ class TestCostManagementIntegration:
         with patch("core.authentication.get_current_active_user", return_value=admin_user):
             with patch("core.rbac.role_required", return_value=lambda f: f):
                 with patch("api.cost_management_router.create_budget") as mock_create:
-                mock_create.return_value = {
-                    "id": "budget-1",
-                    "name": "Test Budget",
-                    "amount": 1000.0,
-                }
+                    mock_create.return_value = {
+                        "id": "budget-1",
+                        "name": "Test Budget",
+                        "amount": 1000.0,
+                    }
 
-                # Create budget
-                budget_response = client.post(
-                    "/api/cost-management/budgets",
-                    json={"name": "Test", "service": "EC2", "amount": 1000.0},
-                )
-                assert budget_response.status_code in [201, 401, 403]
+                    # Create budget
+                    budget_response = client.post(
+                        "/api/cost-management/budgets",
+                        json={"name": "Test", "service": "EC2", "amount": 1000.0},
+                    )
+                    assert budget_response.status_code in [201, 401, 403]
 
             # Create alert
             alert_response = client.post(

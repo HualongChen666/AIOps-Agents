@@ -91,3 +91,6 @@ dist/
 conftest.py
 pytest.ini
 .pytest_cache/
+# Large build-context dirs (repo-root context)
+node_modules/
+autobackup/

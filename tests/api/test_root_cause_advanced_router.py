@@ -14,13 +14,13 @@ from fastapi.testclient import TestClient
 
 from api.root_cause_advanced_router import (
     BatchAnalysisRequest,
-    BatchDeleteRequest,
+    RootCauseAdvancedBatchDeleteRequest,
     BatchEvidenceCreate,
     BatchExperimentCreate,
     ConclusionFinalizeRequest,
     HypothesisVerificationRequest,
     RootCauseAnalysisExportRequest,
-    RootCauseAnalysisRequest,
+    RootCauseAdvancedRootCauseAnalysisRequest,
     RootCauseConclusionCreate,
     RootCauseConclusionResponse,
     RootCauseEvidenceResponse,
@@ -55,7 +55,7 @@ def mock_db():
 @pytest.fixture
 def sample_analysis_request():
     """Sample root cause analysis request"""
-    return RootCauseAnalysisRequest(
+    return RootCauseAdvancedRootCauseAnalysisRequest(
         alert={"id": "ALT-001", "title": "高CPU使用率", "level": "critical"},
         metrics_data={"cpu_usage": 95, "memory_usage": 80, "response_time": 5000},
         context={"service": "api-service"},
@@ -274,7 +274,7 @@ class TestGetRootCauseHypothesis:
         """Test successful retrieval of single hypothesis"""
         response = client.get("/api/v1/root-cause/hypotheses/HYP-TEST001")
         # Router has DB implementation bug, accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_get_hypothesis_not_found(self, client):
         """Test getting non-existent hypothesis"""
@@ -322,7 +322,7 @@ class TestDeleteRootCauseHypothesis:
         """Test successful deletion of hypothesis"""
         response = client.delete("/api/v1/root-cause/hypotheses/HYP-TEST001")
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_delete_hypothesis_not_found(self, client):
         """Test deleting non-existent hypothesis"""
@@ -408,7 +408,7 @@ class TestUpdateRootCauseExperiment:
             json=sample_experiment_update.model_dump(exclude_unset=True),
         )
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_update_experiment_not_found(self, client, sample_experiment_update):
         """Test updating non-existent experiment"""
@@ -592,7 +592,7 @@ class TestBatchCreateEvidence:
 
         response = client.post("/api/v1/root-cause/evidence/batch", json=request_data)
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_batch_create_evidence_invalid_type(self, client):
         """Test batch creation with invalid evidence type"""
@@ -661,7 +661,7 @@ class TestVerifyHypothesis:
             "/api/v1/root-cause/hypotheses/HYP-001/verify", json=request_data
         )
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_verify_hypothesis_invalid_method(self, client):
         """Test verification with invalid method"""
@@ -861,7 +861,7 @@ class TestExportRootCauseAnalysis:
 
         response = client.post("/api/v1/root-cause/export", json=request_data)
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_export_by_alert_id(self, client):
         """Test export by alert ID"""
@@ -958,7 +958,7 @@ class TestGetRootCauseExperiment:
         """Test successful retrieval of single experiment"""
         response = client.get("/api/v1/root-cause/experiments/EXP-TEST001")
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_get_experiment_not_found(self, client):
         """Test getting non-existent experiment"""
@@ -974,7 +974,7 @@ class TestDeleteRootCauseExperiment:
         """Test successful deletion of experiment"""
         response = client.delete("/api/v1/root-cause/experiments/EXP-TEST001")
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_delete_experiment_not_found(self, client):
         """Test deleting non-existent experiment"""
@@ -1008,7 +1008,7 @@ class TestGetSingleRootCauseEvidence:
         """Test successful retrieval of single evidence"""
         response = client.get("/api/v1/root-cause/evidence/1")
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_get_evidence_single_not_found(self, client):
         """Test getting non-existent evidence"""
@@ -1024,7 +1024,7 @@ class TestDeleteRootCauseEvidence:
         """Test successful deletion of evidence"""
         response = client.delete("/api/v1/root-cause/evidence/1")
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_delete_evidence_not_found(self, client):
         """Test deleting non-existent evidence"""
@@ -1040,7 +1040,7 @@ class TestGetSingleRootCauseConclusion:
         """Test successful retrieval of single conclusion"""
         response = client.get("/api/v1/root-cause/conclusions/CON-TEST001")
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_get_conclusion_single_not_found(self, client):
         """Test getting non-existent conclusion"""
@@ -1086,7 +1086,7 @@ class TestDeleteRootCauseConclusion:
         """Test successful deletion of conclusion"""
         response = client.delete("/api/v1/root-cause/conclusions/CON-TEST001")
         # Router has DB bug (db.rollback on Depends), accept 500
-        assert response.status_code in [200, 404, 500]
+        assert response.status_code != 404, response.text
 
     def test_delete_conclusion_not_found(self, client):
         """Test deleting non-existent conclusion"""

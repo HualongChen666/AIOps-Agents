@@ -119,7 +119,7 @@ class SpanCreate(BaseModel):
     tags: Dict[str, Any] = Field(default_factory=dict, description="Span tags")
 
 
-class ServiceCreate(BaseModel):
+class TracingAdvancedServiceCreate(BaseModel):
     """Model for creating a service"""
 
     name: str = Field(..., min_length=1, max_length=100, description="Service name")
@@ -147,7 +147,7 @@ class AnalyticsCreate(BaseModel):
     timestamp: str = Field(..., description="Timestamp in ISO format")
 
 
-class SearchRequest(BaseModel):
+class TracingAdvancedSearchRequest(BaseModel):
     """Model for trace search request"""
 
     query: str = Field(..., description="Search query")
@@ -613,7 +613,7 @@ async def list_services(
 
 
 @router.post("/services", summary="Create service")
-async def create_service(service: ServiceCreate, request: Request) -> Dict[str, Any]:
+async def create_service(service: TracingAdvancedServiceCreate, request: Request) -> Dict[str, Any]:
     """
     Create a new service
     """
@@ -871,7 +871,7 @@ async def create_analytics(analytics: AnalyticsCreate, request: Request) -> Dict
 
 
 @router.post("/search", summary="Search traces")
-async def search_traces(search_request: SearchRequest) -> Dict[str, Any]:
+async def search_traces(search_request: TracingAdvancedSearchRequest) -> Dict[str, Any]:
     """
     Search traces with advanced filters
     """
@@ -1234,7 +1234,6 @@ async def get_trace_flamegraph(trace_id: str) -> Dict[str, Any]:
 router_alt = APIRouter(prefix="/api/tracing", tags=["Tracing (Alt)"])
 
 # Create router for /api/v1/tracing prefix (exact match for requirements)
-router_v1 = APIRouter(prefix="/api/v1/tracing", tags=["Tracing V1"])
 
 
 @router_alt.get("/traces", summary="List traces (alt)")
@@ -1256,8 +1255,6 @@ async def get_trace_alt(trace_id: str = Path(..., description="Trace ID")) -> Di
 # V1 Router - Exact API paths as required
 # ============================================================
 
-
-@router_v1.get("/traces", summary="List traces (V1)")
 async def list_traces_v1(
     service_name: Optional[str] = Query(None, description="Filter by service name"),
     query: Optional[str] = Query(None, description="Search query"),
@@ -1266,34 +1263,24 @@ async def list_traces_v1(
     """V1 endpoint for listing traces"""
     return await list_traces(service_name=service_name, limit=limit)
 
-
-@router_v1.post("/traces", summary="Create trace (V1)")
 async def create_trace_v1(trace: TraceCreate, request: Request) -> Dict[str, Any]:
     """V1 endpoint for creating traces"""
     return await create_trace(trace, request)
 
-
-@router_v1.get("/traces/{trace_id}", summary="Get trace by ID (V1)")
 async def get_trace_v1(trace_id: str) -> Dict[str, Any]:
     """V1 endpoint for getting trace details"""
     return await get_trace(trace_id)
 
-
-@router_v1.patch("/traces/{trace_id}", summary="Update trace (V1)")
 async def update_trace_v1(
     trace_id: str, trace_update: TraceUpdate, request: Request
 ) -> Dict[str, Any]:
     """V1 endpoint for updating traces"""
     return await update_trace(trace_id, trace_update, request)
 
-
-@router_v1.delete("/traces/{trace_id}", summary="Delete trace (V1)")
 async def delete_trace_v1(trace_id: str) -> Dict[str, Any]:
     """V1 endpoint for deleting traces"""
     return await delete_trace(trace_id)
 
-
-@router_v1.get("/spans", summary="List spans (V1)")
 async def list_spans_v1(
     trace_id: Optional[str] = Query(None, description="Filter by trace ID"),
     service: Optional[str] = Query(None, description="Filter by service"),
@@ -1302,52 +1289,36 @@ async def list_spans_v1(
     """V1 endpoint for listing spans"""
     return await list_spans(trace_id=trace_id, service=service, limit=limit)
 
-
-@router_v1.post("/spans", summary="Create span (V1)")
 async def create_span_v1(span: SpanCreate, request: Request) -> Dict[str, Any]:
     """V1 endpoint for creating spans"""
     return await create_span(span, request)
 
-
-@router_v1.get("/spans/{span_id}", summary="Get span by ID (V1)")
 async def get_span_v1(span_id: str) -> Dict[str, Any]:
     """V1 endpoint for getting span details"""
     return await get_span(span_id)
 
-
-@router_v1.delete("/spans/{span_id}", summary="Delete span (V1)")
 async def delete_span_v1(span_id: str) -> Dict[str, Any]:
     """V1 endpoint for deleting spans"""
     return await delete_span(span_id)
 
-
-@router_v1.get("/services", summary="List services (V1)")
 async def list_services_v1(
     type: Optional[str] = Query(None, description="Filter by type")
 ) -> Dict[str, Any]:
     """V1 endpoint for listing services"""
     return await list_services(type=type)
 
-
-@router_v1.post("/services", summary="Create service (V1)")
-async def create_service_v1(service: ServiceCreate, request: Request) -> Dict[str, Any]:
+async def create_service_v1(service: TracingAdvancedServiceCreate, request: Request) -> Dict[str, Any]:
     """V1 endpoint for creating services"""
     return await create_service(service, request)
 
-
-@router_v1.get("/services/{service_name}", summary="Get service by name (V1)")
 async def get_service_v1(service_name: str) -> Dict[str, Any]:
     """V1 endpoint for getting service details"""
     return await get_service(service_name)
 
-
-@router_v1.delete("/services/{service_name}", summary="Delete service (V1)")
 async def delete_service_v1(service_name: str) -> Dict[str, Any]:
     """V1 endpoint for deleting services"""
     return await delete_service(service_name)
 
-
-@router_v1.get("/operations", summary="List operations (V1)")
 async def list_operations_v1(
     service: Optional[str] = Query(None, description="Filter by service"),
     type: Optional[str] = Query(None, description="Filter by type"),
@@ -1355,20 +1326,14 @@ async def list_operations_v1(
     """V1 endpoint for listing operations"""
     return await list_operations(service=service, type=type)
 
-
-@router_v1.post("/operations", summary="Create operation (V1)")
 async def create_operation_v1(operation: OperationCreate, request: Request) -> Dict[str, Any]:
     """V1 endpoint for creating operations"""
     return await create_operation(operation, request)
 
-
-@router_v1.delete("/operations/{op_id}", summary="Delete operation (V1)")
 async def delete_operation_v1(op_id: str) -> Dict[str, Any]:
     """V1 endpoint for deleting operations"""
     return await delete_operation(op_id)
 
-
-@router_v1.get("/analytics", summary="Get analytics data (V1)")
 async def get_analytics_v1(
     service: Optional[str] = Query(None, description="Filter by service"),
     metric_type: Optional[str] = Query(None, description="Filter by metric type"),
@@ -1377,20 +1342,14 @@ async def get_analytics_v1(
     """V1 endpoint for getting analytics data"""
     return await get_analytics(service=service, metric_type=metric_type, limit=limit)
 
-
-@router_v1.post("/analytics", summary="Create analytics data (V1)")
 async def create_analytics_v1(analytics: AnalyticsCreate, request: Request) -> Dict[str, Any]:
     """V1 endpoint for creating analytics data"""
     return await create_analytics(analytics, request)
 
-
-@router_v1.post("/search", summary="Search traces (V1)")
-async def search_traces_v1(search_request: SearchRequest) -> Dict[str, Any]:
+async def search_traces_v1(search_request: TracingAdvancedSearchRequest) -> Dict[str, Any]:
     """V1 endpoint for searching traces"""
     return await search_traces(search_request)
 
-
-@router_v1.get("/performance", summary="Get performance metrics (V1)")
 async def get_performance_v1(
     service: Optional[str] = Query(None, description="Filter by service"),
     operation: Optional[str] = Query(None, description="Filter by operation"),
@@ -1400,16 +1359,18 @@ async def get_performance_v1(
     """V1 endpoint for getting performance metrics"""
     return await get_performance(service=service, operation=operation, time_range=time_range, granularity=granularity)
 
-
-@router_v1.get("/dependencies", summary="Get service dependencies (V1)")
 async def get_service_dependencies_v1(
     service: Optional[str] = Query(None, description="Filter by service name"),
 ) -> Dict[str, Any]:
     """V1 endpoint for getting service dependencies"""
     return await get_service_dependencies(service=service)
 
-
-@router_v1.get("/traces/{trace_id}/flamegraph", summary="Get flame graph for trace (V1)")
 async def get_trace_flamegraph_v1(trace_id: str) -> Dict[str, Any]:
     """V1 endpoint for getting flame graph data"""
     return await get_trace_flamegraph(trace_id)
+
+
+# Wave2 #23: ``router_v1`` used to register the SAME paths as ``router``
+# under an identical prefix.  The duplicate routes were merged into
+# ``router``; the export is preserved as an alias to avoid double mounting.
+router_v1 = router

@@ -16,12 +16,12 @@ spec:
       - pause: {duration: 10m}
       - setWeight: 80
       - pause: {duration: 10m}
-      analysis:
-        templates:
-        - templateName: success-rate
-        args:
-        - name: service-name
-          value: aiops-agent
+      - analysis:
+          templates:
+          - templateName: success-rate
+          args:
+          - name: service-name
+            value: aiops-agent
       - setWeight: 100
   revisionHistoryLimit: 2
   selector:
@@ -34,7 +34,7 @@ spec:
     spec:
       containers:
       - name: aiops-agent
-        image: aiops/aiops-agent:latest
+        image: aiops/aiops-agent:1.0.0
         ports:
         - containerPort: 8080
           name: http

@@ -5,11 +5,21 @@ import { Toast, ToastContainer } from '@/components/ui/Toast';
 
 // Mock the lucide-react icons
 jest.mock('lucide-react', () => ({
-  CheckCircle: () => <span data-testid="check-circle-icon">✓</span>,
-  XCircle: () => <span data-testid="x-circle-icon">✗</span>,
-  AlertTriangle: () => <span data-testid="alert-triangle-icon">⚠</span>,
-  Info: () => <span data-testid="info-icon">ℹ</span>,
-  X: () => <span data-testid="x-icon">×</span>,
+  CheckCircle: ({ className }: { className?: string }) => (
+    <span data-testid="check-circle-icon" className={className}>✓</span>
+  ),
+  XCircle: ({ className }: { className?: string }) => (
+    <span data-testid="x-circle-icon" className={className}>✗</span>
+  ),
+  AlertTriangle: ({ className }: { className?: string }) => (
+    <span data-testid="alert-triangle-icon" className={className}>⚠</span>
+  ),
+  Info: ({ className }: { className?: string }) => (
+    <span data-testid="info-icon" className={className}>ℹ</span>
+  ),
+  X: ({ className }: { className?: string }) => (
+    <span data-testid="x-icon" className={className}>×</span>
+  ),
 }));
 
 describe('Toast Component', () => {
@@ -177,10 +187,10 @@ describe('Toast Component', () => {
   describe('Manual Dismissal', () => {
     it('should dismiss when close button is clicked', async () => {
       const handleClose = jest.fn();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
       render(<Toast type="success" message="Success" onClose={handleClose} />);
       
-      const closeButton = screen.getByTestId('x-icon').parentElement;
+      const closeButton = screen.getByTestId('x-icon').parentElement!;
       await user.click(closeButton);
       
       expect(screen.queryByText('Success')).not.toBeInTheDocument();
@@ -189,20 +199,20 @@ describe('Toast Component', () => {
 
     it('should call onClose when manually dismissed', async () => {
       const handleClose = jest.fn();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
       render(<Toast type="success" message="Success" onClose={handleClose} />);
       
-      const closeButton = screen.getByTestId('x-icon').parentElement;
+      const closeButton = screen.getByTestId('x-icon').parentElement!;
       await user.click(closeButton);
       
       expect(handleClose).toHaveBeenCalledTimes(1);
     });
 
     it('should not call onClose when not provided', async () => {
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
       render(<Toast type="success" message="Success" />);
       
-      const closeButton = screen.getByTestId('x-icon').parentElement;
+      const closeButton = screen.getByTestId('x-icon').parentElement!;
       await user.click(closeButton);
       
       expect(screen.queryByText('Success')).not.toBeInTheDocument();
@@ -402,13 +412,13 @@ describe('Toast Component', () => {
   describe('Integration Tests', () => {
     it('should handle complete toast lifecycle', async () => {
       const handleClose = jest.fn();
-      const user = userEvent.setup();
+      const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
       
       const { rerender } = render(<Toast type="success" message="Success" onClose={handleClose} />);
       expect(screen.getByText('Success')).toBeInTheDocument();
       
       // Manual dismiss
-      const closeButton = screen.getByTestId('x-icon').parentElement;
+      const closeButton = screen.getByTestId('x-icon').parentElement!;
       await user.click(closeButton);
       expect(handleClose).toHaveBeenCalled();
       
@@ -493,7 +503,7 @@ describe('Toast Component', () => {
       const closeButton = screen.getByTestId('x-icon').parentElement;
       
       const messageIndex = Array.from(toast?.children || []).indexOf(message);
-      const closeButtonIndex = Array.from(toast?.children || []).indexOf(closeButton);
+      const closeButtonIndex = Array.from(toast?.children || []).indexOf(closeButton as Element);
       
       expect(messageIndex).toBeLessThan(closeButtonIndex);
     });

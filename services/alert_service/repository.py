@@ -98,5 +98,13 @@ class InMemoryAlertRepository(AlertRepository):
 
 
 async def get_repository(use_in_memory: bool = True) -> AlertRepository:
-    """Return repository instance based on configuration."""
-    return InMemoryAlertRepository()
+    """Return a repository instance based on configuration."""
+    if use_in_memory:
+        return InMemoryAlertRepository()
+
+    from services.alert_service.config import settings
+    from services.alert_service.persistence import SQLAlchemyAlertRepository
+
+    repository = SQLAlchemyAlertRepository(settings.database_url)
+    await repository.init_schema()
+    return repository

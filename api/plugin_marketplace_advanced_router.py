@@ -97,7 +97,7 @@ class PluginListingResponse(BaseModel):
     updated_at: datetime
 
 
-class ReviewCreate(BaseModel):
+class PluginMarketplaceAdvancedReviewCreate(BaseModel):
     """Review creation model"""
 
     plugin_id: str = Field(..., description="Plugin ID")
@@ -565,7 +565,7 @@ async def get_reviews(
 
 @router.post("/reviews", response_model=ReviewResponse, summary="Create a review")
 async def create_review(
-    review: ReviewCreate,
+    review: PluginMarketplaceAdvancedReviewCreate,
     current_user: User = Depends(require_permission("plugin", "read")),
     db: Session = Depends(get_db),
     request: Request = None,

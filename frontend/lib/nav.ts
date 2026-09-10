@@ -70,7 +70,7 @@ export function getNavGroups(locale: Locale): NavGroup[] {
       title: t('nav.settings'),
       items: [
         { href: '/settings', label: t('nav.systemSettings') },
-        { href: 'http://127.0.0.1:3000/docs', label: t('nav.apiDocs'), target: '_blank' },
+        { href: '/api-documentation', label: t('nav.apiDocs'), target: '_blank' },
       ],
     },
   ];

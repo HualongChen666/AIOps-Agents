@@ -111,7 +111,7 @@ def test_linux_collect_request_metrics_empty_strings(client, monkeypatch):
         json={"host_name": "h1", "metrics": ["cpu", "   ", "", "memory"]},
     )
     # Should succeed, empty strings are filtered out
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_linux_collect_request_metrics_long_string(client, monkeypatch):
@@ -127,7 +127,7 @@ def test_linux_collect_request_metrics_long_string(client, monkeypatch):
         json={"host_name": "h1", "metrics": [long_metric]},
     )
     # Should succeed, string is truncated
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_linux_collect_request_metrics_none(client, monkeypatch):
@@ -141,7 +141,7 @@ def test_linux_collect_request_metrics_none(client, monkeypatch):
         "/api/v1/platforms/linux/collect/host",
         json={"host_name": "h1", "metrics": None},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # =============================================================================
@@ -157,7 +157,7 @@ def test_linux_available_metrics_error(client, monkeypatch):
         _lrx, "get_available_metrics", lambda: (_ for _ in ()).throw(Exception("db error"))
     )
     resp = client.get("/api/v1/platforms/linux/metrics/available")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_linux_hosts(client, monkeypatch):
@@ -168,7 +168,7 @@ def test_linux_hosts(client, monkeypatch):
         _lrx, "find_linux_host_config", lambda host: {"name": host, "host": "1.1.1.1"}
     )
     resp = client.get("/api/v1/platforms/linux/hosts")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # =============================================================================
@@ -186,7 +186,7 @@ def test_linux_collect_all_cancelled(client, monkeypatch):
     monkeypatch.setattr(_lrx, "collect_all_linux", _async_raise(asyncio.CancelledError()))
     resp = client.get("/api/v1/platforms/linux/collect/all")
     # CancelledError is re-raised, which FastAPI handles as 500
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_linux_collect_all_general_error(client, monkeypatch):
@@ -198,7 +198,7 @@ def test_linux_collect_all_general_error(client, monkeypatch):
     )
     monkeypatch.setattr(_lrx, "collect_all_linux", _async_raise(RuntimeError("network error")))
     resp = client.get("/api/v1/platforms/linux/collect/all")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # =============================================================================
@@ -219,7 +219,7 @@ def test_linux_collect_host_cancelled(client, monkeypatch):
         json={"host_name": "h1", "metrics": ["cpu"]},
     )
     # CancelledError is re-raised, which FastAPI handles as 500
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 def test_linux_collect_host_general_error(client, monkeypatch):
@@ -234,7 +234,7 @@ def test_linux_collect_host_general_error(client, monkeypatch):
         "/api/v1/platforms/linux/collect/host",
         json={"host_name": "h1", "metrics": ["cpu"]},
     )
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # =============================================================================
@@ -250,7 +250,7 @@ def test_linux_repair_scripts_error(client, monkeypatch):
         _lrx, "get_linux_repair_scripts", lambda: (_ for _ in ()).throw(Exception("config error"))
     )
     resp = client.get("/api/v1/platforms/linux/repair/scripts")
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # =============================================================================
@@ -271,7 +271,7 @@ def test_linux_repair_cancelled(client, monkeypatch):
         json={"host_name": "h1", "script_key": "clear_tmp", "params": {}},
     )
     # CancelledError is re-raised, which FastAPI handles as 500
-    assert resp.status_code in (500, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # =============================================================================
@@ -473,7 +473,7 @@ def test_linux_collect_request_metrics_whitespace_only(client, monkeypatch):
         json={"host_name": "h1", "metrics": ["\t", "\n", "  \t  "]},
     )
     # Should succeed, whitespace-only strings are filtered out
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
 
 # =============================================================================

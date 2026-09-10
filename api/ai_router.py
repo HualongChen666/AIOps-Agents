@@ -26,7 +26,7 @@ except (ImportError, AttributeError, ValueError, TypeError):
     _RICH_CONTEXT_PER_SOURCE_TIMEOUT_SEC = 2.0
 
 
-class AnalyzeRequest(BaseModel):
+class AiAnalyzeRequest(BaseModel):
     query: str = Field(
         ...,
         min_length=1,
@@ -372,7 +372,7 @@ async def ai_test() -> dict[str, str]:
         },
     },
 )
-def _log_ai_analyze_request(req: AnalyzeRequest, request: Request) -> str:
+def _log_ai_analyze_request(req: AiAnalyzeRequest, request: Request) -> str:
     """
     记录AI分析请求日志
 
@@ -392,7 +392,7 @@ def _log_ai_analyze_request(req: AnalyzeRequest, request: Request) -> str:
     return operator_ip
 
 
-async def _collect_metrics_context(req: AnalyzeRequest) -> tuple[Optional[dict], str]:
+async def _collect_metrics_context(req: AiAnalyzeRequest) -> tuple[Optional[dict], str]:
     """
     采集指标上下文
 
@@ -422,7 +422,7 @@ async def _collect_metrics_context(req: AnalyzeRequest) -> tuple[Optional[dict],
 
 
 async def _collect_rich_context_if_needed(
-    req: AnalyzeRequest, snapshot: Optional[dict]
+    req: AiAnalyzeRequest, snapshot: Optional[dict]
 ) -> Optional[dict[str, Any]]:
     """
     根据需要采集富上下文
@@ -453,7 +453,7 @@ async def _collect_rich_context_if_needed(
 
 
 async def _call_ai_analysis(
-    req: AnalyzeRequest, metrics_ctx: str, rich_context: Optional[dict[str, Any]]
+    req: AiAnalyzeRequest, metrics_ctx: str, rich_context: Optional[dict[str, Any]]
 ) -> Any:
     """
     调用AI分析引擎
@@ -545,7 +545,7 @@ def _build_ai_analyze_response(
     }
 
 
-async def ai_analyze(req: AnalyzeRequest, request: Request) -> dict[str, Any]:
+async def ai_analyze(req: AiAnalyzeRequest, request: Request) -> dict[str, Any]:
     """
     接收自然语言问题,结合当前系统快照 + 富上下文,返回 AI 根因分析结果
     支持 Windows 和 Linux 双平台

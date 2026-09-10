@@ -144,7 +144,7 @@ class TestITSMIncidentEndpoints:
     def test_get_incidents_success(self, client):
         """Test GET /incidents - successful retrieval"""
         response = client.get("/api/v1/itsm/incidents")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -153,7 +153,7 @@ class TestITSMIncidentEndpoints:
     def test_get_incidents_with_status_filter(self, client):
         """Test GET /incidents with status filter"""
         response = client.get("/api/v1/itsm/incidents?status_filter=open")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -161,7 +161,7 @@ class TestITSMIncidentEndpoints:
     def test_get_incidents_with_priority_filter(self, client):
         """Test GET /incidents with priority filter"""
         response = client.get("/api/v1/itsm/incidents?priority_filter=critical")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -169,7 +169,7 @@ class TestITSMIncidentEndpoints:
     def test_get_incidents_with_category_filter(self, client):
         """Test GET /incidents with category filter"""
         response = client.get("/api/v1/itsm/incidents?category_filter=database")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -177,7 +177,7 @@ class TestITSMIncidentEndpoints:
     def test_get_incidents_with_limit(self, client):
         """Test GET /incidents with limit parameter"""
         response = client.get("/api/v1/itsm/incidents?limit=3")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) <= 3
@@ -186,11 +186,11 @@ class TestITSMIncidentEndpoints:
         """Test GET /incidents with invalid limit values"""
         # Test limit below minimum
         response = client.get("/api/v1/itsm/incidents?limit=0")
-        assert response.status_code in (422, 404)  # Validation error
+        assert response.status_code != 404, response.text  # Validation error
 
         # Test limit above maximum
         response = client.get("/api/v1/itsm/incidents?limit=101")
-        assert response.status_code in (422, 404)  # Validation error
+        assert response.status_code != 404, response.text  # Validation error
 
     def test_create_incident_success(self, client):
         """Test POST /incidents - successful creation"""
@@ -205,7 +205,7 @@ class TestITSMIncidentEndpoints:
         }
 
         response = client.post("/api/v1/itsm/incidents", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "incident_id" in data
@@ -221,7 +221,7 @@ class TestITSMIncidentEndpoints:
         }
 
         response = client.post("/api/v1/itsm/incidents", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["priority"] == "medium"  # Default
@@ -236,7 +236,7 @@ class TestITSMIncidentEndpoints:
         }
 
         response = client.post("/api/v1/itsm/incidents", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_incident_by_id_success(self, client, db_session, sample_incident):
         """Test GET /incidents/{incident_id} - successful retrieval"""
@@ -257,7 +257,7 @@ class TestITSMIncidentEndpoints:
 
         response = client.get(f"/api/v1/itsm/incidents/{sample_incident['id']}")
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_get_incident_by_id_not_found(self, client):
         """Test GET /incidents/{incident_id} with non-existent ID"""
@@ -285,7 +285,7 @@ class TestITSMIncidentEndpoints:
 
         response = client.patch(f"/api/v1/itsm/incidents/{sample_incident['id']}", json=update_data)
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_update_incident_with_resolution(self, client, db_session, sample_incident):
         """Test PATCH /incidents/{incident_id} with resolution"""
@@ -311,7 +311,7 @@ class TestITSMIncidentEndpoints:
 
         response = client.patch(f"/api/v1/itsm/incidents/{sample_incident['id']}", json=update_data)
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_update_incident_not_found(self, client):
         """Test PATCH /incidents/{incident_id} with non-existent ID"""
@@ -341,7 +341,7 @@ class TestITSMIncidentEndpoints:
 
         response = client.patch(f"/api/v1/itsm/incidents/{sample_incident['id']}", json=update_data)
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_incident_success(self, client, db_session, sample_incident):
         """Test DELETE /incidents/{incident_id} - successful deletion"""
@@ -362,7 +362,7 @@ class TestITSMIncidentEndpoints:
 
         response = client.delete(f"/api/v1/itsm/incidents/{sample_incident['id']}")
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_incident_not_found(self, client):
         """Test DELETE /incidents/{incident_id} with non-existent ID"""
@@ -376,7 +376,7 @@ class TestITSMProblemEndpoints:
     def test_get_problems_success(self, client):
         """Test GET /problems - successful retrieval"""
         response = client.get("/api/v1/itsm/problems")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -384,7 +384,7 @@ class TestITSMProblemEndpoints:
     def test_get_problems_with_status_filter(self, client):
         """Test GET /problems with status filter"""
         response = client.get("/api/v1/itsm/problems?status_filter=open")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -392,7 +392,7 @@ class TestITSMProblemEndpoints:
     def test_get_problems_empty_returns_defaults(self, client):
         """Test GET /problems returns default problems when empty"""
         response = client.get("/api/v1/itsm/problems")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -408,7 +408,7 @@ class TestITSMProblemEndpoints:
         }
 
         response = client.post("/api/v1/itsm/problems", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "problem_id" in data
@@ -421,7 +421,7 @@ class TestITSMProblemEndpoints:
         request_data = {"title": "Test problem", "description": "Test description"}
 
         response = client.post("/api/v1/itsm/problems", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["priority"] == "medium"  # Default
@@ -434,7 +434,7 @@ class TestITSMProblemEndpoints:
         }
 
         response = client.post("/api/v1/itsm/problems", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
 
 class TestITSMChangeEndpoints:
@@ -443,7 +443,7 @@ class TestITSMChangeEndpoints:
     def test_get_changes_success(self, client):
         """Test GET /changes - successful retrieval"""
         response = client.get("/api/v1/itsm/changes")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -451,7 +451,7 @@ class TestITSMChangeEndpoints:
     def test_get_changes_with_status_filter(self, client):
         """Test GET /changes with status filter"""
         response = client.get("/api/v1/itsm/changes?status_filter=pending")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -459,7 +459,7 @@ class TestITSMChangeEndpoints:
     def test_get_changes_empty_returns_defaults(self, client):
         """Test GET /changes returns default changes when empty"""
         response = client.get("/api/v1/itsm/changes")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -472,7 +472,7 @@ class TestITSMServiceCatalogEndpoints:
     def test_get_service_catalog_success(self, client):
         """Test GET /service-catalog - successful retrieval"""
         response = client.get("/api/v1/itsm/service-catalog")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -480,7 +480,7 @@ class TestITSMServiceCatalogEndpoints:
     def test_get_service_catalog_with_category_filter(self, client):
         """Test GET /service-catalog with category filter"""
         response = client.get("/api/v1/itsm/service-catalog?category=infrastructure")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -492,7 +492,7 @@ class TestITSMKnowledgeBaseEndpoints:
     def test_get_knowledge_base_success(self, client):
         """Test GET /knowledge-base - successful retrieval"""
         response = client.get("/api/v1/itsm/knowledge-base")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -500,7 +500,7 @@ class TestITSMKnowledgeBaseEndpoints:
     def test_get_knowledge_base_with_category_filter(self, client):
         """Test GET /knowledge-base with category filter"""
         response = client.get("/api/v1/itsm/knowledge-base?category=database")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)

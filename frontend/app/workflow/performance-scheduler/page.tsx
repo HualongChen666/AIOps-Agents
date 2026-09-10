@@ -67,9 +67,9 @@ export default function PerformanceSchedulerPage() {
     name: '',
     description: '',
     metric: 'cpuUsage',
-    operator: 'gt' as const,
+    operator: 'gt',
     threshold: 80,
-    action: 'scale_up' as const,
+    action: 'scale_up',
     cooldown: 300,
   });
 

@@ -146,9 +146,9 @@ class AlertService:
             if alert.get("id") == alert_id:
                 alert["status"] = status
                 if status == "acknowledged":
-                    alert["acknowledged_at"] = datetime.utcnow().isoformat()
+                    alert["acknowledged_at"] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
                 elif status == "resolved":
-                    alert["resolved_at"] = datetime.utcnow().isoformat()
+                    alert["resolved_at"] = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
                 found = True
                 break
 

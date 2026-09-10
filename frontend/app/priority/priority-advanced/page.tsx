@@ -25,6 +25,12 @@ interface PriorityRule {
   meta_data: Record<string, any> | null
 }
 
+/**
+ * 编辑态：conditions/config 在表单中以 JSON 文本编辑，提交前再 JSON.parse。
+ * 与 API DTO（conditions 为对象）区分开，避免把字符串写进对象字段。
+ */
+type PriorityRuleEdit = Omit<PriorityRule, 'conditions'> & { conditions: string }
+
 interface PriorityScore {
   id: number
   alert_id: string
@@ -55,7 +61,7 @@ export default function PriorityAdvancedPage() {
   const [enabledFilter, setEnabledFilter] = useState<boolean | null>(null)
   const [priorityLevelFilter, setPriorityLevelFilter] = useState<string>('')
   const [isCreating, setIsCreating] = useState(false)
-  const [editingRule, setEditingRule] = useState<PriorityRule | null>(null)
+  const [editingRule, setEditingRule] = useState<PriorityRuleEdit | null>(null)
   const [newRule, setNewRule] = useState({
     name: '',
     description: '',
@@ -177,7 +183,7 @@ export default function PriorityAdvancedPage() {
   const handleUpdateRule = () => {
     if (!editingRule) return
     try {
-      const conditions = JSON.parse(editingRule.conditions as any)
+      const conditions = JSON.parse(editingRule.conditions)
       updateRuleMutation.mutate({
         ruleId: editingRule.id,
         data: {
@@ -402,7 +408,7 @@ export default function PriorityAdvancedPage() {
                             onChange={(e) => setEditingRule({ ...editingRule, description: e.target.value })}
                           />
                           <textarea
-                            value={editingRule.conditions as any}
+                            value={editingRule.conditions}
                             onChange={(e) => setEditingRule({ ...editingRule, conditions: e.target.value })}
                             className="w-full px-3 py-2 border rounded-md"
                             rows={3}
@@ -447,7 +453,7 @@ export default function PriorityAdvancedPage() {
                               </span>
                             </div>
                             <div className="flex gap-2">
-                              <Button onClick={() => setEditingRule(rule)} variant="ghost" size="sm">
+                              <Button onClick={() => setEditingRule({ ...rule, conditions: JSON.stringify(rule.conditions ?? {}, null, 2) })} variant="ghost" size="sm">
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button

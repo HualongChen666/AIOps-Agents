@@ -5,22 +5,22 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from services.config_service.audit_logger import ConfigAuditLogger
-from services.config_service.config_manager import ConfigManager
-from services.config_service.encryption import ConfigEncryption
-from services.config_service.hot_update import HotUpdateManager
-from services.config_service.namespace import NamespaceManager
-from services.config_service.repository import ConfigRepository
-from services.config_service.rollback import RollbackManager
-from services.config_service.saga import ConfigSagaOrchestrator
-from services.config_service.schemas import (
+from .audit_logger import ConfigAuditLogger
+from .config_manager import ConfigManager
+from .encryption import ConfigEncryption
+from .hot_update import HotUpdateManager
+from .namespace import NamespaceManager
+from .repository import ConfigRepository
+from .rollback import RollbackManager
+from .saga import ConfigSagaOrchestrator
+from .schemas import (
     ConfigSnapshot,
     ConfigUpdateEvent,
     ConfigValue,
     ConfigVersion,
     SagaTransaction,
 )
-from services.config_service.version_control import ConfigVersionControl
+from .version_control import ConfigVersionControl
 
 
 class ConfigOrchestrator:

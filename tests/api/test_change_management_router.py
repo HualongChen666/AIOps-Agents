@@ -22,8 +22,8 @@ from api.change_management_router import (
     AssignApproverRequest,
     BulkCreateRequest,
     BulkDeleteRequest,
-    ChangeRequestCreate,
-    ChangeRequestUpdate,
+    ChangeManagementChangeRequestCreate,
+    ChangeManagementChangeRequestUpdate,
     ImportRequest,
     ScheduleRequestModel,
     router,
@@ -157,7 +157,7 @@ async def test_get_change_requests(cleanup_change_requests, mock_request):
 @pytest.mark.asyncio
 async def test_post_change_request(cleanup_change_requests, mock_request, sample_change_request_data):
     """Test creating a new change request."""
-    payload = ChangeRequestCreate(**sample_change_request_data)
+    payload = ChangeManagementChangeRequestCreate(**sample_change_request_data)
 
     result = await router.routes[1].endpoint(mock_request, payload)
 
@@ -332,7 +332,7 @@ async def test_put_change_request(cleanup_change_requests, mock_request, sample_
         tenant_id="test-tenant",
     )
 
-    payload = ChangeRequestUpdate(title="Updated Title", description="Updated description")
+    payload = ChangeManagementChangeRequestUpdate(title="Updated Title", description="Updated description")
     result = await router.routes[8].endpoint(mock_request, created.id, payload)
 
     assert result.title == "Updated Title"
@@ -586,8 +586,8 @@ async def test_post_bulk_change_requests(cleanup_change_requests, mock_request, 
     """Test bulk creating change requests."""
     payload = BulkCreateRequest(
         requests=[
-            ChangeRequestCreate(**{**sample_change_request_data, "title": "Bulk 1"}),
-            ChangeRequestCreate(**{**sample_change_request_data, "title": "Bulk 2"}),
+            ChangeManagementChangeRequestCreate(**{**sample_change_request_data, "title": "Bulk 1"}),
+            ChangeManagementChangeRequestCreate(**{**sample_change_request_data, "title": "Bulk 2"}),
         ]
     )
 
@@ -827,7 +827,7 @@ async def test_batch_update_change_requests(cleanup_change_requests, mock_reques
     from api.change_management_router import BatchUpdateRequest
     payload = BatchUpdateRequest(
         request_ids=[r1.id, r2.id],
-        updates=ChangeRequestUpdate(title="Batch Updated"),
+        updates=ChangeManagementChangeRequestUpdate(title="Batch Updated"),
     )
 
     result = await router.routes[29].endpoint(mock_request, payload)
@@ -1070,7 +1070,7 @@ async def test_full_change_request_lifecycle(cleanup_change_requests, mock_reque
     from core.change_management_engine import create_request
 
     # Step 1: Create
-    payload = ChangeRequestCreate(**sample_change_request_data)
+    payload = ChangeManagementChangeRequestCreate(**sample_change_request_data)
     created = await router.routes[1].endpoint(mock_request, payload)
     assert created.status == ChangeStatus.DRAFT
 
@@ -1107,7 +1107,7 @@ async def test_batch_operations_performance(cleanup_change_requests, mock_reques
 
     # Create 50 requests
     requests_data = [
-        ChangeRequestCreate(**{**sample_change_request_data, "title": f"Change {i}"})
+        ChangeManagementChangeRequestCreate(**{**sample_change_request_data, "title": f"Change {i}"})
         for i in range(50)
     ]
     payload = BulkCreateRequest(requests=requests_data)
@@ -1124,7 +1124,7 @@ async def test_batch_operations_performance(cleanup_change_requests, mock_reques
     request_ids = [r.id for r in result]
     update_payload = BatchUpdateRequest(
         request_ids=request_ids,
-        updates=ChangeRequestUpdate(risk_level=RiskLevel.MEDIUM),
+        updates=ChangeManagementChangeRequestUpdate(risk_level=RiskLevel.MEDIUM),
     )
 
     start_time = time.time()

@@ -28,7 +28,7 @@ _VALID_VIEW_ID_PATTERN = re.compile("^[a-zA-Z0-9._\\-]+$")
 # Pydantic Models for Request/Response Validation
 
 
-class TopologyViewCreateRequest(BaseModel):
+class TopologyViewTopologyViewCreateRequest(BaseModel):
     """创建拓扑视图的请求模型"""
 
     name: str = Field(
@@ -94,7 +94,7 @@ class TopologyViewCreateRequest(BaseModel):
     }
 
 
-class TopologyViewUpdateRequest(BaseModel):
+class TopologyViewTopologyViewUpdateRequest(BaseModel):
     """更新拓扑视图的请求模型"""
 
     name: Optional[str] = Field(
@@ -291,7 +291,7 @@ async def get_topology_view_by_id(view_id: str) -> dict[str, Any]:
         (500): {"description": "创建失败"},
     },
 )
-async def create_topology_view_endpoint(payload: TopologyViewCreateRequest) -> dict[str, Any]:
+async def create_topology_view_endpoint(payload: TopologyViewTopologyViewCreateRequest) -> dict[str, Any]:
     """
     创建新的拓扑视图
 
@@ -331,7 +331,7 @@ async def create_topology_view_endpoint(payload: TopologyViewCreateRequest) -> d
     },
 )
 async def update_topology_view_endpoint(
-    view_id: str, payload: TopologyViewUpdateRequest
+    view_id: str, payload: TopologyViewTopologyViewUpdateRequest
 ) -> dict[str, Any]:
     """
     更新现有的拓扑视图

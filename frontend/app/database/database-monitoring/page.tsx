@@ -143,7 +143,7 @@ export default function DatabaseMonitoringPage() {
       const res = await api.get('/api/v1/database/performance');
       const data = res.data;
 
-      const checks = [
+      const checks: HealthCheckResult['checks'] = [
         {
           name: 'CPU Usage',
           status: data.cpu_usage > 80 ? 'fail' : data.cpu_usage > 60 ? 'warning' : 'pass',
@@ -294,7 +294,7 @@ export default function DatabaseMonitoringPage() {
           <CardContent>
             <div className="text-2xl font-bold">{performance?.cpu_usage.toFixed(1)}%</div>
             <div className="text-xs text-gray-500 mt-1">
-              {performance?.cpu_usage > 80 ? '⚠️ 高负载' : '✓ 正常'}
+              { (performance?.cpu_usage ?? 0) > 80 ? '⚠️ 高负载' : '✓ 正常'}
             </div>
           </CardContent>
         </Card>
@@ -305,7 +305,7 @@ export default function DatabaseMonitoringPage() {
           <CardContent>
             <div className="text-2xl font-bold">{performance?.memory_usage.toFixed(1)}%</div>
             <div className="text-xs text-gray-500 mt-1">
-              {performance?.memory_usage > 85 ? '⚠️ 高负载' : '✓ 正常'}
+              { (performance?.memory_usage ?? 0) > 85 ? '⚠️ 高负载' : '✓ 正常'}
             </div>
           </CardContent>
         </Card>
@@ -316,7 +316,7 @@ export default function DatabaseMonitoringPage() {
           <CardContent>
             <div className="text-2xl font-bold">{performance?.query_latency.toFixed(1)}ms</div>
             <div className="text-xs text-gray-500 mt-1">
-              {performance?.query_latency > 50 ? '⚠️ 延迟高' : '✓ 正常'}
+              { (performance?.query_latency ?? 0) > 50 ? '⚠️ 延迟高' : '✓ 正常'}
             </div>
           </CardContent>
         </Card>

@@ -59,7 +59,7 @@ describe('Select Component', () => {
 
     it('should render select with fullWidth', () => {
       render(<Select fullWidth />);
-      const container = screen.getByRole('combobox').parentElement?.parentElement;
+      const container = screen.getByRole('combobox').parentElement;
       expect(container).toHaveClass('w-full');
     });
 
@@ -272,19 +272,19 @@ describe('Select Component', () => {
   describe('Full Width', () => {
     it('should apply w-full class when fullWidth is true', () => {
       render(<Select fullWidth />);
-      const container = screen.getByRole('combobox').parentElement?.parentElement;
+      const container = screen.getByRole('combobox').parentElement;
       expect(container).toHaveClass('w-full');
     });
 
     it('should not apply w-full class when fullWidth is false', () => {
       render(<Select fullWidth={false} />);
-      const container = screen.getByRole('combobox').parentElement?.parentElement;
+      const container = screen.getByRole('combobox').parentElement;
       expect(container).not.toHaveClass('w-full');
     });
 
     it('should not apply w-full class by default', () => {
       render(<Select />);
-      const container = screen.getByRole('combobox').parentElement?.parentElement;
+      const container = screen.getByRole('combobox').parentElement;
       expect(container).not.toHaveClass('w-full');
     });
   });

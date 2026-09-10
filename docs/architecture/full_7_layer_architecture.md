@@ -1,7 +1,15 @@
-# AIOps Agent — 完整目标 7 层架构图
+# AIOps Agent — 目标态 7 层架构图（Roadmap）
 
-> **目标状态**：功能 100% 实现、227 项任务全部完成、测试通过率 100%（`pytest` 收集 3000+ 用例，覆盖率 ≥ 80%）、所有质量门禁（black/isort/mypy/flake8/bandit/safety）通过。
-> **架构模式**：7 层分布式微服务架构 + 横向切面中间件 + 服务网格。
+> **文档性质：目标态（target state），非当前实现描述。** 本文件描述演进路线中期望达到的
+> 部署拓扑，其中包含尚未落地的组件（如 Kong/APISIX 网关集群、Kafka/Flink 集群等）。
+>
+> **当前已实现的 7 层定义以 `README.md` 的「7-Layer Platform Architecture」为唯一权威来源**
+> ——L1 实时流处理 / L2 分析 / L3 处理 / L4 存储 / L5 知识 / L6 执行 / L7 集成，配套
+> 六个真实存在的层间集成器（`core/l1l2_data_flow_integrator.py` … `core/l6l7_frontend_integrator.py`）。
+>
+> 本文件不再声明具体的任务完成数、用例数或覆盖率——这些数字随代码变动而失效，
+> 一律以 CI 产物为准。
+> **架构模式**：目标为 7 层分布式微服务架构 + 横向切面中间件 + 服务网格。
 
 ---
 
@@ -267,7 +275,7 @@ graph TB
 | 向量检索 | `core/qdrant_service.py`, `core/vector_pipeline.py`, `core/ai/rag/vectorizer.py`, `core/ai/rag/retriever.py` | 向量存储、ANN、混合检索 | Qdrant |
 | 数据同步 | `core/dual_write.py`, `core/data_integration_manager.py`, `core/data_lifecycle_manager.py`, `core/flink_stream_processor.py`, `core/kafka_stream_processor.py` | CDC、数据同步、流处理 | Kafka, Debezium, Flink |
 | 事务管理 | `core/data_consistency.py`, `modules/execute/saga/`, `core/disaster_recovery_drill.py` | 分布式事务、Saga、TCC、补偿 | Saga Pattern |
-| 采集 | `core/collector.py`, `core/log_collector.py`, `core/monitoring_infrastructure.py`, `core/collection/l1/otel_collector.py`, `modules/observability/auto_discovery.py` | 指标/日志/链路采集、自动发现 | OpenTelemetry, Agent |
+| 采集 | `core/collector.py`, `core/log_collector.py`, `core/monitoring_infrastructure.py`, `modules/observability/auto_discovery.py` | 指标/日志/链路采集、自动发现 | OpenTelemetry, Agent |
 
 ---
 

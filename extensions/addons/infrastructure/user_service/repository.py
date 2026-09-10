@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from services.user_service.schemas import (
+from .schemas import (
     AuditLogEntry,
     Organization,
     Role,

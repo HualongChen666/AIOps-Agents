@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``rate_limit_middleware`` module.
+
+Top-level classes: RateLimiter
+
+Top-level functions: rate_limit_middleware, rate_limit_dependency"""
+
 # core/middleware/rate_limit_middleware.py
 # 速率限制中间件 - 防止API滥用
 

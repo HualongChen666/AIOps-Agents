@@ -51,6 +51,7 @@ export const HealTimeline = ({ events }: HealTimelineProps) => {
               
               {/* 事件卡片 */}
               <div
+                data-testid="heal-event-card"
                 className={`p-4 rounded-lg border cursor-pointer transition hover:shadow-md ${
                   selectedEvent?.id === event.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'
                 }`}

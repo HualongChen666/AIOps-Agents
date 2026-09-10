@@ -45,7 +45,7 @@ export default function PrometheusAlertsPage() {
   const [showConfig, setShowConfig] = useState(false);
 
   const debouncedSearch = useDebounce(filters.search, 300);
-  const { isLoading, error, refetch } = useLoadingState();
+  const { isLoading, error } = useLoadingState();
   const toast = useToast();
   const showSuccess = toast.success;
   const showError = toast.error;

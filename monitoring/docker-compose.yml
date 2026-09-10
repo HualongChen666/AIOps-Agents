@@ -9,6 +9,10 @@ services:
     container_name: aiops-prometheus
     ports:
       - "9090:9090"
+    # Make host.docker.internal resolvable on Linux (the AIOps API and the
+    # standalone services run on the host, outside this compose network).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./prometheus/alerts:/etc/prometheus/alerts:ro

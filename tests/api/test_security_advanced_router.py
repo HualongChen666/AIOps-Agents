@@ -95,7 +95,7 @@ class TestKeyManagement:
     def test_get_keys_success(self, client):
         """测试获取密钥列表 - 成功"""
         response = client.get("/api/v1/security/key-management/keys")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "keys" in data
@@ -105,7 +105,7 @@ class TestKeyManagement:
     def test_get_keys_with_status_filter(self, client):
         """测试获取密钥列表 - 带状态过滤"""
         response = client.get("/api/v1/security/key-management/keys?status=active")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "keys" in data
@@ -120,7 +120,7 @@ class TestKeyManagement:
             "usage": ["encryption"],
         }
         response = client.post("/api/v1/security/key-management/keys", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Test Key"
@@ -131,7 +131,7 @@ class TestKeyManagement:
         """测试创建密钥 - 验证错误"""
         payload = {"name": "", "type": "api_key"}  # 空名称应该失败
         response = client.post("/api/v1/security/key-management/keys", json=payload)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_key_invalid_key_size(self, client):
         """测试创建密钥 - 无效的密钥大小"""
@@ -151,7 +151,7 @@ class TestKeyManagement:
         response = client.patch(
             f"/api/v1/security/key-management/keys/{key_id}", json=update_payload
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "inactive"
@@ -177,7 +177,7 @@ class TestMFA:
     def test_get_mfa_methods_success(self, client):
         """测试获取MFA方法 - 成功"""
         response = client.get("/api/v1/security/mfa/methods")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "methods" in data
@@ -192,7 +192,7 @@ class TestMFA:
             "priority": 1,
         }
         response = client.post("/api/v1/security/mfa/methods", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Google Authenticator"
@@ -212,7 +212,7 @@ class TestMFA:
 
         update_payload = {"enabled": False, "required": True}
         response = client.patch(f"/api/v1/security/mfa/methods/{method_id}", json=update_payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["enabled"] == False
@@ -236,7 +236,7 @@ class TestABAC:
     def test_get_abac_policies_success(self, client):
         """测试获取ABAC策略 - 成功"""
         response = client.get("/api/v1/security/abac/policies")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "policies" in data
@@ -251,7 +251,7 @@ class TestABAC:
             "actions": ["read", "write"],
         }
         response = client.post("/api/v1/security/abac/policies", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Admin Access Policy"
@@ -265,7 +265,7 @@ class TestABAC:
 
         update_payload = {"enabled": False}
         response = client.patch(f"/api/v1/security/abac/policies/{policy_id}", json=update_payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["enabled"] == False
@@ -277,7 +277,7 @@ class TestABAC:
         policy_id = create_response.json()["id"]
 
         response = client.delete(f"/api/v1/security/abac/policies/{policy_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -300,7 +300,7 @@ class TestRBAC:
     def test_get_rbac_roles_success(self, client):
         """测试获取RBAC角色 - 成功"""
         response = client.get("/api/v1/security/rbac/roles")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "roles" in data
@@ -310,7 +310,7 @@ class TestRBAC:
         """测试创建RBAC角色 - 成功"""
         payload = {"name": "Developer", "permissions": ["read", "write", "deploy"]}
         response = client.post("/api/v1/security/rbac/roles", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Developer"
@@ -324,7 +324,7 @@ class TestRBAC:
 
         update_payload = {"status": "inactive"}
         response = client.patch(f"/api/v1/security/rbac/roles/{role_id}", json=update_payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "inactive"
@@ -336,7 +336,7 @@ class TestRBAC:
         role_id = create_response.json()["id"]
 
         response = client.delete(f"/api/v1/security/rbac/roles/{role_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -359,7 +359,7 @@ class TestRateLimit:
     def test_get_rate_limit_rules_success(self, client):
         """测试获取速率限制规则 - 成功"""
         response = client.get("/api/v1/security/rate-limit/rules")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "rules" in data
@@ -369,7 +369,7 @@ class TestRateLimit:
         """测试创建速率限制规则 - 成功"""
         payload = {"name": "API Rate Limit", "endpoint": "/api/v1/*", "limit": 1000}
         response = client.post("/api/v1/security/rate-limit/rules", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "API Rate Limit"
@@ -389,7 +389,7 @@ class TestRateLimit:
 
         update_payload = {"enabled": False}
         response = client.patch(f"/api/v1/security/rate-limit/rules/{rule_id}", json=update_payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["enabled"] == False
@@ -401,7 +401,7 @@ class TestRateLimit:
         rule_id = create_response.json()["id"]
 
         response = client.delete(f"/api/v1/security/rate-limit/rules/{rule_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -418,7 +418,7 @@ class TestHTTPSCertificates:
     def test_get_certificates_success(self, client):
         """测试获取证书列表 - 成功"""
         response = client.get("/api/v1/security/https/certificates")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "certificates" in data
@@ -428,7 +428,7 @@ class TestHTTPSCertificates:
         """测试创建证书 - 成功"""
         payload = {"domain": "example.com", "algorithm": "RSA"}
         response = client.post("/api/v1/security/https/certificates", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["domain"] == "example.com"
@@ -443,7 +443,7 @@ class TestHTTPSCertificates:
         response = client.patch(
             f"/api/v1/security/https/certificates/{cert_id}", json=update_payload
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["autoRenew"] == True
@@ -469,7 +469,7 @@ class TestSnapshotEncryption:
     def test_get_snapshots_success(self, client):
         """测试获取快照列表 - 成功"""
         response = client.get("/api/v1/security/snapshot-encryption/snapshots")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "snapshots" in data
@@ -479,7 +479,7 @@ class TestSnapshotEncryption:
         """测试创建快照 - 成功"""
         payload = {"name": "Backup Snapshot", "source": "/data/backup"}
         response = client.post("/api/v1/security/snapshot-encryption/snapshots", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Backup Snapshot"
@@ -496,7 +496,7 @@ class TestSnapshotEncryption:
         response = client.patch(
             f"/api/v1/security/snapshot-encryption/snapshots/{snap_id}", json=update_payload
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "archived"
@@ -513,7 +513,7 @@ class TestDataEncryption:
     def test_get_data_keys_success(self, client):
         """测试获取数据加密密钥 - 成功"""
         response = client.get("/api/v1/security/data-encryption/keys")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "keys" in data
@@ -523,7 +523,7 @@ class TestDataEncryption:
         """测试创建数据加密密钥 - 成功"""
         payload = {"name": "Database Encryption Key"}
         response = client.post("/api/v1/security/data-encryption/keys", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Database Encryption Key"
@@ -538,7 +538,7 @@ class TestDataEncryption:
         response = client.patch(
             f"/api/v1/security/data-encryption/keys/{key_id}", json=update_payload
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "disabled"
@@ -555,7 +555,7 @@ class TestDataPrivacy:
     def test_get_privacy_subjects_success(self, client):
         """测试获取隐私主体 - 成功"""
         response = client.get("/api/v1/security/data-privacy/subjects")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "subjects" in data
@@ -565,7 +565,7 @@ class TestDataPrivacy:
         """测试创建隐私主体 - 成功"""
         payload = {"name": "John Doe", "type": "user"}
         response = client.post("/api/v1/security/data-privacy/subjects", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "John Doe"
@@ -580,7 +580,7 @@ class TestDataPrivacy:
         response = client.patch(
             f"/api/v1/security/data-privacy/subjects/{subject_id}", json=update_payload
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["consentLevel"] == "full"
@@ -597,7 +597,7 @@ class TestComplianceManagement:
     def test_get_compliance_policies_success(self, client):
         """测试获取合规策略 - 成功"""
         response = client.get("/api/v1/security/compliance-management/policies")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "policies" in data
@@ -607,7 +607,7 @@ class TestComplianceManagement:
         """测试创建合规策略 - 成功"""
         payload = {"name": "GDPR Compliance Policy", "framework": "GDPR"}
         response = client.post("/api/v1/security/compliance-management/policies", json=payload)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "GDPR Compliance Policy"
@@ -625,7 +625,7 @@ class TestComplianceManagement:
         response = client.patch(
             f"/api/v1/security/compliance-management/policies/{policy_id}", json=update_payload
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "inactive"

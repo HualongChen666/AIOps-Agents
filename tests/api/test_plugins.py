@@ -61,7 +61,7 @@ def test_plugin_endpoint(client, approval_headers, method, path, body, params, e
 #     """Test successful retrieval of plugin system status."""
 #     resp = client.get("/api/plugin-system/status", headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
 #     assert "data" in data
@@ -89,7 +89,7 @@ if resp.status_code != 404:
 #     }
 #     resp = client.post("/api/plugin-system/interface/define", json=body, headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
     #     assert data["data"]["interface_id"] == "test-interface"
@@ -115,7 +115,7 @@ if resp.status_code != 404:
 #     """Test successful interface spec retrieval."""
 #     resp = client.get("/api/plugin-system/interface/spec/monitoring", headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
 #     assert "data" in data
@@ -146,7 +146,7 @@ if resp.status_code != 404:
 #     }
 #     resp = client.post("/api/plugin-system/plugin/register", json=body, headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
     #     assert data["data"]["plugin_id"] == "test-plugin"
@@ -165,7 +165,7 @@ if resp.status_code != 404:
 #     }
 #     resp = client.post("/api/plugin-system/plugin/register", json=body, headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
 
@@ -197,7 +197,7 @@ if resp.status_code != 404:
 #     """Test successful plugin enable."""
 #     resp = client.post("/api/plugin-system/plugin/test-plugin/enable", headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
     #     assert "enabled" in data["data"]
@@ -219,7 +219,7 @@ if resp.status_code != 404:
 #     """Test successful plugin disable."""
 #     resp = client.post("/api/plugin-system/plugin/test-plugin/disable", headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
     #     assert "disabled" in data["data"]
@@ -241,7 +241,7 @@ if resp.status_code != 404:
 #     """Test successful plugin listing."""
 #     resp = client.get("/api/plugin-system/plugins", headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
     #     assert "plugins" in data["data"]
@@ -256,7 +256,7 @@ if resp.status_code != 404:
 #         headers=approval_headers
 #     )
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
 #
@@ -289,7 +289,7 @@ if resp.status_code != 404:
 #     # Then get its info
 #     resp = client.get("/api/plugin-system/plugin/info-test-plugin", headers=approval_headers)
 #     assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #     data = resp.json()
     #     assert data["status"] == "success"
     #     assert data["data"]["plugin_id"] == "info-test-plugin"
@@ -321,7 +321,7 @@ if resp.status_code != 404:
 #         mock_list.return_value = ["cpu_monitor", "disk_cleaner", "network_monitor"]
 #         resp = client.get("/api/plugins")
 #         assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #         data = resp.json()
 #         assert isinstance(data, list)
 #         assert "cpu_monitor" in data
@@ -335,7 +335,7 @@ if resp.status_code != 404:
 #         mock_list.return_value = []
 #         resp = client.get("/api/plugins")
 #         assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #         data = resp.json()
 #         assert isinstance(data, list)
 #         assert len(data) == 0
@@ -354,7 +354,7 @@ if resp.status_code != 404:
 #
 #         resp = client.post("/api/plugins/cpu_monitor/run")
 #         assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #         data = resp.json()
     #         assert data["plugin"] == "cpu_monitor"
     #         assert data["result"]["cpu_usage"] == 45.2
@@ -400,7 +400,7 @@ if resp.status_code != 404:
 #
 #         resp = client.post("/api/plugins/bad_plugin/run")
 #         assert resp.status_code in (500, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #         data = resp.json()
     #         assert "collect" in data["error"]["message"].lower()
 #
@@ -418,7 +418,7 @@ if resp.status_code != 404:
 #
 #         resp = client.post("/api/plugins/failing_plugin/run")
 #         assert resp.status_code in (500, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #         data = resp.json()
     #         assert "Collection failed" in data["error"]["message"]
 #
@@ -436,7 +436,7 @@ if resp.status_code != 404:
 #
 #         resp = client.post("/api/plugins/null_plugin/run")
 #         assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #         data = resp.json()
     #         assert data["plugin"] == "null_plugin"
     #         assert data["result"] is None
@@ -462,7 +462,7 @@ if resp.status_code != 404:
 #
 #         resp = client.post("/api/plugins/complex_plugin/run")
 #         assert resp.status_code in (200, 404)
-if resp.status_code != 404:
+# if resp.status_code != 404:
     #         data = resp.json()
     #         assert data["plugin"] == "complex_plugin"
     #         assert "metrics" in data["result"]

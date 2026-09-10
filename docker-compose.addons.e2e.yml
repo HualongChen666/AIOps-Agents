@@ -56,9 +56,11 @@ services:
     networks:
     - aiops-network
   rag-service:
-    build: extensions/addons/ai-plus/rag_service
+    build:
+      context: .
+      dockerfile: extensions/addons/ai_plus/rag_service/Dockerfile
     ports:
-    - 8001:8000
+    - 8001:9406
     environment:
     - PYTHONPATH=/app
     - RAG_ENABLED=true
@@ -68,9 +70,11 @@ services:
     - ai-plus
     - all-addons
   llm-router-service:
-    build: extensions/addons/ai-plus/llm_router_service
+    build:
+      context: .
+      dockerfile: extensions/addons/ai_plus/llm_router_service/Dockerfile
     ports:
-    - 8002:8000
+    - 8002:9405
     environment:
     - PYTHONPATH=/app
     - LLM_ROUTER_ENABLED=true
@@ -80,9 +84,11 @@ services:
     - ai-plus
     - all-addons
   knowledge-graph-service:
-    build: extensions/addons/ai-plus/knowledge_graph_service
+    build:
+      context: .
+      dockerfile: extensions/addons/ai_plus/knowledge_graph_service/Dockerfile
     ports:
-    - 8003:8000
+    - 8003:9409
     environment:
     - PYTHONPATH=/app
     - LLM_ROUTER_ENABLED=true
@@ -92,9 +98,11 @@ services:
     - ai-plus
     - all-addons
   topology-service:
-    build: extensions/addons/observability/topology_service
+    build:
+      context: .
+      dockerfile: extensions/addons/observability/topology_service/Dockerfile
     ports:
-    - 8011:8000
+    - 8011:9101
     environment:
     - PYTHONPATH=/app
     - TOPOLOGY_ENABLED=true
@@ -104,9 +112,11 @@ services:
     - observability
     - all-addons
   metrics-monitoring-service:
-    build: extensions/addons/observability/metrics_monitoring_service
+    build:
+      context: .
+      dockerfile: extensions/addons/observability/metrics_monitoring_service/Dockerfile
     ports:
-    - 8012:8000
+    - 8012:9568
     environment:
     - PYTHONPATH=/app
     - TOPOLOGY_ENABLED=true
@@ -116,9 +126,11 @@ services:
     - observability
     - all-addons
   distributed-tracing-service:
-    build: extensions/addons/observability/distributed_tracing_service
+    build:
+      context: .
+      dockerfile: extensions/addons/observability/distributed_tracing_service/Dockerfile
     ports:
-    - 8013:8000
+    - 8013:9569
     environment:
     - PYTHONPATH=/app
     - TRACING_ENABLED=true
@@ -128,9 +140,11 @@ services:
     - observability
     - all-addons
   tracing-service:
-    build: extensions/addons/observability/tracing_service
+    build:
+      context: .
+      dockerfile: extensions/addons/observability/tracing_service/Dockerfile
     ports:
-    - 8014:8000
+    - 8014:9521
     environment:
     - PYTHONPATH=/app
     - TRACING_ENABLED=true
@@ -140,9 +154,11 @@ services:
     - observability
     - all-addons
   log-aggregation-service:
-    build: extensions/addons/observability/log_aggregation_service
+    build:
+      context: .
+      dockerfile: extensions/addons/observability/log_aggregation_service/Dockerfile
     ports:
-    - 8015:8000
+    - 8015:9567
     environment:
     - PYTHONPATH=/app
     - LOG_AGGREGATION_ENABLED=true
@@ -152,9 +168,11 @@ services:
     - observability
     - all-addons
   incident-response-service:
-    build: extensions/addons/operations/incident_response_service
+    build:
+      context: .
+      dockerfile: extensions/addons/operations/incident_response_service/Dockerfile
     ports:
-    - 8021:8000
+    - 8021:9553
     environment:
     - PYTHONPATH=/app
     - INCIDENT_RESPONSE_ENABLED=true
@@ -164,9 +182,11 @@ services:
     - operations
     - all-addons
   incident-runbook-service:
-    build: extensions/addons/operations/incident_runbook_service
+    build:
+      context: .
+      dockerfile: extensions/addons/operations/incident_runbook_service/Dockerfile
     ports:
-    - 8022:8000
+    - 8022:9547
     environment:
     - PYTHONPATH=/app
     - INCIDENT_RESPONSE_ENABLED=true
@@ -176,9 +196,11 @@ services:
     - operations
     - all-addons
   workflow-service:
-    build: extensions/addons/operations/workflow_service
+    build:
+      context: .
+      dockerfile: extensions/addons/operations/workflow_service/Dockerfile
     ports:
-    - 8023:8000
+    - 8023:9201
     environment:
     - PYTHONPATH=/app
     - WORKFLOW_ENABLED=true
@@ -188,9 +210,11 @@ services:
     - operations
     - all-addons
   workflow-engine-service:
-    build: extensions/addons/operations/workflow_engine_service
+    build:
+      context: .
+      dockerfile: extensions/addons/operations/workflow_engine_service/Dockerfile
     ports:
-    - 8024:8000
+    - 8024:9524
     environment:
     - PYTHONPATH=/app
     - WORKFLOW_ENABLED=true
@@ -200,9 +224,11 @@ services:
     - operations
     - all-addons
   capacity-planning-service:
-    build: extensions/addons/operations/capacity_planning_service
+    build:
+      context: .
+      dockerfile: extensions/addons/operations/capacity_planning_service/Dockerfile
     ports:
-    - 8025:8000
+    - 8025:9548
     environment:
     - PYTHONPATH=/app
     - WORKFLOW_ENABLED=true
@@ -212,9 +238,11 @@ services:
     - operations
     - all-addons
   scenario-memory-service:
-    build: extensions/addons/operations/scenario_memory_service
+    build:
+      context: .
+      dockerfile: extensions/addons/operations/scenario_memory_service/Dockerfile
     ports:
-    - 8026:8000
+    - 8026:9408
     environment:
     - PYTHONPATH=/app
     - INCIDENT_RESPONSE_ENABLED=true
@@ -224,9 +252,11 @@ services:
     - operations
     - all-addons
   datadog-integration-service:
-    build: extensions/addons/integrations/datadog_integration_service
+    build:
+      context: .
+      dockerfile: extensions/addons/integrations/datadog_integration_service/Dockerfile
     ports:
-    - 8031:8000
+    - 8031:9533
     environment:
     - PYTHONPATH=/app
     - INTEGRATIONS_ENABLED=true
@@ -236,9 +266,11 @@ services:
     - integrations
     - all-addons
   grafana-integration-service:
-    build: extensions/addons/integrations/grafana_integration_service
+    build:
+      context: .
+      dockerfile: extensions/addons/integrations/grafana_integration_service/Dockerfile
     ports:
-    - 8032:8000
+    - 8032:9531
     environment:
     - PYTHONPATH=/app
     - INTEGRATIONS_ENABLED=true
@@ -248,9 +280,11 @@ services:
     - integrations
     - all-addons
   elk-stack-service:
-    build: extensions/addons/integrations/elk_stack_service
+    build:
+      context: .
+      dockerfile: extensions/addons/integrations/elk_stack_service/Dockerfile
     ports:
-    - 8033:8000
+    - 8033:9532
     environment:
     - PYTHONPATH=/app
     - INTEGRATIONS_ENABLED=true
@@ -260,9 +294,11 @@ services:
     - integrations
     - all-addons
   elasticsearch-audit-service:
-    build: extensions/addons/integrations/elasticsearch_audit_service
+    build:
+      context: .
+      dockerfile: extensions/addons/integrations/elasticsearch_audit_service/Dockerfile
     ports:
-    - 8034:8000
+    - 8034:9542
     environment:
     - PYTHONPATH=/app
     - INTEGRATIONS_ENABLED=true
@@ -272,9 +308,11 @@ services:
     - integrations
     - all-addons
   prometheus-integration-service:
-    build: extensions/addons/integrations/prometheus_integration_service
+    build:
+      context: .
+      dockerfile: extensions/addons/integrations/prometheus_integration_service/Dockerfile
     ports:
-    - 8035:8000
+    - 8035:9530
     environment:
     - PYTHONPATH=/app
     - INTEGRATIONS_ENABLED=true
@@ -284,9 +322,11 @@ services:
     - integrations
     - all-addons
   github-repository-service:
-    build: extensions/addons/integrations/github_repository_service
+    build:
+      context: .
+      dockerfile: extensions/addons/integrations/github_repository_service/Dockerfile
     ports:
-    - 8036:8000
+    - 8036:9554
     environment:
     - PYTHONPATH=/app
     - INTEGRATIONS_ENABLED=true
@@ -296,9 +336,11 @@ services:
     - integrations
     - all-addons
   message-queue-service:
-    build: extensions/addons/integrations/message_queue_service
+    build:
+      context: .
+      dockerfile: extensions/addons/integrations/message_queue_service/Dockerfile
     ports:
-    - 8037:8000
+    - 8037:9523
     environment:
     - PYTHONPATH=/app
     - INTEGRATIONS_ENABLED=true
@@ -308,9 +350,11 @@ services:
     - integrations
     - all-addons
   kafka-event-service:
-    build: extensions/addons/integrations/kafka_event_service
+    build:
+      context: .
+      dockerfile: extensions/addons/integrations/kafka_event_service/Dockerfile
     ports:
-    - 8038:8000
+    - 8038:9525
     environment:
     - PYTHONPATH=/app
     - INTEGRATIONS_ENABLED=true
@@ -320,9 +364,11 @@ services:
     - integrations
     - all-addons
   security-audit-service:
-    build: extensions/addons/security/security_audit_service
+    build:
+      context: .
+      dockerfile: extensions/addons/security/security_audit_service/Dockerfile
     ports:
-    - 8041:8000
+    - 8041:9551
     environment:
     - PYTHONPATH=/app
     - SECURITY_SCANNING_ENABLED=true
@@ -332,9 +378,11 @@ services:
     - security
     - all-addons
   security-scanning-service:
-    build: extensions/addons/security/security_scanning_service
+    build:
+      context: .
+      dockerfile: extensions/addons/security/security_scanning_service/Dockerfile
     ports:
-    - 8042:8000
+    - 8042:9563
     environment:
     - PYTHONPATH=/app
     - SECURITY_SCANNING_ENABLED=true
@@ -344,9 +392,11 @@ services:
     - security
     - all-addons
   penetration-testing-service:
-    build: extensions/addons/security/penetration_testing_service
+    build:
+      context: .
+      dockerfile: extensions/addons/security/penetration_testing_service/Dockerfile
     ports:
-    - 8043:8000
+    - 8043:9564
     environment:
     - PYTHONPATH=/app
     - PENETRATION_TESTING_ENABLED=true
@@ -356,9 +406,11 @@ services:
     - security
     - all-addons
   sqlalchemy-security-service:
-    build: extensions/addons/security/sqlalchemy_security_service
+    build:
+      context: .
+      dockerfile: extensions/addons/security/sqlalchemy_security_service/Dockerfile
     ports:
-    - 8044:8000
+    - 8044:9541
     environment:
     - PYTHONPATH=/app
     - SECURITY_SCANNING_ENABLED=true
@@ -368,9 +420,11 @@ services:
     - security
     - all-addons
   velero-backup-service:
-    build: extensions/addons/infrastructure/velero_backup_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/velero_backup_service/Dockerfile
     ports:
-    - 8051:8000
+    - 8051:9543
     environment:
     - PYTHONPATH=/app
     - PLUGINS_ENABLED=true
@@ -380,9 +434,11 @@ services:
     - infrastructure
     - all-addons
   pgbackrest-backup-service:
-    build: extensions/addons/infrastructure/pgbackrest_backup_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/pgbackrest_backup_service/Dockerfile
     ports:
-    - 8052:8000
+    - 8052:9544
     environment:
     - PYTHONPATH=/app
     - PLUGINS_ENABLED=true
@@ -392,9 +448,11 @@ services:
     - infrastructure
     - all-addons
   backup-recovery-drill-service:
-    build: extensions/addons/infrastructure/backup_recovery_drill_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/backup_recovery_drill_service/Dockerfile
     ports:
-    - 8053:8000
+    - 8053:9552
     environment:
     - PYTHONPATH=/app
     - PLUGINS_ENABLED=true
@@ -404,9 +462,11 @@ services:
     - infrastructure
     - all-addons
   terraform-iac-service:
-    build: extensions/addons/infrastructure/terraform_iac_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/terraform_iac_service/Dockerfile
     ports:
-    - 8054:8000
+    - 8054:9536
     environment:
     - PYTHONPATH=/app
     - PLUGINS_ENABLED=true
@@ -416,9 +476,11 @@ services:
     - infrastructure
     - all-addons
   ansible-automation-service:
-    build: extensions/addons/infrastructure/ansible_automation_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/ansible_automation_service/Dockerfile
     ports:
-    - 8055:8000
+    - 8055:9535
     environment:
     - PYTHONPATH=/app
     - PLUGINS_ENABLED=true
@@ -428,9 +490,11 @@ services:
     - infrastructure
     - all-addons
   cache-service:
-    build: extensions/addons/infrastructure/cache_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/cache_service/Dockerfile
     ports:
-    - 8056:8000
+    - 8056:9411
     environment:
     - PYTHONPATH=/app
     - SHARDING_ENABLED=true
@@ -440,9 +504,11 @@ services:
     - infrastructure
     - all-addons
   cache-optimization-service:
-    build: extensions/addons/infrastructure/cache_optimization_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/cache_optimization_service/Dockerfile
     ports:
-    - 8057:8000
+    - 8057:9561
     environment:
     - PYTHONPATH=/app
     - SHARDING_ENABLED=true
@@ -452,9 +518,11 @@ services:
     - infrastructure
     - all-addons
   postgresql-shard-service:
-    build: extensions/addons/infrastructure/postgresql_shard_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/postgresql_shard_service/Dockerfile
     ports:
-    - 8058:8000
+    - 8058:9501
     environment:
     - PYTHONPATH=/app
     - SHARDING_ENABLED=true
@@ -464,9 +532,11 @@ services:
     - infrastructure
     - all-addons
   redis-shard-service:
-    build: extensions/addons/infrastructure/redis_shard_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/redis_shard_service/Dockerfile
     ports:
-    - 8059:8000
+    - 8059:9502
     environment:
     - PYTHONPATH=/app
     - SHARDING_ENABLED=true
@@ -476,9 +546,11 @@ services:
     - infrastructure
     - all-addons
   qdrant-shard-service:
-    build: extensions/addons/infrastructure/qdrant_shard_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/qdrant_shard_service/Dockerfile
     ports:
-    - 8060:8000
+    - 8060:9503
     environment:
     - PYTHONPATH=/app
     - SHARDING_ENABLED=true
@@ -488,9 +560,11 @@ services:
     - infrastructure
     - all-addons
   plugin-system-service:
-    build: extensions/addons/infrastructure/plugin_system_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/plugin_system_service/Dockerfile
     ports:
-    - 8061:8000
+    - 8061:9556
     environment:
     - PYTHONPATH=/app
     - PLUGINS_ENABLED=true
@@ -500,9 +574,11 @@ services:
     - infrastructure
     - all-addons
   plugin-market-service:
-    build: extensions/addons/infrastructure/plugin_market_service
+    build:
+      context: .
+      dockerfile: extensions/addons/infrastructure/plugin_market_service/Dockerfile
     ports:
-    - 8062:8000
+    - 8062:9557
     environment:
     - PYTHONPATH=/app
     - PLUGINS_ENABLED=true
@@ -512,9 +588,11 @@ services:
     - infrastructure
     - all-addons
   sphinx-documentation-service:
-    build: extensions/addons/documentation/sphinx_documentation_service
+    build:
+      context: .
+      dockerfile: extensions/addons/documentation/sphinx_documentation_service/Dockerfile
     ports:
-    - 8071:8000
+    - 8071:9550
     environment:
     - PYTHONPATH=/app
     - DOC_GENERATION_ENABLED=true

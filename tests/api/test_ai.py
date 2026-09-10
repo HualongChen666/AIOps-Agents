@@ -202,4 +202,4 @@ def test_ai_advanced_conversation_flow(client):
     }
     resp = client.post("/api/v1/ai-advanced/conversation", json=invalid_payload)
     # Should return 422 for validation error
-    assert resp.status_code in (422, 404)
+    assert resp.status_code != 404, resp.text

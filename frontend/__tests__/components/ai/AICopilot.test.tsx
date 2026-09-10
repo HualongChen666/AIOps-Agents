@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AICopilot } from '@/components/ai/AICopilot';
@@ -11,13 +11,14 @@ const mockedApi = api as jest.Mocked<typeof api>;
 
 // Mock UI components
 jest.mock('@/components/ui/button', () => ({
-  Button: ({ children, onClick, disabled, variant, size, className }: any) => (
+  Button: ({ children, onClick, disabled, variant, size, className, ...rest }: any) => (
     <button
       onClick={onClick}
       disabled={disabled}
       className={className}
       data-variant={variant}
       data-size={size}
+      {...rest}
     >
       {children}
     </button>
@@ -348,7 +349,7 @@ describe('AICopilot Component', () => {
       await user.click(sendButton);
       
       await waitFor(() => {
-        expect(screen.getByText('Specific error message')).toBeInTheDocument();
+        expect(screen.getByText(/Specific error message/)).toBeInTheDocument();
       });
     });
   });
@@ -446,7 +447,7 @@ describe('AICopilot Component', () => {
     it('should apply correct floating button styles', () => {
       renderWithQueryClient(<AICopilot />);
       
-      const button = screen.getByText('🤖');
+      const button = screen.getByText('🤖').closest('button');
       expect(button).toHaveClass('fixed');
       expect(button).toHaveClass('bottom-6');
       expect(button).toHaveClass('right-6');
@@ -455,7 +456,7 @@ describe('AICopilot Component', () => {
     it('should apply correct chat interface styles', () => {
       renderWithQueryClient(<AICopilot isOpen={true} />);
       
-      const card = screen.getByText('AI Copilot').closest('div');
+      const card = screen.getByText('AI Copilot').closest('.fixed');
       expect(card).toHaveClass('fixed');
       expect(card).toHaveClass('bottom-6');
       expect(card).toHaveClass('right-6');
@@ -466,7 +467,7 @@ describe('AICopilot Component', () => {
     it('should have accessible floating button', () => {
       renderWithQueryClient(<AICopilot />);
       
-      const button = screen.getByText('🤖');
+      const button = screen.getByText('🤖').closest('button');
       expect(button).toHaveAttribute('title', 'AI Copilot');
     });
 
@@ -494,7 +495,7 @@ describe('AICopilot Component', () => {
       
       const longMessage = 'A'.repeat(1000);
       const input = screen.getByPlaceholderText('输入问题...');
-      await user.type(input, longMessage);
+      fireEvent.change(input, { target: { value: longMessage } });
       
       const sendButton = screen.getByText('发送');
       await user.click(sendButton);

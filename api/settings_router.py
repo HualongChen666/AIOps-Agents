@@ -15,7 +15,7 @@ _DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 _SETTINGS_FILE = os.path.join(_DATA_DIR, "settings.json")
 
 
-class SettingsUpdate(BaseModel):
+class SettingsSettingsUpdate(BaseModel):
     system_name: str | None = Field(default=None, alias="system_name")
     timezone: str | None = Field(default=None, alias="timezone")
     language: str | None = Field(default=None, alias="language")
@@ -62,7 +62,7 @@ async def get_settings() -> Dict[str, Any]:
 
 
 @router.put("/", summary="更新系统设置")
-async def update_settings(payload: SettingsUpdate) -> Dict[str, Any]:
+async def update_settings(payload: SettingsSettingsUpdate) -> Dict[str, Any]:
     settings = _load_settings()
     update = payload.model_dump(by_alias=True, exclude_unset=True)
     settings.update({k: v for k, v in update.items() if v is not None})

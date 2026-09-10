@@ -18,6 +18,7 @@ ROOT = Path(__file__).parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from services.agent_orchestration_service.config import settings  # noqa: E402
 
 app = FastAPI(title="AIOps Agent Orchestration Service", version="0.1.0")
 
@@ -49,5 +50,5 @@ if __name__ == "__main__":
     uvicorn.run(
         "services.agent_orchestration_service.main:app",
         host=os.environ.get("HOST", "127.0.0.1"),
-        port=int(sys.argv[1]) if len(sys.argv) > 1 else 8003,
+        port=int(sys.argv[1]) if len(sys.argv) > 1 else settings.port,
     )

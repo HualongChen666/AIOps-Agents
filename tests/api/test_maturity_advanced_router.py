@@ -18,7 +18,6 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from api.maturity_advanced_router import (
-    FAKE_ADMIN,
     AssessmentStatus,
     MaturityAssessmentCreate,
     MaturityAssessmentRecord,
@@ -68,6 +67,8 @@ def client():
 
     app = FastAPI()
     app.include_router(router)
+    # Wave2 #24: routers now require auth; tests run authenticated.
+    app.dependency_overrides[get_current_user] = lambda: _TEST_AUTH_USER
     return TestClient(app)
 
 
@@ -136,7 +137,7 @@ class TestAssessmentEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/maturity/assessments")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # API might return list directly or dict with "success" key
@@ -146,7 +147,7 @@ class TestAssessmentEndpoints:
     def test_get_assessments_empty(self, client):
         """Test assessments retrieval when empty"""
         response = client.get("/api/v1/maturity/assessments")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # API might return list directly or dict with "success" key
@@ -172,7 +173,7 @@ class TestAssessmentEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/maturity/assessments?status=completed")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # API might return list directly or dict with "success" key
@@ -199,7 +200,7 @@ class TestAssessmentEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/maturity/assessments?limit=3&offset=0")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # API might return list directly or dict with "success" key
@@ -264,7 +265,7 @@ class TestAssessmentEndpoints:
         }
         response = client.post("/api/v1/maturity/assessments", json=request_data)
         # Should fail validation
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_assessment_validation_name_max(self, client):
         """Test assessment creation with name too long"""
@@ -273,7 +274,7 @@ class TestAssessmentEndpoints:
         }
         response = client.post("/api/v1/maturity/assessments", json=request_data)
         # Should fail validation
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_assessment_validation_notes_max(self, client):
         """Test assessment creation with notes too long"""
@@ -283,7 +284,7 @@ class TestAssessmentEndpoints:
         }
         response = client.post("/api/v1/maturity/assessments", json=request_data)
         # Should fail validation
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_assessment_success(self, client, sample_assessment, db_session):
         """Test successful assessment retrieval"""
@@ -305,7 +306,7 @@ class TestAssessmentEndpoints:
 
         response = client.get(f"/api/v1/maturity/assessments/{sample_assessment['id']}")
         # Due to test isolation issues, accept multiple status codes
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             # API might return dict with "success" key or direct object
@@ -341,7 +342,7 @@ class TestAssessmentEndpoints:
 
         response = client.delete(f"/api/v1/maturity/assessments/{sample_assessment['id']}")
         # Due to test isolation issues, accept multiple status codes
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             # API might return dict with "success" key or direct object
@@ -411,7 +412,7 @@ class TestExportEndpoints:
 
         response = client.get(f"/api/v1/maturity/assessments/{sample_assessment['id']}/export?format=json")
         # Due to test isolation issues, accept multiple status codes
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             # API might return dict with "success" key or direct object
@@ -438,7 +439,7 @@ class TestExportEndpoints:
 
         response = client.get(f"/api/v1/maturity/assessments/{sample_assessment['id']}/export?format=summary")
         # Due to test isolation issues, accept multiple status codes
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
         if response.status_code == 200:
             data = response.json()
             # API might return dict with "success" key or direct object
@@ -488,19 +489,20 @@ class TestAuthentication:
 
     @pytest.mark.asyncio
     async def test_get_current_user_no_token(self):
-        """Test get_current_user with no token returns fake admin"""
-        result = await get_current_user(token=None)
+        """get_current_user must reject a missing token with 401 (no FAKE_ADMIN fallback)."""
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(token=None)
 
-        assert result.username == "dev-admin"
-        assert result.role == "admin"
+        assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_get_current_user_invalid_token(self):
-        """Test get_current_user with invalid token returns fake admin"""
+        """get_current_user must reject an invalid token with 401."""
         with patch("api.maturity_advanced_router.verify_token", return_value=None):
-            result = await get_current_user(token="invalid")
+            with pytest.raises(HTTPException) as exc_info:
+                await get_current_user(token="invalid")
 
-            assert result.username == "dev-admin"
+            assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 # ============ Data Validation Tests ============
@@ -610,7 +612,7 @@ class TestIntegration:
 
             # Get all assessments
             response = client.get("/api/v1/maturity/assessments")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
             # API might return list directly or dict with "success" key
@@ -676,7 +678,7 @@ class TestErrorHandling:
 
             # Get all assessments
             response = client.get("/api/v1/maturity/assessments")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
             # API might return list directly or dict with "success" key
@@ -708,7 +710,7 @@ class TestErrorHandling:
 
             # Get all assessments
             response = client.get("/api/v1/maturity/assessments")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
             # API returns list directly, not dict with "success" key
@@ -716,3 +718,17 @@ class TestErrorHandling:
                 assert isinstance(data, list) or "success" in data
             # Due to test isolation issues, just verify response structure
                 assert "data" in data
+
+
+# Wave2 #24: production routers now require authentication (no FAKE_ADMIN
+# fallback for unauthenticated requests).  Tests exercise endpoint logic with
+# an authenticated identity via dependency_overrides.
+_TEST_AUTH_USER = UserInDB(
+    id=1,
+    username="test_admin",
+    full_name="Test Admin",
+    email="test@example.com",
+    role="admin",
+    disabled=False,
+    hashed_password="hashed",
+)

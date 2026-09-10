@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``workflow_engine`` module.
+
+Top-level functions: execute_langgraph_workflow, simulate_workflow_stream, get_workflow_definitions, create_workflow_definition, update_workflow_definition, delete_workflow_definition, is_valid_workflow_key, get_valid_workflow_keys
+
+Module-level constants: WF_NODE_MAX_DELAY_MS, WF_NODE_MIN_DELAY_MS"""
+
 # core/workflow_engine.py
 # 工作流仿真引擎(对应前端"工作流"页面节点状态驱动 + 仿真日志输出)
 #

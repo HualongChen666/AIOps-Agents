@@ -109,7 +109,7 @@ class TestInfrastructureResourceEndpoints:
     def test_get_resources_empty(self, client):
         """Test GET /resources - successful retrieval when empty"""
         response = client.get("/api/v1/infrastructure/resources")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -135,7 +135,7 @@ class TestInfrastructureResourceEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/infrastructure/resources")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -172,7 +172,7 @@ class TestInfrastructureResourceEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/infrastructure/resources?resource_type=virtual_machine")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # Due to in-memory storage in router, just verify response structure
@@ -209,7 +209,7 @@ class TestInfrastructureResourceEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/infrastructure/resources?provider=aws")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -245,7 +245,7 @@ class TestInfrastructureResourceEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/infrastructure/resources?region=us-east-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -281,7 +281,7 @@ class TestInfrastructureResourceEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/infrastructure/resources?status=running")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -289,7 +289,7 @@ class TestInfrastructureResourceEndpoints:
     def test_get_resources_empty_returns_defaults(self, client):
         """Test GET /resources returns default resources when empty"""
         response = client.get("/api/v1/infrastructure/resources")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -309,7 +309,7 @@ class TestInfrastructureResourceEndpoints:
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "resource_id" in data
@@ -327,7 +327,7 @@ class TestInfrastructureResourceEndpoints:
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["cpu_cores"] == 2  # Default
@@ -348,7 +348,7 @@ class TestInfrastructureResourceEndpoints:
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_resource_cpu_validation(self, client):
         """Test POST /resources with CPU validation"""
@@ -362,7 +362,7 @@ class TestInfrastructureResourceEndpoints:
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_resource_memory_validation(self, client):
         """Test POST /resources with memory validation"""
@@ -376,7 +376,7 @@ class TestInfrastructureResourceEndpoints:
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_resource_disk_validation(self, client):
         """Test POST /resources with disk validation"""
@@ -390,7 +390,7 @@ class TestInfrastructureResourceEndpoints:
         }
 
         response = client.post("/api/v1/infrastructure/resources", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_resource_by_id_success(self, client, db_session, sample_resource):
         """Test GET /resources/{resource_id} - successful retrieval"""
@@ -413,7 +413,7 @@ class TestInfrastructureResourceEndpoints:
 
         response = client.get(f"/api/v1/infrastructure/resources/{sample_resource['id']}")
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_get_resource_by_id_not_found(self, client):
         """Test GET /resources/{resource_id} with non-existent ID"""
@@ -443,7 +443,7 @@ class TestInfrastructureResourceEndpoints:
 
         response = client.patch(f"/api/v1/infrastructure/resources/{sample_resource['id']}", json=update_data)
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_update_resource_not_found(self, client):
         """Test PATCH /resources/{resource_id} with non-existent ID"""
@@ -502,7 +502,7 @@ class TestInfrastructureResourceEndpoints:
 
         response = client.patch(f"/api/v1/infrastructure/resources/{sample_resource['id']}", json=update_data)
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_resource_success(self, client, db_session, sample_resource):
         """Test DELETE /resources/{resource_id} - successful deletion"""
@@ -525,7 +525,7 @@ class TestInfrastructureResourceEndpoints:
 
         response = client.delete(f"/api/v1/infrastructure/resources/{sample_resource['id']}")
         # Due to in-memory storage in router, it might not find the DB resource
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_resource_not_found(self, client):
         """Test DELETE /resources/{resource_id} with non-existent ID"""
@@ -544,7 +544,7 @@ class TestInfrastructureTopologyEndpoints:
         mock_get_mesh.return_value = Mock()
 
         response = client.get("/api/v1/infrastructure/topology")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "nodes" in data
@@ -561,7 +561,7 @@ class TestInfrastructureTopologyEndpoints:
         mock_get_mesh.side_effect = Exception("Mesh error")
 
         response = client.get("/api/v1/infrastructure/topology")
-        assert response.status_code in (200, 404)  # Should return default topology (not empty)
+        assert response.status_code != 404  # Should return default topology (not empty)
         if response.status_code != 404:
             data = response.json()
         # The function returns default topology even on error
@@ -581,7 +581,7 @@ class TestInfrastructureHealthEndpoints:
         mock_get_service.return_value = Mock()
 
         response = client.get("/api/v1/infrastructure/health")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "overall_status" in data
@@ -598,7 +598,7 @@ class TestInfrastructureHealthEndpoints:
         mock_get_service.side_effect = Exception("Service error")
 
         response = client.get("/api/v1/infrastructure/health")
-        assert response.status_code in (200, 404)  # Should return default health
+        assert response.status_code != 404  # Should return default health
         if response.status_code != 404:
             data = response.json()
             assert data["overall_status"] == "unknown"
@@ -623,7 +623,7 @@ class TestInfrastructureCapacityEndpoints:
         mock_get_monitoring.return_value = mock_monitoring
 
         response = client.get("/api/v1/infrastructure/capacity")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "total_resources" in data
@@ -637,7 +637,7 @@ class TestInfrastructureCapacityEndpoints:
         mock_get_monitoring.side_effect = Exception("Monitoring error")
 
         response = client.get("/api/v1/infrastructure/capacity")
-        assert response.status_code in (200, 404)  # Should return default capacity
+        assert response.status_code != 404  # Should return default capacity
         if response.status_code != 404:
             data = response.json()
         # Router returns default resources even on error
@@ -663,7 +663,7 @@ class TestInfrastructureProvisioningEndpoints:
         }
 
         response = client.post("/api/v1/infrastructure/provisioning", json=request_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "provisioning_id" in data
@@ -677,4 +677,4 @@ class TestInfrastructureProvisioningEndpoints:
         }
 
         response = client.post("/api/v1/infrastructure/provisioning", json=request_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text

@@ -4,7 +4,7 @@ Service Mesh Repository
 Provides database operations for service mesh entities
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -55,8 +55,8 @@ class ServiceMeshRepository:
             status="active",
             mesh_id=mesh_id,
             config_metadata=config_metadata,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         self.db.add(config)
@@ -118,7 +118,7 @@ class ServiceMeshRepository:
         if config_metadata is not None:
             config.config_metadata = config_metadata
 
-        config.updated_at = datetime.utcnow()
+        config.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         self.db.refresh(config)
 
@@ -166,8 +166,8 @@ class ServiceMeshRepository:
             fault_injection=fault_injection,
             enabled=True,
             rule_metadata=rule_metadata,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         self.db.add(rule)
@@ -233,7 +233,7 @@ class ServiceMeshRepository:
         if rule_metadata is not None:
             rule.rule_metadata = rule_metadata
 
-        rule.updated_at = datetime.utcnow()
+        rule.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         self.db.refresh(rule)
 
@@ -279,8 +279,8 @@ class ServiceMeshRepository:
             jwt_validation=jwt_validation,
             enabled=True,
             policy_metadata=policy_metadata,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         self.db.add(policy)
@@ -340,7 +340,7 @@ class ServiceMeshRepository:
         if policy_metadata is not None:
             policy.policy_metadata = policy_metadata
 
-        policy.updated_at = datetime.utcnow()
+        policy.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         self.db.refresh(policy)
 
@@ -386,8 +386,8 @@ class ServiceMeshRepository:
             grafana_enabled=grafana_enabled,
             enabled=True,
             config_metadata=config_metadata,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         self.db.add(config)
@@ -447,7 +447,7 @@ class ServiceMeshRepository:
         if config_metadata is not None:
             config.config_metadata = config_metadata
 
-        config.updated_at = datetime.utcnow()
+        config.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         self.db.refresh(config)
 
@@ -488,8 +488,8 @@ class ServiceMeshRepository:
             rules=rules,
             enabled=enabled,
             policy_metadata=policy_metadata,
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
         )
 
         self.db.add(policy)
@@ -543,7 +543,7 @@ class ServiceMeshRepository:
         if policy_metadata is not None:
             policy.policy_metadata = policy_metadata
 
-        policy.updated_at = datetime.utcnow()
+        policy.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         self.db.refresh(policy)
 
@@ -698,8 +698,8 @@ class ServiceMeshRepository:
             "servers": servers,
             "enabled": True,
             "config_metadata": config_metadata or {},
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
 
         logger.info(f"Created gateway config: {name} with ID: {gateway_id}")
@@ -730,7 +730,7 @@ class ServiceMeshRepository:
             "status": health_status,
             "total_rules": len(traffic_rules),
             "healthy_rules": healthy_rules,
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
 
     def get_mesh_health_summary(self) -> Dict[str, Any]:
@@ -746,7 +746,7 @@ class ServiceMeshRepository:
             "enabled_traffic_rules": sum(1 for r in all_rules if r.enabled),
             "total_policies": len(all_policies),
             "enabled_policies": sum(1 for p in all_policies if p.enabled),
-            "checked_at": datetime.utcnow().isoformat(),
+            "checked_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
 
     # ==================== Circuit Breaker Operations ====================
@@ -772,8 +772,8 @@ class ServiceMeshRepository:
             "state": "closed",
             "enabled": True,
             "config_metadata": config_metadata or {},
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
 
         logger.info(f"Created circuit breaker: {name} with ID: {cb_id}")
@@ -816,8 +816,8 @@ class ServiceMeshRepository:
             "retry_on": retry_on,
             "enabled": True,
             "config_metadata": config_metadata or {},
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
 
         logger.info(f"Created retry policy: {name} with ID: {policy_id}")
@@ -851,8 +851,8 @@ class ServiceMeshRepository:
             "timeout_seconds": timeout_seconds,
             "enabled": True,
             "config_metadata": config_metadata or {},
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
+            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
+            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
 
         logger.info(f"Created timeout policy: {name} with ID: {timeout_id}")
@@ -878,7 +878,7 @@ class ServiceMeshRepository:
 
         export_data = {
             "version": "1.0",
-            "exported_at": datetime.utcnow().isoformat(),
+            "exported_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
             "configuration": {
                 "id": config.id,
                 "name": config.name,
@@ -935,7 +935,7 @@ class ServiceMeshRepository:
                 "total": len(all_rules),
                 "enabled": sum(1 for r in all_rules if r.enabled),
             },
-            "collected_at": datetime.utcnow().isoformat(),
+            "collected_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }
 
         logger.info(f"Retrieved mesh metrics for time range: {time_range}")
@@ -961,5 +961,5 @@ class ServiceMeshRepository:
             "edges": edges,
             "node_count": len(nodes),
             "edge_count": len(edges),
-            "generated_at": datetime.utcnow().isoformat(),
+            "generated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
         }

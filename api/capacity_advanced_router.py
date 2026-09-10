@@ -87,8 +87,8 @@ class RightsizingAction(str, Enum):
     NO_ACTION = "no_action"
 
 
-class Priority(str, Enum):
-    """Priority level."""
+class CapacityAdvancedPriority(str, Enum):
+    """CapacityAdvancedPriority level."""
 
     CRITICAL = "critical"
     HIGH = "high"
@@ -153,7 +153,7 @@ class CapacityForecast(BaseModel):
     generated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
-class OptimizationRequest(BaseModel):
+class CapacityAdvancedOptimizationRequest(BaseModel):
     """Model for optimization request."""
 
     service: str = Field(..., description="Service name")
@@ -195,7 +195,7 @@ class RightsizingRecommendation(BaseModel):
     recommended_spec: Dict[str, Any] = Field(..., description="Recommended specification")
     action: RightsizingAction = Field(..., description="Action to take")
     reason: str = Field(..., description="Reason for recommendation")
-    priority: Priority = Field(..., description="Priority level")
+    priority: CapacityAdvancedPriority = Field(..., description="CapacityAdvancedPriority level")
     estimated_monthly_savings: float = Field(..., description="Estimated monthly savings")
     performance_impact: str = Field(..., description="Expected performance impact")
     implementation_complexity: str = Field(..., description="Implementation complexity")
@@ -209,7 +209,7 @@ class ScalingRecommendation(BaseModel):
     service: str = Field(..., description="Service name")
     action: str = Field(..., description="Action (scale-up/scale-down/no-action)")
     reason: str = Field(..., description="Reason for recommendation")
-    priority: Priority = Field(..., description="Priority level")
+    priority: CapacityAdvancedPriority = Field(..., description="CapacityAdvancedPriority level")
     estimated_cost: float = Field(..., description="Estimated cost")
     resource_type: ResourceType = Field(..., description="Resource type")
     current_value: float = Field(..., description="Current resource value")
@@ -420,7 +420,7 @@ def _get_rightsizing_recommendations(db: Optional[Session] = None) -> List[Right
                     recommended_spec=rec.recommended_spec,
                     action=RightsizingAction(rec.action),
                     reason=rec.reason,
-                    priority=Priority(rec.priority),
+                    priority=CapacityAdvancedPriority(rec.priority),
                     estimated_monthly_savings=rec.estimated_monthly_savings,
                     performance_impact=rec.performance_impact,
                     implementation_complexity=rec.implementation_complexity,
@@ -846,7 +846,7 @@ async def list_optimization_results(
     "/optimization", response_model=OptimizationResult, status_code=status.HTTP_201_CREATED
 )
 async def create_optimization(
-    request: OptimizationRequest,
+    request: CapacityAdvancedOptimizationRequest,
     db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator")),
 ):
@@ -979,7 +979,7 @@ async def create_optimization(
 async def get_rightsizing_recommendations(
     service: Optional[str] = Query(None, description="Filter by service"),
     resource_type: Optional[ResourceType] = Query(None, description="Filter by resource type"),
-    priority: Optional[Priority] = Query(None, description="Filter by priority"),
+    priority: Optional[CapacityAdvancedPriority] = Query(None, description="Filter by priority"),
     db_core: Session = Depends(get_db),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
@@ -1029,7 +1029,7 @@ async def _generate_rightsizing_recommendations(db_core: Optional[Session] = Non
             # Determine action based on utilization
             if current_value < 30:
                 action = RightsizingAction.SCALE_DOWN
-                priority = Priority.MEDIUM
+                priority = CapacityAdvancedPriority.MEDIUM
                 reason = f"Low utilization ({current_value:.1f}%) indicates over-provisioning"
                 current_spec = {"value": current_value, "unit": "%"}
                 recommended_spec = {"value": current_value * 0.7, "unit": "%"}
@@ -1037,7 +1037,7 @@ async def _generate_rightsizing_recommendations(db_core: Optional[Session] = Non
                 performance_impact = "Minimal - current usage well below capacity"
             elif current_value > 85:
                 action = RightsizingAction.SCALE_UP
-                priority = Priority.HIGH
+                priority = CapacityAdvancedPriority.HIGH
                 reason = f"High utilization ({current_value:.1f}%) indicates under-provisioning"
                 current_spec = {"value": current_value, "unit": "%"}
                 recommended_spec = {"value": current_value * 1.3, "unit": "%"}
@@ -1045,7 +1045,7 @@ async def _generate_rightsizing_recommendations(db_core: Optional[Session] = Non
                 performance_impact = "Positive - improved performance and stability"
             else:
                 action = RightsizingAction.NO_ACTION
-                priority = Priority.LOW
+                priority = CapacityAdvancedPriority.LOW
                 reason = f"Utilization ({current_value:.1f}%) within optimal range"
                 current_spec = {"value": current_value, "unit": "%"}
                 recommended_spec = {"value": current_value, "unit": "%"}
@@ -1080,7 +1080,7 @@ async def _generate_rightsizing_recommendations(db_core: Optional[Session] = Non
 async def get_scaling_recommendations(
     service: Optional[str] = Query(None, description="Filter by service"),
     resource_type: Optional[ResourceType] = Query(None, description="Filter by resource type"),
-    priority: Optional[Priority] = Query(None, description="Filter by priority"),
+    priority: Optional[CapacityAdvancedPriority] = Query(None, description="Filter by priority"),
     current_user=Depends(require_roles("admin", "operator", "business")),
 ):
     """
@@ -1110,9 +1110,9 @@ async def get_scaling_recommendations(
         }
 
         priority_map = {
-            "high": Priority.HIGH,
-            "medium": Priority.MEDIUM,
-            "low": Priority.LOW,
+            "high": CapacityAdvancedPriority.HIGH,
+            "medium": CapacityAdvancedPriority.MEDIUM,
+            "low": CapacityAdvancedPriority.LOW,
         }
 
         result = []
@@ -1139,7 +1139,7 @@ async def get_scaling_recommendations(
                     service=svc,
                     action=rec["action"],
                     reason=rec["reason"],
-                    priority=priority_map.get(rec["priority"], Priority.MEDIUM),
+                    priority=priority_map.get(rec["priority"], CapacityAdvancedPriority.MEDIUM),
                     estimated_cost=rec["estimatedCost"],
                     resource_type=rt,
                     current_value=current_value,
@@ -1860,21 +1860,21 @@ async def create_rightsizing_recommendation(
         if current_value > target_value * 1.2:
             action = RightsizingAction.SCALE_DOWN
             recommended_value = current_value * 0.8
-            priority = Priority.HIGH
+            priority = CapacityAdvancedPriority.HIGH
             reason = f"Current utilization ({current_value:.1f}%) significantly above target ({target_value}%)"
             savings = (current_value - recommended_value) * 10.0
             performance_impact = "Minimal - current usage well above recommended"
         elif current_value < target_value * 0.8:
             action = RightsizingAction.SCALE_UP
             recommended_value = current_value * 1.2
-            priority = Priority.HIGH
+            priority = CapacityAdvancedPriority.HIGH
             reason = f"Current utilization ({current_value:.1f}%) below target ({target_value}%)"
             savings = -50.0
             performance_impact = "Positive - improved performance and headroom"
         else:
             action = RightsizingAction.NO_ACTION
             recommended_value = current_value
-            priority = Priority.LOW
+            priority = CapacityAdvancedPriority.LOW
             reason = f"Current utilization ({current_value:.1f}%) within target range ({target_value}%)"
             savings = 0.0
             performance_impact = "None - current configuration is optimal"
@@ -2020,21 +2020,21 @@ async def create_rightsizing_batch(
                 if current_value > target_value * 1.2:
                     action = RightsizingAction.SCALE_DOWN
                     recommended_value = current_value * 0.8
-                    priority = Priority.HIGH
+                    priority = CapacityAdvancedPriority.HIGH
                     reason = f"Current utilization ({current_value:.1f}%) significantly above target ({target_value}%)"
                     savings = (current_value - recommended_value) * 10.0
                     performance_impact = "Minimal - current usage well above recommended"
                 elif current_value < target_value * 0.8:
                     action = RightsizingAction.SCALE_UP
                     recommended_value = current_value * 1.2
-                    priority = Priority.HIGH
+                    priority = CapacityAdvancedPriority.HIGH
                     reason = f"Current utilization ({current_value:.1f}%) below target ({target_value}%)"
                     savings = -50.0
                     performance_impact = "Positive - improved performance and headroom"
                 else:
                     action = RightsizingAction.NO_ACTION
                     recommended_value = current_value
-                    priority = Priority.LOW
+                    priority = CapacityAdvancedPriority.LOW
                     reason = f"Current utilization ({current_value:.1f}%) within target range ({target_value}%)"
                     savings = 0.0
                     performance_impact = "None - current configuration is optimal"
@@ -2090,7 +2090,7 @@ class ScalingRecommendationCreate(BaseModel):
     resource_type: ResourceType = Field(..., description="Resource type")
     action: str = Field(..., description="Action (scale-up/scale-down/no-action)")
     reason: str = Field(..., description="Reason for recommendation")
-    priority: Priority = Field(default=Priority.MEDIUM, description="Priority level")
+    priority: CapacityAdvancedPriority = Field(default=CapacityAdvancedPriority.MEDIUM, description="CapacityAdvancedPriority level")
     estimated_cost: float = Field(default=0.0, ge=0, description="Estimated cost")
     current_value: float = Field(..., description="Current resource value")
     recommended_value: float = Field(..., description="Recommended resource value")

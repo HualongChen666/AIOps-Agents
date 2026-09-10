@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``notify_engine`` module.
+
+Top-level functions: get_notification_status, mark_notification_read, get_notification_read_status, close_http_client, reload_notify_config, format_alert_message, build_structured_alert_message, format_for_slack, format_for_teams, query_notifications, … (+6 more)
+
+Module-level constants: MAX_NOTIFICATION_HISTORY"""
+
 # core/notify_engine.py
 # 告警通知推送引擎
 # 支持企业微信 / 钉钉(含加签)/ 飞书 Webhook

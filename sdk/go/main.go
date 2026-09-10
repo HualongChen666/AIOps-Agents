@@ -41,7 +41,7 @@ func main() {
 	fmt.Printf("AI analyze: %d %s\n", resp.StatusCode, string(body))
 
 	// Alerts
-	alertsResp, err := client.Get(baseURL + "/api/alerts?limit=5")
+	alertsResp, err := client.Get(baseURL + "/api/v1/alerts/?limit=5")
 	if err != nil {
 		panic(err)
 	}

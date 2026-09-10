@@ -216,7 +216,7 @@ export default function MonitoringConfigPage() {
     refetchTest()
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status?: string) => {
     switch (status?.toLowerCase()) {
       case 'running':
       case 'active':

@@ -13,25 +13,26 @@ from core.auth_service import decode_token
 
 logger = logging.getLogger(__name__)
 
-# Public prefixes that don't require authentication
-PUBLIC_PREFIXES = {
+# Public paths that don't require authentication
+# (kept in sync with api/middleware/rbac_middleware.py)
+
+# Exact paths that are public and have no sub-paths
+PUBLIC_EXACT_PATHS = {
+    "/",
+    "/health",
+    "/metrics",
     "/docs",
     "/redoc",
     "/openapi.json",
-    "/health",
     "/api/v1/health",
-    "/static/",
     "/api/v1/auth/login",
     "/api/v1/auth/register",
     "/api/v1/auth/register-admin",
-    "/api/v1/auth/register-admin-bypass",
     "/api/v1/auth/refresh",
-    "/api/v1/auth/me",
-    "/api/v1/users/me",
-    "/api/v1/users/me/",
-    "/api/v1/users/me/mfa",
-    "/api/v1/users/me/audit-logs",
-    "/api/v1/alerts/",
+}
+
+# Prefixes that are public and DO have sub-paths (webhooks / static assets)
+PUBLIC_PREFIXES = {
     "/api/v1/alerts/prometheus",
     "/api/v1/alerts/grafana",
     "/api/v1/alerts/datadog",
@@ -41,26 +42,20 @@ PUBLIC_PREFIXES = {
     "/webhook/",
     "/hitl-page/",
     "/api/v1/hitl-page/",
+    "/static/",
     "/sw.js",
     "/sw-register.js",
-    "/metrics",
-    "/api/i18n/",
-    "/api/ai",  # Allow AI endpoints for testing
-    "/api/v1/metrics",  # Allow metrics endpoints for testing
-    "/api/v1/repairs",  # Allow repairs endpoints for testing
-    "/api/v1/monitoring",  # Allow monitoring endpoints for testing
-    "/api/v1/workflow-management",  # Allow workflow management endpoints for testing
 }
 
 
 def _is_public(path: str) -> bool:
     """Return True if the request path is public."""
     lowered = path.lower()
+    if lowered in PUBLIC_EXACT_PATHS:
+        return True
     for prefix in PUBLIC_PREFIXES:
         if lowered.startswith(prefix):
             return True
-    if lowered in {"/", "/health"}:
-        return True
     return False
 
 
@@ -82,13 +77,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             logger.info(f"Tenant Middleware: Allowing register-admin endpoint")
             request.state.tenant_id = "default"
             return await call_next(request)
-        
-        # Explicitly skip for register-admin-bypass endpoint
-        if path == "/api/v1/auth/register-admin-bypass":
-            logger.info(f"Tenant Middleware: Allowing register-admin-bypass endpoint")
-            request.state.tenant_id = "default"
-            return await call_next(request)
-        
+
         tenant_id = await self._resolve_tenant_id(request)
         request.state.tenant_id = tenant_id
         logger.info(f"Tenant Middleware: Resolved tenant_id={tenant_id}")

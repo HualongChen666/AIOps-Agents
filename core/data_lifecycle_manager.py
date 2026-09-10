@@ -7,11 +7,15 @@ Data Lifecycle Manager Module
 """
 
 import asyncio
+import gzip
+import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +42,22 @@ class DataCategory(str, Enum):
     CONFIGURATION = "configuration"
 
 
+# ---------------------------------------------------------------------------
+# Physical storage backing each data category.
+#
+# The table and timestamp-column names below are taken verbatim from
+# ``core/models.py`` (``Alert.detected_at``, ``Metrics.timestamp``,
+# ``AuditLog.created_at``) so the executed SQL always matches the live schema.
+# Categories that are absent from this map are stored as files on disk and are
+# resolved through :meth:`DataLifecycleManager._category_directory`.
+# ---------------------------------------------------------------------------
+_DB_BACKED_CATEGORIES: Dict[DataCategory, Tuple[str, str]] = {
+    DataCategory.ALERTS: ("alerts", "detected_at"),
+    DataCategory.METRICS: ("metrics", "timestamp"),
+    DataCategory.AUDIT_LOGS: ("audit_logs", "created_at"),
+}
+
+
 @dataclass
 class DataLifecycleRule:
     """数据生命周期规则"""
@@ -53,8 +73,22 @@ class DataLifecycleRule:
 class DataLifecycleManager:
     """数据生命周期管理器"""
 
-    def __init__(self):
-        """初始化数据生命周期管理器"""
+    def __init__(
+        self,
+        archive_root: Optional[str] = None,
+        session_factory: Optional[Callable[[], Any]] = None,
+    ):
+        """初始化数据生命周期管理器
+
+        Args:
+            archive_root: Directory that receives the compressed archive files
+                (defaults to ``DATA_ARCHIVE_DIR`` or ``archive``).
+            session_factory: Async session factory used for database backed
+                categories.  Defaults to the application engine
+                (``core.db_engine.AsyncSessionLocal``).
+        """
+        self._archive_root = Path(archive_root or os.getenv("DATA_ARCHIVE_DIR", "archive"))
+        self._session_factory = session_factory
         self._rules: Dict[DataCategory, DataLifecycleRule] = {}
         self._cleanup_stats: Dict[str, Any] = {
             "last_cleanup": None,
@@ -159,9 +193,11 @@ class DataLifecycleManager:
 
         logger.info(f"Archiving {category} data older than {cutoff_date}")
 
-        # 这里应该实现实际的归档逻辑
-        # 由于不修改架构，这里提供框架和日志
-        archived_count = await self._simulate_archive(category, cutoff_date)
+        try:
+            archived_count = await self._archive_expired_rows(category, cutoff_date)
+        except Exception as exc:
+            logger.error(f"Archiving {category} failed: {exc}")
+            return {"status": "error", "category": category, "error": str(exc)}
 
         self._cleanup_stats["total_archived"] += archived_count
         self._cleanup_stats["last_cleanup"] = datetime.now(timezone.utc).isoformat()
@@ -172,23 +208,127 @@ class DataLifecycleManager:
             "archived_count": archived_count,
             "cutoff_date": cutoff_date.isoformat(),
             "archive_location": rule.archive_location,
+            "archive_file": self._cleanup_stats.get("last_archive_file"),
         }
 
-    async def _simulate_archive(self, category: DataCategory, cutoff_date: datetime) -> int:
-        """
-        模拟归档操作（实际实现需要连接数据库）
+    # ------------------------------------------------------------------
+    # Real storage backends
+    # ------------------------------------------------------------------
+    def _get_session_factory(self) -> Callable[[], Any]:
+        """Return the async session factory used for database backed categories."""
+        if self._session_factory is not None:
+            return self._session_factory
+        from core.db_engine import AsyncSessionLocal
 
-        Args:
-            category: 数据类别
-            cutoff_date: 截止日期
+        return AsyncSessionLocal
 
-        Returns:
-            归档记录数
+    @staticmethod
+    def _category_directory(category: DataCategory) -> Optional[str]:
+        """Filesystem location for categories that are stored as files."""
+        if category is DataCategory.TEMPORARY:
+            return os.getenv("TEMPORARY_DATA_DIR", "temp")
+        if category is DataCategory.BACKUP:
+            return os.getenv("BACKUP_LOCATION", "/backups")
+        return None
+
+    async def _archive_expired_rows(self, category: DataCategory, cutoff_date: datetime) -> int:
+        """Move every row/file older than ``cutoff_date`` into the archive store.
+
+        Database backed categories are exported to a gzip-compressed JSONL file
+        under ``<archive_root>/<category>/`` and then removed from the primary
+        table (move semantics).  Filesystem backed categories (temporary data,
+        backups) simply have their expired files removed.
         """
-        # 这里应该连接数据库并执行归档
-        # 由于不修改架构，返回模拟数据
-        logger.info(f"Simulating archive for {category} before {cutoff_date}")
-        return 0
+        db_target = _DB_BACKED_CATEGORIES.get(category)
+        if db_target is None:
+            return self._cleanup_directory_for(category, cutoff_date)
+
+        table, timestamp_column = db_target
+        rows = await self._fetch_expired_rows(table, timestamp_column, cutoff_date)
+        if rows:
+            archive_file = self._write_archive_file(category, table, rows)
+            self._cleanup_stats["last_archive_file"] = archive_file
+            logger.info(f"Archived {len(rows)} {category.value} rows to {archive_file}")
+        else:
+            self._cleanup_stats.pop("last_archive_file", None)
+        await self._delete_expired_rows(category, cutoff_date)
+        return len(rows)
+
+    async def _fetch_expired_rows(
+        self, table: str, timestamp_column: str, cutoff_date: datetime
+    ) -> List[Dict[str, Any]]:
+        """Read the rows that are due for archival."""
+        from sqlalchemy import text
+
+        session_factory = self._get_session_factory()
+        # ``table``/``timestamp_column`` come from the static, code-owned
+        # ``_DB_BACKED_CATEGORIES`` map -- never from user input.
+        statement = text(f"SELECT * FROM {table} WHERE {timestamp_column} < :cutoff")  # noqa: S608
+        async with session_factory() as session:
+            result = await session.execute(statement, {"cutoff": cutoff_date})
+            return [dict(row._mapping) for row in result.fetchall()]
+
+    async def _delete_expired_rows(self, category: DataCategory, cutoff_date: datetime) -> int:
+        """Delete rows (database) or files (filesystem) older than ``cutoff_date``."""
+        db_target = _DB_BACKED_CATEGORIES.get(category)
+        if db_target is None:
+            return self._cleanup_directory_for(category, cutoff_date)
+
+        table, timestamp_column = db_target
+        from sqlalchemy import text
+
+        session_factory = self._get_session_factory()
+        # Static, code-owned identifiers -- see ``_DB_BACKED_CATEGORIES``.
+        statement = text(f"DELETE FROM {table} WHERE {timestamp_column} < :cutoff")  # noqa: S608
+        async with session_factory() as session:
+            result = await session.execute(statement, {"cutoff": cutoff_date})
+            await session.commit()
+            return int(result.rowcount or 0)
+
+    def _write_archive_file(
+        self, category: DataCategory, table: str, rows: List[Dict[str, Any]]
+    ) -> str:
+        """Write ``rows`` as a gzip-compressed JSONL archive and return its path."""
+        directory = self._archive_root / category.value
+        directory.mkdir(parents=True, exist_ok=True)
+        filename = f"{table}_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.jsonl.gz"
+        archive_path = directory / filename
+        with gzip.open(archive_path, "wt", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(json.dumps(row, default=str) + "\n")
+        return str(archive_path)
+
+    def _cleanup_directory_for(self, category: DataCategory, cutoff_date: datetime) -> int:
+        """Purge expired files for a filesystem backed category."""
+        directory = self._category_directory(category)
+        if directory is None:
+            logger.warning(f"No storage backend configured for category {category}")
+            return 0
+        return self._purge_directory(Path(directory), cutoff_date)
+
+    @staticmethod
+    def _purge_directory(root: Path, cutoff_date: datetime) -> int:
+        """Remove files older than ``cutoff_date`` below ``root`` (recursively)."""
+        if not root.exists():
+            logger.info(f"Directory {root} does not exist, nothing to purge")
+            return 0
+
+        removed = 0
+        # Deepest entries first so emptied directories can be pruned.
+        for entry in sorted(root.rglob("*"), key=lambda item: len(item.parts), reverse=True):
+            try:
+                if entry.is_dir():
+                    if not any(entry.iterdir()):
+                        entry.rmdir()
+                    continue
+                modified = datetime.fromtimestamp(entry.stat().st_mtime, tz=timezone.utc)
+                if modified < cutoff_date:
+                    entry.unlink()
+                    removed += 1
+            except OSError as exc:
+                logger.warning(f"Unable to purge {entry}: {exc}")
+        logger.info(f"Purged {removed} expired entries from {root}")
+        return removed
 
     async def cleanup_temp_data(self) -> Dict[str, Any]:
         """
@@ -231,9 +371,7 @@ class DataLifecycleManager:
         Returns:
             删除的文件数
         """
-        # 这里应该实现实际的文件清理逻辑
-        logger.info(f"Cleaning temporary files older than {cutoff_date}")
-        return 0
+        return self._cleanup_directory_for(DataCategory.TEMPORARY, cutoff_date)
 
     async def _cleanup_temporary_cache(self, cutoff_date: datetime) -> bool:
         """
@@ -307,8 +445,11 @@ class DataLifecycleManager:
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
         logger.info(f"Deleting expired {category} data older than {cutoff_date}")
 
-        # 这里应该实现实际的删除逻辑
-        deleted_count = await self._simulate_delete(category, cutoff_date)
+        try:
+            deleted_count = await self._delete_expired_rows(category, cutoff_date)
+        except Exception as exc:
+            logger.error(f"Deleting expired {category} data failed: {exc}")
+            return {"status": "error", "category": category, "error": str(exc)}
 
         self._cleanup_stats["total_deleted"] += deleted_count
 
@@ -317,21 +458,6 @@ class DataLifecycleManager:
             "deleted_count": deleted_count,
             "cutoff_date": cutoff_date.isoformat(),
         }
-
-    async def _simulate_delete(self, category: DataCategory, cutoff_date: datetime) -> int:
-        """
-        模拟删除操作（实际实现需要连接数据库）
-
-        Args:
-            category: 数据类别
-            cutoff_date: 截止日期
-
-        Returns:
-            删除记录数
-        """
-        # 这里应该连接数据库并执行删除
-        logger.info(f"Simulating delete for {category} before {cutoff_date}")
-        return 0
 
     def get_cleanup_stats(self) -> Dict[str, Any]:
         """

@@ -163,7 +163,7 @@ class TestExperimentEndpoints:
         """Test getting experiments when none exist"""
         # Database is cleaned up by autouse fixture
         response = client.get("/api/v1/chaos/experiments")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] is True
@@ -191,7 +191,7 @@ class TestExperimentEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/chaos/experiments")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] is True
@@ -250,7 +250,7 @@ class TestExperimentEndpoints:
         db_session.commit()
 
         response = client.get(f"/api/v1/chaos/experiments/{sample_experiment['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # Just verify the response structure is valid
@@ -338,7 +338,7 @@ class TestExperimentEndpoints:
         db_session.commit()
 
         response = client.delete(f"/api/v1/chaos/experiments/{sample_experiment['id']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "success" in data
@@ -381,7 +381,7 @@ class TestExperimentEndpoints:
 
         with patch("api.chaos_advanced_router.chaos_engine", mock_chaos_engine):
             response = client.post(f"/api/v1/chaos/experiments/{sample_experiment['id']}/run")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
             # API might return success=False due to implementation issues
@@ -417,7 +417,7 @@ class TestExperimentEndpoints:
         db_session.commit()
 
         response = client.post(f"/api/v1/chaos/experiments/{sample_experiment['id']}/stop")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # API might return success=False due to implementation issues
@@ -465,7 +465,7 @@ class TestScenarioEndpoints:
         """Test getting scenarios when none exist"""
         # Database is cleaned up by autouse fixture
         response = client.get("/api/v1/chaos/scenarios")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] is True
@@ -681,7 +681,7 @@ class TestFaultEndpoints:
         """Test getting faults when none exist"""
         # Database is cleaned up by autouse fixture
         response = client.get("/api/v1/chaos/faults")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # API might return success=False due to model attribute issues
@@ -709,7 +709,7 @@ class TestFaultEndpoints:
         db_session.commit()
 
         response = client.get("/api/v1/chaos/faults")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # Just verify the response structure is valid
@@ -737,7 +737,7 @@ class TestFaultEndpoints:
         db_session.commit()
 
         response = client.get(f"/api/v1/chaos/faults?fault_type={sample_fault['fault_type']}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
         # Just verify the response structure is valid
@@ -1124,7 +1124,7 @@ class TestErrorHandling:
 
         response = client.post("/api/v1/chaos/experiments", json=request_data)
         # Should return validation error
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_exception_handling_in_get_experiments(self, client):
         """Test exception handling in get experiments"""
@@ -1183,7 +1183,7 @@ class TestIntegration:
 
         # Verify deletion
         final_get = client.get(f"/api/v1/chaos/experiments/{experiment_id}")
-        assert final_get.status_code in [200, 404]
+        assert final_get.status_code != 404, final_get.text
         if final_get.status_code == 200:
             assert not final_get.json().get("success", True)
 

@@ -181,15 +181,20 @@ class RateLimiter:
         Returns:
             True if allowed, False otherwise
         """
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         minute_ago = now - timedelta(minutes=1)
 
-        # Clean old entries
-        self.requests = {
-            k: v for k, v in self.requests.items() if v > minute_ago
-        }
+        # Clean old entries: keep only timestamps within the last minute.
+        # NOTE: each value is a list of datetimes, so the comparison must be
+        # done per-timestamp (comparing the list itself raises TypeError).
+        cleaned = {}
+        for key, timestamps in self.requests.items():
+            recent = [ts for ts in timestamps if ts > minute_ago]
+            if recent:
+                cleaned[key] = recent
+        self.requests = cleaned
 
         # Count requests in last minute
         user_requests = [
@@ -207,9 +212,74 @@ class RateLimiter:
 
         return True
 
+    def remaining_requests(self, identifier: str) -> int:
+        """
+        Return how many more requests are allowed in the current window.
+
+        Read-only: does not record a request (unlike is_allowed).
+
+        Args:
+            identifier: Unique identifier (user_id or IP address)
+
+        Returns:
+            Number of remaining requests (0 if already at/over the limit)
+        """
+        from datetime import datetime, timedelta, timezone
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        minute_ago = now - timedelta(minutes=1)
+        recent = [
+            ts for ts in self.requests.get(identifier, []) if ts > minute_ago
+        ]
+        return max(0, self.requests_per_minute - len(recent))
+
 
 # Global rate limiter instance
 rate_limiter = RateLimiter(requests_per_minute=60)
+
+# Registry of rate limiter instances keyed by their per-minute limit.
+# A persistent instance per limit is required so that request state is
+# retained across calls; creating a new RateLimiter on every call reset the
+# state and made the limiter always allow (fail-open).
+_rate_limiters: dict = {}
+
+
+def parse_rate_limit_per_minute(limit: str) -> int:
+    """Parse a "<n>/<period>" rate limit string into requests-per-minute.
+
+    Args:
+        limit: e.g. "100/minute", "1000/hour", "10/second"
+
+    Returns:
+        Equivalent number of requests per minute (>= 1)
+
+    Raises:
+        ValueError: if the limit string cannot be parsed
+    """
+    try:
+        amount_str, _, period = limit.partition("/")
+        amount = int(amount_str.strip())
+    except (ValueError, AttributeError):
+        raise ValueError(f"Invalid rate limit: {limit!r}")
+    period = period.strip().lower()
+    if period.startswith("sec"):
+        return amount * 60
+    if period.startswith("min"):
+        return amount
+    if period.startswith("hour"):
+        return max(1, amount // 60)
+    if period.startswith("day"):
+        return max(1, amount // 1440)
+    raise ValueError(f"Unsupported rate limit period: {period!r}")
+
+
+def _get_rate_limiter(requests_per_minute: int) -> RateLimiter:
+    """Return the shared RateLimiter for the given per-minute limit."""
+    limiter = _rate_limiters.get(requests_per_minute)
+    if limiter is None:
+        limiter = RateLimiter(requests_per_minute=requests_per_minute)
+        _rate_limiters[requests_per_minute] = limiter
+    return limiter
 
 
 def check_rate_limit(identifier: str, requests_per_minute: int = 60):
@@ -223,9 +293,25 @@ def check_rate_limit(identifier: str, requests_per_minute: int = 60):
     Raises:
         HTTPException: If rate limit exceeded
     """
-    limiter = RateLimiter(requests_per_minute=requests_per_minute)
+    limiter = _get_rate_limiter(requests_per_minute)
     if not limiter.is_allowed(identifier):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Rate limit exceeded. Please try again later.",
         )
+
+
+def get_remaining_requests(identifier: str, requests_per_minute: int = 60) -> int:
+    """
+    Return the number of requests still allowed for the identifier.
+
+    Read-only counterpart of check_rate_limit (does not consume a request).
+
+    Args:
+        identifier: Unique identifier (user_id or IP address)
+        requests_per_minute: Maximum requests per minute
+
+    Returns:
+        Number of remaining requests in the current window
+    """
+    return _get_rate_limiter(requests_per_minute).remaining_requests(identifier)

@@ -7,11 +7,14 @@
 """
 
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
 
 from core.security import subprocess_runner
+
+REPO_ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 
 
 def run_coverage_check():
@@ -51,7 +54,7 @@ def run_coverage_check():
     try:
         result = subprocess_runner.run(
             cmd,
-            cwd="C:\\AIOps_Agent_bak",
+            cwd=str(REPO_ROOT),
             capture_output=True,
             text=True,
             timeout=300,
@@ -82,7 +85,7 @@ def parse_coverage_json():
         "database_query_optimizer.py",
     ]
 
-    coverage_path = Path("C:\\AIOps_Agent_bak\\coverage.json")
+    coverage_path = REPO_ROOT / "coverage.json"
     if not coverage_path.exists():
         print("错误：未生成 coverage.json")
         return None
@@ -93,8 +96,8 @@ def parse_coverage_json():
     total_covered = 0
 
     for module in database_modules:
-        file_key = f"core\\{module}"
-        info = data["files"].get(file_key)
+        # coverage.json uses the running platform's path separator.
+        info = data["files"].get(f"core/{module}") or data["files"].get(f"core\\{module}")
         if not info:
             continue
 
@@ -191,7 +194,7 @@ def save_report(report):
     if not report:
         return
 
-    report_dir = Path("C:\\AIOps_Agent_bak\\reports")
+    report_dir = REPO_ROOT / "reports"
     report_dir.mkdir(exist_ok=True)
 
     report_file = report_dir / f"database_coverage_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"

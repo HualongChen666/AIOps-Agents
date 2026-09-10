@@ -13,8 +13,21 @@ export default function Home() {
   const [status, setStatus] = useState<'loading' | 'ok' | 'error'>('loading');
 
   useEffect(() => {
-    // 用户已登录，说明后端可用，直接设置为正常状态
-    setStatus('ok');
+    // Real backend reachability check (audit #33: the badge used to be hard-set
+    // to 'ok' and therefore always showed green regardless of the backend).
+    let cancelled = false;
+    const checkHealth = async () => {
+      try {
+        const res = await fetch('/api/v1/health/ping', { cache: 'no-store' });
+        if (!cancelled) setStatus(res.ok ? 'ok' : 'error');
+      } catch {
+        if (!cancelled) setStatus('error');
+      }
+    };
+    void checkHealth();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const statusBadge =

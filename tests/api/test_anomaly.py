@@ -30,7 +30,7 @@ def approval_headers(client):
         "/api/v1/auth/login",
         json={"username": "admin", "password": "admin123"},
     )
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     return {
         "Authorization": f"Bearer {resp.json()['access_token']}",
         "X-Internal-Key": config.INTERNAL_API_KEY,
@@ -58,14 +58,14 @@ def _patch_auth_get_user(monkeypatch):
 def test_list_anomaly_records(client, approval_headers):
     """The anomaly records list returns 200 or a valid server error."""
     resp = client.get("/api/v1/anomaly/records", headers=approval_headers)
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
 
 @pytest.mark.smoke
 def test_anomaly_statistics(client, approval_headers):
     """The anomaly statistics endpoint returns 200 or a valid error."""
     resp = client.get("/api/v1/anomaly/statistics", headers=approval_headers)
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
 
 @pytest.mark.smoke
@@ -76,7 +76,7 @@ def test_detect_anomaly(client, approval_headers):
         json={},
         headers=approval_headers,
     )
-    assert resp.status_code in (200, 400, 404, 422, 500)
+    assert resp.status_code != 404, resp.text
 
 
 def test_list_anomaly_records_with_filters(client, approval_headers):
@@ -89,7 +89,7 @@ def test_list_anomaly_records_with_filters(client, approval_headers):
         metrics_history.push(50.0 + i, 60.0 + i, 1.0 + i * 0.1, f"10:{i:02d}:00")
 
     resp = client.get("/api/v1/anomaly/records", headers=approval_headers)
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     if resp.status_code == 200:
         data = resp.json()
@@ -115,7 +115,7 @@ def test_anomaly_statistics_with_time_range(client, approval_headers):
         metrics_history.push(45.0 + i * 0.5, 55.0 + i * 0.3, 1.2 + i * 0.05, f"10:{i:02d}:00")
 
     resp = client.get("/api/v1/anomaly/statistics", headers=approval_headers)
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     if resp.status_code == 200:
         data = resp.json()
@@ -153,7 +153,7 @@ def test_detect_anomaly_with_valid_data(client, approval_headers):
     }
 
     resp = client.post("/api/v1/anomaly/detect", json=payload, headers=approval_headers)
-    assert resp.status_code in (200, 400, 404, 422, 500)
+    assert resp.status_code != 404, resp.text
 
     if resp.status_code == 200:
         data = resp.json()

@@ -12,6 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 import grpc
 import pytest  # noqa: F401  # Imported for test setup
 
+from proto import aiops_pb2
+
 import core.integration_test_validator as itv
 import core.interface.grpc.client as grpc_client
 import core.interface.grpc.interceptor as grpc_interceptor
@@ -198,14 +200,17 @@ def aiops_grpc_client():
 @pytest.mark.asyncio
 async def test_grpc_client_connect_success(aiops_grpc_client, monkeypatch):
     fake_channel = MagicMock()
-    fake_channel.ready = AsyncMock()
+    fake_channel.channel_ready = AsyncMock()
     monkeypatch.setattr(
         grpc_client.grpc.aio, "insecure_channel", MagicMock(return_value=fake_channel)
     )
 
     await aiops_grpc_client.connect()
+
     assert aiops_grpc_client._channel is fake_channel
-    fake_channel.ready.assert_awaited_once()
+    fake_channel.channel_ready.assert_awaited_once()
+    assert aiops_grpc_client._grpc_client is not None
+    assert aiops_grpc_client.target == "localhost:50051"
 
 
 @pytest.mark.asyncio
@@ -227,52 +232,102 @@ async def test_grpc_client_close(aiops_grpc_client):
     aiops_grpc_client._channel = fake_channel
     await aiops_grpc_client.close()
     fake_channel.close.assert_awaited_once()
+    assert aiops_grpc_client._grpc_client is None
 
 
 @pytest.mark.asyncio
-async def test_grpc_client_get_metrics_uninitialized(aiops_grpc_client):
-    with pytest.raises(RuntimeError, match="not initialized"):
+async def test_grpc_client_calls_require_connection(aiops_grpc_client):
+    with pytest.raises(RuntimeError, match="not initialis"):
         await aiops_grpc_client.get_metrics()
-
-
-@pytest.mark.asyncio
-async def test_grpc_client_get_alerts_uninitialized(aiops_grpc_client):
-    with pytest.raises(RuntimeError, match="not initialized"):
+    with pytest.raises(RuntimeError, match="not initialis"):
         await aiops_grpc_client.get_alerts()
-
-
-@pytest.mark.asyncio
-async def test_grpc_client_execute_repair_uninitialized(aiops_grpc_client):
-    with pytest.raises(RuntimeError, match="not initialized"):
+    with pytest.raises(RuntimeError, match="not initialis"):
         await aiops_grpc_client.execute_repair("key")
 
 
 @pytest.mark.asyncio
-async def test_grpc_client_get_metrics_not_implemented(aiops_grpc_client):
-    aiops_grpc_client._grpc_client = MagicMock()
-    with pytest.raises(NotImplementedError):
-        await aiops_grpc_client.get_metrics()
+async def test_grpc_client_get_metrics_maps_proto(aiops_grpc_client):
+    stub = MagicMock()
+    stub.GetMetrics = AsyncMock(
+        return_value=aiops_pb2.MetricsResponse(
+            metrics=aiops_pb2.SystemMetrics(
+                cpu_usage=1.5,
+                memory_usage=2.5,
+                disk_usage=3.5,
+                network_rx=10,
+                network_tx=20,
+                timestamp=99,
+            )
+        )
+    )
+    aiops_grpc_client._grpc_client = stub
+
+    result = await aiops_grpc_client.get_metrics()
+
+    assert result == {
+        "cpu_usage": 1.5,
+        "memory_usage": 2.5,
+        "disk_usage": 3.5,
+        "network_rx": 10,
+        "network_tx": 20,
+        "timestamp": 99,
+    }
 
 
 @pytest.mark.asyncio
-async def test_grpc_client_get_alerts_not_implemented(aiops_grpc_client):
-    aiops_grpc_client._grpc_client = MagicMock()
-    with pytest.raises(NotImplementedError):
-        await aiops_grpc_client.get_alerts(level="error")
+async def test_grpc_client_get_alerts_maps_proto(aiops_grpc_client):
+    stub = MagicMock()
+    stub.ListAlerts = AsyncMock(
+        return_value=aiops_pb2.AlertsResponse(
+            alerts=[aiops_pb2.Alert(id="a1", level="error", title="t", resolved=False)]
+        )
+    )
+    aiops_grpc_client._grpc_client = stub
+
+    alerts = await aiops_grpc_client.get_alerts(level="error", limit=5)
+
+    assert alerts[0]["id"] == "a1"
+    assert alerts[0]["level"] == "error"
+    request = stub.ListAlerts.await_args.args[0]
+    assert request.level == "error"
+    assert request.limit == 5
 
 
 @pytest.mark.asyncio
-async def test_grpc_client_execute_repair_not_implemented(aiops_grpc_client):
-    aiops_grpc_client._grpc_client = MagicMock()
-    with pytest.raises(NotImplementedError):
-        await aiops_grpc_client.execute_repair("key", {"k": "v"})
+async def test_grpc_client_execute_repair_maps_proto(aiops_grpc_client):
+    stub = MagicMock()
+    stub.ExecuteRepair = AsyncMock(
+        return_value=aiops_pb2.RepairResponse(
+            repair=aiops_pb2.RepairAction(
+                id="cpu_high_script", script_key="cpu_high_script", success=True, duration_ms=42
+            )
+        )
+    )
+    aiops_grpc_client._grpc_client = stub
+
+    result = await aiops_grpc_client.execute_repair("cpu_high_script", {"k": "v"})
+
+    assert result["success"] is True
+    assert result["duration_ms"] == 42
 
 
 @pytest.mark.asyncio
-async def test_grpc_client_stream_metrics_not_implemented(aiops_grpc_client):
-    with pytest.raises(NotImplementedError):
-        async for _ in aiops_grpc_client.stream_metrics():
-            pass
+async def test_grpc_client_stream_metrics(aiops_grpc_client):
+    async def _stream(request):
+        yield aiops_pb2.StreamResponse(status="metrics")
+        yield aiops_pb2.StreamResponse(
+            metrics=aiops_pb2.SystemMetrics(cpu_usage=7.0, timestamp=123)
+        )
+
+    stub = MagicMock()
+    stub.StreamMetrics = _stream
+    aiops_grpc_client._grpc_client = stub
+
+    received = [chunk async for chunk in aiops_grpc_client.stream_metrics(interval_seconds=1)]
+
+    assert received == [
+        {"cpu_usage": 7.0, "memory_usage": 0.0, "disk_usage": 0.0, "timestamp": 123}
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -676,56 +731,71 @@ def test_setup_loki_logging_register_failure(monkeypatch):
 # ---------------------------------------------------------------------------
 # core.interface.grpc.interceptor
 # ---------------------------------------------------------------------------
-def test_logging_interceptor_success():
+@pytest.mark.asyncio
+async def test_logging_interceptor_success():
     interceptor = grpc_interceptor.LoggingInterceptor()
-    cont = MagicMock(return_value="handler")
+    cont = AsyncMock(return_value="handler")
     details = MagicMock(method="/Test/Method", invocation_metadata=[])
-    assert interceptor.intercept_service(cont, details) == "handler"
-    cont.assert_called_once_with(details)
+    assert await interceptor.intercept_service(cont, details) == "handler"
+    cont.assert_awaited_once_with(details)
 
 
-def test_logging_interceptor_error():
+@pytest.mark.asyncio
+async def test_logging_interceptor_error():
     interceptor = grpc_interceptor.LoggingInterceptor()
-    cont = MagicMock(side_effect=RuntimeError("boom"))
+    cont = AsyncMock(side_effect=RuntimeError("boom"))
     details = MagicMock(method="/Test/Method", invocation_metadata=[])
     with pytest.raises(RuntimeError, match="boom"):
-        interceptor.intercept_service(cont, details)
-    cont.assert_called_once_with(details)
+        await interceptor.intercept_service(cont, details)
+    cont.assert_awaited_once_with(details)
 
 
-def test_auth_interceptor_valid():
+@pytest.mark.asyncio
+async def test_auth_interceptor_valid():
     interceptor = grpc_interceptor.AuthInterceptor("secret")
-    cont = MagicMock(return_value="handler")
+    cont = AsyncMock(return_value="handler")
     details = MagicMock(method="/Test/Method", invocation_metadata=[("api-key", "secret")])
-    assert interceptor.intercept_service(cont, details) == "handler"
-    cont.assert_called_once_with(details)
+    assert await interceptor.intercept_service(cont, details) == "handler"
+    cont.assert_awaited_once_with(details)
 
 
-def test_auth_interceptor_invalid(monkeypatch):
-    fake_context = MagicMock()
-    fake_grpc = MagicMock()
-    fake_grpc.ServicerContext.return_value = fake_context
-    fake_grpc.StatusCode.UNAUTHENTICATED = "UNAUTHENTICATED"
-    monkeypatch.setattr(grpc_interceptor, "grpc", fake_grpc)
-
+@pytest.mark.asyncio
+async def test_auth_interceptor_invalid_returns_deny_handler():
     interceptor = grpc_interceptor.AuthInterceptor("secret")
-    cont = MagicMock()
+    cont = AsyncMock(return_value="handler")
     details = MagicMock(method="/Test/Method", invocation_metadata=[("api-key", "wrong")])
-    result = interceptor.intercept_service(
-        cont, details
-    )  # noqa: F841  # Variable for test verification
-    assert result is fake_context
-    fake_context.set_code.assert_called_once_with("UNAUTHENTICATED")
-    fake_context.set_details.assert_called_once_with("Invalid API key")
+
+    handler = await interceptor.intercept_service(cont, details)
+
+    # The real handler must not run; the returned handler aborts the RPC.
+    cont.assert_not_awaited()
+    context = AsyncMock()
+    await handler.unary_unary(None, context)
+    context.abort.assert_awaited_once()
+    assert context.abort.await_args.args[0] == grpc.StatusCode.UNAUTHENTICATED
 
 
-def test_metrics_interceptor():
+@pytest.mark.asyncio
+async def test_auth_interceptor_missing_metadata_denied():
+    interceptor = grpc_interceptor.AuthInterceptor("secret")
+    cont = AsyncMock(return_value="handler")
+    details = MagicMock(method="/Test/Method", invocation_metadata=None)
+
+    handler = await interceptor.intercept_service(cont, details)
+
+    cont.assert_not_awaited()
+    assert handler is not None
+
+
+@pytest.mark.asyncio
+async def test_metrics_interceptor():
     interceptor = grpc_interceptor.MetricsInterceptor()
-    cont = MagicMock(return_value="handler")
+    cont = AsyncMock(return_value="handler")
     details = MagicMock(method="/Metrics/Call", invocation_metadata=[])
 
     for _ in range(3):
-        interceptor.intercept_service(cont, details)
+        await interceptor.intercept_service(cont, details)
 
     metrics = interceptor.get_metrics()
     assert metrics == {"/Metrics/Call": 3}
+

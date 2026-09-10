@@ -135,7 +135,28 @@ export function DataTable<T extends Record<string, any>>({
           <TableHeader>
             <TableRow>
               {columns.map((col) => (
-                <TableHead key={String(col.key)} className={col.sortable ? 'cursor-pointer hover:bg-gray-50' : ''} onClick={() => col.sortable && handleSort(col.key)}>
+                <TableHead
+                  key={String(col.key)}
+                  className={col.sortable ? 'cursor-pointer hover:bg-gray-50' : ''}
+                  onClick={() => col.sortable && handleSort(col.key)}
+                  tabIndex={col.sortable ? 0 : undefined}
+                  aria-sort={
+                    col.sortable
+                      ? sortColumn === col.key
+                        ? sortDirection === 'asc'
+                          ? 'ascending'
+                          : 'descending'
+                        : 'none'
+                      : undefined
+                  }
+                  onKeyDown={(e) => {
+                    if (!col.sortable) return;
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSort(col.key);
+                    }
+                  }}
+                >
                   <div className="flex items-center gap-2">
                     {col.label}
                     {col.sortable && sortColumn === col.key && (

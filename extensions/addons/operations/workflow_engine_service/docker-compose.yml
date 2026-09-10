@@ -6,11 +6,11 @@ services:
 
   workflow-engine:
     build:
-      context: ../..
-      dockerfile: services/workflow_engine_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/operations/workflow_engine_service/Dockerfile
     command: [
       "uvicorn",
-      "services.workflow_engine_service.main_app:app",
+      "extensions.addons.operations.workflow_engine_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9524",
     ]

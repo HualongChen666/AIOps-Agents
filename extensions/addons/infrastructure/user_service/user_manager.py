@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from services.user_service.repository import UserRepository
-from services.user_service.schemas import User, UserCreate, UserUpdate
+from .repository import UserRepository
+from .schemas import User, UserCreate, UserUpdate
 
 
 class UserManager:

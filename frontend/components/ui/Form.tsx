@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 
 interface FormContextValue {
@@ -28,6 +28,9 @@ export function Form({ initialValues, onSubmit, validation, children }: FormProp
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Guards against re-entry: `isSubmitting` state is not visible to a second
+  // click that lands before React flushes the state update.
+  const submittingRef = useRef(false);
 
   const setFieldValue = useCallback((field: string, value: any) => {
     setValues((prev) => ({ ...prev, [field]: value }));
@@ -40,7 +43,16 @@ export function Form({ initialValues, onSubmit, validation, children }: FormProp
 
   const validate = useCallback(() => {
     if (!validation) return {};
-    const validationResult = validation(values) || {};
+    let validationResult: Record<string, string> = {};
+    try {
+      validationResult = validation(values) || {};
+    } catch (error) {
+      // A throwing validator must surface as a form error instead of escaping
+      // as an unhandled promise rejection from the async submit handler.
+      validationResult = {
+        _form: error instanceof Error ? error.message : String(error),
+      };
+    }
     setErrors(validationResult);
     return validationResult;
   }, [validation, values]);
@@ -48,13 +60,21 @@ export function Form({ initialValues, onSubmit, validation, children }: FormProp
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
+      if (submittingRef.current) return;
+
       const validationErrors = validate();
       if (Object.keys(validationErrors).length > 0) return;
 
+      submittingRef.current = true;
       setIsSubmitting(true);
       try {
         await onSubmit(values);
+      } catch (error) {
+        setErrors({
+          _form: error instanceof Error ? error.message : String(error),
+        });
       } finally {
+        submittingRef.current = false;
         setIsSubmitting(false);
       }
     },

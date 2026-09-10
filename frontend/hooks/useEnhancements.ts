@@ -197,7 +197,7 @@ export interface ValidationErrors {
 
 export function useFormValidation<T extends Record<string, any>>(
   initialValues: T,
-  validationRules: Record<keyof T, ValidationRule>
+  validationRules: Partial<Record<keyof T, ValidationRule>>
 ) {
   const [values, setValues] = useState<T>(initialValues);
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -208,6 +208,9 @@ export function useFormValidation<T extends Record<string, any>>(
     let isValid = true;
 
     Object.entries(validationRules).forEach(([field, rules]) => {
+      // Fields without an explicit rule entry are simply not validated.
+      if (!rules) return;
+
       const value = values[field as keyof T];
       const fieldErrors: string[] = [];
 

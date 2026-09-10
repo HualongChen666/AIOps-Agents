@@ -6,9 +6,11 @@ conversation_id = "YOUR_CONVERSATION_ID"
 
 # 示例：GET /conversation/{conversation_id}
 # 使用 GET 方法请求 /conversation/{conversation_id}
-url = f"http://localhost:8080/api/v1/conversation/{conversation_id}"
+url = f"http://localhost:8000/api/v1/conversation/{conversation_id}"
+headers = {"Authorization": "Bearer YOUR_TOKEN"}
+
 try:
-    response = requests.get(url)
+    response = requests.get(url, headers=headers)
     print("Status:", response.status_code)
     print("Response:", response.json())
 except Exception as e:

@@ -6,14 +6,15 @@ JWT认证中间件
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 from sqlalchemy.orm import Session
 
+from config import JWT_SECRET_KEY
 from core.database import get_db
 from core.models import User
 
@@ -22,8 +23,10 @@ logger = logging.getLogger(__name__)
 # Security scheme for JWT
 security = HTTPBearer()
 
-# JWT Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+# JWT Configuration — reuse the centrally validated secret (config.py raises in
+# production when it is unset).  Never fall back to a hard-coded default
+# (Wave2 #25).
+SECRET_KEY = JWT_SECRET_KEY
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 
@@ -32,9 +35,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     """创建JWT访问令牌"""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -99,9 +102,9 @@ async def get_current_active_user(
 class OptionalHTTPBearer(HTTPBearer):
     """可选的HTTP Bearer认证，用于不需要强制认证的端点"""
     
-    async def __call__(self):
+    async def __call__(self, request: Request) -> Optional[HTTPAuthorizationCredentials]:
         try:
-            return await super().__call__()
+            return await super().__call__(request)
         except HTTPException as exc:
             if exc.status_code == status.HTTP_403_FORBIDDEN:
                 return None

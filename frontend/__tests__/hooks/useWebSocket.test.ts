@@ -1,4 +1,4 @@
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { useWebSocket, useSSE, useRealtimeData } from '@/hooks/useWebSocket';
 
 // Mock the toast hook
@@ -8,13 +8,82 @@ jest.mock('@/hooks/useEnhancements', () => ({
   })),
 }));
 
+type MockWebSocket = {
+  readyState: number;
+  onopen: ((ev: Event) => void) | null;
+  onmessage: ((ev: MessageEvent) => void) | null;
+  onerror: ((ev: Event) => void) | null;
+  onclose: ((ev: Event) => void) | null;
+  send: jest.Mock;
+  close: jest.Mock;
+};
+
+type MockEventSource = {
+  readyState: number;
+  onopen: ((ev: Event) => void) | null;
+  onmessage: ((ev: MessageEvent) => void) | null;
+  onerror: ((ev: Event) => void) | null;
+  close: jest.Mock;
+};
+
+const OriginalWebSocket = global.WebSocket;
+const OriginalEventSource = global.EventSource;
+
+// Install a spec-compliant WebSocket constructor: the mock instance AND the
+// readyState constants (the hook — like any WebSocket client — reads
+// WebSocket.OPEN/CONNECTING). The real globals are restored after each test.
+function installWebSocket(overrides: Partial<MockWebSocket> = {}) {
+  const ws: MockWebSocket = {
+    readyState: 1, // OPEN
+    onopen: null,
+    onmessage: null,
+    onerror: null,
+    onclose: null,
+    send: jest.fn(),
+    close: jest.fn(),
+    ...overrides,
+  };
+  const Ctor: any = jest.fn(() => ws);
+  Ctor.CONNECTING = 0;
+  Ctor.OPEN = 1;
+  Ctor.CLOSING = 2;
+  Ctor.CLOSED = 3;
+  (global as any).WebSocket = Ctor;
+  return { ws, Ctor };
+}
+
+function installEventSource(overrides: Partial<MockEventSource> = {}) {
+  const es: MockEventSource = {
+    readyState: 1, // OPEN
+    onopen: null,
+    onmessage: null,
+    onerror: null,
+    close: jest.fn(),
+    ...overrides,
+  };
+  const Ctor: any = jest.fn(() => es);
+  Ctor.CONNECTING = 0;
+  Ctor.OPEN = 1;
+  Ctor.CLOSED = 2;
+  (global as any).EventSource = Ctor;
+  return { es, Ctor };
+}
+
+afterEach(() => {
+  (global as any).WebSocket = OriginalWebSocket;
+  (global as any).EventSource = OriginalEventSource;
+  jest.useRealTimers();
+});
+
 describe('useWebSocket', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it('should initialize with disconnected state', () => {
-    const { result } = renderHook(() => useWebSocket('ws://test.com'));
+    // With `enabled: false` the hook performs no connection, so it reports the
+    // pristine disconnected state.
+    const { result } = renderHook(() => useWebSocket('ws://test.com', { enabled: false }));
 
     expect(result.current.isConnected).toBe(false);
     expect(result.current.isConnecting).toBe(false);
@@ -22,60 +91,29 @@ describe('useWebSocket', () => {
   });
 
   it('should connect when enabled', () => {
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { Ctor } = installWebSocket();
 
     const { result } = renderHook(() => useWebSocket('ws://test.com', { enabled: true }));
 
+    expect(Ctor).toHaveBeenCalledTimes(1);
     expect(result.current.isConnecting).toBe(true);
   });
 
   it('should not connect when disabled', () => {
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { Ctor } = installWebSocket();
 
     renderHook(() => useWebSocket('ws://test.com', { enabled: false }));
 
-    expect(global.WebSocket).not.toHaveBeenCalled();
+    expect(Ctor).not.toHaveBeenCalled();
   });
 
   it('should set connected state on open', () => {
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { ws } = installWebSocket();
 
     const { result } = renderHook(() => useWebSocket('ws://test.com'));
 
     act(() => {
-      if (mockWebSocket.onopen) {
-        mockWebSocket.onopen(new Event('open'));
-      }
+      ws.onopen?.(new Event('open'));
     });
 
     expect(result.current.isConnected).toBe(true);
@@ -84,49 +122,26 @@ describe('useWebSocket', () => {
 
   it('should call onMessage callback when message received', () => {
     const onMessage = jest.fn();
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { ws } = installWebSocket();
 
     renderHook(() => useWebSocket('ws://test.com', { onMessage }));
 
     act(() => {
-      if (mockWebSocket.onmessage) {
-        mockWebSocket.onmessage(new MessageEvent('message', { data: 'test' }));
-      }
+      ws.onmessage?.(new MessageEvent('message', { data: 'test' }));
     });
 
-    expect(onMessage).toHaveBeenCalled();
+    expect(onMessage).toHaveBeenCalledTimes(1);
+    expect(onMessage.mock.calls[0][0].data).toBe('test');
   });
 
   it('should handle connection error', () => {
     const onError = jest.fn();
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { ws } = installWebSocket();
 
     const { result } = renderHook(() => useWebSocket('ws://test.com', { onError }));
 
     act(() => {
-      if (mockWebSocket.onerror) {
-        mockWebSocket.onerror(new Event('error'));
-      }
+      ws.onerror?.(new Event('error'));
     });
 
     expect(result.current.isConnected).toBe(false);
@@ -136,24 +151,12 @@ describe('useWebSocket', () => {
 
   it('should handle connection close', () => {
     const onClose = jest.fn();
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { ws } = installWebSocket();
 
     const { result } = renderHook(() => useWebSocket('ws://test.com', { onClose }));
 
     act(() => {
-      if (mockWebSocket.onclose) {
-        mockWebSocket.onclose(new Event('close'));
-      }
+      ws.onclose?.(new Event('close'));
     });
 
     expect(result.current.isConnected).toBe(false);
@@ -161,45 +164,39 @@ describe('useWebSocket', () => {
   });
 
   it('should send message when connected', () => {
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { ws } = installWebSocket();
 
     const { result } = renderHook(() => useWebSocket('ws://test.com'));
 
     act(() => {
-      if (mockWebSocket.onopen) {
-        mockWebSocket.onopen(new Event('open'));
-      }
+      ws.onopen?.(new Event('open'));
     });
 
     act(() => {
       result.current.send('test message');
     });
 
-    expect(mockWebSocket.send).toHaveBeenCalledWith('test message');
+    expect(ws.send).toHaveBeenCalledWith('test message');
+  });
+
+  it('should serialise object payloads before sending', () => {
+    const { ws } = installWebSocket();
+
+    const { result } = renderHook(() => useWebSocket('ws://test.com'));
+
+    act(() => {
+      ws.onopen?.(new Event('open'));
+    });
+
+    act(() => {
+      result.current.send({ kind: 'ping' });
+    });
+
+    expect(ws.send).toHaveBeenCalledWith(JSON.stringify({ kind: 'ping' }));
   });
 
   it('should not send message when not connected', () => {
-    const mockWebSocket = {
-      readyState: WebSocket.CLOSED,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { ws } = installWebSocket({ readyState: 3 /* CLOSED */ });
 
     const { result } = renderHook(() => useWebSocket('ws://test.com'));
 
@@ -207,21 +204,11 @@ describe('useWebSocket', () => {
       result.current.send('test message');
     });
 
-    expect(mockWebSocket.send).not.toHaveBeenCalled();
+    expect(ws.send).not.toHaveBeenCalled();
   });
 
   it('should disconnect manually', () => {
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { ws } = installWebSocket();
 
     const { result } = renderHook(() => useWebSocket('ws://test.com'));
 
@@ -229,77 +216,54 @@ describe('useWebSocket', () => {
       result.current.disconnect();
     });
 
-    expect(mockWebSocket.close).toHaveBeenCalled();
+    expect(ws.close).toHaveBeenCalled();
     expect(result.current.isConnected).toBe(false);
+    expect(result.current.isConnecting).toBe(false);
   });
 
   it('should reconnect on close with auto-reconnect', () => {
     jest.useFakeTimers();
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
-
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { ws, Ctor } = installWebSocket();
 
     renderHook(() => useWebSocket('ws://test.com', { reconnectInterval: 5000 }));
 
     act(() => {
-      if (mockWebSocket.onopen) {
-        mockWebSocket.onopen(new Event('open'));
-      }
+      ws.onopen?.(new Event('open'));
     });
 
     act(() => {
-      if (mockWebSocket.onclose) {
-        mockWebSocket.onclose(new Event('close'));
-      }
+      ws.onclose?.(new Event('close'));
     });
 
     act(() => {
       jest.advanceTimersByTime(5000);
     });
 
-    expect(global.WebSocket).toHaveBeenCalledTimes(2);
-    jest.useRealTimers();
+    expect(Ctor).toHaveBeenCalledTimes(2);
   });
 
   it('should stop reconnecting after max attempts', () => {
     jest.useFakeTimers();
-    const mockWebSocket = {
-      readyState: WebSocket.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      onclose: null,
-      send: jest.fn(),
-      close: jest.fn(),
-    };
+    const { ws } = installWebSocket();
 
-    global.WebSocket = jest.fn(() => mockWebSocket) as any;
+    const { result } = renderHook(() =>
+      useWebSocket('ws://test.com', {
+        reconnectInterval: 1000,
+        maxReconnectAttempts: 3,
+      })
+    );
 
-    const { result } = renderHook(() => useWebSocket('ws://test.com', {
-      reconnectInterval: 1000,
-      maxReconnectAttempts: 3,
-    }));
-
-    // Simulate multiple connection failures
+    // Simulate repeated connection drops.
     for (let i = 0; i < 5; i++) {
       act(() => {
-        if (mockWebSocket.onclose) {
-          mockWebSocket.onclose(new Event('close'));
-        }
+        ws.onclose?.(new Event('close'));
+      });
+      act(() => {
         jest.advanceTimersByTime(1000);
       });
     }
 
     expect(result.current.reconnectAttempts).toBe(3);
-    jest.useRealTimers();
   });
 });
 
@@ -309,7 +273,7 @@ describe('useSSE', () => {
   });
 
   it('should initialize with disconnected state', () => {
-    const { result } = renderHook(() => useSSE('/api/sse'));
+    const { result } = renderHook(() => useSSE('/api/sse', { enabled: false }));
 
     expect(result.current.isConnected).toBe(false);
     expect(result.current.isConnecting).toBe(false);
@@ -317,54 +281,29 @@ describe('useSSE', () => {
   });
 
   it('should connect when enabled', () => {
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { Ctor } = installEventSource();
 
     const { result } = renderHook(() => useSSE('/api/sse', { enabled: true }));
 
+    expect(Ctor).toHaveBeenCalledTimes(1);
     expect(result.current.isConnecting).toBe(true);
   });
 
   it('should not connect when disabled', () => {
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { Ctor } = installEventSource();
 
     renderHook(() => useSSE('/api/sse', { enabled: false }));
 
-    expect(global.EventSource).not.toHaveBeenCalled();
+    expect(Ctor).not.toHaveBeenCalled();
   });
 
   it('should set connected state on open', () => {
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { es } = installEventSource();
 
     const { result } = renderHook(() => useSSE('/api/sse'));
 
     act(() => {
-      if (mockEventSource.onopen) {
-        mockEventSource.onopen(new Event('open'));
-      }
+      es.onopen?.(new Event('open'));
     });
 
     expect(result.current.isConnected).toBe(true);
@@ -373,22 +312,12 @@ describe('useSSE', () => {
 
   it('should call onEvent callback when message received', () => {
     const onEvent = jest.fn();
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { es } = installEventSource();
 
     renderHook(() => useSSE('/api/sse', { onEvent }));
 
     act(() => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(new MessageEvent('message', { data: JSON.stringify({ test: 'data' }) }));
-      }
+      es.onmessage?.(new MessageEvent('message', { data: JSON.stringify({ test: 'data' }) }));
     });
 
     expect(onEvent).toHaveBeenCalledWith({ type: 'message', data: { test: 'data' } });
@@ -396,22 +325,12 @@ describe('useSSE', () => {
 
   it('should handle connection error', () => {
     const onError = jest.fn();
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { es } = installEventSource();
 
     const { result } = renderHook(() => useSSE('/api/sse', { onError }));
 
     act(() => {
-      if (mockEventSource.onerror) {
-        mockEventSource.onerror(new Event('error'));
-      }
+      es.onerror?.(new Event('error'));
     });
 
     expect(result.current.isConnected).toBe(false);
@@ -420,15 +339,7 @@ describe('useSSE', () => {
   });
 
   it('should disconnect manually', () => {
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { es } = installEventSource();
 
     const { result } = renderHook(() => useSSE('/api/sse'));
 
@@ -436,28 +347,18 @@ describe('useSSE', () => {
       result.current.disconnect();
     });
 
-    expect(mockEventSource.close).toHaveBeenCalled();
+    expect(es.close).toHaveBeenCalled();
     expect(result.current.isConnected).toBe(false);
   });
 
   it('should handle non-JSON message data', () => {
     const onEvent = jest.fn();
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { es } = installEventSource();
 
     renderHook(() => useSSE('/api/sse', { onEvent }));
 
     act(() => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(new MessageEvent('message', { data: 'plain text' }));
-      }
+      es.onmessage?.(new MessageEvent('message', { data: 'plain text' }));
     });
 
     expect(onEvent).toHaveBeenCalledWith({ type: 'message', data: 'plain text' });
@@ -470,6 +371,7 @@ describe('useRealtimeData', () => {
   });
 
   it('should initialize with null data', () => {
+    installEventSource();
     const { result } = renderHook(() => useRealtimeData<string>('/api/sse'));
 
     expect(result.current.data).toBeNull();
@@ -477,30 +379,16 @@ describe('useRealtimeData', () => {
   });
 
   it('should update data on message event', () => {
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { es } = installEventSource();
 
     const { result } = renderHook(() => useRealtimeData<{ value: string }>('/api/sse'));
 
     act(() => {
-      if (mockEventSource.onopen) {
-        mockEventSource.onopen(new Event('open'));
-      }
+      es.onopen?.(new Event('open'));
     });
 
     act(() => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(
-          new MessageEvent('message', { data: JSON.stringify({ value: 'test' }) })
-        );
-      }
+      es.onmessage?.(new MessageEvent('message', { data: JSON.stringify({ value: 'test' }) }));
     });
 
     expect(result.current.data).toEqual({ value: 'test' });
@@ -508,30 +396,18 @@ describe('useRealtimeData', () => {
   });
 
   it('should update data on alert event', () => {
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { es } = installEventSource();
 
     const { result } = renderHook(() => useRealtimeData<{ alert: string }>('/api/sse'));
 
     act(() => {
-      if (mockEventSource.onopen) {
-        mockEventSource.onopen(new Event('open'));
-      }
+      es.onopen?.(new Event('open'));
     });
 
     act(() => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(
-          new MessageEvent('message', { data: JSON.stringify({ type: 'alert', alert: 'test' }) })
-        );
-      }
+      es.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'alert', alert: 'test' }) })
+      );
     });
 
     expect(result.current.data).toEqual({ type: 'alert', alert: 'test' });
@@ -539,28 +415,16 @@ describe('useRealtimeData', () => {
 
   it('should call custom onEvent callback', () => {
     const onEvent = jest.fn();
-    const mockEventSource = {
-      readyState: EventSource.OPEN,
-      onopen: null,
-      onmessage: null,
-      onerror: null,
-      close: jest.fn(),
-    };
-
-    global.EventSource = jest.fn(() => mockEventSource) as any;
+    const { es } = installEventSource();
 
     renderHook(() => useRealtimeData<string>('/api/sse', { onEvent }));
 
     act(() => {
-      if (mockEventSource.onopen) {
-        mockEventSource.onopen(new Event('open'));
-      }
+      es.onopen?.(new Event('open'));
     });
 
     act(() => {
-      if (mockEventSource.onmessage) {
-        mockEventSource.onmessage(new MessageEvent('message', { data: 'test' }));
-      }
+      es.onmessage?.(new MessageEvent('message', { data: 'test' }));
     });
 
     expect(onEvent).toHaveBeenCalled();

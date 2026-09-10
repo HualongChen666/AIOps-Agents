@@ -6,7 +6,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
-from services.config_service.schemas import (
+from .schemas import (
     AuditLogEntry,
     ConfigSnapshot,
     ConfigValue,

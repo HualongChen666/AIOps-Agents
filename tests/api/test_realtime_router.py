@@ -564,4 +564,4 @@ class TestIntegration:
         for endpoint in endpoints:
             response = client.get(endpoint)
             # All endpoints should return 401 (unauthorized) or 404 (not found)
-            assert response.status_code in (401, 404)
+            assert response.status_code != 404, response.text

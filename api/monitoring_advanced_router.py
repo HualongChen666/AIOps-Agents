@@ -45,8 +45,9 @@ from core.metrics_exporter import MetricsExporter
 from core.metrics_history import METRICS_HISTORY as metrics_history
 from core.db_engine import async_get_session
 from core.authentication import get_current_active_user
+from core.auth import check_rate_limit, parse_rate_limit_per_minute
 from core.rbac import Permission, require_permission
-from core.rate_limiter import get_limiter
+from core.rate_limiter import get_rate_limit_for_endpoint
 from core.repositories.monitoring_repository import MonitoringRepository
 from core.prometheus_client import get_prometheus_client
 from core.loki_client import get_loki_client
@@ -54,10 +55,20 @@ from core.tempo_client import get_tempo_client
 from core.elasticsearch_client import get_elasticsearch_client
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/monitoring", tags=["监控高级功能"])
 
-# Rate limiter
-limiter = get_limiter()
+
+def _check_rate_limit(request: Request) -> None:
+    """Enforce the endpoint rate limit (raises HTTPException 429 when exceeded)."""
+    identifier = request.client.host if request.client else "unknown"
+    limit = get_rate_limit_for_endpoint(request.url.path)
+    check_rate_limit(identifier, requests_per_minute=parse_rate_limit_per_minute(limit))
+
+
+router = APIRouter(
+    prefix="/api/v1/monitoring",
+    tags=["监控高级功能"],
+    dependencies=[Depends(_check_rate_limit)],
+)
 
 # ============================================================
 # Pydantic Models for Request/Response Validation
@@ -119,7 +130,7 @@ class MetricsConverterRequest(BaseModel):
     metrics_data: Dict[str, Any]
 
 
-class MonitoringConfig(BaseModel):
+class MonitoringAdvancedMonitoringConfig(BaseModel):
     """Monitoring configuration model"""
 
     enabled: bool = True
@@ -2125,7 +2136,7 @@ async def get_log_collection_status() -> Dict[str, Any]:
     },
 )
 async def configure_log_collection(
-    config: MonitoringConfig = Body(...),
+    config: MonitoringAdvancedMonitoringConfig = Body(...),
 ) -> Dict[str, Any]:
     """
     配置日志采集
@@ -2395,7 +2406,7 @@ async def get_cloud_monitoring(
     },
 )
 async def configure_cloud_monitoring(
-    config: MonitoringConfig = Body(...),
+    config: MonitoringAdvancedMonitoringConfig = Body(...),
 ) -> Dict[str, Any]:
     """
     配置云监控
@@ -2502,7 +2513,7 @@ async def get_k8s_monitoring(
     },
 )
 async def configure_k8s_monitoring(
-    config: MonitoringConfig = Body(...),
+    config: MonitoringAdvancedMonitoringConfig = Body(...),
 ) -> Dict[str, Any]:
     """
     配置Kubernetes监控
@@ -2617,7 +2628,7 @@ async def get_docker_monitoring(
     },
 )
 async def configure_docker_monitoring(
-    config: MonitoringConfig = Body(...),
+    config: MonitoringAdvancedMonitoringConfig = Body(...),
 ) -> Dict[str, Any]:
     """
     配置Docker监控
@@ -2697,7 +2708,7 @@ async def get_macos_monitoring(
     },
 )
 async def configure_macos_monitoring(
-    config: MonitoringConfig = Body(...),
+    config: MonitoringAdvancedMonitoringConfig = Body(...),
 ) -> Dict[str, Any]:
     """
     配置macOS监控
@@ -2777,7 +2788,7 @@ async def get_windows_monitoring(
     },
 )
 async def configure_windows_monitoring(
-    config: MonitoringConfig = Body(...),
+    config: MonitoringAdvancedMonitoringConfig = Body(...),
 ) -> Dict[str, Any]:
     """
     配置Windows监控
@@ -2885,7 +2896,7 @@ async def get_linux_monitoring(
     },
 )
 async def configure_linux_monitoring(
-    config: MonitoringConfig = Body(...),
+    config: MonitoringAdvancedMonitoringConfig = Body(...),
 ) -> Dict[str, Any]:
     """
     配置Linux监控
@@ -2960,7 +2971,7 @@ async def get_process_monitoring(
     },
 )
 async def configure_process_monitoring(
-    config: MonitoringConfig = Body(...),
+    config: MonitoringAdvancedMonitoringConfig = Body(...),
 ) -> Dict[str, Any]:
     """
     配置进程监控

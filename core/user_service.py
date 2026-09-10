@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``user_service`` module.
+
+Top-level classes: UserService"""
+
 # core/user_service.py
 # 🔧 用户服务层 - 使用Repository层实现数据库持久化
 

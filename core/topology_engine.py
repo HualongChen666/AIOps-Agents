@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``topology_engine`` module.
+
+Top-level functions: build_topology_graph, graph_to_dict, get_topology_status, get_full_link_topology, get_node_timeline, update_node_health, insert_topology, query_topology, insert_node, delete_node, … (+19 more)"""
+
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional

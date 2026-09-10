@@ -29,7 +29,7 @@ interface AlertTrends {
 export default function AlertTrendsPage() {
   const [timeRange, setTimeRange] = useState('7d');
   const [viewType, setViewType] = useState<'daily' | 'weekly' | 'monthly'>('daily');
-  const { isLoading, error, refetch } = useLoadingState();
+  const { isLoading, error } = useLoadingState();
   const toast = useToast();
   const showError = toast.error;
 

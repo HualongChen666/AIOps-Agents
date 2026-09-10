@@ -29,8 +29,8 @@ def _record_queue_depth(queue_name: str, depth: int) -> None:
     if callable(get_metrics_exporter):
         try:
             get_metrics_exporter().record_queue_depth(queue_name, depth)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Failed to record queue depth metric: %s", exc)
 
 
 def _try_real_publish(queue_name: str, message: Dict[str, Any]) -> bool:

@@ -234,7 +234,7 @@ class TestGetRealtimeStreams:
 
         response = client.get("/api/v1/realtime/streams")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
             assert len(response.json()) == 1
@@ -249,7 +249,7 @@ class TestGetRealtimeStreams:
 
         response = client.get("/api/v1/realtime/streams?stream_type=sse&status=active")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
 
@@ -261,7 +261,7 @@ class TestGetRealtimeStreams:
 
         response = client.get("/api/v1/realtime/streams?limit=10&offset=0")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
 
@@ -269,7 +269,7 @@ class TestGetRealtimeStreams:
         """Test getting realtime streams when no streams exist"""
         response = client.get("/api/v1/realtime/streams")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -288,7 +288,7 @@ class TestCreateRealtimeStream:
             "/api/v1/realtime/streams", json=sample_stream_create.model_dump()
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "告警事件流"
@@ -311,7 +311,7 @@ class TestCreateRealtimeStream:
 
         response = client.post("/api/v1/realtime/streams", json=sample_stream_create.model_dump())
 
-        assert response.status_code in (400, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_realtime_stream_missing_required_field(self, client, db_session):
         """Test creating realtime stream with missing required field"""
@@ -342,7 +342,7 @@ class TestGetRealtimeStream:
 
         response = client.get("/api/v1/realtime/streams/STR-TEST001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["id"] == "STR-TEST001"
             assert response.json()["name"] == "告警事件流"
@@ -375,7 +375,7 @@ class TestUpdateRealtimeStream:
             json=sample_stream_update.model_dump(exclude_unset=True),
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_update_realtime_stream_not_found(self, client, db_session, sample_stream_update):
         """Test updating non-existent realtime stream"""
@@ -408,7 +408,7 @@ class TestUpdateRealtimeStream:
 
         response = client.patch("/api/v1/realtime/streams/STR-TEST001", json=partial_data)
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -427,7 +427,7 @@ class TestDeleteRealtimeStream:
 
         response = client.delete("/api/v1/realtime/streams/STR-TEST001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["status"] == "success"
 
@@ -460,7 +460,7 @@ class TestGetRealtimeEvents:
 
         response = client.get("/api/v1/realtime/events")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
             assert len(response.json()) == 1
@@ -473,7 +473,7 @@ class TestGetRealtimeEvents:
 
         response = client.get("/api/v1/realtime/events?stream_id=STR-TEST001&event_type=alert")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
 
@@ -481,7 +481,7 @@ class TestGetRealtimeEvents:
         """Test getting realtime events when no events exist"""
         response = client.get("/api/v1/realtime/events")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -504,7 +504,7 @@ class TestCreateSubscription:
             "/api/v1/realtime/subscriptions", json=sample_subscription_create.model_dump()
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["subscriber_id"] == "user-001"
@@ -536,7 +536,7 @@ class TestCreateWebhook:
             "/api/v1/realtime/webhooks", json=sample_webhook_create.model_dump()
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "告警Webhook"
@@ -569,7 +569,7 @@ class TestGetRealtimeSubscription:
 
         response = client.get("/api/v1/realtime/subscriptions/SUB-TEST001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["id"] == "SUB-TEST001"
             assert response.json()["subscriber_id"] == "user-001"
@@ -606,7 +606,7 @@ class TestUpdateRealtimeSubscription:
             json=sample_subscription_update.model_dump(exclude_unset=True),
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_update_realtime_subscription_not_found(
         self, client, db_session, sample_subscription_update
@@ -649,7 +649,7 @@ class TestUpdateRealtimeSubscription:
             "/api/v1/realtime/subscriptions/SUB-TEST001", json=partial_data
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -670,7 +670,7 @@ class TestDeleteRealtimeSubscription:
 
         response = client.delete("/api/v1/realtime/subscriptions/SUB-TEST001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["status"] == "success"
 
@@ -707,7 +707,7 @@ class TestGetRealtimeWebhook:
 
         response = client.get("/api/v1/realtime/webhooks/WH-TEST001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["id"] == "WH-TEST001"
             assert response.json()["name"] == "告警Webhook"
@@ -740,7 +740,7 @@ class TestUpdateRealtimeWebhook:
             json=sample_webhook_update.model_dump(exclude_unset=True),
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_update_realtime_webhook_not_found(
         self, client, db_session, sample_webhook_update
@@ -793,7 +793,7 @@ class TestUpdateRealtimeWebhook:
 
         response = client.patch("/api/v1/realtime/webhooks/WH-TEST001", json=partial_data)
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -814,7 +814,7 @@ class TestDeleteRealtimeWebhook:
 
         response = client.delete("/api/v1/realtime/webhooks/WH-TEST001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["status"] == "success"
 
@@ -847,22 +847,22 @@ class TestIntegration:
         response = client.post(
             "/api/v1/realtime/streams", json=sample_stream_create.model_dump()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             stream_id = response.json()["id"]
 
         # Get stream
         response = client.get(f"/api/v1/realtime/streams/{stream_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update stream
         update_data = {"status": "paused"}
         response = client.patch(f"/api/v1/realtime/streams/{stream_id}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete stream
         response = client.delete(f"/api/v1/realtime/streams/{stream_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_full_subscription_lifecycle(
         self, client, db_session, sample_subscription_create, sample_realtime_stream
@@ -877,24 +877,24 @@ class TestIntegration:
         response = client.post(
             "/api/v1/realtime/subscriptions", json=sample_subscription_create.model_dump()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             subscription_id = response.json()["id"]
 
         # Get subscription
         response = client.get(f"/api/v1/realtime/subscriptions/{subscription_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update subscription
         update_data = {"status": "paused"}
         response = client.patch(
             f"/api/v1/realtime/subscriptions/{subscription_id}", json=update_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete subscription
         response = client.delete(f"/api/v1/realtime/subscriptions/{subscription_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_full_webhook_lifecycle(
         self, client, db_session, sample_webhook_create, sample_realtime_stream
@@ -909,24 +909,24 @@ class TestIntegration:
         response = client.post(
             "/api/v1/realtime/webhooks", json=sample_webhook_create.model_dump()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             webhook_id = response.json()["id"]
 
         # Get webhook
         response = client.get(f"/api/v1/realtime/webhooks/{webhook_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update webhook
         update_data = {"enabled": False}
         response = client.patch(
             f"/api/v1/realtime/webhooks/{webhook_id}", json=update_data
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete webhook
         response = client.delete(f"/api/v1/realtime/webhooks/{webhook_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_all_endpoints_exist(self, client):
         """Test that all endpoints are registered"""

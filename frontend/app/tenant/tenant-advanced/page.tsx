@@ -243,7 +243,7 @@ export default function TenantAdvancedPage() {
                 <Building2 className="h-5 w-5" />
                 租户配置
               </span>
-              <Button onClick={() => setEditingConfig(tenantConfig || undefined)} size="sm">
+              <Button onClick={() => setEditingConfig(tenantConfig || null)} size="sm">
                 编辑
               </Button>
             </CardTitle>
@@ -406,7 +406,7 @@ export default function TenantAdvancedPage() {
                 <Settings className="h-5 w-5" />
                 租户设置
               </span>
-              <Button onClick={() => setEditingSettings(tenantSettings || undefined)} size="sm">
+              <Button onClick={() => setEditingSettings(tenantSettings || null)} size="sm">
                 编辑
               </Button>
             </CardTitle>

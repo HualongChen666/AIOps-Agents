@@ -1,8 +1,9 @@
 import json
+import os
 import pathlib
 import traceback
 
-root = pathlib.Path(r"C:\AIOps_Agent_bak")
+root = pathlib.Path(os.getenv("AIOPS_ROOT", pathlib.Path(__file__).resolve().parents[1]))
 errors = []
 for py in root.rglob("*.py"):
     try:

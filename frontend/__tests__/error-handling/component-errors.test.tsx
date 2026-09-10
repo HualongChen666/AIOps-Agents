@@ -70,9 +70,8 @@ describe('Component Error Handling', () => {
         </ErrorBoundary>
       );
 
-      // Note: useEffect errors are not caught by ErrorBoundary in React
-      // This test documents the expected behavior
-      expect(screen.getByText('Component')).toBeInTheDocument();
+      // React 18 routes passive-effect (useEffect) errors to the nearest error boundary.
+      expect(screen.getByText('Error caught')).toBeInTheDocument();
     });
 
     it('should handle component throwing during event handler', () => {
@@ -91,8 +90,19 @@ describe('Component Error Handling', () => {
 
       const button = screen.getByText('Click me');
       
-      // Event handler errors are not caught by ErrorBoundary
-      expect(() => fireEvent.click(button)).toThrow('Click error');
+      // Event-handler errors are NOT caught by error boundaries; React reports them
+      // to the window. jsdom would treat that as an unhandled exception and fail the
+      // test, so we swallow it while asserting the boundary did not fire.
+      const swallow = (e: ErrorEvent) => e.preventDefault();
+      window.addEventListener('error', swallow);
+      try {
+        fireEvent.click(button);
+      } finally {
+        window.removeEventListener('error', swallow);
+      }
+      
+      expect(screen.getByText('Click me')).toBeInTheDocument();
+      expect(screen.queryByText('Error caught')).not.toBeInTheDocument();
     });
 
     it('should handle async errors in components', async () => {
@@ -452,8 +462,8 @@ describe('Component Error Handling', () => {
         </ErrorBoundary>
       );
 
-      // componentDidMount errors are not caught by ErrorBoundary
-      expect(screen.getByText('Component')).toBeInTheDocument();
+      // Errors thrown in componentDidMount are caught by the nearest error boundary.
+      expect(screen.getByText('DidMount error caught')).toBeInTheDocument();
     });
 
     it('should handle errors in componentDidUpdate', () => {
@@ -484,8 +494,9 @@ describe('Component Error Handling', () => {
 
       const button = screen.getByText('Update');
       
-      // componentDidUpdate errors are not caught by ErrorBoundary
-      expect(() => fireEvent.click(button)).toThrow('DidUpdate error');
+      // componentDidUpdate errors propagate to the nearest error boundary.
+      fireEvent.click(button);
+      expect(screen.getByText('DidUpdate error caught')).toBeInTheDocument();
     });
 
     it('should handle errors in componentWillUnmount', () => {
@@ -510,7 +521,7 @@ describe('Component Error Handling', () => {
     });
 
     it('should handle errors in getDerivedStateFromProps', () => {
-      class ErrorInGetDerivedState extends React.Component {
+      class ErrorInGetDerivedState extends React.Component<{ shouldError?: boolean }> {
         state = { value: 0 };
 
         static getDerivedStateFromProps(props: any, state: any) {
@@ -545,7 +556,8 @@ describe('Component Error Handling', () => {
       render(<ComponentWithRequiredProps />);
       
       // Component renders without error (TypeScript would catch this at compile time)
-      expect(screen.getByText('Hello undefined')).toBeInTheDocument();
+      // React renders nothing for an undefined child, so the text is just "Hello".
+      expect(screen.getByText('Hello')).toBeInTheDocument();
     });
 
     it('should handle null props gracefully', () => {
@@ -744,7 +756,8 @@ describe('Component Error Handling', () => {
         </ResettableErrorBoundary>
       );
 
-      expect(screen.getByText('Error caught')).toBeInTheDocument();
+      // The parent reacts to `onError` and takes over rendering.
+      expect(screen.getByText('Error: Test error')).toBeInTheDocument();
 
       rerender(
         <ResettableErrorBoundary resetKey={2}>

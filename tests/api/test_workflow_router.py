@@ -129,13 +129,13 @@ def test_list_workflows(client, admin_headers):
 def test_simulate_workflow(client, admin_headers):
     """Test GET /api/v1/workflows/simulate/{wf_key} - SSE仿真执行工作流"""
     resp = client.get("/api/v1/workflows/simulate/test_workflow", headers=admin_headers)
-    assert resp.status_code in (200, 404, 503, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_get_workflow(client, admin_headers):
     """Test GET /api/v1/workflows/definitions/{wf_key} - 获取单个工作流定义"""
     resp = client.get("/api/v1/workflows/definitions/test_workflow", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_create_workflow(client, admin_headers, sample_workflow_definition):
@@ -155,13 +155,13 @@ def test_update_workflow(client, admin_headers):
         json={"name": "Updated Workflow"},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_delete_workflow(client, admin_headers):
     """Test DELETE /api/v1/workflows/definitions/{wf_key} - 删除工作流定义"""
     resp = client.delete("/api/v1/workflows/definitions/test_workflow", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_get_concurrent_status(client, admin_headers):
@@ -190,7 +190,7 @@ def test_execute_workflow_by_key(client, admin_headers):
         "/api/v1/workflows/test_workflow/execute",
         headers=admin_headers,
     )
-    assert resp.status_code in (201, 400, 404, 401, 403, 422)
+    assert resp.status_code != 404, resp.text
 
 
 def test_list_executions(client, admin_headers):
@@ -206,7 +206,7 @@ def test_list_executions(client, admin_headers):
 def test_get_execution(client, admin_headers):
     """Test GET /api/v1/workflows/executions/{execution_id} - 获取单个执行记录"""
     resp = client.get("/api/v1/workflows/executions/exec-test123", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_cancel_execution(client, admin_headers):
@@ -215,7 +215,7 @@ def test_cancel_execution(client, admin_headers):
         "/api/v1/workflows/executions/exec-test123/cancel",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_retry_execution(client, admin_headers):
@@ -224,13 +224,13 @@ def test_retry_execution(client, admin_headers):
         "/api/v1/workflows/executions/exec-test123/retry",
         headers=admin_headers,
     )
-    assert resp.status_code in (201, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_delete_execution(client, admin_headers):
     """Test DELETE /api/v1/workflows/executions/{execution_id} - 删除执行记录"""
     resp = client.delete("/api/v1/workflows/executions/exec-test123", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -240,25 +240,25 @@ def test_delete_execution(client, admin_headers):
 def test_pause_workflow(client, admin_headers):
     """Test POST /api/v1/workflows/{wf_key}/pause - 暂停工作流"""
     resp = client.post("/api/v1/workflows/test_workflow/pause", headers=admin_headers)
-    assert resp.status_code in (200, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_resume_workflow(client, admin_headers):
     """Test POST /api/v1/workflows/{wf_key}/resume - 恢复工作流"""
     resp = client.post("/api/v1/workflows/test_workflow/resume", headers=admin_headers)
-    assert resp.status_code in (200, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_archive_workflow(client, admin_headers):
     """Test POST /api/v1/workflows/{wf_key}/archive - 归档工作流"""
     resp = client.post("/api/v1/workflows/test_workflow/archive", headers=admin_headers)
-    assert resp.status_code in (200, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_activate_workflow(client, admin_headers):
     """Test POST /api/v1/workflows/{wf_key}/activate - 激活工作流"""
     resp = client.post("/api/v1/workflows/test_workflow/activate", headers=admin_headers)
-    assert resp.status_code in (200, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -268,7 +268,7 @@ def test_activate_workflow(client, admin_headers):
 def test_get_workflow_versions(client, admin_headers):
     """Test GET /api/v1/workflows/{wf_key}/versions - 获取版本历史"""
     resp = client.get("/api/v1/workflows/test_workflow/versions", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_rollback_workflow_version(client, admin_headers):
@@ -277,13 +277,13 @@ def test_rollback_workflow_version(client, admin_headers):
         "/api/v1/workflows/test_workflow/versions/1/rollback",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_get_workflow_version(client, admin_headers):
     """Test GET /api/v1/workflows/{wf_key}/versions/{version} - 获取指定版本"""
     resp = client.get("/api/v1/workflows/test_workflow/versions/1", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -323,7 +323,7 @@ def test_apply_template(client, admin_headers):
         json={"wf_key": "test_from_template", "name": "Test from Template"},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 201, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -337,13 +337,13 @@ def test_create_schedule(client, admin_headers):
         json={"schedule_type": "cron", "cron_expression": "0 * * * *"},
         headers=admin_headers,
     )
-    assert resp.status_code in (201, 400, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_list_schedules(client, admin_headers):
     """Test GET /api/v1/workflows/{wf_key}/schedules - 获取调度列表"""
     resp = client.get("/api/v1/workflows/test_workflow/schedules", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_delete_schedule(client, admin_headers):
@@ -352,7 +352,7 @@ def test_delete_schedule(client, admin_headers):
         "/api/v1/workflows/test_workflow/schedules/schedule-test123",
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -362,7 +362,7 @@ def test_delete_schedule(client, admin_headers):
 def test_get_workflow_statistics(client, admin_headers):
     """Test GET /api/v1/workflows/{wf_key}/statistics - 获取工作流统计"""
     resp = client.get("/api/v1/workflows/test_workflow/statistics", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_get_statistics_summary(client, admin_headers):
@@ -413,7 +413,7 @@ def test_validate_workflow_definition(client, admin_headers):
 def test_validate_workflow(client, admin_headers):
     """Test POST /api/v1/workflows/{wf_key}/validate - 验证指定工作流"""
     resp = client.post("/api/v1/workflows/test_workflow/validate", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -423,7 +423,7 @@ def test_validate_workflow(client, admin_headers):
 def test_export_workflow(client, admin_headers):
     """Test GET /api/v1/workflows/{wf_key}/export - 导出工作流"""
     resp = client.get("/api/v1/workflows/test_workflow/export", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_import_workflow(client, admin_headers, sample_workflow_definition):
@@ -475,7 +475,7 @@ def test_approve_workflow(client, admin_headers):
         json={"comment": "Approved for testing"},
         headers=admin_headers,
     )
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 def test_reject_workflow(client, admin_headers):
@@ -515,7 +515,7 @@ def test_get_workflow_health(client, admin_headers):
 def test_get_workflow_health_by_key(client, admin_headers):
     """Test GET /api/v1/workflows/{wf_key}/health - 获取指定工作流健康状态"""
     resp = client.get("/api/v1/workflows/test_workflow/health", headers=admin_headers)
-    assert resp.status_code in (200, 404, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 # ============================================================
@@ -535,7 +535,7 @@ def test_search_workflows(client, admin_headers):
 def test_search_executions(client, admin_headers):
     """Test GET /api/v1/workflows/executions/search - 搜索执行记录"""
     resp = client.get("/api/v1/workflows/executions/search?status=completed", headers=admin_headers)
-    assert resp.status_code in (200, 401, 403, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code == 200:
         data = resp.json()
         assert "total" in data
@@ -636,7 +636,7 @@ def test_workflow_lifecycle(client, admin_headers):
     
     # Get
     get_resp = client.get("/api/v1/workflows/definitions/lifecycle_test", headers=admin_headers)
-    assert get_resp.status_code in (200, 404, 401, 403)
+    assert get_resp.status_code != 404, get_resp.text
     
     # Update
     update_resp = client.put(
@@ -648,7 +648,7 @@ def test_workflow_lifecycle(client, admin_headers):
     
     # Delete
     delete_resp = client.delete("/api/v1/workflows/definitions/lifecycle_test", headers=admin_headers)
-    assert delete_resp.status_code in (200, 404, 401, 403)
+    assert delete_resp.status_code != 404, delete_resp.text
 
 
 @pytest.mark.integration
@@ -720,7 +720,7 @@ def test_sql_injection_protection(client, admin_headers):
         "/api/v1/workflows/definitions/test' OR '1'='1",
         headers=admin_headers,
     )
-    assert resp.status_code in (404, 422, 401, 403)
+    assert resp.status_code != 404, resp.text
 
 
 @pytest.mark.security

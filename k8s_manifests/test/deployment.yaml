@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: test
-        image: latest
+        image: aiops/aiops-agent:1.0.0
         ports:
         - containerPort: 8000
         resources:

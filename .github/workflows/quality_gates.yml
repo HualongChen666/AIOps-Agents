@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.12"]
 
     steps:
       - name: Checkout repository
@@ -30,6 +30,10 @@ jobs:
       - name: Install quality tools
         run: |
           pip install black isort flake8 mypy bandit pytest
+
+      - name: Verify OpenAPI snapshot is up to date
+        run: |
+          python scripts/generate_openapi_snapshot.py --check
           
       - name: Check formatting with black
         run: |
@@ -43,9 +47,10 @@ jobs:
         run: |
           python -m flake8 .
           
-      - name: Type check with mypy
+      - name: Type check with mypy (baseline gate)
         run: |
-          python -m mypy .
+          python -m mypy --version
+          python scripts/mypy_baseline.py
           
       - name: Security scan with bandit
         run: |

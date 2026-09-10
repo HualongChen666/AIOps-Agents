@@ -8,9 +8,9 @@ services:
 
   topology-orchestrator:
     build:
-      context: ../..
-      dockerfile: services/topology_service/Dockerfile
-    command: ["uvicorn", "services.topology_service.orchestrator:app", "--host", "0.0.0.0", "--port", "9101"]
+      context: ../../../..
+      dockerfile: extensions/addons/observability/topology_service/Dockerfile
+    command: ["uvicorn", "extensions.addons.observability.topology_service.orchestrator:app", "--host", "0.0.0.0", "--port", "9101"]
     ports:
       - "9101:9101"
     environment:
@@ -21,9 +21,9 @@ services:
 
   topology-analyzer:
     build:
-      context: ../..
-      dockerfile: services/topology_service/Dockerfile
-    command: ["uvicorn", "services.topology_service.analyzer:app", "--host", "0.0.0.0", "--port", "9102"]
+      context: ../../../..
+      dockerfile: extensions/addons/observability/topology_service/Dockerfile
+    command: ["uvicorn", "extensions.addons.observability.topology_service.analyzer:app", "--host", "0.0.0.0", "--port", "9102"]
     ports:
       - "9102:9102"
     environment:
@@ -35,9 +35,9 @@ services:
 
   topology-visualizer:
     build:
-      context: ../..
-      dockerfile: services/topology_service/Dockerfile
-    command: ["uvicorn", "services.topology_service.visualizer_app:app", "--host", "0.0.0.0", "--port", "9103"]
+      context: ../../../..
+      dockerfile: extensions/addons/observability/topology_service/Dockerfile
+    command: ["uvicorn", "extensions.addons.observability.topology_service.visualizer_app:app", "--host", "0.0.0.0", "--port", "9103"]
     ports:
       - "9103:9103"
     environment:

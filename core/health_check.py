@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import logging
-
 """
 Health Check Module
 ===================
@@ -23,6 +21,8 @@ including liveness, readiness, and detailed component health checks with:
 - Historical health tracking
 - Automated recovery suggestions
 """
+
+import logging
 
 import asyncio
 import time

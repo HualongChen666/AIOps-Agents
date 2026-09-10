@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``runbook_generator`` module.
+
+Top-level functions: generate_repair_runbook
+
+Module-level constants: RUNBOOK_PROMPT_TEMPLATE"""
+
 # core/runbook_generator.py
 # ──────────────────────────────────────────────────────────────
 # 🔧 新增模块:LLM 动态生成修复 Runbook + 自动护栏审查 + 入审批队列

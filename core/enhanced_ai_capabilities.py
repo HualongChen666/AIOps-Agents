@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import logging
-
 """
 Enhanced AI Capabilities Module
 增强AI能力模块
@@ -13,6 +11,8 @@ Provides advanced AI capabilities:
 - Continuous knowledge base learning and accumulation
 - AI decision explainability
 """
+
+import logging
 
 import asyncio
 import hashlib

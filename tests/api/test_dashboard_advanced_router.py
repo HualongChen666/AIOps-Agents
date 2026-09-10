@@ -37,6 +37,8 @@ def client():
 
     app = FastAPI()
     app.include_router(router)
+    # Wave2 #24: routers now require auth; tests run authenticated.
+    app.dependency_overrides[get_current_user] = lambda: _TEST_AUTH_USER
     return TestClient(app)
 
 
@@ -97,20 +99,21 @@ class TestHelperFunctions:
     """Test helper functions"""
 
     def test_get_current_user_no_token(self):
-        """Test get_current_user with no token returns fake admin"""
+        """get_current_user must reject a missing token with 401 (no FAKE_ADMIN fallback)."""
         import asyncio
 
-        result = asyncio.run(get_current_user(token=None))
-        assert result.username == "dev-admin"
-        assert result.role == "admin"
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(get_current_user(token=None))
+        assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     def test_get_current_user_invalid_token(self):
-        """Test get_current_user with invalid token returns fake admin"""
+        """get_current_user must reject an invalid token with 401."""
         import asyncio
 
         with patch("api.dashboard_advanced_router.verify_token", return_value=None):
-            result = asyncio.run(get_current_user(token="invalid"))
-            assert result.username == "dev-admin"
+            with pytest.raises(HTTPException) as exc_info:
+                asyncio.run(get_current_user(token="invalid"))
+            assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
 
 # Widget endpoints tests
@@ -121,7 +124,7 @@ class TestWidgetEndpoints:
         """Test getting widgets when none exist"""
         # Database is cleaned up by autouse fixture
         response = client.get("/api/v1/dashboard/widgets")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -130,7 +133,7 @@ class TestWidgetEndpoints:
     def test_get_dashboard_widgets_with_data(self, client, sample_widget):
         """Test getting widgets with data"""
         response = client.get("/api/v1/dashboard/widgets")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -155,7 +158,7 @@ class TestWidgetEndpoints:
         """Test getting a specific widget"""
         response = client.get(f"/api/v1/dashboard/widgets/{sample_widget.id}")
         # The endpoint may return 404 due to in-memory storage
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_update_dashboard_widget_success(self, client, sample_widget):
         """Test updating a widget"""
@@ -164,13 +167,13 @@ class TestWidgetEndpoints:
             f"/api/v1/dashboard/widgets/{sample_widget.id}", json=update_data
         )
         # The endpoint may return 404 due to in-memory storage
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_dashboard_widget_success(self, client, sample_widget):
         """Test deleting a widget"""
         response = client.delete(f"/api/v1/dashboard/widgets/{sample_widget.id}")
         # The endpoint may return 204 (No Content) or 404 due to in-memory storage
-        assert response.status_code in [200, 204, 404]
+        assert response.status_code != 404, response.text
 
 
 # Layout endpoints tests
@@ -180,7 +183,7 @@ class TestLayoutEndpoints:
     def test_get_dashboard_layouts_empty(self, client):
         """Test getting layouts when none exist"""
         response = client.get("/api/v1/dashboard/layouts")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -189,7 +192,7 @@ class TestLayoutEndpoints:
     def test_get_dashboard_layouts_with_data(self, client, sample_layout):
         """Test getting layouts with data"""
         response = client.get("/api/v1/dashboard/layouts")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -211,7 +214,7 @@ class TestLayoutEndpoints:
         """Test getting a specific layout"""
         response = client.get(f"/api/v1/dashboard/layouts/{sample_layout.id}")
         # The endpoint may return 404 due to in-memory storage
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_update_dashboard_layout_success(self, client, sample_layout):
         """Test updating a layout"""
@@ -220,13 +223,13 @@ class TestLayoutEndpoints:
             f"/api/v1/dashboard/layouts/{sample_layout.id}", json=update_data
         )
         # The endpoint may return 404 due to in-memory storage
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_dashboard_layout_success(self, client, sample_layout):
         """Test deleting a layout"""
         response = client.delete(f"/api/v1/dashboard/layouts/{sample_layout.id}")
         # The endpoint may return 400, 404 due to in-memory storage
-        assert response.status_code in [200, 400, 404]
+        assert response.status_code != 404, response.text
 
 
 # Data validation tests
@@ -261,3 +264,17 @@ class TestDataValidation:
             DashboardWidgetCreate(
                 widget_type=WidgetType.METRIC, title="Test", refresh_interval=3601
             )
+
+
+# Wave2 #24: production routers now require authentication (no FAKE_ADMIN
+# fallback for unauthenticated requests).  Tests exercise endpoint logic with
+# an authenticated identity via dependency_overrides.
+_TEST_AUTH_USER = UserInDB(
+    id=1,
+    username="test_admin",
+    full_name="Test Admin",
+    email="test@example.com",
+    role="admin",
+    disabled=False,
+    hashed_password="hashed",
+)

@@ -380,7 +380,7 @@ class TestHealGraphFallback:
     @pytest.mark.asyncio
     async def test_fallback_stategraph_node_not_found(self):
         """Test fallback StateGraph with missing node"""
-        from core.heal.graph import END, StateGraph
+        from core.heal_graph import END, StateGraph
 
         graph = StateGraph()
         graph.set_entry_point("missing_node")

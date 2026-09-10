@@ -19,8 +19,9 @@ _logger = logger
 
 # Import required modules for initialization
 try:
-    from core.notify import _get_http_client as _notify_get_http_client
-    from core.notify import close_slack_client, close_teams_client
+    from core.notify_engine import _get_http_client as _notify_get_http_client
+    from core.slack_adapter import close_slack_client
+    from core.teams_adapter import close_teams_client
 except ImportError:
     _notify_get_http_client = None
     close_slack_client = None
@@ -32,7 +33,7 @@ except ImportError:
     _ai_get_http_client = None
 
 try:
-    from core.stats import _get_http_client as _stats_get_http_client
+    from core.stats_engine import _get_http_client as _stats_get_http_client
 except ImportError:
     _stats_get_http_client = None
 
@@ -42,7 +43,7 @@ except ImportError:
     register_self_pid = None
 
 try:
-    from core.access_control import setup_default_access_policies
+    from core.unified_access_control import setup_default_access_policies
 except ImportError:
     setup_default_access_policies = None
 
@@ -420,12 +421,12 @@ async def _initialize_performance_optimizers() -> None:
         _logger.warning("API performance optimizer not available, skipping")
     
     try:
-        from core.automation_manager import get_automation_manager
+        from core.test_automation_manager import get_automation_manager
     except ImportError:
         _logger.warning("Automation manager not available, skipping")
     
     try:
-        from core.coverage_manager import get_coverage_manager
+        from core.test_coverage_manager import get_coverage_manager
     except ImportError:
         _logger.warning("Coverage manager not available, skipping")
     
@@ -440,7 +441,7 @@ async def _initialize_performance_optimizers() -> None:
         _logger.warning("Documentation manager not available, skipping")
     
     try:
-        from core.ecosystem_manager import get_ecosystem_manager
+        from core.plugin_ecosystem_manager import get_ecosystem_manager
     except ImportError:
         _logger.warning("Ecosystem manager not available, skipping")
     
@@ -455,12 +456,12 @@ async def _initialize_performance_optimizers() -> None:
         _logger.warning("Localization adapter not available, skipping")
     
     try:
-        from core.marketplace_manager import get_marketplace_manager
+        from core.plugin_marketplace_manager import get_marketplace_manager
     except ImportError:
         _logger.warning("Marketplace manager not available, skipping")
     
     try:
-        from core.plugin_sdk import get_plugin_sdk
+        from core.plugin_development_sdk import get_plugin_sdk
     except ImportError:
         _logger.warning("Plugin SDK not available, skipping")
     
@@ -470,7 +471,7 @@ async def _initialize_performance_optimizers() -> None:
         _logger.warning("Plugin system manager not available, skipping")
     
     try:
-        from core.resource_manager import get_resource_manager
+        from core.localization_resource_manager import get_resource_manager
     except ImportError:
         _logger.warning("Resource manager not available, skipping")
     
@@ -588,14 +589,19 @@ async def _initialize_enterprise_enhancements() -> None:
         _logger.warning("Frontend cache strategy not available, skipping")
     
     try:
-        from core.memory_monitoring import setup_memory_monitoring
+        from core.memory_monitor import setup_memory_monitoring
     except ImportError:
         _logger.warning("Memory monitoring not available, skipping")
     
     try:
-        from core.module_validation import check_all_modules_health, validate_initialization_order
+        from core.module_health_check import check_all_modules_health
     except ImportError:
-        _logger.warning("Module validation not available, skipping")
+        _logger.warning("Module health check not available, skipping")
+
+    try:
+        from core.module_dependencies import validate_initialization_order
+    except ImportError:
+        _logger.warning("Module dependency validation not available, skipping")
 
     enhancements = []
     

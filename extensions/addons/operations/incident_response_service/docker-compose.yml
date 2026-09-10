@@ -6,11 +6,11 @@ services:
 
   incident-response:
     build:
-      context: ../..
-      dockerfile: services/incident_response_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/operations/incident_response_service/Dockerfile
     command: [
       "uvicorn",
-      "services.incident_response_service.main_app:app",
+      "extensions.addons.operations.incident_response_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9553",
     ]

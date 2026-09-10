@@ -43,7 +43,7 @@ async def test_secret_manager():
     print("\n2. Creating a secret...")
     secret = secret_mgr.create_secret(
         name="test_database_password",
-        value="my_secure_password_123",
+        value="demo_password_v1",
         description="Test database password",
         created_by="admin",
         tags={"environment": "test", "service": "database"},
@@ -76,7 +76,7 @@ async def test_secret_manager():
     print("\n5. Updating secret...")
     updated = secret_mgr.update_secret(
         secret_id=secret.metadata.secret_id,
-        value="new_secure_password_456",
+        value="demo_password_v2",
         description="Updated test database password",
         updated_by="admin",
         principal="admin",
@@ -104,7 +104,7 @@ async def test_secret_manager():
     print("\n8. Rotating secret...")
     rotated = secret_mgr.rotate_secret(
         secret_id=secret.metadata.secret_id,
-        new_value="rotated_password_789",
+        new_value="demo_password_v3",
         rotated_by="admin",
         principal="admin",
     )

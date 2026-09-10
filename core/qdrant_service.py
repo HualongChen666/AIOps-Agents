@@ -279,8 +279,10 @@ def search_hybrid(
                                 "payload": payload,
                             })
                             break
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "Qdrant payload text search failed, falling back to vector results: %s", exc
+                )
         
         # Combine results with weighted scoring
         combined_results = {}
@@ -472,19 +474,69 @@ def clear_collection(name: str) -> Dict[str, Any]:
 
 
 def update_collection_config(collection: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Update collection configuration"""
+    """Update a Qdrant collection configuration via the real client API.
+
+    ``params`` accepts the Qdrant diff fields:
+
+    * ``optimizers_config``  -> ``models.OptimizersConfigDiff``
+    * ``params``             -> ``models.CollectionParamsDiff``
+    * ``hnsw_config``        -> ``models.HnswConfigDiff``
+    * ``quantization_config``-> ``models.QuantizationConfigDiff``
+    * ``timeout``            -> request timeout in seconds
+
+    Unknown keys (or an empty mapping) raise ``ValueError`` so a caller can
+    never mistake a no-op for a successful update.
+    """
     client = get_qdrant_client()
     if not client:
         raise RuntimeError("Qdrant client not available")
 
+    allowed = (
+        "optimizers_config",
+        "params",
+        "hnsw_config",
+        "quantization_config",
+        "timeout",
+    )
+    unknown = sorted(set(params) - set(allowed))
+    if unknown:
+        raise ValueError(
+            f"Unsupported collection config keys: {unknown}. Allowed keys: {list(allowed)}"
+        )
+
     try:
-        # Qdrant has limited update capabilities, mainly for optimizers
-        # This is a placeholder for future enhancements
-        logger.info(f"Update config requested for collection {collection} with params: {params}")
+        from qdrant_client import models as qmodels
+
+        diff_map = {
+            "optimizers_config": "OptimizersConfigDiff",
+            "params": "CollectionParamsDiff",
+            "hnsw_config": "HnswConfigDiff",
+            "quantization_config": "QuantizationConfigDiff",
+        }
+
+        kwargs: Dict[str, Any] = {}
+        for key, model_name in diff_map.items():
+            if key not in params:
+                continue
+            model_cls = getattr(qmodels, model_name, None)
+            if model_cls is None:
+                raise ValueError(
+                    f"Installed qdrant-client does not support '{key}' ({model_name})"
+                )
+            kwargs[key] = model_cls(**params[key])
+        if "timeout" in params:
+            kwargs["timeout"] = int(params["timeout"])
+
+        if not kwargs:
+            raise ValueError("No configuration parameters supplied")
+
+        client.update_collection(collection_name=collection, **kwargs)
+
+        logger.info(f"Updated collection config for {collection}: {sorted(kwargs)}")
         return {
             "status": "success",
             "collection": collection,
-            "message": "Configuration update logged (actual update depends on Qdrant version)",
+            "updated": sorted(kwargs),
         }
     except Exception as e:
         logger.error(f"Failed to update config for collection {collection}: {e}")

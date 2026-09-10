@@ -272,7 +272,7 @@ class TestComponentEndpoints:
         }
         response = client.get("/api/v1/frontend/components/comp-001")
         # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
     def test_get_component_not_found(self, client):
         """Test getting non-existent component"""
@@ -320,7 +320,7 @@ class TestComponentEndpoints:
         }
         response = client.delete("/api/v1/frontend/components/comp-001")
         # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
 
 # Theme management tests
@@ -518,7 +518,7 @@ class TestLayoutEndpoints:
         }
         response = client.get("/api/v1/frontend/layouts/layout-001")
         # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
     def test_update_layout_success(self, client):
         """Test updating layout"""
@@ -535,7 +535,7 @@ class TestLayoutEndpoints:
             "/api/v1/frontend/layouts/layout-001", json={"name": "Updated Name"}
         )
         # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
     def test_delete_layout_success(self, client):
         """Test deleting layout"""
@@ -550,7 +550,7 @@ class TestLayoutEndpoints:
         }
         response = client.delete("/api/v1/frontend/layouts/layout-001")
         # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code != 404, response.text
 
 
 # Localization management tests

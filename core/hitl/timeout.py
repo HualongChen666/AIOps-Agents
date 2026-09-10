@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-import logging
-
 """
 Approval Timeout Handler
 Handles approval timeout scenarios
 """
+
+import logging
 
 import asyncio
 from typing import Dict, Optional

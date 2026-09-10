@@ -6,11 +6,11 @@ services:
 
   sqlalchemy-security:
     build:
-      context: ../..
-      dockerfile: services/sqlalchemy_security_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/security/sqlalchemy_security_service/Dockerfile
     command: [
       "uvicorn",
-      "services.sqlalchemy_security_service.main_app:app",
+      "extensions.addons.security.sqlalchemy_security_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9541",
     ]

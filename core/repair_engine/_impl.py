@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``_impl`` module.
+
+Top-level functions: execute_repair, get_repair_scripts, get_repair_history, clear_repair_history"""
+
 # core/repair_engine.py
 # Windows PowerShell 修复脚本库(集成高危指令护栏 + AI 自杀防护)
 #

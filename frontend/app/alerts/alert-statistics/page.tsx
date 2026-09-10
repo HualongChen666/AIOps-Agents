@@ -29,7 +29,7 @@ interface AlertStatistics {
 
 export default function AlertStatisticsPage() {
   const [timeRange, setTimeRange] = useState('24h');
-  const { isLoading, error, refetch } = useLoadingState();
+  const { isLoading, error } = useLoadingState();
   const toast = useToast();
   const showError = toast.error;
 

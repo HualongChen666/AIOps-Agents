@@ -1,4 +1,10 @@
 # -*- coding: utf-8 -*-
+"""``verifier`` module.
+
+Top-level classes: VerifyResult
+
+Top-level functions: verify_repair"""
+
 # core/verifier.py
 # ──────────────────────────────────────────────────────────────
 # [NEW] N+2:修复效果自动验证引擎(HITL 闭环最后一公里)

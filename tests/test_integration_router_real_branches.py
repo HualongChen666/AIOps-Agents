@@ -22,7 +22,7 @@ os.environ["MICROSERVICE_TIMEOUT"] = "0.5"
 from api.auth_router import router as _auth_router  # noqa: E402
 from api.integration_router import router as _integration_router  # noqa: E402
 from api.middleware.rbac_middleware import RBACMiddleware  # noqa: E402
-from api.users_router import router as _users_router  # noqa: E402
+from api.user_router import router as _users_router  # noqa: E402
 
 _app = FastAPI()
 _app.add_middleware(RBACMiddleware)

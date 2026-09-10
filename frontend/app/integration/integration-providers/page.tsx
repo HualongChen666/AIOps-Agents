@@ -83,7 +83,15 @@ export default function IntegrationProvidersPage() {
     }
   };
 
-  const getFormFields = () => {
+  type FormField = {
+    name: string;
+    label: string;
+    type: 'text' | 'password' | 'select' | 'number';
+    default?: string;
+    options?: string[];
+  };
+
+  const getFormFields = (): FormField[] => {
     switch (activeTab) {
       case 'teams':
         return [

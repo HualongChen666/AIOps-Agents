@@ -12,7 +12,7 @@ Provides database persistence operations for Infrastructure components:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -170,9 +170,9 @@ class InfrastructureFlinkJobRepository:
         if error_message:
             job.error_message = error_message
         if status == "running" and not job.started_at:
-            job.started_at = datetime.utcnow()
+            job.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
         if status in ("stopped", "failed") and not job.stopped_at:
-            job.stopped_at = datetime.utcnow()
+            job.stopped_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         _logger.info(f"Updated Flink job {job_id} status to: {status}")
         return True
@@ -247,7 +247,7 @@ class InfrastructureStorageRepository:
         if not storage:
             return False
         storage.health_status = health_status
-        storage.last_health_check = datetime.utcnow()
+        storage.last_health_check = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         _logger.info(f"Updated storage {storage_id} health status to: {health_status}")
         return True
@@ -423,7 +423,7 @@ class InfrastructureDataFlowRepository:
         if not flow:
             return False
         flow.status = "running"
-        flow.started_at = datetime.utcnow()
+        flow.started_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         _logger.info(f"Started data flow: {flow_id}")
         return True
@@ -434,7 +434,7 @@ class InfrastructureDataFlowRepository:
         if not flow:
             return False
         flow.status = "stopped"
-        flow.stopped_at = datetime.utcnow()
+        flow.stopped_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         _logger.info(f"Stopped data flow: {flow_id}")
         return True
@@ -521,7 +521,7 @@ class InfrastructureMonitoringRepository:
         if not component:
             return False
         component.health_status = health_status
-        component.last_health_check = datetime.utcnow()
+        component.last_health_check = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         _logger.info(f"Updated component {component_id} health status to: {health_status}")
         return True

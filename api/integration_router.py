@@ -16,7 +16,7 @@ API endpoints for comprehensive integration ecosystem including:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -1149,23 +1149,14 @@ async def sync_integration(
     
     integration = integration_manager.integrations[integration_id]
     
-    # Simulate sync operation based on integration type
+    # Perform the real provider handshake and report its actual outcome.
+    provider_result = await integration_manager.test_integration(integration_id)
     sync_result = {
         "sync_type": request.sync_type,
-        "synced_at": datetime.now().isoformat(),
-        "records_synced": 0,
-        "status": "success",
+        "synced_at": datetime.now(timezone.utc).isoformat(),
+        "status": "success" if provider_result.get("success") else "failed",
+        "provider_result": provider_result,
     }
-    
-    if integration.integration_type == IntegrationType.MONITORING:
-        sync_result["records_synced"] = 100
-        sync_result["metrics_synced"] = 50
-    elif integration.integration_type == IntegrationType.CLOUD:
-        sync_result["records_synced"] = 200
-        sync_result["resources_synced"] = 75
-    elif integration.integration_type == IntegrationType.CICD:
-        sync_result["records_synced"] = 50
-        sync_result["builds_synced"] = 25
     
     logger.info(f"Integration {integration_id} synced by user {current_user.username}")
     
@@ -1207,16 +1198,17 @@ async def get_integration_metrics(
     
     integration = integration_manager.integrations[integration_id]
     
-    # Simulate metrics data
+    # Report the integration's actual recorded state (no fabricated counters).
     metrics = {
         "integration_id": integration_id,
         "time_range": time_range,
-        "request_count": 1000,
-        "success_rate": 0.98,
-        "avg_response_time": 250,
-        "error_count": 20,
+        "status": getattr(integration.status, "value", str(integration.status)),
+        "enabled": bool(integration.enabled),
+        "last_tested": (
+            integration.last_tested.isoformat() if integration.last_tested else None
+        ),
         "last_error": integration.last_error,
-        "uptime_percentage": 99.5,
+        "metadata": dict(getattr(integration, "metadata", {}) or {}),
     }
     
     return {
@@ -1255,15 +1247,22 @@ async def get_integration_logs(
     if integration_id not in integration_manager.integrations:
         raise HTTPException(status_code=404, detail=f"集成 {integration_id} 不存在")
     
-    # Simulate log entries
+    from core.audit_service import audit_service
+
+    audit_logs = await audit_service.get_audit_logs(
+        limit=limit,
+        offset=offset,
+        resource_type="integration",
+        resource_id=integration_id,
+    )
     logs = [
         {
-            "timestamp": (datetime.now() - timedelta(minutes=i)).isoformat(),
-            "level": "INFO",
-            "message": f"Integration operation {i}",
-            "user": "system",
+            "timestamp": entry.get("created_at") or entry.get("timestamp"),
+            "level": entry.get("status", "INFO"),
+            "message": entry.get("details") or entry.get("action"),
+            "user": entry.get("username"),
         }
-        for i in range(min(limit, 50))
+        for entry in audit_logs
     ]
     
     return {
@@ -1815,14 +1814,33 @@ async def test_webhook(
     
     webhook = integration_manager.webhooks[webhook_id]
     
-    # Simulate webhook test
+    # Real webhook delivery test.
+    import httpx
+
+    payload = {
+        "event": "webhook.test",
+        "webhook_id": webhook_id,
+        "sent_at": datetime.now(timezone.utc).isoformat(),
+    }
+    started = datetime.now(timezone.utc)
+    try:
+        async with httpx.AsyncClient(timeout=10) as http_client:
+            response = await http_client.post(webhook["endpoint"], json=payload)
+        success = 200 <= response.status_code < 300
+        status_code = response.status_code
+        error = None
+    except Exception as exc:
+        success = False
+        status_code = None
+        error = str(exc)
     test_result = {
         "webhook_id": webhook_id,
         "endpoint": webhook["endpoint"],
-        "test_timestamp": datetime.now().isoformat(),
-        "success": True,
-        "response_time": 150,
-        "status_code": 200,
+        "test_timestamp": datetime.now(timezone.utc).isoformat(),
+        "success": success,
+        "response_time": (datetime.now(timezone.utc) - started).total_seconds() * 1000,
+        "status_code": status_code,
+        "error": error,
     }
     
     logger.info(f"Webhook {webhook_id} tested by user {current_user.username}")
@@ -3176,8 +3194,6 @@ async def get_integration_metrics_overall(
         "notification_channels": summary["notification_channels"],
         "pending_notifications": summary["pending_notifications"],
         "webhook_events_processed": summary["webhook_events_processed"],
-        "success_rate": 0.98,
-        "avg_response_time": 250,
     }
     
     return {
@@ -3357,16 +3373,23 @@ async def get_audit_logs(
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
     
-    # Simulate audit log entries
+    from core.audit_service import audit_service
+
+    audit_entries = await audit_service.get_audit_logs(
+        limit=limit,
+        action=action,
+        resource_type="integration",
+        resource_id=integration_id,
+    )
     logs = [
         {
-            "timestamp": (datetime.now() - timedelta(minutes=i)).isoformat(),
-            "user": "system",
-            "action": "create" if i % 2 == 0 else "update",
-            "integration_id": f"int_{i}",
-            "details": f"Integration operation {i}",
+            "timestamp": entry.get("created_at") or entry.get("timestamp"),
+            "user": entry.get("username"),
+            "action": entry.get("action"),
+            "integration_id": entry.get("resource_id"),
+            "details": entry.get("details"),
         }
-        for i in range(min(limit, 50))
+        for entry in audit_entries
     ]
     
     # Apply filters

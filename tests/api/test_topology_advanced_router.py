@@ -195,7 +195,7 @@ class TestGraphTopologyEndpoints:
     def test_get_topology_graph_empty(self, client):
         """Test getting topology graph when empty"""
         response = client.get("/api/v1/topology/graph")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "nodes" in data
@@ -231,7 +231,7 @@ class TestGraphTopologyEndpoints:
         }
 
         response = client.post("/api/v1/topology/graph", json=graph_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "id" in data
@@ -244,7 +244,7 @@ class TestGraphTopologyEndpoints:
         graph_data = {"nodes": [{"id": "node-1", "name": "Service 1"}], "edges": []}
 
         response = client.post("/api/v1/topology/graph", json=graph_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "created_by" in data
@@ -254,7 +254,7 @@ class TestGraphTopologyEndpoints:
         # Just test that it returns empty graph when no data
         response = client.get("/api/v1/topology/graph")
         # Should return empty graph
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["nodes"] == []
@@ -272,7 +272,7 @@ class TestNodeManagementEndpoints:
     def test_get_nodes_empty(self, client):
         """Test getting nodes when empty"""
         response = client.get("/api/v1/topology/nodes")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -283,7 +283,7 @@ class TestNodeManagementEndpoints:
         _topology_nodes["node-1"] = sample_node_data
 
         response = client.get("/api/v1/topology/nodes")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -302,7 +302,7 @@ class TestNodeManagementEndpoints:
         _topology_nodes["node-2"] = node2
 
         response = client.get("/api/v1/topology/nodes?layer=application")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -321,7 +321,7 @@ class TestNodeManagementEndpoints:
         _topology_nodes["node-2"] = node2
 
         response = client.get("/api/v1/topology/nodes?status=healthy")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -339,7 +339,7 @@ class TestNodeManagementEndpoints:
         _topology_nodes["node-2"] = node2
 
         response = client.get("/api/v1/topology/nodes?type=service")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -348,7 +348,7 @@ class TestNodeManagementEndpoints:
     def test_create_node_success(self, client, sample_node_data):
         """Test creating a node successfully"""
         response = client.post("/api/v1/topology/nodes", json=sample_node_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "node-1"
@@ -369,14 +369,14 @@ class TestNodeManagementEndpoints:
         invalid_data = {"id": "", "name": "Test"}  # Empty ID should fail validation
 
         response = client.post("/api/v1/topology/nodes", json=invalid_data)
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
 
     def test_get_node_by_id_success(self, client, sample_node_data):
         """Test getting a node by ID successfully"""
         _topology_nodes["node-1"] = sample_node_data
 
         response = client.get("/api/v1/topology/nodes/node-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "node-1"
@@ -395,7 +395,7 @@ class TestNodeManagementEndpoints:
         update_data = {"name": "Updated Service", "status": "warning"}
 
         response = client.patch("/api/v1/topology/nodes/node-1", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Updated Service"
@@ -417,7 +417,7 @@ class TestNodeManagementEndpoints:
         update_data = {"status": "critical"}
         response = client.patch("/api/v1/topology/nodes/node-1", json=update_data)
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         # The sync happens but may fail, that's OK for the test
         # mock_update_health.assert_called_once()
 
@@ -426,7 +426,7 @@ class TestNodeManagementEndpoints:
         _topology_nodes["node-1"] = sample_node_data
 
         response = client.delete("/api/v1/topology/nodes/node-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["message"] == "Node deleted successfully"
@@ -450,7 +450,7 @@ class TestEdgeManagementEndpoints:
     def test_get_edges_empty(self, client):
         """Test getting edges when empty"""
         response = client.get("/api/v1/topology/edges")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -461,7 +461,7 @@ class TestEdgeManagementEndpoints:
         _topology_edges["edge-1"] = sample_edge_data
 
         response = client.get("/api/v1/topology/edges")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -479,7 +479,7 @@ class TestEdgeManagementEndpoints:
         _topology_edges["edge-2"] = edge2
 
         response = client.get("/api/v1/topology/edges?source=node-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -498,7 +498,7 @@ class TestEdgeManagementEndpoints:
         _topology_edges["edge-2"] = edge2
 
         response = client.get("/api/v1/topology/edges?target=node-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -516,7 +516,7 @@ class TestEdgeManagementEndpoints:
         _topology_edges["edge-2"] = edge2
 
         response = client.get("/api/v1/topology/edges?type=sync")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -529,7 +529,7 @@ class TestEdgeManagementEndpoints:
         _topology_nodes["node-2"]["id"] = "node-2"
 
         response = client.post("/api/v1/topology/edges", json=sample_edge_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "edge-1"
@@ -567,7 +567,7 @@ class TestEdgeManagementEndpoints:
         _topology_edges["edge-1"] = sample_edge_data
 
         response = client.get("/api/v1/topology/edges/edge-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "edge-1"
@@ -584,7 +584,7 @@ class TestEdgeManagementEndpoints:
         update_data = {"weight": 2.0, "type": "async"}
 
         response = client.patch("/api/v1/topology/edges/edge-1", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["weight"] == 2.0
@@ -602,7 +602,7 @@ class TestEdgeManagementEndpoints:
         _topology_edges["edge-1"] = sample_edge_data
 
         response = client.delete("/api/v1/topology/edges/edge-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert "edge-1" not in _topology_edges
 
@@ -623,7 +623,7 @@ class TestLayerManagementEndpoints:
     def test_get_layers_empty(self, client):
         """Test getting layers when empty"""
         response = client.get("/api/v1/topology/layers")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -634,7 +634,7 @@ class TestLayerManagementEndpoints:
         _topology_layers["layer-1"] = sample_layer_data
 
         response = client.get("/api/v1/topology/layers")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -652,7 +652,7 @@ class TestLayerManagementEndpoints:
         _topology_layers["layer-2"] = layer2
 
         response = client.get("/api/v1/topology/layers")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"][0]["level"] == 0
@@ -661,7 +661,7 @@ class TestLayerManagementEndpoints:
     def test_create_layer_success(self, client, sample_layer_data):
         """Test creating a layer successfully"""
         response = client.post("/api/v1/topology/layers", json=sample_layer_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "layer-1"
@@ -680,7 +680,7 @@ class TestLayerManagementEndpoints:
         _topology_layers["layer-1"] = sample_layer_data
 
         response = client.get("/api/v1/topology/layers/layer-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "layer-1"
@@ -695,7 +695,7 @@ class TestLayerManagementEndpoints:
         _topology_layers["layer-1"] = sample_layer_data
 
         response = client.delete("/api/v1/topology/layers/layer-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert "layer-1" not in _topology_layers
 
@@ -716,7 +716,7 @@ class TestDependencyManagementEndpoints:
     def test_get_dependencies_empty(self, client):
         """Test getting dependencies when empty"""
         response = client.get("/api/v1/topology/dependencies")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["items"] == []
@@ -727,7 +727,7 @@ class TestDependencyManagementEndpoints:
         _topology_dependencies["dep-1"] = sample_dependency_data
 
         response = client.get("/api/v1/topology/dependencies")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -745,7 +745,7 @@ class TestDependencyManagementEndpoints:
         _topology_dependencies["dep-2"] = dep2
 
         response = client.get("/api/v1/topology/dependencies?source=service-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -764,7 +764,7 @@ class TestDependencyManagementEndpoints:
         _topology_dependencies["dep-2"] = dep2
 
         response = client.get("/api/v1/topology/dependencies?target=service-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -782,7 +782,7 @@ class TestDependencyManagementEndpoints:
         _topology_dependencies["dep-2"] = dep2
 
         response = client.get("/api/v1/topology/dependencies?type=sync")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["items"]) == 1
@@ -790,7 +790,7 @@ class TestDependencyManagementEndpoints:
     def test_create_dependency_success(self, client, sample_dependency_data):
         """Test creating a dependency successfully"""
         response = client.post("/api/v1/topology/dependencies", json=sample_dependency_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "dep-1"
@@ -809,7 +809,7 @@ class TestDependencyManagementEndpoints:
         _topology_dependencies["dep-1"] = sample_dependency_data
 
         response = client.get("/api/v1/topology/dependencies/dep-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "dep-1"
@@ -824,7 +824,7 @@ class TestDependencyManagementEndpoints:
         _topology_dependencies["dep-1"] = sample_dependency_data
 
         response = client.delete("/api/v1/topology/dependencies/dep-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert "dep-1" not in _topology_dependencies
 
@@ -845,7 +845,7 @@ class TestVisualizationConfigEndpoints:
     def test_get_visualization_config_default(self, client):
         """Test getting default visualization config"""
         response = client.get("/api/v1/topology/visualization")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "default"
@@ -867,7 +867,7 @@ class TestVisualizationConfigEndpoints:
         }
 
         response = client.get("/api/v1/topology/visualization")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["id"] == "config-1"
@@ -875,7 +875,7 @@ class TestVisualizationConfigEndpoints:
     def test_create_visualization_config_success(self, client, sample_visualization_config):
         """Test creating a visualization config successfully"""
         response = client.post("/api/v1/topology/visualization", json=sample_visualization_config)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "Test Config"
@@ -898,7 +898,7 @@ class TestVisualizationConfigEndpoints:
         update_data = {"node_color": "#ff0000", "auto_refresh": True}
 
         response = client.put("/api/v1/topology/visualization/config-1", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["node_color"] == "#ff0000"
@@ -925,7 +925,7 @@ class TestVisualizationConfigEndpoints:
         }
 
         response = client.delete("/api/v1/topology/visualization/config-1")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert "config-1" not in _visualization_configs
 
@@ -1164,7 +1164,7 @@ class TestErrorHandling:
     def test_422_response_format(self, client):
         """Test that 422 responses have correct format"""
         response = client.post("/api/v1/topology/nodes", json={})
-        assert response.status_code in (422, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "detail" in data
@@ -1188,21 +1188,21 @@ class TestIntegration:
         """Test complete lifecycle of a node"""
         # Create
         response = client.post("/api/v1/topology/nodes", json=sample_node_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             node_id = response.json()["id"]
 
         # Read
         response = client.get(f"/api/v1/topology/nodes/{node_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update
         response = client.patch(f"/api/v1/topology/nodes/{node_id}", json={"status": "warning"})
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete
         response = client.delete(f"/api/v1/topology/nodes/{node_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Verify deletion
         response = client.get(f"/api/v1/topology/nodes/{node_id}")
@@ -1217,21 +1217,21 @@ class TestIntegration:
 
         # Create edge
         response = client.post("/api/v1/topology/edges", json=sample_edge_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             edge_id = response.json()["id"]
 
         # Read
         response = client.get(f"/api/v1/topology/edges/{edge_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update
         response = client.patch(f"/api/v1/topology/edges/{edge_id}", json={"weight": 2.0})
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete
         response = client.delete(f"/api/v1/topology/edges/{edge_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_graph_with_nodes_and_edges(self, client, sample_node_data, sample_edge_data):
         """Test graph with multiple nodes and edges"""
@@ -1245,7 +1245,7 @@ class TestIntegration:
 
         # Get graph
         response = client.get("/api/v1/topology/graph")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data["nodes"]) == 2

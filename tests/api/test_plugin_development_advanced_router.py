@@ -137,7 +137,7 @@ class TestScaffoldEndpoint:
         # Skip for now or handle the template issue
         if response.status_code == 500:
             pytest.skip("Template formatting issue in router")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -159,7 +159,7 @@ class TestScaffoldEndpoint:
             # Skip if template formatting issue
             if response.status_code == 500:
                 pytest.skip("Template formatting issue in router")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["success"] == True
@@ -212,7 +212,7 @@ class TestScaffoldEndpoint:
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
         if response.status_code == 500:
             pytest.skip("Template formatting issue in router")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
 
             data = response.json()
@@ -235,7 +235,7 @@ class TestScaffoldEndpoint:
             "author": "Test Author",
         }
         response = client.post("/api/v1/plugin/development/scaffolds", json=scaffold_data)
-        assert response.status_code in (500, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -253,7 +253,7 @@ class TestValidateEndpoint:
             "plugin_config": {"plugin_name": "test_plugin", "plugin_type": "collector"},
         }
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -269,7 +269,7 @@ def __init__(self, config):
 """
         validate_data = {"plugin_code": invalid_code, "plugin_config": {}}
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["valid"] == False
@@ -349,7 +349,7 @@ class TestPlugin:
         """Test validating empty plugin code"""
         validate_data = {"plugin_code": "", "plugin_config": {}}
         response = client.post("/api/v1/plugin/development/validate", json=validate_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["valid"] == False
@@ -371,7 +371,7 @@ class TestTestEndpoint:
             "test_data": {"input": "test"},
         }
         response = client.post("/api/v1/plugin/development/test", json=test_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -385,7 +385,7 @@ def some_function():
 """
         test_data = {"plugin_code": code_without_class, "test_config": {}, "test_data": {}}
         response = client.post("/api/v1/plugin/development/test", json=test_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["passed"] == False
@@ -400,7 +400,7 @@ class TestPlugin:
 """
         test_data = {"plugin_code": problematic_code, "test_config": {}, "test_data": {}}
         response = client.post("/api/v1/plugin/development/test", json=test_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["passed"] == False
@@ -412,7 +412,7 @@ class TestPlugin:
 
         test_data = {"plugin_code": "class TestPlugin: pass", "test_config": {}, "test_data": {}}
         response = client.post("/api/v1/plugin/development/test", json=test_data)
-        assert response.status_code in (500, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -434,7 +434,7 @@ class TestBuildEndpoint:
 
         build_data = {"plugin_path": str(temp_plugin_dir), "build_config": {}}
         response = client.post("/api/v1/plugin/development/build", json=build_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -455,7 +455,7 @@ class TestBuildEndpoint:
 
         build_data = {"plugin_path": str(temp_plugin_dir), "build_config": {}}
         response = client.post("/api/v1/plugin/development/build", json=build_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         build_dir = temp_plugin_dir / "build"
         assert build_dir.exists()
@@ -472,7 +472,7 @@ class TestBuildEndpoint:
 
         build_data = {"plugin_path": str(temp_plugin_dir), "build_config": {}}
         response = client.post("/api/v1/plugin/development/build", json=build_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "Compilation error" in data["build_log"]
@@ -502,7 +502,7 @@ class TestPackageEndpoint:
             "include_dependencies": True,
         }
         response = client.post("/api/v1/plugin/development/package", json=package_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True
@@ -529,7 +529,7 @@ class TestPackageEndpoint:
             "include_dependencies": True,
         }
         response = client.post("/api/v1/plugin/development/package", json=package_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["success"] == True

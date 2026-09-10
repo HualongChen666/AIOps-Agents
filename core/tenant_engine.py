@@ -8,7 +8,7 @@ import logging
 import threading
 import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 
@@ -58,7 +58,7 @@ class Tenant:
     quota: Quota = field(default_factory=Quota)
     usage: Usage = field(default_factory=Usage)
     billing: Billing = field(default_factory=Billing)
-    created_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).replace(tzinfo=None).isoformat())
 
 
 _TENANTS: List[Tenant] = []
@@ -108,7 +108,7 @@ _PLAN_LIMITS = {
 
 
 def _next_billing_date() -> str:
-    return (datetime.utcnow() + timedelta(days=30)).date().isoformat()
+    return (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=30)).date().isoformat()
 
 
 def _compute_quota(plan: str) -> Quota:
@@ -139,7 +139,7 @@ def _dict_to_tenant(d: dict[str, Any]) -> Tenant:
         quota=Quota(**d.get("quota", {})),
         usage=Usage(**d.get("usage", {})),
         billing=Billing(**d.get("billing", {})),
-        created_at=d.get("created_at", datetime.utcnow().isoformat()),
+        created_at=d.get("created_at", datetime.now(timezone.utc).replace(tzinfo=None).isoformat()),
     )
 
 

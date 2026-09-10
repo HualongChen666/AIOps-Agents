@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 
 from api.service_discovery_advanced_router import (
     HealthCheckCreate,
-    ServiceCreate,
+    ServiceDiscoveryAdvancedServiceCreate,
     ServiceDeregistration,
     ServiceRegistration,
     ServiceUpdate,
@@ -66,7 +66,7 @@ def reset_databases():
 @pytest.fixture
 def sample_service_create():
     """Sample service creation data"""
-    return ServiceCreate(
+    return ServiceDiscoveryAdvancedServiceCreate(
         name="test-service",
         host="localhost",
         port=8080,
@@ -172,7 +172,7 @@ class TestListServices:
             }
 
             response = client.get("/api/v1/service-discovery/services")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -215,7 +215,7 @@ class TestListServices:
             }
 
             response = client.get("/api/v1/service-discovery/services?status=active")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -256,7 +256,7 @@ class TestListServices:
             }
 
             response = client.get("/api/v1/service-discovery/services?protocol=http")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -285,7 +285,7 @@ class TestListServices:
                 }
 
             response = client.get("/api/v1/service-discovery/services?limit=2&offset=0")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -323,7 +323,7 @@ class TestListServices:
             mock_get_manager.side_effect = Exception("Manager error")
 
             response = client.get("/api/v1/service-discovery/services")
-            assert response.status_code in (500, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert "detail" in data
@@ -349,7 +349,7 @@ class TestCreateService:
             response = client.post(
                 "/api/v1/service-discovery/services", json=sample_service_create.dict()
             )
-            assert response.status_code in (201, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -412,7 +412,7 @@ class TestCreateService:
             response = client.post(
                 "/api/v1/service-discovery/services", json=sample_service_create.dict()
             )
-            assert response.status_code in (500, 404)
+            assert response.status_code != 404, response.text
 
     def test_create_service_with_metadata(self, client, mock_service_discovery_manager):
         """Test service creation with metadata"""
@@ -429,7 +429,7 @@ class TestCreateService:
             }
 
             response = client.post("/api/v1/service-discovery/services", json=service_data)
-            assert response.status_code in (201, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["data"]["metadata"]["version"] == "1.0"
@@ -466,7 +466,7 @@ class TestGetService:
             }
 
             response = client.get(f"/api/v1/service-discovery/services/{service_id}")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["status"] == "success"
@@ -533,7 +533,7 @@ class TestUpdateService:
         response = client.patch(
             f"/api/v1/service-discovery/services/{service_id}", json=sample_service_update.dict()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "success"
@@ -561,7 +561,7 @@ class TestUpdateService:
         response = client.patch(
             f"/api/v1/service-discovery/services/{service_id}", json=partial_update
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["data"]["name"] == "partial-update"
@@ -623,7 +623,7 @@ class TestDeleteService:
         }
 
         response = client.delete(f"/api/v1/service-discovery/services/{service_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["status"] == "success"
@@ -734,7 +734,7 @@ class TestHealthChecks:
         """Test getting health checks"""
         response = client.get("/api/v1/service-discovery/health-checks")
         # Endpoint may not be implemented (404)
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_get_health_check_success(self, client):
         """Test getting a specific health check"""
@@ -754,7 +754,7 @@ class TestHealthChecks:
 
         response = client.get(f"/api/v1/service-discovery/health-checks/{health_check_id}")
         # Endpoint may not be implemented (404)
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_delete_health_check_success(self, client):
         """Test deleting a health check"""
@@ -774,4 +774,4 @@ class TestHealthChecks:
 
         response = client.delete(f"/api/v1/service-discovery/health-checks/{health_check_id}")
         # Endpoint may not be implemented (404)
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text

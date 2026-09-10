@@ -12,8 +12,21 @@ interface Message {
   timestamp: string;
 }
 
-export const AICopilot = () => {
-  const [isOpen, setIsOpen] = useState(false);
+interface AICopilotProps {
+  /** 受控开关：传入时组件由外部控制展开状态。 */
+  isOpen?: boolean;
+  /** 展开状态变更回调（受控/非受控均触发）。 */
+  onOpenChange?: (isOpen: boolean) => void;
+}
+
+export const AICopilot = ({ isOpen: isOpenProp, onOpenChange }: AICopilotProps = {}) => {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = isOpenProp !== undefined;
+  const isOpen = isControlled ? isOpenProp : internalOpen;
+  const setIsOpen = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
@@ -44,13 +57,19 @@ export const AICopilot = () => {
         include_rich_context: true,
       });
 
-      const payload = resp.data?.analysis ?? resp.data;
+      // If the response carries an explicit `analysis` field, use it as-is (even
+      // when empty/null, so the "AI 分析完成" placeholder below is reachable);
+      // otherwise fall back to the whole payload.
+      const raw = resp.data as any;
+      const payload = raw && typeof raw === 'object' && 'analysis' in raw ? raw.analysis : raw;
       const content =
         typeof payload === 'string'
           ? payload
-          : payload?.recommended_action
+          : payload && payload.recommended_action
             ? String(payload.recommended_action)
-            : JSON.stringify(payload, null, 2);
+            : payload
+              ? JSON.stringify(payload, null, 2)
+              : '';
 
       const aiMessage: Message = {
         role: 'assistant',

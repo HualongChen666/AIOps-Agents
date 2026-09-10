@@ -81,7 +81,7 @@ class DocumentUpdate(BaseModel):
     }
 
 
-class TemplateCreate(BaseModel):
+class DocumentationAdvancedTemplateCreate(BaseModel):
     """Request model for creating a template"""
 
     template_id: Optional[str] = Field(
@@ -123,7 +123,7 @@ class GeneratorRequest(BaseModel):
     }
 
 
-class ReviewCreate(BaseModel):
+class DocumentationAdvancedReviewCreate(BaseModel):
     """Request model for creating a review"""
 
     document_id: str = Field(..., description="Document ID to review")
@@ -496,7 +496,7 @@ async def list_templates(
     },
     status_code=status.HTTP_201_CREATED,
 )
-async def create_template(request: TemplateCreate) -> Dict[str, Any]:
+async def create_template(request: DocumentationAdvancedTemplateCreate) -> Dict[str, Any]:
     """
     创建新的文档模板
     """
@@ -696,7 +696,7 @@ async def list_reviews(
     },
     status_code=status.HTTP_201_CREATED,
 )
-async def create_review(request: ReviewCreate) -> Dict[str, Any]:
+async def create_review(request: DocumentationAdvancedReviewCreate) -> Dict[str, Any]:
     """
     创建文档评审
     """
@@ -997,7 +997,7 @@ async def list_document_reviews(
     },
     status_code=status.HTTP_201_CREATED,
 )
-async def create_document_review(doc_id: str, request: ReviewCreate) -> Dict[str, Any]:
+async def create_document_review(doc_id: str, request: DocumentationAdvancedReviewCreate) -> Dict[str, Any]:
     """
     为指定文档创建评审（按文档ID路径）
     """

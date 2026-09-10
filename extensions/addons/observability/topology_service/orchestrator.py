@@ -11,10 +11,10 @@ from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
 
-from services.topology_service.config import settings
-from services.topology_service.health_check import HealthCheckEngine
-from services.topology_service.repository import get_repository
-from services.topology_service.schemas import (
+from .config import settings
+from .health_check import HealthCheckEngine
+from .repository import get_repository
+from .schemas import (
     DiscoveryRequest,
     ImpactRequest,
     ServiceHealth,
@@ -38,13 +38,13 @@ class TopologyOrchestratorApp:
         self.health = HealthCheckEngine()
 
     async def init(self) -> None:
-        from services.topology_service.audit import TopologyAuditStore
-        from services.topology_service.dependency import DependencyGraph, DependencyModelingEngine
-        from services.topology_service.discovery import TopologyDiscoveryEngine
-        from services.topology_service.impact import ImpactAnalyzer
-        from services.topology_service.realtime import RealtimeTopologyManager
-        from services.topology_service.versioning import TopologyVersionManager
-        from services.topology_service.visualization import TopologyVisualizer
+        from .audit import TopologyAuditStore
+        from .dependency import DependencyGraph, DependencyModelingEngine
+        from .discovery import TopologyDiscoveryEngine
+        from .impact import ImpactAnalyzer
+        from .realtime import RealtimeTopologyManager
+        from .versioning import TopologyVersionManager
+        from .visualization import TopologyVisualizer
 
         self.repo = await get_repository(settings.use_in_memory)
         self.discovery = TopologyDiscoveryEngine()

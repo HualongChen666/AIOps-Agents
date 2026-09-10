@@ -106,18 +106,6 @@ class PolicyCreate(BaseModel):
 
 
 # Update models for PATCH operations
-class MeshConfigurationUpdate(BaseModel):
-    """Mesh configuration update model"""
-
-    name: Optional[str] = Field(None, description="Configuration name")
-    namespace: Optional[str] = Field(None, description="Kubernetes namespace")
-    profile: Optional[str] = Field(None, description="Mesh profile")
-    auto_injection_enabled: Optional[bool] = Field(None, description="Enable auto-injection")
-    mtls_enabled: Optional[bool] = Field(None, description="Enable mTLS")
-    resource_limits: Optional[Dict[str, Any]] = Field(None, description="Resource limits")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Configuration metadata")
-
-
 class TrafficRuleUpdate(BaseModel):
     """Traffic rule update model"""
 
@@ -180,7 +168,7 @@ class BatchTrafficRuleUpdate(BaseModel):
     updates: List[Dict[str, Any]] = Field(..., description="List of rule updates")
 
 
-class BatchDeleteRequest(BaseModel):
+class ServiceMeshAdvancedBatchDeleteRequest(BaseModel):
     """Batch delete request model"""
 
     ids: List[str] = Field(..., description="List of IDs to delete")
@@ -1821,7 +1809,7 @@ async def batch_update_traffic_rules(
     },
 )
 async def batch_delete_traffic_rules(
-    batch: BatchDeleteRequest,
+    batch: ServiceMeshAdvancedBatchDeleteRequest,
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

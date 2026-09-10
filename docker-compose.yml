@@ -72,7 +72,7 @@ services:
     environment:
       - POSTGRES_DB=aiops
       - POSTGRES_USER=aiops
-      - POSTGRES_PASSWORD=aiops_password
+      - "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     networks:
@@ -91,11 +91,13 @@ services:
           memory: 128M
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v2.45.0
     ports:
       - "9090:9090"
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      # deploy/prometheus.yml scrapes the services defined in this compose file
+      # (aiops-agent, redis, postgres) by their service names.
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
@@ -111,13 +113,16 @@ services:
           memory: 128M
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:10.2.0
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - "GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:?GRAFANA_PASSWORD must be set}"
     volumes:
       - grafana-data:/var/lib/grafana
+      # Load the repository dashboards/datasources so panels actually render.
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     networks:
       - aiops-network
     depends_on:

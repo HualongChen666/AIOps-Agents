@@ -5,30 +5,36 @@ import os
 from unittest.mock import MagicMock, patch
 
 import pytest
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException
 
 
 @pytest.fixture(autouse=True)
 def setup_env(monkeypatch):
-    """Set up environment variables for tests."""
-    monkeypatch.setenv("INTERNAL_API_KEY", "")
+    """Configure a known INTERNAL_API_KEY for the audit endpoints under test.
+
+    The router reads ``config.INTERNAL_API_KEY`` at call time and fails closed
+    (503) when it is unset (Wave2 #25), so the tests must provide one.
+    """
+    import config
+
+    monkeypatch.setenv("INTERNAL_API_KEY", "test-key")
+    monkeypatch.setattr(config, "INTERNAL_API_KEY", "test-key")
 
 
 class TestVerifyInternalKey:
     """Test the _verify_internal_key function."""
 
     def test_verify_internal_key_no_key_set(self, client):
-        """Test verification when INTERNAL_API_KEY is not set (lines 28-30)."""
+        """Unconfigured INTERNAL_API_KEY must fail closed (503), not allow."""
         from api.audit_router import _verify_internal_key
-        from config import INTERNAL_API_KEY
 
-        # Temporarily set INTERNAL_API_KEY to None
         with patch("config.INTERNAL_API_KEY", None):
             mock_request = MagicMock()
             mock_request.headers = {}
 
-            # Should not raise when INTERNAL_API_KEY is not set
-            _verify_internal_key(mock_request)
+            with pytest.raises(HTTPException) as exc_info:
+                _verify_internal_key(mock_request)
+            assert exc_info.value.status_code == 503
 
     def test_verify_internal_key_missing_header(self, client):
         """Test verification when X-Internal-Key header is missing (lines 32-33)."""
@@ -88,7 +94,7 @@ class TestExportAudit:
             resp = client.get(
                 "/api/v1/audit/export?fmt=csv&limit=10", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert resp.headers["content-type"] == "text/csv"
 
@@ -109,7 +115,7 @@ class TestExportAudit:
             resp = client.get(
                 "/api/v1/audit/export?fmt=excel&limit=10", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "excel" in resp.headers["content-type"]
 
@@ -123,7 +129,7 @@ class TestExportAudit:
             resp = client.get(
                 "/api/v1/audit/export?fmt=csv&limit=10", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert resp.headers["content-type"] == "text/csv"
 
@@ -137,7 +143,7 @@ class TestExportAudit:
             resp = client.get(
                 "/api/v1/audit/export?fmt=excel&limit=10", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 assert "excel" in resp.headers["content-type"]
 
@@ -179,13 +185,13 @@ class TestExportAudit:
         resp = client.get(
             "/api/v1/audit/export?fmt=csv&limit=0", headers={"X-Internal-Key": "test-key"}
         )
-        assert resp.status_code in (422, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test with limit above maximum
         resp = client.get(
             "/api/v1/audit/export?fmt=csv&limit=5001", headers={"X-Internal-Key": "test-key"}
         )
-        assert resp.status_code in (422, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_export_audit_excel_active_sheet_none(self, client):
         """Test Excel export when wb.active is None (lines 88-89)."""
@@ -204,7 +210,7 @@ class TestExportAudit:
                     "/api/v1/audit/export?fmt=excel&limit=10",
                     headers={"X-Internal-Key": "test-key"},
                 )
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
 
     def test_export_audit_background_task_cleanup(self, client):
         """Test that background task is added for cleanup (lines 75, 93, 126)."""
@@ -220,7 +226,7 @@ class TestExportAudit:
                 resp = client.get(
                     "/api/v1/audit/export?fmt=csv&limit=10", headers={"X-Internal-Key": "test-key"}
                 )
-                assert resp.status_code in (200, 404)
+                assert resp.status_code != 404, resp.text
                 if resp.status_code != 404:
                 # Verify background task was added
                     mock_bg_instance.add_task.assert_called()
@@ -252,7 +258,7 @@ class TestAuditReport:
             resp = client.get(
                 "/api/v1/audit/report?limit=10", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["total"] == 2
@@ -270,7 +276,7 @@ class TestAuditReport:
             resp = client.get(
                 "/api/v1/audit/report?limit=10", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["total"] == 0
@@ -288,11 +294,11 @@ class TestAuditReport:
         """Test report with limit validation (line 159)."""
         # Test with limit below minimum
         resp = client.get("/api/v1/audit/report?limit=0", headers={"X-Internal-Key": "test-key"})
-        assert resp.status_code in (422, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test with limit above maximum
         resp = client.get("/api/v1/audit/report?limit=5001", headers={"X-Internal-Key": "test-key"})
-        assert resp.status_code in (422, 404)
+        assert resp.status_code != 404, resp.text
 
     def test_audit_report_missing_risk_level(self, client):
         """Test report when logs have missing risk_level (line 181)."""
@@ -347,7 +353,7 @@ class TestListAudit:
             ]
 
             resp = client.get("/api/v1/audit?limit=10", headers={"X-Internal-Key": "test-key"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert len(data) == 1
@@ -360,7 +366,7 @@ class TestListAudit:
             mock_get.return_value = []
 
             resp = client.get("/api/v1/audit?limit=10", headers={"X-Internal-Key": "test-key"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert len(data) == 0
@@ -375,11 +381,11 @@ class TestListAudit:
         """Test list with limit validation (line 204)."""
         # Test with limit below minimum
         resp = client.get("/api/v1/audit?limit=0", headers={"X-Internal-Key": "test-key"})
-        assert resp.status_code in (422, 404)
+        assert resp.status_code != 404, resp.text
 
         # Test with limit above maximum
         resp = client.get("/api/v1/audit?limit=5001", headers={"X-Internal-Key": "test-key"})
-        assert resp.status_code in (422, 404)
+        assert resp.status_code != 404, resp.text
 
 
 class TestMaskSensitiveDict:
@@ -437,7 +443,7 @@ class TestExportAuditEdgeCases:
             resp = client.get(
                 "/api/v1/audit/export?fmt=csv&limit=5000", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_export_audit_minimum_limit(self, client):
         """Test export with minimum limit."""
@@ -449,7 +455,7 @@ class TestExportAuditEdgeCases:
             resp = client.get(
                 "/api/v1/audit/export?fmt=csv&limit=1", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_export_audit_multiple_fields(self, client):
         """Test export with multiple fields in audit logs."""
@@ -471,4 +477,4 @@ class TestExportAuditEdgeCases:
             resp = client.get(
                 "/api/v1/audit/export?fmt=csv&limit=10", headers={"X-Internal-Key": "test-key"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text

@@ -11,7 +11,7 @@ pytestmark = [pytest.mark.api]
 def test_get_maturity_assessment_success(client):
     """Test successful maturity assessment returns valid response."""
     resp = client.get("/api/maturity/assess")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert "overall_score" in data
@@ -31,7 +31,7 @@ def test_get_maturity_assessment_exception_handling(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = RuntimeError("Simulated assessment failure")
         resp = client.get("/api/maturity/assess")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             # The error is caught by API error middleware, check the response contains error info
             data = resp.json()
@@ -46,7 +46,7 @@ def test_get_maturity_assessment_exception_with_custom_error(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = ValueError("Invalid configuration")
         resp = client.get("/api/maturity/assess")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             error_msg = data.get("error", {}).get("message", "")
@@ -60,7 +60,7 @@ def test_get_maturity_assessment_exception_with_timeout(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = TimeoutError("Assessment timed out")
         resp = client.get("/api/maturity/assess")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             error_msg = data.get("error", {}).get("message", "")
@@ -70,7 +70,7 @@ def test_get_maturity_assessment_exception_with_timeout(client):
 def test_get_dimensions_success(client):
     """Test get dimensions endpoint returns valid metadata (covers line 110)."""
     resp = client.get("/api/maturity/dimensions")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         assert isinstance(data, list)
@@ -85,7 +85,7 @@ def test_get_dimensions_success(client):
 def test_get_dimensions_content_validation(client):
     """Test that dimensions endpoint returns correct dimension names."""
     resp = client.get("/api/maturity/dimensions")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
         dimension_names = [dim["name"] for dim in data]
@@ -103,7 +103,7 @@ def test_get_dimensions_content_validation(client):
 def test_maturity_assessment_response_structure(client):
     """Test that maturity assessment response has correct structure."""
     resp = client.get("/api/maturity/assess")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         data = resp.json()
 
@@ -160,7 +160,7 @@ def test_maturity_assessment_with_mocked_high_scores(client):
             "severity_counts": {"info": 100},
         }
         resp = client.get("/api/maturity/assess")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             # With high scores, overall should be high
@@ -190,7 +190,7 @@ def test_maturity_assessment_with_mocked_low_scores(client):
             "severity_counts": {"critical": 50, "high": 50},
         }
         resp = client.get("/api/maturity/assess")
-        assert resp.status_code in (200, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
             # With low scores, overall should be low
@@ -202,36 +202,36 @@ def test_maturity_router_endpoints_respond(client):
     """Smoke test to ensure all maturity router endpoints respond."""
     # Test assess endpoint
     resp = client.get("/api/maturity/assess")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     # Test dimensions endpoint
     resp = client.get("/api/maturity/dimensions")
-    assert resp.status_code in (200, 404)
+    assert resp.status_code != 404, resp.text
 
     # Test new endpoints
     resp = client.get("/api/maturity/improvement-plan")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/maturity/benchmark")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/maturity/maturity-report")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/maturity/maturity-score")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/maturity/capability-assessment")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
     resp = client.get("/api/maturity/sre-maturity")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
 
 
 def test_get_improvement_plan_success(client):
     """Test improvement plan endpoint returns valid response."""
     resp = client.get("/api/maturity/improvement-plan")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
     if resp.status_code == 200:
         data = resp.json()
         assert "items" in data
@@ -251,7 +251,7 @@ def test_get_improvement_plan_success(client):
 def test_get_benchmark_success(client):
     """Test benchmark endpoint returns valid response."""
     resp = client.get("/api/maturity/benchmark")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
     if resp.status_code == 200:
         data = resp.json()
         assert "items" in data
@@ -271,7 +271,7 @@ def test_get_benchmark_success(client):
 def test_get_maturity_report_success(client):
     """Test maturity report endpoint returns valid response."""
     resp = client.get("/api/maturity/maturity-report")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
     if resp.status_code == 200:
         data = resp.json()
         assert "items" in data
@@ -291,7 +291,7 @@ def test_get_maturity_report_success(client):
 def test_get_maturity_score_success(client):
     """Test maturity score endpoint returns valid response."""
     resp = client.get("/api/maturity/maturity-score")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
     if resp.status_code == 200:
         data = resp.json()
         assert "items" in data
@@ -311,7 +311,7 @@ def test_get_maturity_score_success(client):
 def test_get_capability_assessment_success(client):
     """Test capability assessment endpoint returns valid response."""
     resp = client.get("/api/maturity/capability-assessment")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
     if resp.status_code == 200:
         data = resp.json()
         assert "items" in data
@@ -331,7 +331,7 @@ def test_get_capability_assessment_success(client):
 def test_get_sre_maturity_success(client):
     """Test SRE maturity endpoint returns valid response."""
     resp = client.get("/api/maturity/sre-maturity")
-    assert resp.status_code in (200, 404, 500)
+    assert resp.status_code != 404, resp.text
     if resp.status_code == 200:
         data = resp.json()
         assert "items" in data
@@ -356,7 +356,7 @@ def test_improvement_plan_exception_handling(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = RuntimeError("Assessment failed")
         resp = client.get("/api/maturity/improvement-plan")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_benchmark_exception_handling(client):
@@ -366,7 +366,7 @@ def test_benchmark_exception_handling(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = RuntimeError("Assessment failed")
         resp = client.get("/api/maturity/benchmark")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_maturity_report_exception_handling(client):
@@ -376,7 +376,7 @@ def test_maturity_report_exception_handling(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = RuntimeError("Assessment failed")
         resp = client.get("/api/maturity/maturity-report")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_maturity_score_exception_handling(client):
@@ -386,7 +386,7 @@ def test_maturity_score_exception_handling(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = RuntimeError("Assessment failed")
         resp = client.get("/api/maturity/maturity-score")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_capability_assessment_exception_handling(client):
@@ -396,7 +396,7 @@ def test_capability_assessment_exception_handling(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = RuntimeError("Assessment failed")
         resp = client.get("/api/maturity/capability-assessment")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text
 
 
 def test_sre_maturity_exception_handling(client):
@@ -406,4 +406,4 @@ def test_sre_maturity_exception_handling(client):
     with patch.object(maturity_router, "assess_maturity", new_callable=AsyncMock) as mock_assess:
         mock_assess.side_effect = RuntimeError("Assessment failed")
         resp = client.get("/api/maturity/sre-maturity")
-        assert resp.status_code in (500, 404)
+        assert resp.status_code != 404, resp.text

@@ -8,12 +8,12 @@ services:
 
   rag-service:
     build:
-      context: ../..
-      dockerfile: services/rag_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/ai_plus/rag_service/Dockerfile
     command:
       [
         "uvicorn",
-        "services.rag_service.main_app:app",
+        "extensions.addons.ai_plus.rag_service.main_app:app",
         "--host",
         "0.0.0.0",
         "--port",

@@ -34,26 +34,28 @@ SENSITIVE_OPERATIONS = {
     "/api/v1/secrets/": ActionType.ADMIN,
     "/api/v1/audit/": ActionType.READ,
 }
-from core.abac import ABACEngine, ActionType, ResourceType, Subject, Resource, Environment
 
-PUBLIC_PREFIXES = {
+# Exact paths that are public and have no sub-paths
+PUBLIC_EXACT_PATHS = {
+    "/",
+    "/health",
+    "/metrics",
     "/docs",
     "/redoc",
     "/openapi.json",
-    "/health",
     "/api/v1/health",
-    "/static/",
+    # authentication bootstrap. login/register/refresh are public by design;
+    # register-admin is self-guarded in api/auth_router.register_admin
+    # (only allowed when no users exist + max_admin_check).
     "/api/v1/auth/login",
     "/api/v1/auth/register",
-    "/api/v1/auth/register-admin",  # Allow admin registration for bootstrap
-    "/api/v1/auth/register-admin-bypass",  # Allow bypass route for admin registration
+    "/api/v1/auth/register-admin",
     "/api/v1/auth/refresh",
-    "/api/v1/auth/me",  # Allow access to auth me endpoint for testing
-    "/api/v1/users/me",  # Allow access to current user endpoint for testing
-    "/api/v1/users/me/",  # Allow access to current user endpoint with trailing slash
-    "/api/v1/users/me/mfa",  # Allow access to MFA endpoints for testing
-    "/api/v1/users/me/audit-logs",  # Allow access to audit logs for testing
-    "/api/v1/alerts/",  # webhooks from monitoring systems
+}
+
+# Prefixes that are public and DO have sub-paths (webhooks / static assets)
+PUBLIC_PREFIXES = {
+    # --- inbound monitoring webhooks (verified via provider signature, not JWT) ---
     "/api/v1/alerts/prometheus",
     "/api/v1/alerts/grafana",
     "/api/v1/alerts/datadog",
@@ -61,36 +63,42 @@ PUBLIC_PREFIXES = {
     "/api/v1/alerts/cloudwatch",
     "/api/v1/alerts/pagerduty",
     "/webhook/",
+    # --- static PWA / HITL pages ---
     "/hitl-page/",
     "/api/v1/hitl-page/",
+    "/static/",
     "/sw.js",
     "/sw-register.js",
-    "/metrics",
-    "/api/i18n/",  # Allow i18n endpoints for testing
-    "/api/ai",  # Allow AI endpoints for testing
-    "/api/v1/metrics",  # Allow metrics endpoints for testing
-    "/api/v1/repairs",  # Allow repairs endpoints for testing
-    "/api/v1/monitoring",  # Allow monitoring endpoints for testing
-    "/api/v1/workflow-management",  # Allow workflow management endpoints for testing
 }
 
 WRITE_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
 
 
+def _test_mode_enabled() -> bool:
+    """Return True only when TEST_MODE is on AND we are not in production.
+
+    TEST_MODE disables authentication entirely, so it must never be honoured
+    in a production deployment even if the flag leaks into the environment.
+    """
+    import os
+
+    if os.getenv("TEST_MODE", "").lower() != "true":
+        return False
+    env = (os.getenv("ENVIRONMENT") or os.getenv("ENV") or "").lower()
+    return env not in {"production", "prod"}
+
+
 def _is_public(path: str) -> bool:
     """Return True if the request path is public."""
-    # Check if TEST_MODE is enabled
-    import os
-    if os.getenv("TEST_MODE") == "true":
+    if _test_mode_enabled():
         return True
-    
+
     lowered = path.lower()
+    if lowered in PUBLIC_EXACT_PATHS:
+        return True
     for prefix in PUBLIC_PREFIXES:
         if lowered.startswith(prefix):
             return True
-    # Exact public paths
-    if lowered in {"/", "/health"}:
-        return True
     return False
 
 
@@ -183,26 +191,14 @@ class RBACMiddleware(BaseHTTPMiddleware):
     """Enforce authentication and write-method role checks globally."""
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        # Check if TEST_MODE is enabled
-        import os
-        if os.getenv("TEST_MODE") == "true":
-            # In test mode, skip all auth checks
+        # TEST_MODE only bypasses auth outside production (see _test_mode_enabled)
+        if _test_mode_enabled():
             return await call_next(request)
-        
+
         path = request.url.path
         method = request.method
         logger.info(f"RBAC Middleware: Processing request {method} {path}")
-        
-        # Check if this is the register-admin endpoint specifically
-        if path == "/api/v1/auth/register-admin":
-            logger.info(f"RBAC Middleware: Allowing register-admin endpoint")
-            return await call_next(request)
-        
-        # Check if this is the register-admin-bypass endpoint
-        if path == "/api/v1/auth/register-admin-bypass":
-            logger.info(f"RBAC Middleware: Allowing register-admin-bypass endpoint")
-            return await call_next(request)
-        
+
         if _is_public(path):
             logger.info(f"RBAC Middleware: Path {path} is public, allowing")
             return await call_next(request)

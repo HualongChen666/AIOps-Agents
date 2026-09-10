@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
+import os
+import pathlib
 import textwrap
 
 import yaml
 
-OPENAPI_PATH = r"C:\\AIOps_Agent_bak\\openapi.yaml"
+REPO_ROOT = pathlib.Path(os.getenv("AIOPS_ROOT", pathlib.Path(__file__).resolve().parents[1]))
+OPENAPI_PATH = pathlib.Path(
+    os.getenv("AIOPS_OPENAPI", str(REPO_ROOT / "docs" / "api" / "openapi.yaml"))
+)
 
 
 def load_openapi():

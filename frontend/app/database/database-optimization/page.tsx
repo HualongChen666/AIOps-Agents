@@ -258,10 +258,10 @@ export default function DatabaseOptimizationPage() {
     try {
       switch (suggestion.type) {
         case 'query':
-          toast.info('请手动优化慢查询');
+          toast('请手动优化慢查询');
           break;
         case 'index':
-          toast.info('请在索引管理中创建建议的索引');
+          toast('请在索引管理中创建建议的索引');
           break;
         case 'cache':
           setOptimizationConfig(prev => ({ ...prev, enable_cache_optimization: true }));
@@ -336,7 +336,7 @@ export default function DatabaseOptimizationPage() {
           <CardContent>
             <div className="text-2xl font-bold">{performance?.query_latency.toFixed(1)}ms</div>
             <div className="text-xs text-gray-500 mt-1">
-              {performance?.query_latency > 20 ? '需要优化' : '表现良好'}
+              { (performance?.query_latency ?? 0) > 20 ? '需要优化' : '表现良好'}
             </div>
           </CardContent>
         </Card>
@@ -619,7 +619,7 @@ export default function DatabaseOptimizationPage() {
                   max={200}
                   title="连接池使用率"
                   unit=""
-                  color={performance?.connection_count > 150 ? '#ef4444' : '#10b981'}
+                  color={(performance?.connection_count ?? 0) > 150 ? '#ef4444' : '#10b981'}
                 />
               </div>
 

@@ -637,7 +637,6 @@ export function getCompleteNavGroups(locale: Locale): NavGroup[] {
         { href: '/overview', label: '概览' },
         { href: '/dashboard', label: '仪表盘' },
         { href: '/kpi', label: 'KPI指标' },
-        { href: '/stats', label: '统计数据' },
       ],
     },
 
@@ -645,14 +644,6 @@ export function getCompleteNavGroups(locale: Locale): NavGroup[] {
     {
       title: '协作与通知',
       items: [
-        { href: '/collaboration/collaboration', label: '协作工作区' },
-        { href: '/collaboration/workspace', label: '工作区管理' },
-        { href: '/collaboration/messages', label: '消息管理' },
-        { href: '/collaboration/team', label: '团队协作' },
-        { href: '/collaboration/team-management', label: '团队管理' },
-        { href: '/collaboration/notification', label: '通知配置' },
-        { href: '/collaboration/notification-test', label: '通知测试' },
-        { href: '/collaboration/hitl', label: '人工审批' },
       ],
     },
 
@@ -660,11 +651,6 @@ export function getCompleteNavGroups(locale: Locale): NavGroup[] {
     {
       title: '资产管理',
       items: [
-        { href: '/assets/assets-management', label: '资产管理' },
-        { href: '/assets/assets-inventory', label: '资产清单' },
-        { href: '/assets/assets-monitoring', label: '资产监控' },
-        { href: '/assets/assets-lifecycle', label: '资产生命周期' },
-        { href: '/assets/assets-report', label: '资产报告' },
       ],
     },
 
@@ -672,11 +658,7 @@ export function getCompleteNavGroups(locale: Locale): NavGroup[] {
     {
       title: '系统设置',
       items: [
-        { href: '/settings/system-settings', label: '系统设置' },
-        { href: '/settings/config-management', label: '配置管理' },
-        { href: '/settings/feature-flags', label: '功能开关' },
-        { href: '/settings/environment-config', label: '环境配置' },
-        { href: 'http://127.0.0.1:3000/docs', label: 'API文档', target: '_blank' },
+        { href: '/api-documentation', label: 'API文档', target: '_blank' },
       ],
     },
   ];

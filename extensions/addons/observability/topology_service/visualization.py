@@ -7,8 +7,8 @@ import math
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from services.topology_service.metrics import TOPOLOGY_VISUALIZATION_REQUESTS
-from services.topology_service.schemas import (
+from .metrics import TOPOLOGY_VISUALIZATION_REQUESTS
+from .schemas import (
     D3Visualization,
     ServiceTopology,
     TopologyEdge,

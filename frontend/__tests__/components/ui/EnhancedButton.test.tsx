@@ -360,7 +360,7 @@ describe('EnhancedButton Component', () => {
         </EnhancedButton>
       );
       
-      const button = screen.getByRole('button', { name: 'Delete All' });
+      const button = screen.getByRole('button', { name: /Delete All/ });
       expect(button).toBeInTheDocument();
       expect(button).toHaveClass('w-full', 'custom');
       expect(screen.getByTestId('chevron-right')).toBeInTheDocument();

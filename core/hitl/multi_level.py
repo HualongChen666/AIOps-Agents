@@ -22,6 +22,17 @@ class ApprovalLevel(Enum):
     L4 = "l4"  # VP
 
 
+def _level_rank(level: ApprovalLevel) -> int:
+    """
+    Return the numeric rank of an approval level (L1=0, L2=1, L3=2, L4=3).
+
+    Enum members are compared semantically by their declaration order rather
+    than lexicographically by their ``value`` string, so that the ordering
+    stays correct if additional levels are introduced.
+    """
+    return list(ApprovalLevel).index(level)
+
+
 @dataclass
 class ApprovalConfig:
     """
@@ -93,7 +104,7 @@ class MultiLevelApprover:
         # Create steps for each configured level
         for level in [ApprovalLevel.L1, ApprovalLevel.L2, ApprovalLevel.L3, ApprovalLevel.L4]:
             config = self.level_configs.get(level)
-            if config and config.level.value >= min_level.value:
+            if config and _level_rank(config.level) >= _level_rank(min_level):
                 # Create step for each approver at this level
                 for i, approver in enumerate(config.approvers):
                     step = ApprovalStep(

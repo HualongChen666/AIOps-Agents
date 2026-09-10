@@ -8,12 +8,12 @@ services:
 
   vector_retrieval_service:
     build:
-      context: ../..
-      dockerfile: services/vector_retrieval_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/vector_retrieval_service/Dockerfile
     command:
       [
         "uvicorn",
-        "services.vector_retrieval_service.main_app:app",
+        "extensions.addons.infrastructure.vector_retrieval_service.main_app:app",
         "--host",
         "0.0.0.0",
         "--port",

@@ -159,7 +159,7 @@ class VariableUpdate(BaseModel):
     description: Optional[str] = None
 
 
-class AuditLogResponse(BaseModel):
+class WorkflowAdvancedAuditLogResponse(BaseModel):
     """审计日志响应"""
 
     log_id: str

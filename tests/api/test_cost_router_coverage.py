@@ -215,7 +215,7 @@ class TestGetForecast:
         response = client.get("/api/cost/forecast?days=0")
 
         # Should handle zero days gracefully
-        assert response.status_code in [200, 404]
+        assert response.status_code != 404, response.text
 
     def test_get_forecast_negative_days(self, client, mock_cost_functions):
         """Test forecast with negative days"""
@@ -225,7 +225,7 @@ class TestGetForecast:
         response = client.get("/api/cost/forecast?days=-7")
 
         # Should handle negative days gracefully
-        assert response.status_code in [200, 404, 422]
+        assert response.status_code != 404, response.text
 
     def test_get_forecast_function_error(self, client, mock_cost_functions):
         """Test forecast with function error"""

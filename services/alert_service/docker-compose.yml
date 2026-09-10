@@ -1,6 +1,15 @@
 version: "3.8"
 
 services:
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - "POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
+      - POSTGRES_DB=${POSTGRES_DB:-aiops}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
   redis:
     image: redis:7-alpine
     ports:
@@ -14,11 +23,12 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - ALERT_SERVICE_USE_IN_MEMORY=true
+      - ALERT_SERVICE_USE_IN_MEMORY=false
+      - "ALERT_SERVICE_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-aiops}"
       - ALERT_SERVICE_COLLECTOR_PORT=8001
     depends_on:
       - redis
-
+      - postgres
   alert-processor:
     build:
       context: ../..
@@ -27,11 +37,13 @@ services:
     ports:
       - "8002:8002"
     environment:
-      - ALERT_SERVICE_USE_IN_MEMORY=true
+      - ALERT_SERVICE_USE_IN_MEMORY=false
+      - "ALERT_SERVICE_DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-aiops}"
       - ALERT_SERVICE_PROCESSOR_PORT=8002
       - ALERT_SERVICE_AGGREGATOR_WINDOW_SECONDS=5
     depends_on:
       - redis
+      - postgres
       - alert-collector
 
   alert-notifier:
@@ -45,6 +57,7 @@ services:
       - NOTIFY_MIN_LEVEL=warning
     depends_on:
       - redis
+      - postgres
       - alert-processor
 
   prometheus:

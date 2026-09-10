@@ -6,11 +6,11 @@ services:
 
   backup-recovery-drill:
     build:
-      context: ../..
-      dockerfile: services/backup_recovery_drill_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/infrastructure/backup_recovery_drill_service/Dockerfile
     command: [
       "uvicorn",
-      "services.backup_recovery_drill_service.main_app:app",
+      "extensions.addons.infrastructure.backup_recovery_drill_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9552",
     ]

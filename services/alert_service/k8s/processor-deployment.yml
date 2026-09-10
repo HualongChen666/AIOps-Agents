@@ -15,13 +15,41 @@ spec:
     spec:
       containers:
         - name: processor
-          image: aiops/alert-service:latest
+          image: aiops/alert-service:1.0.0
           ports:
             - containerPort: 8002
           command: ["uvicorn", "services.alert_service.processor:app", "--host", "0.0.0.0", "--port", "8002"]
           envFrom:
             - configMapRef:
                 name: alert-service-config
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-db-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-db-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-db-secret
+                  key: POSTGRES_HOST
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-db-secret
+                  key: POSTGRES_PORT
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: aiops-db-secret
+                  key: POSTGRES_DB
+            - name: ALERT_SERVICE_DATABASE_URL
+              value: "postgresql+asyncpg://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB)"
 ---
 apiVersion: v1
 kind: Service

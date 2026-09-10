@@ -5,7 +5,7 @@ import { useLocale } from '@/lib/i18n';
 import { getCompleteNavGroups } from '@/lib/nav';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Link } from 'next/link';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Search } from 'lucide-react';
 

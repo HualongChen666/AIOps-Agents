@@ -64,7 +64,7 @@ class ChannelResponse(BaseModel):
     updated_at: datetime
 
 
-class TemplateCreate(BaseModel):
+class NotifyAdvancedTemplateCreate(BaseModel):
     """Notification template creation model"""
 
     name: str = Field(..., description="Template name")
@@ -478,7 +478,7 @@ async def get_templates(
 @router.post(
     "/templates", response_model=TemplateResponse, summary="Create a new notification template"
 )
-async def create_template(template: TemplateCreate):
+async def create_template(template: NotifyAdvancedTemplateCreate):
     """
     Create a new notification template
 

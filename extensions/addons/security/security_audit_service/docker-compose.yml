@@ -6,11 +6,11 @@ services:
 
   security-audit:
     build:
-      context: ../..
-      dockerfile: services/security_audit_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/security/security_audit_service/Dockerfile
     command: [
       "uvicorn",
-      "services.security_audit_service.main_app:app",
+      "extensions.addons.security.security_audit_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9551",
     ]

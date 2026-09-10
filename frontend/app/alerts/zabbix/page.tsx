@@ -56,7 +56,7 @@ export default function ZabbixAlertsPage() {
   const [showConfig, setShowConfig] = useState(false);
 
   const debouncedSearch = useDebounce(filters.search, 300);
-  const { isLoading, error, refetch } = useLoadingState();
+  const { isLoading, error } = useLoadingState();
   const toast = useToast();
   const showSuccess = toast.success;
   const showError = toast.error;
@@ -321,7 +321,7 @@ export default function ZabbixAlertsPage() {
                     </TableCell>
                     <TableCell className="text-sm text-gray-500 truncate max-w-xs">{trigger.expression}</TableCell>
                     <TableCell className="text-sm text-gray-500">
-                      {new Date(trigger.lastchange * 1000).toLocaleString()}
+                      {new Date(Number(trigger.lastchange) * 1000).toLocaleString()}
                     </TableCell>
                     <TableCell>
                       <Button
@@ -400,7 +400,7 @@ export default function ZabbixAlertsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">最后变化</label>
-                  <div className="text-sm text-gray-600">{new Date(selectedTrigger.lastchange * 1000).toLocaleString()}</div>
+                  <div className="text-sm text-gray-600">{new Date(Number(selectedTrigger.lastchange) * 1000).toLocaleString()}</div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">类型</label>

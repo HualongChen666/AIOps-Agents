@@ -194,7 +194,7 @@ class TestInfrastructureRouterRBAC:
         """Test that admin can read config"""
         response = test_client.get("/api/v1/infrastructure/config/admin.config")
         # May be 404 if not exists, but should not be 403
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
 
 class TestInfrastructureRouterIntegration:

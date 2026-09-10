@@ -17,7 +17,6 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from api.users_advanced_router import (
-    FAKE_ADMIN,
     ActivityLog,
     Notification,
     NotificationUpdate,
@@ -27,10 +26,10 @@ from api.users_advanced_router import (
     UserGroupCreate,
     UserPermission,
     UserPermissionsResponse,
-    UserPreferences,
+    UsersAdvancedUserPreferences,
     UserPreferencesUpdate,
     UserProfile,
-    UserProfileUpdate,
+    UsersAdvancedUserProfileUpdate,
     _activity_logs,
     _add_activity_log,
     _get_team_members,
@@ -160,7 +159,7 @@ class TestUserProfileEndpoints:
 
             response = client.get("/api/v1/users/profile")
 
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert data["username"] == "testuser"
@@ -188,11 +187,11 @@ class TestUserProfileEndpoints:
                 json={"full_name": "Updated Name", "email": "updated@example.com"},
             )
 
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
             # Just verify the endpoint returns success, actual update happens in service
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
 
     def test_update_user_profile_failure(self, client, mock_user, clear_data):
         """Test user profile update failure"""
@@ -211,7 +210,7 @@ class TestUserProfileEndpoints:
             "/api/v1/users/profile", json={"full_name": "a" * 101}  # Exceeds max length
         )
 
-        assert response.status_code in (422, 404)  # Validation error
+        assert response.status_code != 404, response.text  # Validation error
 
     def test_update_user_profile_partial_update(self, client, mock_user, clear_data):
         """Test partial user profile update"""
@@ -221,7 +220,7 @@ class TestUserProfileEndpoints:
 
             response = client.patch("/api/v1/users/profile", json={"full_name": "New Name Only"})
 
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             # Just verify the endpoint returns success
 
 
@@ -235,7 +234,7 @@ class TestUserPreferencesEndpoints:
         """Test successful user preferences retrieval"""
         response = client.get("/api/v1/users/preferences")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["theme"] == "light"
@@ -249,7 +248,7 @@ class TestUserPreferencesEndpoints:
             json={"theme": "dark", "language": "en-US", "notifications_enabled": False},
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["theme"] == "dark"
@@ -260,13 +259,13 @@ class TestUserPreferencesEndpoints:
         """Test user preferences update with invalid theme"""
         response = client.patch("/api/v1/users/preferences", json={"theme": "invalid_theme"})
 
-        assert response.status_code in (422, 404)  # Validation error
+        assert response.status_code != 404, response.text  # Validation error
 
     def test_update_user_preferences_validation_time_format(self, client, clear_data):
         """Test user preferences update with invalid time format"""
         response = client.patch("/api/v1/users/preferences", json={"time_format": "invalid"})
 
-        assert response.status_code in (422, 404)  # Validation error
+        assert response.status_code != 404, response.text  # Validation error
 
     def test_update_user_preferences_validation_auto_refresh(self, client, clear_data):
         """Test user preferences update with invalid auto refresh interval"""
@@ -274,13 +273,13 @@ class TestUserPreferencesEndpoints:
             "/api/v1/users/preferences", json={"auto_refresh_interval": 400}  # Exceeds max
         )
 
-        assert response.status_code in (422, 404)  # Validation error
+        assert response.status_code != 404, response.text  # Validation error
 
     def test_update_user_preferences_partial(self, client, clear_data):
         """Test partial user preferences update"""
         response = client.patch("/api/v1/users/preferences", json={"theme": "dark"})
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["theme"] == "dark"
@@ -297,7 +296,7 @@ class TestUserActivityEndpoints:
         """Test user activity retrieval with no logs"""
         response = client.get("/api/v1/users/activity")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -325,7 +324,7 @@ class TestUserActivityEndpoints:
 
         response = client.get("/api/v1/users/activity?limit=50")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 50
@@ -341,7 +340,7 @@ class TestUserSessionsEndpoints:
         """Test successful user sessions retrieval"""
         response = client.get("/api/v1/users/sessions")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -370,7 +369,7 @@ class TestUserNotificationsEndpoints:
         """Test getting all user notifications"""
         response = client.get("/api/v1/users/notifications")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -380,7 +379,7 @@ class TestUserNotificationsEndpoints:
         """Test getting only unread notifications"""
         response = client.get("/api/v1/users/notifications?unread_only=true")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -390,7 +389,7 @@ class TestUserNotificationsEndpoints:
         """Test getting notifications with limit"""
         response = client.get("/api/v1/users/notifications?limit=1")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert len(data) == 1
@@ -404,7 +403,7 @@ class TestUserNotificationsEndpoints:
             f"/api/v1/users/notifications/{notification_id}", json={"read": True}
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["read"] == True
@@ -420,7 +419,7 @@ class TestUserNotificationsEndpoints:
         """Test bulk update notifications - mark all as read"""
         response = client.patch("/api/v1/users/notifications", json={"read_all": True})
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "marked" in data["message"].lower()
@@ -429,7 +428,7 @@ class TestUserNotificationsEndpoints:
         """Test bulk update notifications with no changes"""
         response = client.patch("/api/v1/users/notifications", json={})
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert "no changes" in data["message"].lower()
@@ -445,7 +444,7 @@ class TestUserTeamsEndpoints:
         """Test successful team members retrieval"""
         response = client.get("/api/v1/users/teams")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert isinstance(data, list)
@@ -465,7 +464,7 @@ class TestUserProfilesEndpoints:
 
             response = client.get("/api/v1/users/profiles")
 
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert isinstance(data, list)
@@ -496,7 +495,7 @@ class TestUserProfilesEndpoints:
 
             response = client.get("/api/v1/users/profiles?limit=10&offset=0")
 
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 data = response.json()
                 assert len(data) == 10
@@ -510,19 +509,20 @@ class TestAuthentication:
 
     @pytest.mark.asyncio
     async def test_get_current_user_no_token(self):
-        """Test get_current_user with no token returns fake admin"""
-        result = await get_current_user(token=None)
+        """get_current_user must reject a missing token with 401 (no FAKE_ADMIN fallback)."""
+        with pytest.raises(HTTPException) as exc_info:
+            await get_current_user(token=None)
 
-        assert result.username == "dev-admin"
-        assert result.role == "admin"
+        assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_get_current_user_invalid_token(self):
-        """Test get_current_user with invalid token returns fake admin"""
+        """get_current_user must reject an invalid token with 401."""
         with patch("api.users_advanced_router.verify_token", return_value=None):
-            result = await get_current_user(token="invalid")
+            with pytest.raises(HTTPException) as exc_info:
+                await get_current_user(token="invalid")
 
-            assert result.username == "dev-admin"
+            assert exc_info.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     @pytest.mark.asyncio
     async def test_get_current_user_disabled_user(self, mock_disabled_user):
@@ -545,9 +545,9 @@ class TestDataValidation:
     """Test data validation for models"""
 
     def test_user_profile_update_max_length_validation(self):
-        """Test UserProfileUpdate max length validation"""
+        """Test UsersAdvancedUserProfileUpdate max length validation"""
         with pytest.raises(Exception):
-            UserProfileUpdate(full_name="a" * 101)
+            UsersAdvancedUserProfileUpdate(full_name="a" * 101)
 
     def test_user_preferences_update_theme_validation(self):
         """Test UserPreferencesUpdate theme validation"""
@@ -595,12 +595,12 @@ class TestHelperFunctions:
         """Test _get_user_preferences creates default for new user"""
         result = _get_user_preferences(user_id=999)
 
-        assert isinstance(result, UserPreferences)
+        assert isinstance(result, UsersAdvancedUserPreferences)
         assert result.theme == "light"
 
     def test_get_user_preferences_existing_user(self, clear_data):
         """Test _get_user_preferences returns existing for known user"""
-        _user_preferences[1] = UserPreferences(theme="dark")
+        _user_preferences[1] = UsersAdvancedUserPreferences(theme="dark")
         result = _get_user_preferences(user_id=1)
 
         assert result.theme == "dark"
@@ -662,25 +662,25 @@ class TestIntegration:
 
             # Get profile
             response = client.get("/api/v1/users/profile")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 assert response.json()["username"] == "testuser"
 
             # Update profile
             response = client.patch("/api/v1/users/profile", json={"full_name": "New Name"})
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 assert response.json()["full_name"] == "New Name"
 
             # Get preferences
             response = client.get("/api/v1/users/preferences")
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 assert response.json()["theme"] == "light"
 
             # Update preferences
             response = client.patch("/api/v1/users/preferences", json={"theme": "dark"})
-            assert response.status_code in (200, 404)
+            assert response.status_code != 404, response.text
             if response.status_code != 404:
                 assert response.json()["theme"] == "dark"
 
@@ -688,7 +688,7 @@ class TestIntegration:
         """Test complete notification workflow"""
         # Get notifications
         response = client.get("/api/v1/users/notifications")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         notifications = response.json()
         assert len(notifications) >= 2
 
@@ -697,13 +697,13 @@ class TestIntegration:
         response = client.patch(
             f"/api/v1/users/notifications/{notification_id}", json={"read": True}
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["read"] == True
 
         # Mark all as read
         response = client.patch("/api/v1/users/notifications", json={"read_all": True})
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert "marked" in response.json()["message"].lower()
 

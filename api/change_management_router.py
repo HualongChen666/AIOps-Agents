@@ -53,7 +53,7 @@ _logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/change-management", tags=["变更管理"])
 
 
-class ChangeRequestCreate(BaseModel):
+class ChangeManagementChangeRequestCreate(BaseModel):
     """创建变更请求请求体."""
 
     title: str = Field(..., description="标题")
@@ -84,7 +84,7 @@ async def get_change_requests(request: Request) -> list[ChangeRequest]:
     status_code=201,
     summary="创建变更请求",
 )
-async def post_change_request(request: Request, payload: ChangeRequestCreate) -> ChangeRequest:
+async def post_change_request(request: Request, payload: ChangeManagementChangeRequestCreate) -> ChangeRequest:
     """创建新的变更请求."""
     try:
         tenant_id = getattr(request.state, "tenant_id", "default")
@@ -259,7 +259,7 @@ async def rollback_change_request(
 # ============================================================================
 
 
-class ChangeRequestUpdate(BaseModel):
+class ChangeManagementChangeRequestUpdate(BaseModel):
     """更新变更请求请求体."""
 
     title: str | None = Field(None, description="标题")
@@ -280,7 +280,7 @@ class ChangeRequestUpdate(BaseModel):
 async def put_change_request(
     request: Request,
     id: str,
-    payload: ChangeRequestUpdate,
+    payload: ChangeManagementChangeRequestUpdate,
 ) -> ChangeRequest:
     """更新变更请求信息."""
     try:
@@ -495,7 +495,7 @@ async def post_audit_comment(
 class BulkCreateRequest(BaseModel):
     """批量创建请求体."""
 
-    requests: list[ChangeRequestCreate] = Field(..., description="变更请求列表")
+    requests: list[ChangeManagementChangeRequestCreate] = Field(..., description="变更请求列表")
 
 
 @router.post(
@@ -724,7 +724,7 @@ class BatchUpdateRequest(BaseModel):
     """批量更新请求体."""
 
     request_ids: list[str] = Field(..., description="变更请求ID列表")
-    updates: ChangeRequestUpdate = Field(..., description="更新内容")
+    updates: ChangeManagementChangeRequestUpdate = Field(..., description="更新内容")
 
 
 @router.post(

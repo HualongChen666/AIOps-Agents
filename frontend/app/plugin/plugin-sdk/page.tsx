@@ -505,23 +505,23 @@ export default function PluginSdkPage() {
                 <h3 className="text-lg font-medium mb-3">插件接口</h3>
                 <div className="space-y-3">
                   <div className="p-4 border rounded-lg">
-                    <div className="font-medium mb-2">initialize(config: Dict) -> bool</div>
+                    <div className="font-medium mb-2">initialize(config: Dict) -&gt; bool</div>
                     <div className="text-sm text-gray-600">初始化插件，传入配置参数</div>
                   </div>
                   <div className="p-4 border rounded-lg">
-                    <div className="font-medium mb-2">cleanup() -> bool</div>
+                    <div className="font-medium mb-2">cleanup() -&gt; bool</div>
                     <div className="text-sm text-gray-600">清理插件资源</div>
                   </div>
                   <div className="p-4 border rounded-lg">
-                    <div className="font-medium mb-2">collect() -> Dict</div>
+                    <div className="font-medium mb-2">collect() -&gt; Dict</div>
                     <div className="text-sm text-gray-600">采集数据（采集器插件）</div>
                   </div>
                   <div className="p-4 border rounded-lg">
-                    <div className="font-medium mb-2">analyze(data: Dict) -> Dict</div>
+                    <div className="font-medium mb-2">analyze(data: Dict) -&gt; Dict</div>
                     <div className="text-sm text-gray-600">分析数据（分析器插件）</div>
                   </div>
                   <div className="p-4 border rounded-lg">
-                    <div className="font-medium mb-2">notify(alert: Dict) -> bool</div>
+                    <div className="font-medium mb-2">notify(alert: Dict) -&gt; bool</div>
                     <div className="text-sm text-gray-600">发送通知（通知器插件）</div>
                   </div>
                 </div>

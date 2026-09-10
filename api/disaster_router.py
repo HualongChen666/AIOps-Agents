@@ -86,9 +86,20 @@ class VerifyBackupRequest(BaseModel):
 
 
 def _get_backup_dir() -> Path:
-    """Get backup directory from environment variable."""
-    backup_dir = os.getenv("AIOPS_BACKUP_DIR", "C:/AIOps_Agent_bak/backups")
-    return Path(backup_dir)
+    """Get the backup directory.
+
+    ``AIOPS_BACKUP_DIR`` takes precedence; otherwise the configured
+    ``BACKUP_LOCATION`` is used. No platform-specific path is hardcoded.
+    """
+    backup_dir = os.getenv("AIOPS_BACKUP_DIR")
+    if backup_dir:
+        return Path(backup_dir)
+    try:
+        from config import BACKUP_LOCATION
+
+        return Path(BACKUP_LOCATION or "/backups")
+    except Exception:
+        return Path("/backups")
 
 
 def _get_retention_days() -> int:

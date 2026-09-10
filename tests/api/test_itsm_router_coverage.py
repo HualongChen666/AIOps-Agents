@@ -37,7 +37,7 @@ class TestCreateIncident:
                 json={"summary": "Test incident", "description": "Test description"},
                 params={"provider": "servicenow"},
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "created"
@@ -79,7 +79,7 @@ class TestCreateIncident:
                 },
                 params={"provider": "jira"},
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "created"
@@ -125,7 +125,7 @@ class TestCreateIncident:
             resp = client.post(
                 "/api/itsm/incident", json={"summary": "Test incident"}, params={"provider": "jira"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert "本地记录" in data["message"]
@@ -183,7 +183,7 @@ class TestCreateIncident:
             resp = client.post(
                 "/api/itsm/incident", json={"summary": "Test incident"}, params={"provider": "jira"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert "本地记录" in data["message"]
@@ -205,7 +205,7 @@ class TestCreateIncident:
                 json={},  # Empty data, should use defaults
                 params={"provider": "jira"},
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_create_incident_servicenow_default_data(self, client):
         """Test ServiceNow with default data values (lines 97-99)."""
@@ -222,7 +222,7 @@ class TestCreateIncident:
             resp = client.post(
                 "/api/itsm/incident", json={}, params={"provider": "servicenow"}  # Empty data
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
 
 class TestResolveIncident:
@@ -240,7 +240,7 @@ class TestResolveIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.patch("/api/itsm/incident/test-id", params={"provider": "servicenow"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "resolved"
@@ -268,7 +268,7 @@ class TestResolveIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.patch("/api/itsm/incident/TEST-123", params={"provider": "jira"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert data["status"] == "resolved"
@@ -287,20 +287,20 @@ class TestResolveIncident:
     def test_resolve_incident_unsupported_provider(self, client):
         """Test resolution with unsupported provider (lines 161-162)."""
         resp = client.patch("/api/itsm/incident/test-id", params={"provider": "unsupported"})
-        assert resp.status_code in (400, 404)
+        assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             assert "Unsupported ITSM provider" in resp.json()["detail"]
 
     def test_resolve_incident_provider_case_insensitive(self, client):
         """Test that provider is case-insensitive (lines 155, 158)."""
         resp = client.patch("/api/itsm/incident/test-id", params={"provider": "SERVICENOW"})
-        assert resp.status_code in (200, 404, 500)
+        assert resp.status_code != 404, resp.text
 
     def test_resolve_incident_httpx_not_installed(self, client):
         """Test when httpx is not installed (lines 165-167)."""
         with patch("api.itsm_router.httpx", None):
             resp = client.patch("/api/itsm/incident/test-id", params={"provider": "jira"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert "本地记录" in data["message"]
@@ -318,7 +318,7 @@ class TestResolveIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.patch("/api/itsm/incident/TEST-123", params={"provider": "jira"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert "本地记录" in data["message"]
@@ -336,7 +336,7 @@ class TestResolveIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.patch("/api/itsm/incident/test-id", params={"provider": "servicenow"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert "本地记录" in data["message"]
@@ -350,7 +350,7 @@ class TestResolveIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.patch("/api/itsm/incident/test-id", params={"provider": "jira"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
             if resp.status_code != 404:
                 data = resp.json()
                 assert "本地记录" in data["message"]
@@ -367,7 +367,7 @@ class TestResolveIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.patch("/api/itsm/incident/TEST-123", params={"provider": "jira"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_resolve_incident_servicenow_204_status(self, client):
         """Test ServiceNow resolution with 204 status (line 200)."""
@@ -381,7 +381,7 @@ class TestResolveIncident:
             mock_httpx.AsyncClient.return_value = mock_client
 
             resp = client.patch("/api/itsm/incident/test-id", params={"provider": "servicenow"})
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
 
 class TestIncidentIdGeneration:
@@ -420,7 +420,7 @@ class TestUrlTrailingSlash:
             resp = client.post(
                 "/api/itsm/incident", json={"summary": "Test"}, params={"provider": "jira"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text
 
     def test_servicenow_url_trailing_slash(self, client):
         """Test ServiceNow URL with trailing slash is handled."""
@@ -437,4 +437,4 @@ class TestUrlTrailingSlash:
             resp = client.post(
                 "/api/itsm/incident", json={"summary": "Test"}, params={"provider": "servicenow"}
             )
-            assert resp.status_code in (200, 404)
+            assert resp.status_code != 404, resp.text

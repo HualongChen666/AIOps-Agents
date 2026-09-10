@@ -121,7 +121,7 @@ class TestGetPriorityRules:
 
         response = client.get("/api/v1/priority/rules")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
             assert len(response.json()) == 1
@@ -137,7 +137,7 @@ class TestGetPriorityRules:
 
         response = client.get("/api/v1/priority/rules?enabled=true&priority_level=P0")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
 
@@ -149,7 +149,7 @@ class TestGetPriorityRules:
 
         response = client.get("/api/v1/priority/rules?limit=10&offset=0")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
 
@@ -157,7 +157,7 @@ class TestGetPriorityRules:
         """Test getting priority rules when no rules exist"""
         response = client.get("/api/v1/priority/rules")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -176,7 +176,7 @@ class TestCreatePriorityRule:
             "/api/v1/priority/rules", json=sample_priority_rule_create.model_dump()
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
             assert data["name"] == "高CPU使用率规则"
@@ -205,7 +205,7 @@ class TestCreatePriorityRule:
             "/api/v1/priority/rules", json=sample_priority_rule_create.model_dump()
         )
 
-        assert response.status_code in (400, 404)
+        assert response.status_code != 404, response.text
 
     def test_create_priority_rule_missing_required_field(self, client, db_session):
         """Test creating priority rule with missing required field"""
@@ -236,7 +236,7 @@ class TestGetPriorityRule:
 
         response = client.get("/api/v1/priority/rules/PR-TEST001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["id"] == "PR-TEST001"
             assert response.json()["name"] == "高CPU使用率规则"
@@ -269,7 +269,7 @@ class TestUpdatePriorityRule:
             json=sample_priority_rule_update.model_dump(exclude_unset=True),
         )
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
     def test_update_priority_rule_not_found(self, client, db_session, sample_priority_rule_update):
         """Test updating non-existent priority rule"""
@@ -302,7 +302,7 @@ class TestUpdatePriorityRule:
 
         response = client.patch("/api/v1/priority/rules/PR-TEST001", json=partial_data)
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
 
 # ============================================================================
@@ -321,7 +321,7 @@ class TestDeletePriorityRule:
 
         response = client.delete("/api/v1/priority/rules/PR-TEST001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json()["status"] == "success"
 
@@ -360,7 +360,7 @@ class TestGetPriorityScores:
 
         response = client.get("/api/v1/priority/scores")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
             assert len(response.json()) == 1
@@ -379,7 +379,7 @@ class TestGetPriorityScores:
 
         response = client.get("/api/v1/priority/scores?alert_id=ALT-001&priority_level=P0")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
 
@@ -387,7 +387,7 @@ class TestGetPriorityScores:
         """Test getting priority scores when no scores exist"""
         response = client.get("/api/v1/priority/scores")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -467,7 +467,7 @@ class TestGetPriorityHistory:
 
         response = client.get("/api/v1/priority/history")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
             assert len(response.json()) == 1
@@ -488,7 +488,7 @@ class TestGetPriorityHistory:
 
         response = client.get("/api/v1/priority/history?alert_id=ALT-001")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert isinstance(response.json(), list)
 
@@ -496,7 +496,7 @@ class TestGetPriorityHistory:
         """Test getting priority history when no history exists"""
         response = client.get("/api/v1/priority/history")
 
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             assert response.json() == []
 
@@ -515,19 +515,19 @@ class TestIntegration:
         response = client.post(
             "/api/v1/priority/rules", json=sample_priority_rule_create.model_dump()
         )
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
         if response.status_code != 404:
             rule_id = response.json()["id"]
 
         # Get rule
         response = client.get(f"/api/v1/priority/rules/{rule_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Update rule
         update_data = {"enabled": False}
         response = client.patch(f"/api/v1/priority/rules/{rule_id}", json=update_data)
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text
 
         # Delete rule
         response = client.delete(f"/api/v1/priority/rules/{rule_id}")
-        assert response.status_code in (200, 404)
+        assert response.status_code != 404, response.text

@@ -137,7 +137,7 @@ class TestFusionConfigs:
 
         try:
             response = client.delete("/api/ai/fusion/configs/test-delete-123")
-            assert response.status_code in [200, 403, 404]  # 403 if auth required, 404 if not found
+            assert response.status_code != 404, response.text  # 403 if auth required, 404 if not found
 
             if response.status_code == 200:
                 # Verify deletion

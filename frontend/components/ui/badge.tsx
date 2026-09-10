@@ -1,9 +1,9 @@
 import React from 'react';
 
-interface BadgeProps {
+interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   variant?: 'default' | 'destructive' | 'outline' | 'secondary';
   className?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   onClick?: () => void;
 }
 

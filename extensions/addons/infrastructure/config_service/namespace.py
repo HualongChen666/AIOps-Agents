@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import List
 
-from services.config_service.repository import ConfigRepository
-from services.config_service.schemas import ConfigNamespace, ConfigValue
+from .repository import ConfigRepository
+from .schemas import ConfigNamespace, ConfigValue
 
 
 class NamespaceManager:

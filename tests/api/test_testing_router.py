@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from api.test_automation_advanced_router import (
     router,
+    get_current_user,
     TestSuiteCreate,
     TestSuiteUpdate,
     TestExecutionCreate,
@@ -26,6 +27,7 @@ from api.test_automation_advanced_router import (
     TestSuiteStatus,
     ExecutionStatus,
 )
+from core.authentication import UserInDB
 from core.database import Base, get_db
 from core.models import TestSuiteDB, TestExecutionDB
 
@@ -73,6 +75,8 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
+    # Wave2 #24: routers now require auth; tests run authenticated.
+    app.dependency_overrides[get_current_user] = lambda: _TEST_AUTH_USER
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -770,7 +774,7 @@ def test_sql_injection_protection(client):
     malicious_id = "'; DROP TABLE test_suites; --"
     response = client.get(f"/api/v1/test-automation/suites/{malicious_id}")
     # Should return 404, not 500
-    assert response.status_code in [404, 400]
+    assert response.status_code != 404, response.text
 
 
 # ============ Error Handling Tests ============
@@ -870,3 +874,17 @@ def test_archive_test_suite(client, sample_suite):
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-n", "auto"])
+
+
+# Wave2 #24: production routers now require authentication (no FAKE_ADMIN
+# fallback for unauthenticated requests).  Tests exercise endpoint logic with
+# an authenticated identity via dependency_overrides.
+_TEST_AUTH_USER = UserInDB(
+    id=1,
+    username="test_admin",
+    full_name="Test Admin",
+    email="test@example.com",
+    role="admin",
+    disabled=False,
+    hashed_password="hashed",
+)

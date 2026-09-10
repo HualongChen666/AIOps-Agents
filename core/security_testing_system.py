@@ -6,11 +6,14 @@ Enterprise-grade security testing system with automated vulnerability scanning
 
 import asyncio
 import json
+import shutil
+import subprocess
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
 
@@ -91,6 +94,267 @@ class TestResult:
     summary: Dict[str, Any] = field(default_factory=dict)
     error_message: Optional[str] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Real security-tool adapters.
+#
+# Each adapter locates the tool binary on ``PATH``, runs it against the test
+# target with ``shell=False`` and converts its machine readable output into
+# findings.  A tool that is not installed is reported as unavailable; it is
+# never replaced by synthetic results.
+# ---------------------------------------------------------------------------
+
+
+def _map_severity(raw: Any) -> SeverityLevel:
+    """Translate a scanner severity label into :class:`SeverityLevel`."""
+    label = str(raw or "").strip().upper()
+    if label in {"CRITICAL", "BLOCKER"}:
+        return SeverityLevel.CRITICAL
+    if label in {"HIGH", "ERROR", "MAJOR"}:
+        return SeverityLevel.HIGH
+    if label in {"MEDIUM", "WARNING", "MODERATE"}:
+        return SeverityLevel.MEDIUM
+    if label in {"LOW", "MINOR"}:
+        return SeverityLevel.LOW
+    return SeverityLevel.INFO
+
+
+def _json_loader(output: str) -> Any:
+    """Parse a JSON document produced by a scanner."""
+    text = output.strip()
+    if not text:
+        raise ValueError("scanner produced no output")
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"scanner output is not valid JSON: {exc}") from exc
+
+
+def _text_loader(output: str) -> str:
+    return output
+
+
+def _bandit_argv(test_type: TestType, target: str) -> List[str]:
+    return ["bandit", "-r", target, "-f", "json", "-q"]
+
+
+def _semgrep_argv(test_type: TestType, target: str) -> List[str]:
+    return ["semgrep", "--config=auto", "--json", "--quiet", target]
+
+
+def _trivy_argv(test_type: TestType, target: str) -> List[str]:
+    if test_type is TestType.CONTAINER_SCAN:
+        return ["trivy", "image", "-f", "json", "-q", target]
+    if test_type is TestType.INFRASTRUCTURE_SCAN:
+        return ["trivy", "config", "-f", "json", "-q", target]
+    return ["trivy", "fs", "-f", "json", "-q", target]
+
+
+def _safety_argv(test_type: TestType, target: str) -> List[str]:
+    argv = ["safety", "check", "--json"]
+    if target.endswith((".txt", ".toml", ".lock")):
+        argv += ["--file", target]
+    return argv
+
+
+def _snyk_argv(test_type: TestType, target: str) -> List[str]:
+    return ["snyk", "test", "--json"]
+
+
+def _zap_argv(test_type: TestType, target: str) -> List[str]:
+    return ["zap-baseline.py", "-t", target, "-J", "-"]
+
+
+def _nmap_argv(test_type: TestType, target: str) -> List[str]:
+    return ["nmap", "-Pn", "-oX", "-", target]
+
+
+def _parse_bandit(payload: Any) -> List[Dict[str, Any]]:
+    findings = []
+    for item in (payload or {}).get("results", []):
+        cwe = item.get("issue_cwe") or {}
+        findings.append(
+            {
+                "vulnerability_id": item.get("test_id"),
+                "title": item.get("issue_text") or "bandit finding",
+                "severity": item.get("issue_severity"),
+                "cwe_id": f"CWE-{cwe['id']}" if cwe.get("id") else None,
+                "description": item.get("issue_text") or "",
+                "affected_component": f"{item.get('filename')}:{item.get('line_number')}",
+                "remediation": item.get("more_info") or "",
+            }
+        )
+    return findings
+
+
+def _parse_semgrep(payload: Any) -> List[Dict[str, Any]]:
+    findings = []
+    for item in (payload or {}).get("results", []):
+        extra = item.get("extra") or {}
+        metadata = extra.get("metadata") or {}
+        cwe = metadata.get("cwe")
+        if isinstance(cwe, list):
+            cwe = cwe[0] if cwe else None
+        findings.append(
+            {
+                "vulnerability_id": item.get("check_id"),
+                "title": extra.get("message") or item.get("check_id"),
+                "severity": extra.get("severity"),
+                "cwe_id": cwe,
+                "description": extra.get("message") or "",
+                "affected_component": f"{item.get('path')}:{(item.get('start') or {}).get('line')}",
+                "remediation": (extra.get("metadata") or {}).get("fix") or "",
+            }
+        )
+    return findings
+
+
+def _parse_trivy(payload: Any) -> List[Dict[str, Any]]:
+    findings = []
+    for result in (payload or {}).get("Results", []):
+        for vuln in result.get("Vulnerabilities", []) or []:
+            cwe_ids = vuln.get("CweIDs") or []
+            fixed = vuln.get("FixedVersion")
+            findings.append(
+                {
+                    "vulnerability_id": vuln.get("VulnerabilityID"),
+                    "title": vuln.get("Title") or vuln.get("VulnerabilityID"),
+                    "severity": vuln.get("Severity"),
+                    "cwe_id": cwe_ids[0] if cwe_ids else None,
+                    "description": vuln.get("Description") or "",
+                    "affected_component": (
+                        f"{vuln.get('PkgName')}@{vuln.get('InstalledVersion')}"
+                    ),
+                    "remediation": f"upgrade to {fixed}" if fixed else "",
+                }
+            )
+    return findings
+
+
+def _parse_safety(payload: Any) -> List[Dict[str, Any]]:
+    if isinstance(payload, dict):
+        entries: List[Any] = payload.get("vulnerabilities") or []
+    elif isinstance(payload, list):
+        entries = payload
+    else:
+        entries = []
+
+    findings = []
+    for item in entries:
+        if isinstance(item, dict):
+            findings.append(
+                {
+                    "vulnerability_id": item.get("vulnerability_id") or item.get("cve"),
+                    "title": item.get("advisory") or item.get("vulnerability_id") or "safety",
+                    "severity": item.get("severity"),
+                    "cwe_id": item.get("cwe"),
+                    "description": item.get("advisory") or "",
+                    "affected_component": (
+                        f"{item.get('package_name') or item.get('package')}"
+                        f"@{item.get('analyzed_version') or item.get('installed_version')}"
+                    ),
+                    "remediation": item.get("fixed_versions")
+                    and f"upgrade to {item.get('fixed_versions')}"
+                    or "",
+                }
+            )
+        elif isinstance(item, (list, tuple)) and len(item) >= 4:
+            # safety 1.x emits [package, specifier, installed, vuln_id, advisory]
+            findings.append(
+                {
+                    "vulnerability_id": str(item[3]),
+                    "title": str(item[4]) if len(item) > 4 else str(item[3]),
+                    "severity": None,
+                    "cwe_id": None,
+                    "description": str(item[4]) if len(item) > 4 else "",
+                    "affected_component": f"{item[0]}@{item[2]}",
+                    "remediation": "",
+                }
+            )
+    return findings
+
+
+def _parse_snyk(payload: Any) -> List[Dict[str, Any]]:
+    findings = []
+    for item in (payload or {}).get("vulnerabilities", []):
+        identifiers = item.get("identifiers") or {}
+        cwe = identifiers.get("CWE") or []
+        findings.append(
+            {
+                "vulnerability_id": item.get("id"),
+                "title": item.get("title") or item.get("id"),
+                "severity": item.get("severity"),
+                "cwe_id": cwe[0] if cwe else None,
+                "description": item.get("description") or "",
+                "affected_component": item.get("packageName") or "",
+                "remediation": item.get("upgradePath") and str(item.get("upgradePath")) or "",
+            }
+        )
+    return findings
+
+
+def _parse_zap(payload: Any) -> List[Dict[str, Any]]:
+    findings = []
+    for alert in (payload or {}).get("alerts", []):
+        cwe_id = alert.get("cweid")
+        findings.append(
+            {
+                "vulnerability_id": alert.get("pluginid") or alert.get("alertRef"),
+                "title": alert.get("alert") or alert.get("name"),
+                "severity": alert.get("riskdesc") or alert.get("risk"),
+                "cwe_id": f"CWE-{cwe_id}" if cwe_id else None,
+                "description": alert.get("desc") or "",
+                "affected_component": alert.get("url") or "",
+                "remediation": alert.get("solution") or "",
+            }
+        )
+    return findings
+
+
+def _parse_nmap(output: str) -> List[Dict[str, Any]]:
+    findings = []
+    text = output.strip()
+    if not (text.startswith("<?xml") or text.startswith("<nmaprun")):
+        return findings
+    try:
+        root = ET.fromstring(text)
+    except ET.ParseError:
+        return findings
+    for host in root.findall(".//host"):
+        address = host.find(".//address")
+        host_ip = address.get("addr") if address is not None else ""
+        for port in host.findall(".//port"):
+            state = port.find(".//state")
+            if state is None or state.get("state") != "open":
+                continue
+            service = port.find(".//service")
+            findings.append(
+                {
+                    "vulnerability_id": f"open-port-{port.get('portid')}",
+                    "title": f"Exposed port {port.get('portid')}",
+                    "severity": "MEDIUM",
+                    "cwe_id": None,
+                    "description": (
+                        f"Port {port.get('portid')} is reachable on {host_ip} "
+                        f"({service.get('name') if service is not None else 'unknown'})"
+                    ),
+                    "affected_component": f"{host_ip}:{port.get('portid')}",
+                    "remediation": "Restrict the port to trusted networks",
+                }
+            )
+    return findings
+
+
+SCANNER_ADAPTERS: Dict[str, Dict[str, Any]] = {
+    "bandit": {"argv": _bandit_argv, "loader": _json_loader, "parse": _parse_bandit},
+    "semgrep": {"argv": _semgrep_argv, "loader": _json_loader, "parse": _parse_semgrep},
+    "trivy": {"argv": _trivy_argv, "loader": _json_loader, "parse": _parse_trivy},
+    "safety": {"argv": _safety_argv, "loader": _json_loader, "parse": _parse_safety},
+    "snyk": {"argv": _snyk_argv, "loader": _json_loader, "parse": _parse_snyk},
+    "owasp_zap": {"argv": _zap_argv, "loader": _json_loader, "parse": _parse_zap},
+    "nmap": {"argv": _nmap_argv, "loader": _text_loader, "parse": _parse_nmap},
+}
 
 
 class SecurityTestingSystem:
@@ -256,12 +520,9 @@ class SecurityTestingSystem:
         test = self.security_tests[test_id]
 
         try:
-            # Simulate test execution
-            # In real implementation, would execute actual security testing tools
-            await asyncio.sleep(3)  # Simulate test execution
-
-            # Simulate vulnerability findings
-            vulnerabilities = await self._simulate_vulnerabilities(test)
+            # Execute the real scanners configured for this test.
+            target = target_override or self._concrete_target(test)
+            vulnerabilities = await self._run_scanners(test, target)
 
             # Update result
             result.status = TestStatus.COMPLETED
@@ -305,39 +566,113 @@ class SecurityTestingSystem:
 
             logger.error(f"Security test failed: {test_id}, error: {e}")
 
-    async def _simulate_vulnerabilities(self, test: SecurityTest) -> List[Vulnerability]:
+    @staticmethod
+    def _repository_root() -> Path:
+        """Root of the deployed repository (used as the default scan target)."""
+        return Path(__file__).resolve().parents[1]
+
+    def _concrete_target(self, test: SecurityTest) -> str:
+        """Resolve a concrete, existing target for ``test``.
+
+        The default test catalogue uses abstract targets ("source_code",
+        "docker_images", ...).  A concrete target is taken from
+        ``test.config['target']`` when present, otherwise it is derived from the
+        test type.  Tests that address a remote system (DAST, container,
+        penetration) have no safe default and must be given an explicit target.
         """
-        Simulate vulnerability findings
+        configured = test.config.get("target")
+        if configured:
+            return str(configured)
 
-        Args:
-            test: Security test
+        if test.test_type in (
+            TestType.SAST,
+            TestType.CODE_REVIEW,
+            TestType.INFRASTRUCTURE_SCAN,
+        ):
+            return str(self._repository_root())
 
-        Returns:
-            List of vulnerabilities
+        if test.test_type in (TestType.SCA, TestType.DEPENDENCY_SCAN):
+            for candidate in ("requirements.txt", "pyproject.toml"):
+                path = self._repository_root() / candidate
+                if path.exists():
+                    return str(path)
+            return str(self._repository_root())
+
+        raise RuntimeError(
+            f"test {test.test_id} requires an explicit target: pass target_override "
+            "to run_security_test() or set test.config['target']"
+        )
+
+    @staticmethod
+    def _execute_scanner(adapter: Dict[str, Any], argv: List[str]) -> List[Dict[str, Any]]:
+        """Run a scanner binary and parse its output (executed in a worker thread)."""
+        completed = subprocess.run(  # noqa: S603 - argv is built from a static adapter
+            argv,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            shell=False,
+            check=False,
+            timeout=adapter.get("timeout", 1800),
+        )
+        output = completed.stdout or completed.stderr
+        payload = adapter["loader"](output)
+        return adapter["parse"](payload)
+
+    async def _run_scanners(self, test: SecurityTest, target: str) -> List[Vulnerability]:
+        """Run the first usable scanner declared in ``test.config['tools']``.
+
+        A scanner is usable when it has a real adapter and its binary is
+        installed.  When no scanner can be executed a :class:`RuntimeError` is
+        raised so the test is reported as failed instead of silently passing
+        with no findings.
         """
-        # Simulate vulnerability findings for demonstration
-        import secrets
+        tools = list(test.config.get("tools") or [])
+        if not tools:
+            raise RuntimeError(f"no scanner configured for test {test.test_id}")
 
-        _random = secrets.SystemRandom()
-        vulnerabilities = []
+        unavailable: List[str] = []
+        for tool in tools:
+            name = str(tool).strip().lower()
+            adapter = SCANNER_ADAPTERS.get(name)
+            if adapter is None:
+                unavailable.append(f"{name} (no adapter)")
+                continue
 
-        # Randomly generate some vulnerabilities
-        num_vulns = _random.randint(0, 5)
+            argv = adapter["argv"](test.test_type, target)
+            if shutil.which(argv[0]) is None:
+                unavailable.append(f"{name} (not installed)")
+                continue
 
-        for i in range(num_vulns):
-            severity = _random.choice(list(SeverityLevel))
-            vuln = Vulnerability(
-                vulnerability_id=f"VULN_{test.test_id.upper()}_{i}",
-                title=f"Sample vulnerability {i + 1}",
-                severity=severity,
-                cwe_id=f"CWE-{_random.randint(79, 125)}",
-                description=f"Sample vulnerability found during {test.test_name}",
-                affected_component=test.target,
-                remediation="Apply security patch or configuration change",
-            )
-            vulnerabilities.append(vuln)
+            findings = await asyncio.to_thread(self._execute_scanner, adapter, argv)
+            logger.info(f"{name} reported {len(findings)} findings for {test.test_id}")
+            return [
+                self._to_vulnerability(test, name, finding, index)
+                for index, finding in enumerate(findings)
+            ]
 
-        return vulnerabilities
+        raise RuntimeError(
+            f"no usable security scanner for test {test.test_id}: "
+            + ", ".join(unavailable or ["none configured"])
+        )
+
+    @staticmethod
+    def _to_vulnerability(
+        test: SecurityTest, scanner: str, finding: Dict[str, Any], index: int
+    ) -> Vulnerability:
+        """Convert a raw scanner finding into a :class:`Vulnerability`."""
+        identifier = finding.get("vulnerability_id") or f"{scanner}-{test.test_id}-{index}"
+        return Vulnerability(
+            vulnerability_id=str(identifier),
+            title=str(finding.get("title") or "security finding"),
+            severity=_map_severity(finding.get("severity")),
+            cwe_id=finding.get("cwe_id"),
+            description=str(finding.get("description") or ""),
+            affected_component=str(finding.get("affected_component") or test.target),
+            remediation=str(finding.get("remediation") or ""),
+            metadata={"scanner": scanner, "test_id": test.test_id},
+        )
 
     async def run_all_tests(self, test_type: Optional[TestType] = None) -> List[str]:
         """

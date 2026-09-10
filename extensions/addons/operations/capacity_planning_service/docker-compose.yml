@@ -6,11 +6,11 @@ services:
 
   capacity-planning:
     build:
-      context: ../..
-      dockerfile: services/capacity_planning_service/Dockerfile
+      context: ../../../..
+      dockerfile: extensions/addons/operations/capacity_planning_service/Dockerfile
     command: [
       "uvicorn",
-      "services.capacity_planning_service.main_app:app",
+      "extensions.addons.operations.capacity_planning_service.main_app:app",
       "--host", "0.0.0.0",
       "--port", "9548",
     ]

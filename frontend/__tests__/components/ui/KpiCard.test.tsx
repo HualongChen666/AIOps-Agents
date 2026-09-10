@@ -259,7 +259,7 @@ describe('KpiCard Component', () => {
     it('should render without description when not provided', () => {
       render(<KpiCard title="Metric" value="100" />);
       const content = screen.getByTestId('card-content');
-      expect(content).not.toContainHTML(/description/i);
+      expect(content).not.toHaveTextContent(/description/i);
     });
   });
 

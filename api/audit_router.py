@@ -2,7 +2,8 @@
 """Audit Export & Report API
 
 提供审计日志的 CSV / Excel 导出以及基于审计日志的统计报告（JSON）
-仅在提供正确的 `X-Internal-Key`（或未配置 INTERNAL_API_KEY）时可访问。
+仅在提供正确的 `X-Internal-Key` 时可访问；未配置 INTERNAL_API_KEY 时端点
+整体拒绝访问（fail-closed，不再静默放行）。
 """
 
 import csv
@@ -14,7 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from loguru import logger
 
-from config import INTERNAL_API_KEY  # Internal API key for protected routes
+import config as _config
 from core.command_guard import get_audit_log
 from core.compliance import mask_sensitive_dict
 
@@ -222,16 +223,21 @@ def _create_export_file(
 
 
 def _verify_internal_key(request: Request) -> None:
-    """验证内部 API Key，仅本地或通过环境变量配置的请求可访问。
-    当 `INTERNAL_API_KEY` 为空时，视为未启用校验，直接通过。
+    """验证内部 API Key（fail-closed）。
+
+    在调用时读取 `config.INTERNAL_API_KEY`（便于测试注入）。未配置该密钥时
+    拒绝访问——config 明确说明“未设置 INTERNAL_API_KEY 时部分 API 端点不可访问”。
     """
-    if not INTERNAL_API_KEY:
-        # 未设置内部密钥，直接放行（仅在开发/内部环境下使用）
-        return
+    internal_api_key = _config.INTERNAL_API_KEY
+    if not internal_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="INTERNAL_API_KEY is not configured; internal endpoint is disabled",
+        )
     provided_key = request.headers.get("X-Internal-Key")
     if not provided_key:
         raise HTTPException(status_code=403, detail="Missing X-Internal-Key header")
-    if provided_key != INTERNAL_API_KEY:
+    if provided_key != internal_api_key:
         raise HTTPException(status_code=403, detail="Invalid X-Internal-Key")
 
 

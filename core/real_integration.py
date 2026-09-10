@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``real_integration`` module.
+
+Top-level functions: apply_real_integrations"""
+
 # core/real_integration.py
 # 真正的P0增强功能集成脚本
 # 此模块在应用启动时动态修改和替换函数，确保增强功能真正生效

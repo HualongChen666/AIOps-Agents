@@ -44,22 +44,22 @@ def _patch_audit_log(monkeypatch):
     monkeypatch.setattr(audit_service, "log_action", AsyncMock(return_value=None))
 
 
-def test_get_current_user_fallbacks(client):
-    # missing token -> FAKE_ADMIN -> admin endpoint 200
+def test_get_current_user_requires_auth(client):
+    # missing token -> 401 (FAKE_ADMIN fallback removed in Wave2 #24)
     r = client.get("/api/v1/users/")
-    assert r.status_code == 200
+    assert r.status_code == 401
 
-    # invalid token -> verify_token returns None -> FAKE_ADMIN -> 200
+    # invalid token -> verify_token returns None -> 401
     r = client.get("/api/v1/users/", headers=_headers("not-a-jwt"))
-    assert r.status_code == 200
+    assert r.status_code == 401
 
-    # valid token but empty sub -> FAKE_ADMIN -> 200
+    # valid token but empty sub -> 401
     r = client.get("/api/v1/users/", headers=_headers(create_access_token({"sub": ""})))
-    assert r.status_code == 200
+    assert r.status_code == 401
 
-    # valid token, unknown user -> FAKE_ADMIN -> 200
+    # valid token, unknown user -> 401
     r = client.get("/api/v1/users/", headers=_headers(create_access_token({"sub": "nobody"})))
-    assert r.status_code == 200
+    assert r.status_code == 401
 
 
 def test_get_current_user_disabled_and_require_admin(client):

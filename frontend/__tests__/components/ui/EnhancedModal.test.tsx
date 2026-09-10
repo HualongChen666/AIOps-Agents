@@ -11,7 +11,7 @@ jest.mock('@/components/ui/dialog', () => ({
       <div data-testid="dialog">
         {React.Children.map(children, (child) => {
           if (React.isValidElement(child)) {
-            return React.cloneElement(child, { onClose: () => onOpenChange(false) });
+            return React.cloneElement(child as React.ReactElement<any>, { onClose: () => onOpenChange(false) });
           }
           return child;
         })}

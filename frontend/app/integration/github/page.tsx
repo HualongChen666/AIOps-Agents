@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/DataTable';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Github, RefreshCw, TestTube, Settings, GitBranch, GitCommit } from 'lucide-react';
+import { GitBranch, RefreshCw, TestTube, Settings, GitCommit } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useLoadingState, useToast } from '@/hooks/useEnhancements';
 import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
@@ -169,7 +169,7 @@ export default function GitHubPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Github className="h-8 w-8 text-[var(--accent-cyan)]" />
+          <GitBranch className="h-8 w-8 text-[var(--accent-cyan)]" />
           <div>
             <h1 className="text-3xl font-bold text-gray-900">GitHub集成</h1>
             <p className="text-sm text-gray-500">管理GitHub仓库集成</p>

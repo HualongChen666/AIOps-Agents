@@ -7,21 +7,84 @@ Real Disaster Recovery Scenarios
 """
 
 import logging
+import os
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Failure type → Chaos Mesh experiment mapping.
+#
+# ``kind`` is the Chaos Mesh custom resource and ``action`` the action applied
+# through :class:`core.chaos_engineering.ChaosMeshInjector`.  The workload the
+# failure is injected into is resolved from the environment so the drill hits
+# the real objects of the current cluster:
+#
+#   * ``CHAOS_DB_SERVICE``     – workload hosting the primary database
+#   * ``CHAOS_REDIS_SERVICE``  – workload hosting the cache
+#   * ``CHAOS_TARGET_SERVICE`` – workload hosting the application
+#
+# ``extra`` carries the kind specific fields (IOChaos requires a path and an
+# errno; ENOSPC/28 reproduces "disk full").
+# ---------------------------------------------------------------------------
+_FAILURE_SPECS: Dict[str, Dict[str, Any]] = {
+    "database_down": {
+        "kind": "PodChaos",
+        "action": "pod-failure",
+        "target_env": "CHAOS_DB_SERVICE",
+        "default_target": "postgres",
+    },
+    "db_down": {
+        "kind": "PodChaos",
+        "action": "pod-failure",
+        "target_env": "CHAOS_DB_SERVICE",
+        "default_target": "postgres",
+    },
+    "redis_down": {
+        "kind": "PodChaos",
+        "action": "pod-failure",
+        "target_env": "CHAOS_REDIS_SERVICE",
+        "default_target": "redis",
+    },
+    "system_down": {
+        "kind": "PodChaos",
+        "action": "pod-failure",
+        "target_env": "CHAOS_TARGET_SERVICE",
+        "default_target": "",
+    },
+    "disk_full": {
+        "kind": "IOChaos",
+        "action": "fault",
+        "target_env": "CHAOS_TARGET_SERVICE",
+        "default_target": "",
+        "extra": {"volumePath": "/", "path": "*", "errno": 28},
+    },
+}
 
 
 class DRScenario:
     """灾难恢复演练场景"""
 
-    def __init__(self, name: str, description: str, steps: List[Dict[str, Any]]):
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        steps: List[Dict[str, Any]],
+        injector: Optional[Any] = None,
+    ):
         self.name = name
         self.description = description
         self.steps = steps
         self.status = "pending"
         self.results: List[Dict[str, Any]] = []
+        self._namespace = os.getenv("CHAOS_NAMESPACE", "default")
+        self._chaos_duration = os.getenv("DR_CHAOS_DURATION", "5m")
+        self._injector = injector
+        # Chaos experiments that are currently active and must be removed by
+        # the recovery step.
+        self._active_experiments: List[Tuple[str, str]] = []
 
     async def execute(self) -> Dict[str, Any]:
         """
@@ -90,11 +153,11 @@ class DRScenario:
             return await self._check_redis()
         elif step_type == "check_api":
             return await self._check_api(step.get("endpoint", "/api/v1/health"))
-        elif step_type == "simulate_failure":
+        elif step_type in ("inject_failure", "simulate_failure"):
             failure_type = step.get("failure_type")
             if failure_type is None:
                 return {"status": "error", "error": "failure_type is required"}
-            return await self._simulate_failure(failure_type)
+            return await self._inject_failure(failure_type)
         elif step_type == "restore_backup":
             return await self._restore_backup()
         else:
@@ -138,17 +201,100 @@ class DRScenario:
         except Exception as e:
             return {"status": "unhealthy", "error": str(e)}
 
-    async def _simulate_failure(self, failure_type: str) -> Dict[str, Any]:
-        """模拟故障"""
-        logger.info(f"Simulating failure: {failure_type}")
-        # 这里可以集成到chaos_engineering模块
-        return {"status": "simulated", "failure_type": failure_type}
+    def _execution_enabled(self) -> bool:
+        """Whether real chaos injection is allowed.
+
+        An explicitly supplied injector counts as opt-in (used by tests and by
+        callers that bring their own backend); otherwise the drill requires
+        ``DR_EXECUTE_ENABLED=true`` so that mutating a cluster is never implicit.
+        """
+        if self._injector is not None:
+            return True
+        return os.getenv("DR_EXECUTE_ENABLED", "false").strip().lower() == "true"
+
+    def _get_injector(self) -> Any:
+        """Return the chaos injection backend (Chaos Mesh by default)."""
+        if self._injector is not None:
+            return self._injector
+        from core.chaos_engineering import ChaosMeshInjector
+
+        return ChaosMeshInjector(self._namespace)
+
+    async def _inject_failure(self, failure_type: str) -> Dict[str, Any]:
+        """Inject a real Chaos Mesh experiment for ``failure_type``.
+
+        Raises :class:`ValueError` for unknown failure types and
+        :class:`RuntimeError` when no target workload is configured, so a
+        misconfigured drill fails loudly instead of reporting success.
+        """
+        if not self._execution_enabled():
+            return {
+                "status": "disabled",
+                "failure_type": failure_type,
+                "reason": "DR_EXECUTE_ENABLED is not 'true'",
+            }
+
+        spec_definition = _FAILURE_SPECS.get(failure_type)
+        if spec_definition is None:
+            raise ValueError(
+                f"unsupported failure_type '{failure_type}'; "
+                f"supported: {', '.join(sorted(_FAILURE_SPECS))}"
+            )
+
+        target = (
+            os.getenv(spec_definition["target_env"]) or spec_definition["default_target"]
+        ).strip()
+        if not target:
+            raise RuntimeError(
+                f"no chaos target configured for '{failure_type}': "
+                f"set {spec_definition['target_env']}"
+            )
+
+        kind = spec_definition["kind"]
+        name = f"dr-{failure_type}-{int(datetime.now(timezone.utc).timestamp())}"
+        spec: Dict[str, Any] = {
+            "action": spec_definition["action"],
+            "mode": "one",
+            "duration": self._chaos_duration,
+            "selector": {
+                "labelSelectors": {"app": target},
+                "namespaces": [self._namespace],
+            },
+        }
+        spec.update(spec_definition.get("extra", {}))
+
+        await self._get_injector().apply(kind, name, spec)
+        self._active_experiments.append((kind, name))
+        logger.warning(f"Injected chaos experiment {kind}/{name} targeting app={target}")
+
+        return {
+            "status": "injected",
+            "failure_type": failure_type,
+            "chaos_kind": kind,
+            "experiment": name,
+            "target": target,
+            "namespace": self._namespace,
+            "duration": self._chaos_duration,
+        }
 
     async def _restore_backup(self) -> Dict[str, Any]:
-        """恢复备份"""
-        logger.info("Restoring from backup")
-        # 这里应该实现实际的备份恢复逻辑
-        return {"status": "restored", "message": "Backup restored successfully"}
+        """Recover the system: delete every chaos experiment this drill injected."""
+        if not self._execution_enabled():
+            return {"status": "disabled", "reason": "DR_EXECUTE_ENABLED is not 'true'"}
+
+        if not self._active_experiments:
+            logger.info("No active chaos experiments to recover")
+            return {"status": "restored", "recovered_experiments": []}
+
+        injector = self._get_injector()
+        recovered: List[str] = []
+        for kind, name in list(self._active_experiments):
+            await injector.delete(kind, name)
+            self._active_experiments.remove((kind, name))
+            recovered.append(f"{kind}/{name}")
+
+        logger.info(f"Removed {len(recovered)} chaos experiments: {recovered}")
+        return {"status": "restored", "recovered_experiments": recovered}
 
 
 # 预定义的演练场景
@@ -159,7 +305,7 @@ DR_SCENARIOS = {
         steps=[
             {"type": "check_database", "description": "检查主数据库状态"},
             {
-                "type": "simulate_failure",
+                "type": "inject_failure",
                 "description": "模拟主数据库故障",
                 "failure_type": "database_down",
             },
@@ -173,7 +319,7 @@ DR_SCENARIOS = {
         steps=[
             {"type": "check_redis", "description": "检查Redis状态"},
             {
-                "type": "simulate_failure",
+                "type": "inject_failure",
                 "description": "模拟Redis故障",
                 "failure_type": "redis_down",
             },
@@ -192,7 +338,7 @@ DR_SCENARIOS = {
             {"type": "check_redis", "description": "检查Redis"},
             {"type": "check_api", "description": "检查API健康", "endpoint": "/api/v1/health"},
             {
-                "type": "simulate_failure",
+                "type": "inject_failure",
                 "description": "模拟系统故障",
                 "failure_type": "system_down",
             },

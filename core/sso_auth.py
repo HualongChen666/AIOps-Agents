@@ -1,4 +1,8 @@
 # -*- coding: utf-8 -*-
+"""``sso_auth`` module.
+
+Top-level functions: generate_state, login, auth_callback, login_success"""
+
 import logging
 import os
 import secrets

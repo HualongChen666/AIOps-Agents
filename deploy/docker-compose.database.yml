@@ -7,7 +7,7 @@ services:
     environment:
       POSTGRES_DB: aiops
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
       POSTGRES_INITDB_ARGS: "-E UTF8"
     ports:
       - "5432:5432"
@@ -33,7 +33,7 @@ services:
     environment:
       POSTGRES_DB: aiops
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
       POSTGRES_INITDB_ARGS: "-E UTF8"
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
@@ -64,7 +64,7 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
-    command: redis-server --appendonly yes --requirepass redis_password
+    command: redis-server --appendonly yes --requirepass "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
     networks:
       - database
     healthcheck:
@@ -78,7 +78,7 @@ services:
     container_name: aiops-pgpool
     environment:
       POSTGRES_USERNAME: postgres
-      POSTGRES_PASSWORD: postgres_password
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}"
       POSTGRES_DBNAME: aiops
       BACKEND_HOST0: postgres-primary
       BACKEND_PORT0: 5432
