@@ -217,6 +217,69 @@ class _FakeMeshManager:
         return SimpleNamespace(mesh_id=mesh_id, mtls_enabled=True, authentication_policies=[])
 
 
+class _FakeWorkflowDefinition:
+    """Stand-in for the ORM ``Workflow`` row returned by the repository."""
+
+    def __init__(self, wf_id, name="WF", description="", definition=None):
+        self.id = wf_id
+        self.name = name
+        self.description = description
+        self.definition = definition or {
+            "steps": [{"key": "s1", "title": "Step", "desc": ""}],
+            "time": "N/A",
+            "rate": "N/A",
+        }
+
+
+class _FakeWorkflowRepository:
+    """In-memory stand-in for ``core.workflow_repository.WorkflowRepository``.
+
+    The router was migrated from module-level dicts to this repository; the
+    batch-g tests therefore patch ``api.workflow_router.get_workflow_repository``
+    and exercise the endpoint logic against this object.
+    """
+
+    def __init__(self, definitions=None):
+        self._defs = (
+            dict(definitions)
+            if definitions is not None
+            else {"wf1": _FakeWorkflowDefinition("wf1", "WF1")}
+        )
+
+    def list_workflow_definitions(self, status=None):  # noqa: ARG002
+        return list(self._defs.values())
+
+    def get_workflow_definition(self, wf_key):
+        return self._defs.get(wf_key)
+
+    def create_workflow_definition(
+        self, wf_key, name=None, description=None, definition=None, created_by=None, **kwargs
+    ):  # noqa: ARG002
+        obj = _FakeWorkflowDefinition(wf_key, name or "WF", description or "", definition)
+        self._defs[wf_key] = obj
+        return obj
+
+    def update_workflow_definition(
+        self, wf_key, name=None, description=None, definition=None, **kwargs
+    ):  # noqa: ARG002
+        obj = self._defs.get(wf_key)
+        if obj is None:
+            raise ValueError(f"工作流 '{wf_key}' 不存在")
+        if name is not None:
+            obj.name = name
+        if description is not None:
+            obj.description = description
+        if definition:
+            obj.definition = {**obj.definition, **definition}
+        return obj
+
+    def delete_workflow_definition(self, wf_key):
+        if wf_key not in self._defs:
+            raise ValueError(f"工作流 '{wf_key}' 不存在")
+        del self._defs[wf_key]
+        return True
+
+
 @pytest.fixture(autouse=True)
 def _patch_batch_g(monkeypatch):
     """Stub all core dependencies touched by the batch G routers."""
@@ -410,14 +473,12 @@ def _patch_batch_g(monkeypatch):
     monkeypatch.setattr(_lrx, "LINUX_HOSTS", {"h1": {"name": "h1", "host": "1.1.1.1"}})
 
     # workflow_router --------------------------------------------------------
+    # The router now reads/writes workflow definitions through a repository
+    # (core.workflow_repository.get_workflow_repository); patch the factory the
+    # endpoints actually call instead of the removed module-level symbols.
     import api.workflow_router as _wr
 
-    _fake_wf_definitions = {"wf1": {"key": "wf1", "name": "WF1"}}
-    monkeypatch.setattr(_wr, "WORKFLOW_DEFINITIONS", _fake_wf_definitions)
-    monkeypatch.setattr(_wr, "get_workflow_definitions", lambda: _fake_wf_definitions)
-    monkeypatch.setattr(_wr, "create_workflow_definition", lambda key, payload: {"created": key})
-    monkeypatch.setattr(_wr, "update_workflow_definition", lambda key, payload: {"updated": key})
-    monkeypatch.setattr(_wr, "delete_workflow_definition", lambda key: None)
+    monkeypatch.setattr(_wr, "get_workflow_repository", lambda: _FakeWorkflowRepository())
 
     async def _fake_sim_stream(key):
         yield {"type": "workflow_start", "wf_name": "WF1"}
@@ -1422,8 +1483,9 @@ def test_stats_summary_long_error_message(client, monkeypatch):
     resp = client.get("/api/v1/stats/summary")
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
-    # Error message should be truncated to 200 chars
-        assert len(resp.json()["detail"]) <= 200
+    # HTTPException is normalised by core.api_error.api_error_handler into
+    # {"error": {"message": ...}}; the message must still be truncated to 200.
+        assert len(resp.json()["error"]["message"]) <= 200
 
 
 def test_stats_record_repair_long_error_message(client, monkeypatch):
@@ -1446,8 +1508,9 @@ def test_stats_record_repair_long_error_message(client, monkeypatch):
     )
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
-    # Error message should be truncated to 200 chars
-        assert len(resp.json()["detail"]) <= 200
+    # HTTPException is normalised by core.api_error.api_error_handler into
+    # {"error": {"message": ...}}; the message must still be truncated to 200.
+        assert len(resp.json()["error"]["message"]) <= 200
 
 
 # =============================================================================
@@ -1891,7 +1954,11 @@ def test_workflow_create_error(client, monkeypatch):
     def _raise(*args, **kwargs):
         raise ValueError("bad")
 
-    monkeypatch.setattr(_wr, "create_workflow_definition", _raise)
+    monkeypatch.setattr(
+        _wr,
+        "get_workflow_repository",
+        lambda: SimpleNamespace(create_workflow_definition=_raise),
+    )
     resp = client.post(
         "/api/v1/workflows/definitions",
         json={
@@ -1920,7 +1987,11 @@ def test_workflow_update_not_found(client, monkeypatch):
     def _raise(*args, **kwargs):
         raise ValueError("不存在")
 
-    monkeypatch.setattr(_wr, "update_workflow_definition", _raise)
+    monkeypatch.setattr(
+        _wr,
+        "get_workflow_repository",
+        lambda: SimpleNamespace(update_workflow_definition=_raise),
+    )
     resp = client.put("/api/v1/workflows/definitions/wf1", json={"name": "New"})
     assert resp.status_code == 404
 
@@ -1941,7 +2012,11 @@ def test_workflow_delete_not_found(client, monkeypatch):
     def _raise(key):
         raise ValueError("不存在")
 
-    monkeypatch.setattr(_wr, "delete_workflow_definition", _raise)
+    monkeypatch.setattr(
+        _wr,
+        "get_workflow_repository",
+        lambda: SimpleNamespace(delete_workflow_definition=_raise),
+    )
     resp = client.delete("/api/v1/workflows/definitions/wf1")
     assert resp.status_code == 404
 

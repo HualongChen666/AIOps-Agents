@@ -214,6 +214,10 @@ async def approve_step(
         )
 
         return {"status": "approved", "request_id": request_id, "step_id": step_id}
+    except HTTPException:
+        # Preserve intentional status codes (400 "Approval failed", 503 …)
+        # instead of masking them behind a generic 500.
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Approval failed: {str(e)}")
 
@@ -278,6 +282,9 @@ async def reject_step(
         )
 
         return {"status": "rejected", "request_id": request_id, "step_id": step_id}
+    except HTTPException:
+        # Preserve intentional status codes instead of masking them with a 500.
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Rejection failed: {str(e)}")
 

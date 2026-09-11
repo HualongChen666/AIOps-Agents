@@ -24,7 +24,7 @@ try:
     from core.enterprise_functionality import (
         ComplianceStandard,
         DataClassification,
-        enterprise_functionality_manager,
+        ENTERPRISE_FUNCTIONALITY_MANAGER as enterprise_functionality_manager,
     )
 
     ENTERPRISE_AVAILABLE = True

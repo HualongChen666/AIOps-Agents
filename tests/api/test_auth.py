@@ -5,13 +5,56 @@ These tests exercise the actual FastAPI application, real SQLite database,
 and real JWT tokens. Fixtures are provided by tests/conftest.py.
 """
 
+import os
 import uuid
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch  # noqa: F401
 
 import pytest  # noqa: F401  # Imported for test setup
-from sqlalchemy.orm import Session
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session  # noqa: F401
 
-from core.auth_db import Base, SessionLocal, User, engine
+from core.auth_db import Base, SessionLocal, User, engine  # noqa: F401
+
+# A password satisfying the real policy (>=12 chars, upper, lower, digit,
+# special) enforced by core.authentication.validate_password_complexity.
+VALID_PASSWORD = "Testpass123!"
+
+
+@pytest.fixture(scope="module")
+def client():
+    """Real application client with the global auth bypass removed.
+
+    ``tests/api/conftest.py`` installs a blanket authentication override so the
+    bulk of the API suites can hit endpoints without minting tokens.  The auth
+    suite is the opposite: it must exercise real JWT verification and the global
+    RBAC middleware (401 without a token, revocation after logout, …).  Clear the
+    accumulated dependency overrides for the duration of this module (restoring
+    them afterwards) and make sure the auth tables exist.
+    """
+    os.environ.pop("TEST_MODE", None)
+
+    from core import auth_db as _auth_db
+
+    _auth_db.init_db()
+
+    from main import app
+
+    saved = dict(app.dependency_overrides)
+    app.dependency_overrides.clear()
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(saved)
+
+
+@pytest.fixture(scope="module")
+def admin_token():
+    """A real, freshly minted admin bearer token."""
+    from core.auth_service import create_access_token
+
+    return create_access_token({"sub": "admin", "role": "admin"})
 
 
 def test_login_success(client):
@@ -63,7 +106,7 @@ def test_user(client, admin_headers):
         "/api/v1/users/",
         json={
             "username": username,
-            "password": "testpass",
+            "password": VALID_PASSWORD,
             "role": "operator",
             "is_active": True,
             "permissions": [],
@@ -73,15 +116,17 @@ def test_user(client, admin_headers):
     assert resp.status_code != 404, resp.text
     user = resp.json()
     yield user
-    # Cleanup is best-effort; ignore 404 if already deleted.
-    client.delete(f"/api/v1/users/{user['id']}", headers=admin_headers)
+    # Cleanup is best-effort; ignore 404 if already deleted.  The user routes
+    # are keyed by username (see api.user_router "/{username}").
+    if "username" in user:
+        client.delete(f"/api/v1/users/{user['username']}", headers=admin_headers)
 
 
 def test_change_password(client, test_user):
     """A user can change its own password and log in with the new one."""
     resp = client.post(
         "/api/v1/auth/login",
-        json={"username": test_user["username"], "password": "testpass"},
+        json={"username": test_user["username"], "password": VALID_PASSWORD},
     )
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
@@ -89,7 +134,7 @@ def test_change_password(client, test_user):
 
     resp = client.post(
         "/api/v1/auth/change-password",
-        json={"old_password": "testpass", "new_password": "newpass123"},
+        json={"old_password": VALID_PASSWORD, "new_password": "newpass123"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert resp.status_code != 404, resp.text
@@ -107,7 +152,7 @@ def test_logout_revokes_token(client, test_user):
     """After logout the token can no longer be used."""
     resp = client.post(
         "/api/v1/auth/login",
-        json={"username": test_user["username"], "password": "testpass"},
+        json={"username": test_user["username"], "password": VALID_PASSWORD},
     )
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
@@ -153,19 +198,21 @@ def test_create_user_invalid_role(client, admin_headers):
         "/api/v1/users/",
         json={
             "username": username,
-            "password": "testpass",
+            "password": VALID_PASSWORD,
             "role": "superuser",
             "is_active": True,
             "permissions": [],
         },
         headers=admin_headers,
     )
-    assert resp.status_code in (400, 404)
+    # An out-of-enum role is rejected by the request schema (422), not by a
+    # business check, so accept the validation status too.
+    assert resp.status_code in (400, 404, 422)
 
 
 def test_get_user(client, admin_headers, test_user):
-    """A user can be retrieved by id with an admin token."""
-    resp = client.get(f"/api/v1/users/{test_user['id']}", headers=admin_headers)
+    """A user can be retrieved by username with an admin token."""
+    resp = client.get(f"/api/v1/users/{test_user['username']}", headers=admin_headers)
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
         assert resp.json()["username"] == test_user["username"]
@@ -174,13 +221,13 @@ def test_get_user(client, admin_headers, test_user):
 def test_update_user_role(client, admin_headers, test_user):
     """An admin can update a user's role."""
     resp = client.put(
-        f"/api/v1/users/{test_user['id']}",
-        json={"role": "viewer"},
+        f"/api/v1/users/{test_user['username']}",
+        json={"role": "user"},
         headers=admin_headers,
     )
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
-        assert resp.json()["role"] == "viewer"
+        assert resp.json()["role"] == "user"
 
 
 def test_delete_user(client, admin_headers):
@@ -190,21 +237,20 @@ def test_delete_user(client, admin_headers):
         "/api/v1/users/",
         json={
             "username": username,
-            "password": "testpass",
-            "role": "viewer",
+            "password": VALID_PASSWORD,
+            "role": "user",
             "is_active": True,
             "permissions": [],
         },
         headers=admin_headers,
     )
     assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        user_id = resp.json()["id"]
+    created_username = resp.json().get("username", username)
 
-    resp = client.delete(f"/api/v1/users/{user_id}", headers=admin_headers)
+    resp = client.delete(f"/api/v1/users/{created_username}", headers=admin_headers)
     assert resp.status_code != 404, resp.text
 
-    resp = client.get(f"/api/v1/users/{user_id}", headers=admin_headers)
+    resp = client.get(f"/api/v1/users/{created_username}", headers=admin_headers)
     assert resp.status_code == 404
 
 
@@ -249,7 +295,7 @@ def test_logout_without_jti_in_token(client, test_user):
     # First, login to get a normal token
     resp = client.post(
         "/api/v1/auth/login",
-        json={"username": test_user["username"], "password": "testpass"},
+        json={"username": test_user["username"], "password": VALID_PASSWORD},
     )
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:

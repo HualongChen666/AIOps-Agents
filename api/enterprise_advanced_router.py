@@ -25,7 +25,7 @@ router = APIRouter(prefix="/api/v1/enterprise", tags=["企业功能"])
 # Try to import enterprise functionality manager
 try:
     from core.enterprise_functionality import (
-        enterprise_functionality_manager,
+        ENTERPRISE_FUNCTIONALITY_MANAGER as enterprise_functionality_manager,
     )
 
     ENTERPRISE_AVAILABLE = True

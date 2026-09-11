@@ -384,6 +384,34 @@ def test_user_router_endpoints(admin_headers):
 
 
 def test_assets_router_endpoints(client, admin_headers):
+    # api.assets_router talks to the real core.auth_db.Asset table. The shared
+    # API client stubs core.auth_db.get_session with a MagicMock (fine for the
+    # auth-only suites, but a mock session makes add/commit/refresh no-ops so
+    # the created row never gets its primary key). Override the session
+    # dependency with the real one for the duration of this test.
+    from api import assets_router as _ar
+    from core.auth_db import SessionLocal
+
+    def _real_session():
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app = client.app
+    previous = app.dependency_overrides.get(_ar.get_session)
+    app.dependency_overrides[_ar.get_session] = _real_session
+    try:
+        _run_assets_endpoints(client, admin_headers)
+    finally:
+        if previous is None:
+            app.dependency_overrides.pop(_ar.get_session, None)
+        else:
+            app.dependency_overrides[_ar.get_session] = previous
+
+
+def _run_assets_endpoints(client, admin_headers):
     resp = client.post(
         "/api/v1/assets/",
         headers=admin_headers,
@@ -569,7 +597,14 @@ def test_health_router_endpoints(client, admin_headers):
         assert resp.json()["status"] == "healthy"
 
 
-def test_backup_router_endpoints(client, admin_headers):
+def test_backup_router_endpoints(client, admin_headers, monkeypatch):
+    # api.backup_router lazily imports core.disaster_recovery.DisasterRecovery;
+    # patch the real symbol so the endpoints exercise their success paths
+    # instead of failing on a machine with no backup target configured.
+    import core.disaster_recovery as _crd
+
+    monkeypatch.setattr(_crd, "DisasterRecovery", _FakeDisasterRecovery)
+
     resp = client.post("/api/v1/backup/database", headers=admin_headers)
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:

@@ -145,7 +145,7 @@ async def get_summary() -> dict[str, Any]:
         return summary
     except Exception as e:
         logger.error(f"统计摘要计算失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"统计数据计算失败: {str(e)[:200]}")
+        raise HTTPException(status_code=500, detail=(f"统计数据计算失败: {e}")[:200])
 
 
 @router.post(
@@ -211,4 +211,4 @@ async def record_repair_result(
         }
     except Exception as e:
         logger.error(f"修复结果记录失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"修复结果记录失败: {str(e)[:200]}")
+        raise HTTPException(status_code=500, detail=(f"修复结果记录失败: {e}")[:200])

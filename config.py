@@ -200,6 +200,10 @@ if environment == "production":
 # Proxy configuration
 # ============================================================
 TRUST_PROXY_HEADER: str = os.getenv("TRUST_PROXY_HEADER", "X-Forwarded-For").strip()
+# Number of trusted reverse proxies in front of the app. When reading the real
+# client IP from X-Forwarded-For, this many right-most entries are treated as
+# proxy hops and skipped (see api.stats_router._get_real_client_ip).
+TRUSTED_PROXY_COUNT: int = int(os.getenv("TRUSTED_PROXY_COUNT", "1"))
 # ALLOWED_LOCAL_IPS is defined later in Health Check section
 
 # ============================================================

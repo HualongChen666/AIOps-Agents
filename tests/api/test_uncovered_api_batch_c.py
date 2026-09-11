@@ -448,7 +448,7 @@ def test_documentation_lifecycle(client, admin_headers):
     """Exercise all documentation endpoints with real payloads and DB."""
     client.headers.update(admin_headers)
     create_resp = client.post(
-        "/api/documentation/document/create",
+        "/api/docs/document/create",
         params={
             "doc_id": "doc-001",
             "title": "API Guide",
@@ -461,26 +461,26 @@ def test_documentation_lifecycle(client, admin_headers):
     assert create_resp.status_code == 200
     assert create_resp.json()["data"]["created"] is True
 
-    list_resp = client.get("/api/documentation/documents")
+    list_resp = client.get("/api/docs/documents")
     assert list_resp.status_code == 200
     assert any(d["doc_id"] == "doc-001" for d in list_resp.json()["data"]["documents"])
 
-    get_resp = client.get("/api/documentation/document/doc-001")
+    get_resp = client.get("/api/docs/document/doc-001")
     assert get_resp.status_code == 200
     assert get_resp.json()["data"]["doc_id"] == "doc-001"
 
     update_resp = client.post(
-        "/api/documentation/document/doc-001/update",
+        "/api/docs/document/doc-001/update",
         params={"content": "Updated content", "status": "published"},
     )
     assert update_resp.status_code == 200
     assert update_resp.json()["data"]["updated"] is True
 
-    status_resp = client.get("/api/documentation/status")
+    status_resp = client.get("/api/docs/status")
     assert status_resp.status_code == 200
     assert status_resp.json()["status"] == "success"
 
-    templates_resp = client.get("/api/documentation/templates")
+    templates_resp = client.get("/api/docs/templates")
     assert templates_resp.status_code == 200
     assert templates_resp.json()["status"] == "success"
 
@@ -639,7 +639,9 @@ def test_hitl_workflow(client, admin_headers, monkeypatch):
     approve_resp = client.post(
         "/hitl/approval/approve",
         headers=admin_headers,
-        params={"request_id": request_id, "step_id": "step-1"},
+        # The step is configured with approver "admin"; name it explicitly since
+        # the harness authenticates as the generic test identity.
+        params={"request_id": request_id, "step_id": "step-1", "approver": "admin"},
     )
     assert approve_resp.status_code == 200
     assert approve_resp.json()["status"] == "approved"
@@ -657,7 +659,7 @@ def test_hitl_workflow(client, admin_headers, monkeypatch):
     reject_resp = client.post(
         "/hitl/approval/reject",
         headers=admin_headers,
-        params={"request_id": rid2, "step_id": "s1"},
+        params={"request_id": rid2, "step_id": "s1", "approver": "admin"},
     )
     assert reject_resp.status_code == 200
     assert reject_resp.json()["status"] == "rejected"
@@ -1200,16 +1202,16 @@ def test_qdrant_endpoints(client, admin_headers, monkeypatch):
     """All Qdrant CRUD endpoints use a fake client and return structured data."""
     _patch_qdrant(monkeypatch)
 
-    health = client.get("/api/qdrant/health", headers=admin_headers)
+    health = client.get("/api/vector/health", headers=admin_headers)
     assert health.status_code == 200
     assert health.json()["status"] == "healthy"
 
-    collections = client.get("/api/qdrant/collections", headers=admin_headers)
+    collections = client.get("/api/vector/collections", headers=admin_headers)
     assert collections.status_code == 200
     assert any(c["name"] == "c1" for c in collections.json())
 
     create = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c2", "vector_size": 4, "distance": "Cosine"},
     )
@@ -1217,7 +1219,7 @@ def test_qdrant_endpoints(client, admin_headers, monkeypatch):
     assert create.json()["status"] == "success"
 
     upsert = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": 1, "vector": [0.1, 0.2, 0.3, 0.4]}]},
     )
@@ -1225,7 +1227,7 @@ def test_qdrant_endpoints(client, admin_headers, monkeypatch):
     assert upsert.json()["status"] == "success"
 
     search = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.1, 0.2, 0.3, 0.4], "top_k": 1},
     )
@@ -1234,13 +1236,13 @@ def test_qdrant_endpoints(client, admin_headers, monkeypatch):
 
     delete_points = client.request(
         "DELETE",
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "ids": [1]},
     )
     assert delete_points.status_code == 200
 
-    delete_collection = client.delete("/api/qdrant/collections/c2", headers=admin_headers)
+    delete_collection = client.delete("/api/vector/collections/c2", headers=admin_headers)
     assert delete_collection.status_code == 200
 
 
@@ -1250,7 +1252,7 @@ def test_qdrant_validation_errors(client, admin_headers, monkeypatch):
 
     # Test invalid distance value (line 38)
     invalid_distance = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c3", "vector_size": 4, "distance": "InvalidDistance"},
     )
@@ -1259,7 +1261,7 @@ def test_qdrant_validation_errors(client, admin_headers, monkeypatch):
 
     # Test empty vector in PointModel (line 58)
     invalid_vector = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": 1, "vector": []}]},
     )
@@ -1268,7 +1270,7 @@ def test_qdrant_validation_errors(client, admin_headers, monkeypatch):
 
     # Test empty query_vector in SearchRequest (line 89)
     invalid_query = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [], "top_k": 1},
     )
@@ -1282,7 +1284,7 @@ def test_qdrant_valid_distance_values(client, admin_headers, monkeypatch):
 
     # Test Cosine (default)
     cosine_resp = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_cosine", "vector_size": 4, "distance": "Cosine"},
     )
@@ -1290,7 +1292,7 @@ def test_qdrant_valid_distance_values(client, admin_headers, monkeypatch):
 
     # Test Euclid
     euclid_resp = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_euclid", "vector_size": 4, "distance": "Euclid"},
     )
@@ -1298,7 +1300,7 @@ def test_qdrant_valid_distance_values(client, admin_headers, monkeypatch):
 
     # Test Dot
     dot_resp = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_dot", "vector_size": 4, "distance": "Dot"},
     )
@@ -1311,7 +1313,7 @@ def test_qdrant_point_with_payload(client, admin_headers, monkeypatch):
 
     # Test point with payload
     upsert_with_payload = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={
             "collection": "c2",
@@ -1329,7 +1331,7 @@ def test_qdrant_point_with_payload(client, admin_headers, monkeypatch):
 
     # Test point without payload (default empty dict)
     upsert_without_payload = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": 2, "vector": [0.5, 0.6, 0.7, 0.8]}]},
     )
@@ -1343,7 +1345,7 @@ def test_qdrant_multiple_points(client, admin_headers, monkeypatch):
 
     # Test multiple points in single request
     upsert_multiple = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={
             "collection": "c2",
@@ -1365,7 +1367,7 @@ def test_qdrant_delete_multiple_points(client, admin_headers, monkeypatch):
     # Test delete multiple points
     delete_multiple = client.request(
         "DELETE",
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "ids": [1, 2, 3]},
     )
@@ -1379,7 +1381,7 @@ def test_qdrant_string_point_id(client, admin_headers, monkeypatch):
 
     # Test point with string ID
     upsert_string_id = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": "point-1", "vector": [0.1, 0.2, 0.3, 0.4]}]},
     )
@@ -1393,7 +1395,7 @@ def test_qdrant_search_with_different_top_k(client, admin_headers, monkeypatch):
 
     # Test with top_k = 1
     search_1 = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.1, 0.2, 0.3, 0.4], "top_k": 1},
     )
@@ -1401,7 +1403,7 @@ def test_qdrant_search_with_different_top_k(client, admin_headers, monkeypatch):
 
     # Test with top_k = 10
     search_10 = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.1, 0.2, 0.3, 0.4], "top_k": 10},
     )
@@ -1414,7 +1416,7 @@ def test_qdrant_vector_size_validation(client, admin_headers, monkeypatch):
 
     # Test with valid vector_size
     valid_size = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_valid", "vector_size": 768, "distance": "Cosine"},
     )
@@ -1422,7 +1424,7 @@ def test_qdrant_vector_size_validation(client, admin_headers, monkeypatch):
 
     # Test with minimum valid vector_size (gt=0 means minimum 1)
     min_size = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_min", "vector_size": 1, "distance": "Cosine"},
     )
@@ -1436,7 +1438,7 @@ def test_qdrant_empty_ids_list(client, admin_headers, monkeypatch):
     # Test with empty IDs list
     delete_empty = client.request(
         "DELETE",
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "ids": []},
     )
@@ -1450,7 +1452,7 @@ def test_qdrant_complex_payload(client, admin_headers, monkeypatch):
 
     # Test with complex nested payload
     complex_payload = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={
             "collection": "c2",
@@ -1477,7 +1479,7 @@ def test_qdrant_mixed_id_types(client, admin_headers, monkeypatch):
 
     # Test with mixed ID types
     mixed_ids = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={
             "collection": "c2",
@@ -1499,7 +1501,7 @@ def test_qdrant_mixed_id_deletion(client, admin_headers, monkeypatch):
     # Test with mixed ID types
     mixed_delete = client.request(
         "DELETE",
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "ids": [1, "str-2", 3]},
     )
@@ -1514,7 +1516,7 @@ def test_qdrant_large_vector(client, admin_headers, monkeypatch):
     # Test with large vector (1536 dimensions like OpenAI embeddings)
     large_vector = [0.1] * 1536
     large_vector_req = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": 1, "vector": large_vector}]},
     )
@@ -1528,7 +1530,7 @@ def test_qdrant_search_with_large_top_k(client, admin_headers, monkeypatch):
 
     # Test with large top_k
     large_top_k = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.1, 0.2, 0.3, 0.4], "top_k": 100},
     )
@@ -1555,7 +1557,7 @@ def test_qdrant_different_exception_types(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(api.qdrant_router, "create_collection", _value_error)
     value_error_resp = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_val_err", "vector_size": 4, "distance": "Cosine"},
     )
@@ -1568,7 +1570,7 @@ def test_qdrant_different_exception_types(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(api.qdrant_router, "upsert_points", _type_error)
     type_error_resp = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": 1, "vector": [0.1, 0.2, 0.3, 0.4]}]},
     )
@@ -1582,7 +1584,7 @@ def test_qdrant_single_element_vector(client, admin_headers, monkeypatch):
 
     # Test with single element vector (minimum valid)
     single_element = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": 1, "vector": [0.5]}]},
     )
@@ -1591,7 +1593,7 @@ def test_qdrant_single_element_vector(client, admin_headers, monkeypatch):
 
     # Test search with single element query vector
     single_query = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.5], "top_k": 1},
     )
@@ -1604,7 +1606,7 @@ def test_qdrant_default_distance_value(client, admin_headers, monkeypatch):
 
     # Test without specifying distance (should use default "Cosine")
     default_distance = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_default", "vector_size": 4},
     )
@@ -1618,7 +1620,7 @@ def test_qdrant_negative_values_in_filter(client, admin_headers, monkeypatch):
 
     # Test with negative values in filter
     negative_filter = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={
             "collection": "c2",
@@ -1636,7 +1638,7 @@ def test_qdrant_zero_vector_size_validation(client, admin_headers, monkeypatch):
 
     # Test with zero vector_size (should fail due to gt=0 constraint)
     zero_size = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_zero", "vector_size": 0, "distance": "Cosine"},
     )
@@ -1650,7 +1652,7 @@ def test_qdrant_negative_vector_size_validation(client, admin_headers, monkeypat
 
     # Test with negative vector_size (should fail due to gt=0 constraint)
     negative_size = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_negative", "vector_size": -10, "distance": "Cosine"},
     )
@@ -1664,7 +1666,7 @@ def test_qdrant_negative_top_k_validation(client, admin_headers, monkeypatch):
 
     # Test with negative top_k (should fail due to gt=0 constraint)
     negative_top_k = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.1, 0.2, 0.3, 0.4], "top_k": -1},
     )
@@ -1678,7 +1680,7 @@ def test_qdrant_zero_top_k_validation(client, admin_headers, monkeypatch):
 
     # Test with zero top_k (should fail due to gt=0 constraint)
     zero_top_k = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.1, 0.2, 0.3, 0.4], "top_k": 0},
     )
@@ -1692,7 +1694,7 @@ def test_qdrant_search_with_none_filter(client, admin_headers, monkeypatch):
 
     # Test with explicit None filter
     none_filter = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.1, 0.2, 0.3, 0.4], "top_k": 1, "filter": None},
     )
@@ -1705,7 +1707,7 @@ def test_qdrant_point_with_none_payload(client, admin_headers, monkeypatch):
 
     # Test with explicit None payload
     none_payload = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={
             "collection": "c2",
@@ -1722,7 +1724,7 @@ def test_qdrant_collection_name_with_special_chars(client, admin_headers, monkey
 
     # Test with special characters in collection name
     special_name = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "test_collection_123", "vector_size": 4, "distance": "Cosine"},
     )
@@ -1735,7 +1737,7 @@ def test_qdrant_float_point_id(client, admin_headers, monkeypatch):
 
     # Test with float ID
     float_id = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": 1.5, "vector": [0.1, 0.2, 0.3, 0.4]}]},
     )
@@ -1762,7 +1764,7 @@ def test_qdrant_create_collection_exception(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(api.qdrant_router, "create_collection", _create_fail)
     create_fail = client.post(
-        "/api/qdrant/collections",
+        "/api/vector/collections",
         headers=admin_headers,
         json={"name": "c_fail", "vector_size": 4, "distance": "Cosine"},
     )
@@ -1788,7 +1790,7 @@ def test_qdrant_delete_collection_exception(client, admin_headers, monkeypatch):
         raise RuntimeError("Failed to delete collection")
 
     monkeypatch.setattr(api.qdrant_router, "delete_collection", _delete_fail)
-    delete_fail = client.delete("/api/qdrant/collections/c_fail", headers=admin_headers)
+    delete_fail = client.delete("/api/vector/collections/c_fail", headers=admin_headers)
     assert delete_fail.status_code == 500
     assert "Failed to delete collection" in delete_fail.text
 
@@ -1812,7 +1814,7 @@ def test_qdrant_upsert_points_exception(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(api.qdrant_router, "upsert_points", _upsert_fail)
     upsert_fail = client.post(
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "points": [{"id": 1, "vector": [0.1, 0.2, 0.3, 0.4]}]},
     )
@@ -1839,7 +1841,7 @@ def test_qdrant_search_exception(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(api.qdrant_router, "search", _search_fail)
     search_fail = client.post(
-        "/api/qdrant/search",
+        "/api/vector/search",
         headers=admin_headers,
         json={"collection": "c2", "query_vector": [0.1, 0.2, 0.3, 0.4], "top_k": 1},
     )
@@ -1867,7 +1869,7 @@ def test_qdrant_delete_points_exception(client, admin_headers, monkeypatch):
     monkeypatch.setattr(api.qdrant_router, "delete_points", _delete_points_fail)
     delete_points_fail = client.request(
         "DELETE",
-        "/api/qdrant/points",
+        "/api/vector/points",
         headers=admin_headers,
         json={"collection": "c2", "ids": [1]},
     )
