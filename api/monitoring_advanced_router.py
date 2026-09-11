@@ -24,16 +24,16 @@ All endpoints use real business logic from core modules.
 
 import asyncio
 import logging
-import random
 import statistics
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.backend_requirements import requires_backend
 from core.collector import collect_all, get_top_processes
 from core.log_collector import (
     get_linux_errors,
@@ -57,12 +57,148 @@ from core.elasticsearch_client import get_elasticsearch_client
 logger = logging.getLogger(__name__)
 
 
+def _time_range_hours(time_range: str) -> int:
+    """Map an API time-range token onto a number of hours."""
+    return {
+        "5m": 1,
+        "1h": 1,
+        "24h": 24,
+        "7d": 168,
+        "30d": 720,
+    }.get(time_range, 1)
+
+
+async def _query_victoriametrics(query: str) -> tuple:
+    """Query the VictoriaMetrics/Prometheus-compatible HTTP API.
+
+    Returns ``(base_url, result_list)``. Raises on any connection/HTTP error so
+    the caller can surface ``requires-backend``.
+    """
+    import httpx
+    from config import VICTORIAMETRICS_URL
+
+    base = str(VICTORIAMETRICS_URL).rstrip("/")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(f"{base}/api/v1/query", params={"query": query})
+    response.raise_for_status()
+    payload = response.json()
+    return base, payload.get("data", {}).get("result", [])
+
+
+async def _probe_otel_collector() -> tuple:
+    """Check reachability of the configured OTEL collector.
+
+    Returns ``(base_url, reachable)``; raises when the endpoint is not
+    configured or cannot be reached.
+    """
+    import httpx
+    from config import OTEL_EXPORTER_OTLP_ENDPOINT
+
+    if not OTEL_EXPORTER_OTLP_ENDPOINT:
+        raise RuntimeError("OTEL_EXPORTER_OTLP_ENDPOINT is not configured")
+
+    base = str(OTEL_EXPORTER_OTLP_ENDPOINT).rstrip("/")
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        response = await client.get(f"{base}/metrics")
+    return base, response.status_code < 500
+
+
+def _classify_log_pattern(pattern: str) -> str:
+    """Classify a real log message/pattern into a severity bucket."""
+    text = (pattern or "").upper()
+    if "ERROR" in text or "FATAL" in text or "CRITICAL" in text:
+        return "error"
+    if "WARN" in text:
+        return "warning"
+    return "info"
+
+
+def _collect_api_telemetry(endpoint_filter: Optional[str] = None) -> tuple:
+    """Aggregate real API telemetry from the Prometheus metrics registry.
+
+    Returns ``(endpoints, total_requests, total_errors, avg_response_time_ms)``.
+    Counts come from the counters the middleware actually increments, so an
+    empty result means "no requests recorded yet" rather than fabricated
+    traffic.
+    """
+    from core.prometheus_metrics import get_metrics_exporter
+
+    exporter = get_metrics_exporter()
+    entries: Dict[tuple, Dict[str, Any]] = {}
+
+    def _entry(path: str, method: str) -> Dict[str, Any]:
+        return entries.setdefault(
+            (path, method),
+            {
+                "path": path,
+                "method": method,
+                "request_count": 0,
+                "error_count": 0,
+                "_lat_sum": 0.0,
+                "_lat_count": 0.0,
+            },
+        )
+
+    for metric in exporter.api_throughput.collect():
+        for sample in metric.samples:
+            if not sample.name.endswith("_total"):
+                continue
+            labels = sample.labels
+            entry = _entry(labels.get("endpoint", ""), labels.get("method", ""))
+            count = int(sample.value)
+            entry["request_count"] += count
+            status = str(labels.get("status", ""))
+            if status.isdigit() and int(status) >= 400:
+                entry["error_count"] += count
+
+    for metric in exporter.api_response_time.collect():
+        for sample in metric.samples:
+            labels = sample.labels
+            entry = _entry(labels.get("endpoint", ""), labels.get("method", ""))
+            if sample.name.endswith("_sum"):
+                entry["_lat_sum"] += float(sample.value)
+            elif sample.name.endswith("_count"):
+                entry["_lat_count"] += float(sample.value)
+
+    endpoints: List[Dict[str, Any]] = []
+    total_requests = 0
+    total_errors = 0
+    lat_sum = 0.0
+    lat_count = 0.0
+    for entry in entries.values():
+        if endpoint_filter and endpoint_filter not in entry["path"]:
+            continue
+        avg_ms = (
+            (entry["_lat_sum"] / entry["_lat_count"]) * 1000.0 if entry["_lat_count"] else None
+        )
+        endpoints.append(
+            {
+                "path": entry["path"],
+                "method": entry["method"],
+                "request_count": entry["request_count"],
+                "avg_latency_ms": round(avg_ms, 2) if avg_ms is not None else None,
+                "error_rate": (
+                    round(entry["error_count"] / entry["request_count"], 4)
+                    if entry["request_count"]
+                    else 0.0
+                ),
+            }
+        )
+        total_requests += entry["request_count"]
+        total_errors += entry["error_count"]
+        lat_sum += entry["_lat_sum"]
+        lat_count += entry["_lat_count"]
+
+    avg_response_ms = round((lat_sum / lat_count) * 1000.0, 2) if lat_count else None
+    endpoints.sort(key=lambda x: x["request_count"], reverse=True)
+    return endpoints, total_requests, total_errors, avg_response_ms
+
+
 def _check_rate_limit(request: Request) -> None:
     """Enforce the endpoint rate limit (raises HTTPException 429 when exceeded)."""
     identifier = request.client.host if request.client else "unknown"
     limit = get_rate_limit_for_endpoint(request.url.path)
     check_rate_limit(identifier, requests_per_minute=parse_rate_limit_per_minute(limit))
-
 
 router = APIRouter(
     prefix="/api/v1/monitoring",
@@ -283,40 +419,26 @@ async def get_log_analysis(
     logger.info(f"请求日志分析 | time_range={time_range} severity={severity}")
 
     try:
-        # 模拟日志模式数据
+        # Real log pattern analysis via the Elasticsearch aggregation backend.
+        es = get_elasticsearch_client()
+        try:
+            patterns = await es.get_log_patterns(
+                index="logs-*", time_range=time_range, size=50
+            )
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "elasticsearch",
+                capability="log pattern analysis",
+                reason=f"Elasticsearch log backend unavailable: {e}",
+            )
+
         all_patterns = [
             {
-                "pattern": "ERROR.*Connection refused",
-                "count": 234,
-                "frequency": 9.75,
-                "first_seen": (datetime.now() - timedelta(hours=24)).isoformat(),
-                "last_seen": (datetime.now() - timedelta(minutes=5)).isoformat(),
-                "severity": "error",
-            },
-            {
-                "pattern": "WARNING.*High memory usage",
-                "count": 567,
-                "frequency": 23.63,
-                "first_seen": (datetime.now() - timedelta(hours=24)).isoformat(),
-                "last_seen": (datetime.now() - timedelta(minutes=2)).isoformat(),
-                "severity": "warning",
-            },
-            {
-                "pattern": "INFO.*Request completed",
-                "count": 15234,
-                "frequency": 634.75,
-                "first_seen": (datetime.now() - timedelta(hours=24)).isoformat(),
-                "last_seen": (datetime.now() - timedelta(seconds=30)).isoformat(),
-                "severity": "info",
-            },
-            {
-                "pattern": "ERROR.*Database timeout",
-                "count": 89,
-                "frequency": 3.71,
-                "first_seen": (datetime.now() - timedelta(hours=12)).isoformat(),
-                "last_seen": (datetime.now() - timedelta(minutes=15)).isoformat(),
-                "severity": "error",
-            },
+                "pattern": p.get("pattern"),
+                "count": int(p.get("count", 0)),
+                "severity": _classify_log_pattern(str(p.get("pattern", ""))),
+            }
+            for p in patterns
         ]
 
         # 根据严重级别过滤
@@ -339,6 +461,8 @@ async def get_log_analysis(
             "time_range": time_range,
             "patterns": filtered_patterns,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"日志分析失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"日志分析失败: {str(e)[:200]}")
@@ -413,32 +537,34 @@ async def get_elasticsearch_logs(
     logger.info(f"查询Elasticsearch | query={query} time_range={time_range}")
 
     try:
-        # 模拟Elasticsearch集群信息
-        es_info = {
-            "es_url": "http://localhost:9200",
-            "es_version": "8.5.0",
-            "cluster_name": "aiops-cluster",
-            "nodes_count": 3,
-            "total_indices": 45,
-            "total_documents": 15234567,
-            "data_size_gb": 234.56,
-        }
-
-        # 模拟日志数据
-        logs = []
-        for i in range(min(20, 50)):
-            logs.append(
-                {
-                    "_id": f"log-{i}",
-                    "_index": f"logs-{time_range}",
-                    "_source": {
-                        "timestamp": (datetime.now() - timedelta(minutes=i * 5)).isoformat(),
-                        "level": random.choice(["info", "warning", "error"]),
-                        "service": random.choice(["api", "worker", "database"]),
-                        "message": f"Sample log message {i} matching query: {query}",
-                    },
-                }
+        es = get_elasticsearch_client()
+        try:
+            cluster = await es.get_cluster_info()
+            health = await es.get_cluster_health()
+            stats = await es.get_cluster_stats()
+            logs = await es.search_logs(
+                index="logs-*", query_string=query, time_range=time_range, size=20
             )
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "elasticsearch",
+                capability="log search",
+                reason=f"Elasticsearch backend unavailable: {e}",
+            )
+
+        version = cluster.get("version")
+        es_info = {
+            "es_url": getattr(es, "base_url", None),
+            "es_version": version.get("number") if isinstance(version, dict) else version,
+            "cluster_name": cluster.get("cluster_name"),
+            "nodes_count": health.get("number_of_nodes"),
+            "total_indices": stats.get("indices", {}).get("count"),
+            "total_documents": stats.get("indices", {}).get("docs", {}).get("count"),
+            "data_size_gb": round(
+                stats.get("indices", {}).get("store", {}).get("size_in_bytes", 0) / (1024**3),
+                2,
+            ),
+        }
 
         return {
             **es_info,
@@ -446,6 +572,8 @@ async def get_elasticsearch_logs(
             "time_range": time_range,
             "logs": logs,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Elasticsearch查询失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)[:200]}")
@@ -483,33 +611,37 @@ async def get_tempo_traces(
     logger.info(f"查询Tempo追踪 | service={service} trace_id={trace_id}")
 
     try:
-        tempo_info = {
-            "tempo_url": "http://localhost:3200",
-            "tempo_version": "1.5.0",
-            "total_traces": 123456,
-            "search_duration_ms": 45.2,
-        }
-
-        traces = []
-        for i in range(min(10, 20)):
-            traces.append(
-                {
-                    "trace_id": f"trace-{i:016x}",
-                    "service": service or f"service-{i % 3}",
-                    "start_time": (datetime.now() - timedelta(minutes=i * 2)).isoformat(),
-                    "duration_ms": random.randint(50, 500),
-                    "span_count": random.randint(5, 20),
-                    "root_span": f"span-{i}",
-                }
+        tempo = get_tempo_client()
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(hours=_time_range_hours(time_range))
+        try:
+            if trace_id:
+                trace = await tempo.get_trace(trace_id)
+                traces = [trace.model_dump()]
+                total = 1
+            else:
+                result = await tempo.search_traces(
+                    query=service or "{}", start=start, end=end, limit=20
+                )
+                traces = result.traces
+                total = result.totalTraces
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "tempo",
+                capability="distributed tracing",
+                reason=f"Tempo backend unavailable: {e}",
             )
 
         return {
-            **tempo_info,
+            "tempo_url": getattr(tempo, "base_url", None),
+            "total_traces": total,
             "service": service,
             "trace_id": trace_id,
             "time_range": time_range,
             "traces": traces,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Tempo查询失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)[:200]}")
@@ -545,33 +677,29 @@ async def get_loki_logs(
     logger.info(f"查询Loki日志 | query={query} time_range={time_range}")
 
     try:
-        loki_info = {
-            "loki_url": "http://localhost:3100",
-            "loki_version": "2.9.0",
-            "total_streams": 234,
-            "ingestion_rate_mb": 12.5,
-        }
-
-        logs = []
-        for i in range(min(15, 30)):
-            logs.append(
-                {
-                    "stream": {"job": "varlogs", "host": f"host-{i % 3}"},
-                    "values": [
-                        [
-                            str(int((datetime.now() - timedelta(seconds=i * 10)).timestamp())),
-                            f"Sample log line {i} from Loki",
-                        ]
-                    ],
-                }
+        loki = get_loki_client()
+        try:
+            healthy = await loki.health_check()
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            healthy = False
+            logger.warning(f"Loki health check failed: {e}")
+        if not healthy:
+            requires_backend(
+                "loki",
+                capability="log query",
+                reason="Loki backend is not reachable or not configured",
             )
 
+        logs = await loki.search_logs(query=query, time_range=time_range, limit=30)
+
         return {
-            **loki_info,
+            "loki_url": getattr(loki, "base_url", None),
             "query": query,
             "time_range": time_range,
             "logs": logs,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Loki查询失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)[:200]}")
@@ -607,33 +735,23 @@ async def get_victoriametrics(
     logger.info(f"查询VictoriaMetrics | query={query} time_range={time_range}")
 
     try:
-        vm_info = {
-            "vm_url": "http://localhost:8428",
-            "vm_version": "1.97.0",
-            "total_series": 45678,
-            "data_size_gb": 123.45,
-        }
-
-        metrics = []
-        for i in range(min(10, 20)):
-            metrics.append(
-                {
-                    "metric": {"__name__": query, "instance": f"instance-{i % 3}"},
-                    "values": [
-                        [
-                            str(int((datetime.now() - timedelta(minutes=i)).timestamp())),
-                            str(random.random() * 100),
-                        ]
-                    ],
-                }
+        try:
+            base, metrics = await _query_victoriametrics(query)
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "victoriametrics",
+                capability="metric query",
+                reason=f"VictoriaMetrics backend unavailable: {e}",
             )
 
         return {
-            **vm_info,
+            "vm_url": base,
             "query": query,
             "time_range": time_range,
             "metrics": metrics,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"VictoriaMetrics查询失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)[:200]}")
@@ -671,40 +789,63 @@ async def get_tracing_visualization(
     logger.info(f"获取追踪可视化 | trace_id={trace_id} service={service}")
 
     try:
-        # 构建追踪图数据
-        nodes = []
-        edges = []
-
-        services = ["api", "database", "cache", "worker", "auth"]
-        for i, svc in enumerate(services):
-            nodes.append(
-                {
-                    "id": f"node-{i}",
-                    "label": svc,
-                    "type": "service",
-                    "x": i * 100,
-                    "y": 50,
-                }
+        if not trace_id:
+            requires_backend(
+                "tempo",
+                capability="trace visualization",
+                reason="A trace_id is required to build a trace graph from real spans",
+            )
+        tempo = get_tempo_client()
+        try:
+            trace = await tempo.get_trace(trace_id)
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "tempo",
+                capability="trace visualization",
+                reason=f"Tempo backend unavailable: {e}",
             )
 
-        for i in range(len(services) - 1):
+        spans = trace.spans or []
+        span_by_id = {s.spanID: s for s in spans}
+
+        def _span_service(span: Any) -> str:
+            process = getattr(span, "process", None) or {}
+            return process.get("serviceName") or span.operationName
+
+        nodes = []
+        seen: set = set()
+        for span in spans:
+            svc_name = _span_service(span)
+            if svc_name in seen:
+                continue
+            seen.add(svc_name)
+            nodes.append({"id": svc_name, "label": svc_name, "type": "service"})
+
+        edges = []
+        for span in spans:
+            parent_id = span.parentSpanID
+            parent = span_by_id.get(parent_id) if parent_id else None
+            if parent is None:
+                continue
             edges.append(
                 {
-                    "source": f"node-{i}",
-                    "target": f"node-{i + 1}",
-                    "label": f"call-{i}",
-                    "latency_ms": random.randint(10, 100),
+                    "source": _span_service(parent),
+                    "target": _span_service(span),
+                    "label": span.operationName,
+                    "latency_ms": round(span.duration / 1e6, 2),
                 }
             )
 
         return {
-            "trace_id": trace_id or f"trace-{int(time.time())}",
+            "trace_id": trace_id,
             "service": service,
             "time_range": time_range,
             "nodes": nodes,
             "edges": edges,
-            "total_spans": len(nodes),
+            "total_spans": len(spans),
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取追踪可视化失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取失败: {str(e)[:200]}")
@@ -740,37 +881,41 @@ async def get_cross_service_tracing(
     logger.info(f"获取跨服务追踪 | trace_id={trace_id}")
 
     try:
-        service_calls = [
-            {
-                "from_service": "api",
-                "to_service": "database",
-                "call_count": 1234,
-                "avg_latency_ms": 45.2,
-                "error_rate": 0.01,
-            },
-            {
-                "from_service": "api",
-                "to_service": "cache",
-                "call_count": 5678,
-                "avg_latency_ms": 5.3,
-                "error_rate": 0.001,
-            },
-            {
-                "from_service": "api",
-                "to_service": "auth",
-                "call_count": 890,
-                "avg_latency_ms": 23.4,
-                "error_rate": 0.02,
-            },
-        ]
+        tempo = get_tempo_client()
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(hours=_time_range_hours(time_range))
+        try:
+            deps = await tempo.get_service_dependencies(start=start, end=end)
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "tempo",
+                capability="cross-service tracing",
+                reason=f"Tempo backend unavailable: {e}",
+            )
+
+        service_calls = []
+        services_seen: set = set()
+        for dep in deps:
+            services_seen.add(dep.service)
+            for target in dep.dependencies:
+                services_seen.add(target)
+            service_calls.append(
+                {
+                    "from_service": dep.service,
+                    "to_service": dep.dependencies[0] if dep.dependencies else None,
+                    "call_count": dep.call_count,
+                    "avg_latency_ms": round(dep.avg_latency_ms, 2),
+                }
+            )
 
         return {
-            "trace_id": trace_id or f"trace-{int(time.time())}",
+            "trace_id": trace_id,
             "time_range": time_range,
-            "total_services": 4,
+            "total_services": len(services_seen),
             "service_calls": service_calls,
-            "critical_path": ["api", "database", "worker"],
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取跨服务追踪失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取失败: {str(e)[:200]}")
@@ -806,41 +951,16 @@ async def get_fastapi_telemetry(
     logger.info(f"获取FastAPI遥测 | endpoint={endpoint}")
 
     try:
-        telemetry = {
-            "fastapi_version": "0.104.0",
-            "total_requests": 123456,
-            "total_errors": 234,
-            "avg_response_time_ms": 45.6,
-            "p95_response_time_ms": 123.4,
-            "p99_response_time_ms": 234.5,
-        }
-
-        endpoints_data = [
-            {
-                "path": "/api/v1/metrics",
-                "method": "GET",
-                "request_count": 45678,
-                "avg_latency_ms": 23.4,
-                "error_rate": 0.001,
-            },
-            {
-                "path": "/api/v1/logs",
-                "method": "GET",
-                "request_count": 34567,
-                "avg_latency_ms": 56.7,
-                "error_rate": 0.002,
-            },
-        ]
+        endpoints_data, total_requests, total_errors, avg_ms = _collect_api_telemetry(endpoint)
 
         return {
-            **telemetry,
+            "fastapi_version": getattr(__import__("fastapi"), "__version__", None),
+            "total_requests": total_requests,
+            "total_errors": total_errors,
+            "avg_response_time_ms": avg_ms,
             "endpoint": endpoint,
             "time_range": time_range,
-            "endpoints": (
-                endpoints_data
-                if not endpoint
-                else [e for e in endpoints_data if endpoint in e["path"]]
-            ),
+            "endpoints": endpoints_data,
         }
     except Exception as e:
         logger.error(f"获取FastAPI遥测失败: {e}", exc_info=True)
@@ -1002,35 +1122,44 @@ async def get_observability_query(
                 },
             }
         elif query_type == "logs":
-            # 模拟日志数据
+            loki = get_loki_client()
+            try:
+                healthy = await loki.health_check()
+            except Exception:  # noqa: BLE001 - treated as unreachable
+                healthy = False
+            if not healthy:
+                requires_backend(
+                    "loki",
+                    capability="log query",
+                    reason="Loki backend is not reachable or not configured",
+                )
+            logs = await loki.search_logs(query=query, time_range=time_range, limit=100)
             return {
                 "query_type": query_type,
                 "query": query,
                 "time_range": time_range,
-                "data": [
-                    {
-                        "timestamp": (datetime.now() - timedelta(minutes=i)).isoformat(),
-                        "level": "info",
-                        "message": f"Log message matching: {query}",
-                    }
-                    for i in range(10)
-                ],
+                "data": logs,
             }
         else:  # traces
-            # 模拟追踪数据
+            tempo = get_tempo_client()
+            end = datetime.now(timezone.utc)
+            start = end - timedelta(hours=_time_range_hours(time_range))
+            try:
+                result = await tempo.search_traces(query=query, start=start, end=end, limit=20)
+            except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+                requires_backend(
+                    "tempo",
+                    capability="trace query",
+                    reason=f"Tempo backend unavailable: {e}",
+                )
             return {
                 "query_type": query_type,
                 "query": query,
                 "time_range": time_range,
-                "data": [
-                    {
-                        "trace_id": f"trace-{i:016x}",
-                        "service": f"service-{i % 3}",
-                        "duration_ms": random.randint(50, 200),
-                    }
-                    for i in range(10)
-                ],
+                "data": result.traces,
             }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"可观测性查询失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"查询失败: {str(e)[:200]}")
@@ -1269,26 +1398,22 @@ async def post_health_check(req: HealthCheckRequest) -> Dict[str, Any]:
     logger.info(f"执行健康检查 | service_name={req.service_name}")
 
     try:
-        # 模拟健康检查
-        response_time = random.uniform(10, 100)
-        status = "healthy" if response_time < 50 else "degraded"
-
-        return {
-            "service": req.service_name,
-            "status": status,
-            "response_time_ms": response_time,
-            "last_check": datetime.now().isoformat(),
-            "error_message": None if status == "healthy" else "High latency",
-        }
+        # A real health check needs a concrete target endpoint. None is
+        # configured for an arbitrary service name, so refuse instead of
+        # returning a random verdict.
+        requires_backend(
+            "service-health-probe",
+            capability="service health check",
+            reason=(
+                f"No health-check endpoint is configured for service "
+                f"'{req.service_name}'; cannot probe it"
+            ),
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"健康检查失败: {e}", exc_info=True)
-        return {
-            "service": req.service_name,
-            "status": "unhealthy",
-            "response_time_ms": 0,
-            "last_check": datetime.now().isoformat(),
-            "error_message": str(e)[:200],
-        }
+        raise HTTPException(status_code=500, detail=f"健康检查失败: {str(e)[:200]}")
 
 
 # ============================================================
@@ -1314,20 +1439,21 @@ async def get_otel_collector() -> Dict[str, Any]:
     logger.info("获取OTEL Collector状态")
 
     try:
+        try:
+            base, reachable = await _probe_otel_collector()
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "otel-collector",
+                capability="OTEL collector status",
+                reason=f"OTEL collector not available: {e}",
+            )
+
         return {
-            "otel_collector_url": "http://localhost:4318",
-            "otel_collector_version": "0.87.0",
-            "status": "running",
-            "uptime_seconds": 86400,
-            "total_spans_received": 1234567,
-            "total_metrics_received": 2345678,
-            "total_logs_received": 3456789,
-            "exporters": {
-                "otlp": {"status": "active", "endpoint": "http://backend:4317"},
-                "prometheus": {"status": "active", "endpoint": "http://prometheus:9090"},
-                "logging": {"status": "active"},
-            },
+            "otel_collector_url": base,
+            "status": "running" if reachable else "degraded",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取OTEL Collector状态失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取失败: {str(e)[:200]}")
@@ -1421,19 +1547,42 @@ async def convert_metrics(req: MetricsConverterRequest) -> Dict[str, Any]:
     logger.info(f"转换指标格式 | {req.source_format} -> {req.target_format}")
 
     try:
-        # 模拟指标转换
-        converted_data = {
-            "metrics": req.metrics_data,
-            "converted_from": req.source_format,
-            "converted_to": req.target_format,
-            "conversion_time_ms": 3.4,
-        }
+        from core.metrics_converter import MetricsConverter
 
+        data = req.metrics_data
+
+        if req.target_format == "prometheus" and req.source_format != "prometheus":
+            records = data.get("metrics", [])
+            if not isinstance(records, list):
+                raise HTTPException(status_code=400, detail="metrics_data.metrics must be a list")
+            payload = MetricsConverter.batch_sqlite_to_prometheus(records)
+            return {
+                "success": True,
+                "data": {"format": "prometheus", "payload": payload},
+                "message": "指标转换成功",
+            }
+
+        if req.source_format == "prometheus" and req.target_format != "prometheus":
+            payload = data.get("payload", "")
+            converted = [
+                MetricsConverter.prometheus_to_sqlite(line)
+                for line in str(payload).splitlines()
+                if line.strip()
+            ]
+            return {
+                "success": True,
+                "data": {"format": req.target_format, "metrics": converted},
+                "message": "指标转换成功",
+            }
+
+        # Same source/target format: nothing to translate.
         return {
             "success": True,
-            "data": converted_data,
+            "data": {"format": req.target_format, "metrics": data},
             "message": "指标转换成功",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"指标转换失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"转换失败: {str(e)[:200]}")
@@ -1561,38 +1710,38 @@ async def get_prometheus_metrics(
     logger.info(f"获取Prometheus指标 | query={query}")
 
     try:
-        # 使用metrics_history获取实际数据
-        history = metrics_history.to_dict()
-
-        prometheus_info = {
-            "prometheus_url": "http://localhost:9090",
-            "prometheus_version": "2.47.0",
-            "total_metrics": 456,
-            "series_count": 12345,
-        }
-
-        # 构建Prometheus格式的指标
-        metrics = []
-        for i in range(min(10, 20)):
-            metrics.append(
-                {
-                    "name": query,
-                    "type": "gauge",
-                    "help": f"Metric {query}",
-                    "value": history["cpu"][-1] if history["cpu"] else random.random() * 100,
-                    "timestamp": int(time.time()),
-                    "labels": {
-                        "instance": f"instance-{i % 3}",
-                        "job": "aiops-agent",
-                    },
-                }
+        client = get_prometheus_client()
+        try:
+            result = await client.query(query)
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "prometheus",
+                capability="metric query",
+                reason=f"Prometheus backend unavailable: {e}",
             )
 
+        result_type = result.data.get("resultType")
+        metrics = []
+        for item in result.data.get("result", []):
+            if result_type == "matrix":
+                metrics.append(
+                    {"metric": item.get("metric", {}), "values": item.get("values", [])}
+                )
+            else:
+                metrics.append(
+                    {
+                        "metric": item.get("metric", {}),
+                        "value": item.get("value"),
+                    }
+                )
+
         return {
-            **prometheus_info,
+            "prometheus_url": getattr(client, "base_url", None),
             "query": query,
             "metrics": metrics,
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取Prometheus指标失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"获取失败: {str(e)[:200]}")
@@ -1657,33 +1806,6 @@ async def get_anomaly_analysis(
                             ),
                         }
                     )
-
-        # 如果没有检测到异常，添加一些模拟数据
-        if not anomalies:
-            anomalies = [
-                {
-                    "id": "anomaly-001",
-                    "timestamp": (datetime.now() - timedelta(minutes=30)).isoformat(),
-                    "metric_name": "cpu",
-                    "metric_value": 85.5,
-                    "expected_value": 45.2,
-                    "deviation": 89.2,
-                    "severity": "critical",
-                    "status": "open",
-                    "description": "CPU usage spike detected",
-                },
-                {
-                    "id": "anomaly-002",
-                    "timestamp": (datetime.now() - timedelta(hours=2)).isoformat(),
-                    "metric_name": "memory",
-                    "metric_value": 92.3,
-                    "expected_value": 68.5,
-                    "deviation": 34.7,
-                    "severity": "warning",
-                    "status": "investigating",
-                    "description": "Memory usage above threshold",
-                },
-            ]
 
         # 根据严重级别过滤
         filtered_anomalies = (
@@ -1970,17 +2092,20 @@ async def search_logs_endpoint(
         # 使用log_collector搜索Windows日志
         windows_logs = await search_logs(keyword, newest // 2)
 
-        # 模拟Linux日志搜索
-        linux_logs = [
-            {
-                "TimeGenerated": (datetime.now() - timedelta(minutes=i)).isoformat(),
-                "Source": "syslog",
-                "Message": f"Linux log containing {keyword}",
-                "Platform": "linux",
-                "Host": "server01",
-            }
-            for i in range(min(newest // 2, 20))
-        ]
+        # 从已配置的Linux主机真实采集并筛选日志
+        from config import LINUX_HOSTS
+
+        linux_logs: List[Dict[str, Any]] = []
+        for host in LINUX_HOSTS or []:
+            try:
+                entries = await get_linux_logs(host, "syslog", max(1, newest // 2))
+            except Exception as exc:  # noqa: BLE001 - one bad host must not fail the search
+                logger.warning(f"Linux日志采集失败 host={host.get('name')}: {exc}")
+                continue
+            for entry in entries:
+                message = str(entry.get("Message") or entry.get("message") or "")
+                if keyword.lower() in message.lower():
+                    linux_logs.append(entry)
 
         all_logs = windows_logs + linux_logs
 
@@ -2191,53 +2316,15 @@ async def get_api_performance(
     logger.info(f"获取API性能 | endpoint={endpoint}")
 
     try:
-        endpoints_data = [
-            {
-                "path": "/api/v1/metrics",
-                "method": "GET",
-                "request_count": 45678,
-                "avg_latency_ms": 23.4,
-                "p95_latency_ms": 45.6,
-                "p99_latency_ms": 78.9,
-                "error_rate": 0.001,
-                "throughput_rps": 12.5,
-            },
-            {
-                "path": "/api/v1/logs",
-                "method": "GET",
-                "request_count": 34567,
-                "avg_latency_ms": 56.7,
-                "p95_latency_ms": 123.4,
-                "p99_latency_ms": 234.5,
-                "error_rate": 0.002,
-                "throughput_rps": 9.8,
-            },
-            {
-                "path": "/api/v1/monitoring/health-check",
-                "method": "GET",
-                "request_count": 67890,
-                "avg_latency_ms": 12.3,
-                "p95_latency_ms": 23.4,
-                "p99_latency_ms": 45.6,
-                "error_rate": 0.0005,
-                "throughput_rps": 18.9,
-            },
-        ]
-
-        filtered_data = (
-            endpoints_data if not endpoint else [e for e in endpoints_data if endpoint in e["path"]]
-        )
+        endpoints_data, total_requests, total_errors, avg_ms = _collect_api_telemetry(endpoint)
 
         return {
             "time_range": time_range,
             "endpoint": endpoint,
-            "total_requests": sum(e["request_count"] for e in filtered_data),
-            "avg_latency_ms": (
-                statistics.mean([e["avg_latency_ms"] for e in filtered_data])
-                if filtered_data
-                else 0
-            ),
-            "endpoints": filtered_data,
+            "total_requests": total_requests,
+            "total_errors": total_errors,
+            "avg_latency_ms": avg_ms,
+            "endpoints": endpoints_data,
         }
     except Exception as e:
         logger.error(f"获取API性能失败: {e}", exc_info=True)
@@ -2869,16 +2956,53 @@ async def get_linux_monitoring(
         if not host_config:
             raise HTTPException(status_code=404, detail=f"未找到Linux主机: {host_name}")
 
-        # 模拟远程Linux主机数据
+        # 使用SSH采集器获取远程主机的真实指标
+        from core.linux_collector import collect_linux_host
+
+        try:
+            result = await collect_linux_host(host_config)
+        except Exception as exc:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "linux-agent",
+                capability="remote linux monitoring",
+                reason=f"SSH collection failed for {host_name}: {exc}",
+            )
+
+        if result.get("status") in ("error", "cooldown", "skipped"):
+            requires_backend(
+                "linux-agent",
+                capability="remote linux monitoring",
+                reason=(
+                    f"Remote metric collection for {host_name} unavailable: "
+                    f"{result.get('error') or result.get('status')}"
+                ),
+            )
+
+        metrics = result.get("metrics", {})
+
+        def _value(*names: str):
+            for name in names:
+                entry = metrics.get(name) or {}
+                parsed = entry.get("parsed") if isinstance(entry, dict) else None
+                if isinstance(parsed, dict) and "usage_percent" in parsed:
+                    return parsed["usage_percent"]
+                raw = entry.get("value") if isinstance(entry, dict) else None
+                try:
+                    return float(raw)
+                except (TypeError, ValueError):
+                    continue
+            return None
+
         return {
             "time_range": time_range,
             "host": host_name,
             "platform": "linux",
-            "cpu_usage": random.uniform(20, 80),
-            "memory_usage": random.uniform(40, 90),
-            "disk_usage": random.uniform(30, 70),
-            "network_in": random.uniform(10, 100),
-            "network_out": random.uniform(5, 50),
+            "status": result.get("status"),
+            "cpu_usage": _value("cpu_usage", "cpu"),
+            "memory_usage": _value("memory"),
+            "disk_usage": _value("disk_usage"),
+            "network_in": None,
+            "network_out": None,
         }
     except HTTPException:
         raise

@@ -594,11 +594,42 @@ async def create_effectiveness(effectiveness: EffectivenessCreate) -> Dict[str, 
     try:
         effectiveness_id = _generate_id()
 
-        # Calculate initial metrics
-        total_repairs = 1
-        successful_repairs = 1  # Assume success for new record
-        success_rate = 100.0
-        avg_repair_time = 60.0  # Default 60 seconds
+        # Compute metrics from the real repair history (RepairRecord).
+        try:
+            from core.db_engine import async_query_repairs
+
+            records = await async_query_repairs(today_only=False, limit=1000)
+        except Exception as exc:  # noqa: BLE001 - history is best-effort
+            logger.warning(f"Repair history unavailable for effectiveness: {exc}")
+            records = []
+
+        matched = [
+            r
+            for r in records
+            if r.get("platform") == effectiveness.repair_type
+            or r.get("host") == effectiveness.target_resource
+        ]
+
+        total_repairs = len(matched)
+        successful_repairs = sum(1 for r in matched if r.get("success"))
+        success_rate = (
+            round(successful_repairs / total_repairs * 100, 2) if total_repairs else None
+        )
+        durations = [
+            float(r["repair_duration_sec"])
+            for r in matched
+            if r.get("repair_duration_sec") is not None
+        ]
+        avg_repair_time = round(sum(durations) / len(durations), 2) if durations else None
+
+        if success_rate is None:
+            trend = "unknown"
+        elif success_rate >= 90:
+            trend = "improving"
+        elif success_rate >= 70:
+            trend = "stable"
+        else:
+            trend = "declining"
 
         new_effectiveness = {
             "id": effectiveness_id,
@@ -609,9 +640,9 @@ async def create_effectiveness(effectiveness: EffectivenessCreate) -> Dict[str, 
             "avg_repair_time": avg_repair_time,
             "total_repairs": total_repairs,
             "successful_repairs": successful_repairs,
-            "failed_repairs": 0,
+            "failed_repairs": total_repairs - successful_repairs,
             "last_evaluated": _get_current_timestamp(),
-            "trend": "stable",
+            "trend": trend,
         }
 
         _repair_effectiveness[effectiveness_id] = new_effectiveness
@@ -636,14 +667,15 @@ async def evaluate_effectiveness(effectiveness_id: str) -> Dict[str, Any]:
 
         effectiveness = _repair_effectiveness[effectiveness_id]
 
-        # Simulate re-evaluation logic
-        # In production, this would query actual repair history
+        # Re-evaluate from the stored, real success rate.
         effectiveness["last_evaluated"] = _get_current_timestamp()
 
-        # Update trend based on success rate
-        if effectiveness["success_rate"] >= 90:
+        rate = effectiveness.get("success_rate")
+        if rate is None:
+            effectiveness["trend"] = "unknown"
+        elif rate >= 90:
             effectiveness["trend"] = "improving"
-        elif effectiveness["success_rate"] >= 70:
+        elif rate >= 70:
             effectiveness["trend"] = "stable"
         else:
             effectiveness["trend"] = "declining"

@@ -46,6 +46,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.persistent_store import PersistentStore
+from core.backend_requirements import requires_backend
 
 from core.models import (
     AIFineTuningJobDB,
@@ -1324,36 +1325,13 @@ async def generate_runbook(
         _set_runbook(runbook, db_core)
         return runbook
     except Exception as e:
-        logger.warning(f"AI engine not available, using fallback: {e}")
-        # Fallback to simulation
-        runbook_id = generate_id()
-        runbook = RunbookResponse(
-            id=runbook_id,
-            name=f"{req.incident_type} Runbook",
-            description=f"Automatically generated runbook for {req.incident_type}",
-            category=req.incident_type,
-            status="published",
-            steps=[
-            {
-            "order": 1,
-            "title": "Identify the issue",
-            "description": "Analyze system metrics and logs to identify the root cause",
-            "commands": ["check_logs()", "analyze_metrics()"],
-            "expected_result": "Root cause identified",
-            },
-            {
-            "order": 2,
-            "title": "Implement fix",
-            "description": "Apply the appropriate fix based on the identified issue",
-            "commands": ["apply_fix()"],
-            "expected_result": "Issue resolved",
-            },
-            ],
-            created_at=get_timestamp(),
-            updated_at=get_timestamp(),
+        # No fabrication: report the missing AI backend explicitly.
+        logger.warning(f"AI engine not available for runbook generation: {e}")
+        requires_backend(
+            "ai-engine",
+            capability="runbook generation",
+            reason=f"AI engine unavailable: {e}",
         )
-        _set_runbook(runbook, db_core)
-        return runbook
 
 
 # ============================================================================
@@ -1418,52 +1396,12 @@ async def run_intelligent_analysis(req: AiAdvancedAnalyzeRequest, db: Session = 
 
         return report
     except Exception as e:
-        logger.warning(f"AI engine not available, using fallback: {e}")
-        # Fallback to simulation
-        report_id = generate_id()
-        report = AnalysisReportResponse(
-            id=report_id,
-            name=req.name,
-            type=req.type,
-            status=JobStatus.COMPLETED,
-            insights=[
-            f"Analysis completed for {req.name}",
-            f"Data sources analyzed: {len(req.data_sources)}",
-            ],
-            recommendations=[
-            "Review the detailed insights",
-            "Take appropriate actions based on findings",
-            ],
-            metrics={
-            "data_source_count": len(req.data_sources),
-            "analysis_duration": 1.5,
-            "confidence": 0.85,
-            },
-            created_at=get_timestamp(),
+        logger.warning(f"AI engine not available for analysis: {e}")
+        requires_backend(
+            "ai-engine",
+            capability="intelligent analysis",
+            reason=f"AI engine unavailable: {e}",
         )
-
-        # Store in database
-        from core.models import AIAnalysisReportDB
-        new_report = AIAnalysisReportDB(
-            id=report_id,
-            analysis_type=req.type,
-            results={
-            "name": req.name,
-            "status": JobStatus.COMPLETED.value,
-            "insights": report.insights,
-            "recommendations": report.recommendations,
-            "metrics": report.metrics,
-            },
-            report_metadata={
-            "data_sources": req.data_sources,
-            "created_at": report.created_at,
-            }
-        )
-        db.add(new_report)
-        db.commit()
-        db.refresh(new_report)
-
-        return report
 
 
 # ============================================================================
@@ -1710,20 +1648,12 @@ async def create_workflow(req: AiAdvancedWorkflowCreate) -> WorkflowResponse:
         _workflows[workflow_id] = workflow
         return workflow
     except Exception as e:
-        logger.warning(f"LangGraph workflow engine not available, using simulation: {e}")
-        # Fallback
-        workflow_id = generate_id()
-        workflow = WorkflowResponse(
-            id=workflow_id,
-            name=req.name,
-            description=req.description,
-            status="draft",
-            node_count=0,
-            last_executed=None,
-            created_at=get_timestamp(),
+        logger.warning(f"LangGraph workflow engine not available: {e}")
+        requires_backend(
+            "langgraph-workflow-engine",
+            capability="workflow creation",
+            reason=f"Workflow engine unavailable: {e}",
         )
-        _workflows[workflow_id] = workflow
-        return workflow
 
 
 @router.patch("/langgraph-workflow/workflows/{workflow_id}", response_model=WorkflowResponse)
@@ -1797,11 +1727,12 @@ async def generate_visualization(req: Dict[str, str]) -> Dict[str, Any]:
         viz_data = await generate_graph_viz(workflow_id)
         return {"visualization_id": generate_id(), "data": viz_data}
     except Exception as e:
-        logger.warning(f"Visualizer not available, using fallback: {e}")
-        return {
-            "visualization_id": generate_id(),
-            "data": {"nodes": [{"id": "1", "name": "Start", "type": "action"}], "edges": []},
-        }
+        logger.warning(f"Visualizer not available: {e}")
+        requires_backend(
+            "langgraph-visualizer",
+            capability="workflow visualization",
+            reason=f"Graph visualizer unavailable: {e}",
+        )
 
 
 # ============================================================================
@@ -2001,19 +1932,12 @@ async def optimize_model(req: AiAdvancedOptimizationRequest) -> Dict[str, Any]:
             "result": result,
         }
     except Exception as e:
-        logger.warning(f"Cost optimizer not available, using simulation: {e}")
-        return {
-            "optimization_id": generate_id(),
-            "model_id": req.model_id,
-            "optimization_type": req.optimization_type,
-            "status": "completed",
-            "result": {
-            "original_size": 1000000,
-            "optimized_size": 500000,
-            "compression_ratio": 2.0,
-            "accuracy_delta": -0.02,
-            },
-        }
+        logger.warning(f"Cost optimizer not available: {e}")
+        requires_backend(
+            "cost-optimizer",
+            capability="model cost optimization",
+            reason=f"Cost optimizer unavailable: {e}",
+        )
 
 
 # ============================================================================
@@ -2133,18 +2057,12 @@ async def retrieve_knowledge(req: RetrievalRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"RAG engine not available, using fallback: {e}")
-        # Fallback to simulation
-        formatted_results = [
-            RetrievalResult(
-            id="1",
-            content=f"Sample result for query: {req.query}",
-            source="knowledge_base",
-            relevance_score=0.85,
-            metadata={"source": "fallback"},
-            )
-        ]
-        return {"results": formatted_results}
+        logger.warning(f"RAG engine not available: {e}")
+        requires_backend(
+            "rag-engine",
+            capability="retrieval augmented generation",
+            reason=f"RAG engine unavailable: {e}",
+        )
 
 
 # ============================================================================
@@ -2208,18 +2126,12 @@ async def semantic_search(req: AiAdvancedSearchRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"Semantic search engine not available, using fallback: {e}")
-        # Fallback to simulation
-        formatted_results = [
-            SearchResult(
-                id="1",
-                content=f"Sample result for query: {req.query}",
-                score=0.85,
-                source="semantic_index",
-                metadata={"source": "fallback"},
-            )
-        ]
-        return {"results": formatted_results}
+        logger.warning(f"Semantic search engine not available: {e}")
+        requires_backend(
+            "semantic-search-engine",
+            capability="semantic search",
+            reason=f"Semantic search engine unavailable: {e}",
+        )
 
 
 # ============================================================================
@@ -2558,17 +2470,13 @@ async def analyze_topology(req: TopologyAnalysisRequest) -> TopologyAnalysisResp
         _topology_analyses[analysis.id] = analysis
         return analysis
     except Exception as e:
-        logger.warning(f"Topology engine not available, using simulation: {e}")
-        analysis = TopologyAnalysisResponse(
-            id=generate_id(),
-            timestamp=get_timestamp(),
-            critical_path=["service-a", "service-b", "database"],
-            bottleneck_nodes=["database"],
-            risk_score=0.65,
-            recommendations=["Scale database", "Add caching layer"],
+        # No fabrication: a real topology analysis needs the topology engine.
+        logger.warning(f"Topology engine not available for analysis: {e}")
+        requires_backend(
+            "topology-engine",
+            capability="topology analysis",
+            reason=f"Topology engine unavailable: {e}",
         )
-        _topology_analyses[analysis.id] = analysis
-        return analysis
 
 
 # ============================================================================
@@ -2896,17 +2804,13 @@ async def fuse_results(req: FusionRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"Fusion engine not available, using fallback: {e}")
-        # Fallback to simulation
-        formatted_results = [
-            FusionResult(
-            document_id="1",
-            content=f"Fused result for query: {req.query}",
-            fused_score=0.85,
-            source_scores={"source1": 0.8, "source2": 0.9},
-            )
-        ]
-        return {"results": formatted_results}
+        # No fabrication: result fusion needs the fusion engine.
+        logger.warning(f"Fusion engine not available: {e}")
+        requires_backend(
+            "fusion-engine",
+            capability="result fusion",
+            reason=f"Fusion engine unavailable: {e}",
+        )
 
 
 @router.get("/fusion/configs", response_model=Dict[str, List[FusionConfigResponse]])
@@ -3036,13 +2940,13 @@ async def rerank_results(req: RerankRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"Reranker not available, using fallback: {e}")
-        # Return documents in original order
-        formatted_results = [
-            RerankingResult(original_rank=i, new_rank=i, score=0.5, content=doc)
-            for i, doc in enumerate(req.documents)
-        ]
-        return {"results": formatted_results}
+        # No fabrication: reranking needs the reranker model; do not invent scores.
+        logger.warning(f"Reranker not available: {e}")
+        requires_backend(
+            "reranker-model",
+            capability="document reranking",
+            reason=f"Reranker unavailable: {e}",
+        )
 
 
 # ============================================================================
@@ -3200,13 +3104,13 @@ async def embed_text(req: EmbedRequest) -> EmbedResponse:
 
         return EmbedResponse(embedding=embedding, dimensions=len(embedding))
     except Exception as e:
-        logger.warning(f"Vectorizer not available, using fallback: {e}")
-        # Fallback to simulation
-        import hashlib
-        # Generate a deterministic pseudo-embedding based on text hash
-        hash_val = int(hashlib.md5(req.text.encode()).hexdigest(), 16)
-        embedding = [(hash_val >> (i * 8)) % 256 / 256.0 for i in range(768)]
-        return EmbedResponse(embedding=embedding, dimensions=len(embedding))
+        # No fabrication: a real embedding requires the vectorizer model.
+        logger.warning(f"Vectorizer not available: {e}")
+        requires_backend(
+            "vectorizer-model",
+            capability="text embedding",
+            reason=f"Vectorizer unavailable: {e}",
+        )
 
 
 # ============================================================================
@@ -3233,17 +3137,13 @@ async def retrieve_documents(req: RetrieveRequest) -> Dict[str, Any]:
         ]
         return {"results": formatted_results}
     except Exception as e:
-        logger.warning(f"Retriever not available, using fallback: {e}")
-        # Fallback to simulation
-        formatted_results = [
-            RetrieveResult(
-            document_id="1",
-            content=f"Retrieved document for query: {req.query}",
-            score=0.85,
-            metadata={"source": "fallback"},
-            )
-        ]
-        return {"results": formatted_results}
+        # No fabrication: retrieval needs the retriever backend.
+        logger.warning(f"Retriever not available: {e}")
+        requires_backend(
+            "retriever-backend",
+            capability="document retrieval",
+            reason=f"Retriever unavailable: {e}",
+        )
 
 
 @router.get("/retriever/configs", response_model=Dict[str, List[RetrieverConfigResponse]])
@@ -3373,7 +3273,10 @@ async def create_knowledge_base(
         _set_knowledge_base(kb, db_core)
         return kb
     except Exception as e:
-        logger.warning(f"Knowledge base engine not available, using simulation: {e}")
+        # The knowledge base record itself is real local persistence (metadata +
+        # DB row); only the optional vector index init is engine-backed. Build
+        # the local record rather than failing the whole request.
+        logger.warning(f"Knowledge base engine not available, using local store: {e}")
         kb_id = generate_id()
         kb = KnowledgeBaseResponse(
             id=kb_id,
@@ -3717,18 +3620,12 @@ async def evaluate_capability(req: EvaluateRequest) -> EvaluationResponse:
             last_evaluated=get_timestamp(),
         )
     except Exception as e:
-        logger.warning(f"Capability evaluator not available, using simulation: {e}")
-        return EvaluationResponse(
-            model_id=req.model_id,
-            capabilities={
-                "reasoning": 0.85,
-                "coding": 0.80,
-                "math": 0.75,
-                "writing": 0.90,
-                "analysis": 0.82,
-            },
-            overall_score=0.82,
-            last_evaluated=get_timestamp(),
+        # No fabrication: capability scores require the evaluator backend.
+        logger.warning(f"Capability evaluator not available: {e}")
+        requires_backend(
+            "capability-evaluator",
+            capability="model capability evaluation",
+            reason=f"Capability evaluator unavailable: {e}",
         )
 
 

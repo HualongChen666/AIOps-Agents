@@ -938,11 +938,9 @@ async def test_dataloader(
         test_items_loaded = 0
 
         async def test_batch_load_fn(keys: List[Any]) -> List[Any]:
-            """测试批量加载函数"""
+            """测试批量加载函数(不做人为延迟,避免用 sleep 伪造负载)"""
             nonlocal test_items_loaded
             test_items_loaded = len(keys)
-            # 模拟加载延迟
-            await asyncio.sleep(0.01)
             return [f"item_{key}" for key in keys]
 
         test_loader = DataLoader(
@@ -953,7 +951,6 @@ async def test_dataloader(
 
         # 测试批量加载
         test_keys = list(range(min(10, config.max_batch_size)))
-        import asyncio
         results = await test_loader.load_many(test_keys)
 
         load_time_ms = (time.time() - start_time) * 1000

@@ -277,13 +277,15 @@ async def create_coverage_report(
         TestCoverageReportDB.generated_at.desc()
     ).first()
 
-    # 模拟生成新报告（实际应该从测试框架获取最新数据）
+    # A new report is built from the latest *measured* module coverage; no
+    # synthetic deltas are invented (a real re-run would supply new numbers).
     if latest_report_db:
         modules_data = latest_report_db.modules or []
         modules = []
         for m in modules_data:
-            covered_lines = int(m.get("covered_lines", 0) * (1 + (hash(m.get("module_id", "")) % 10) / 100))
-            coverage_percentage = round((covered_lines / m.get("total_lines", 1)) * 100, 2)
+            covered_lines = int(m.get("covered_lines", 0))
+            total_lines = int(m.get("total_lines", 0)) or 1
+            coverage_percentage = round((covered_lines / total_lines) * 100, 2)
             modules.append({
                 "module_id": m.get("module_id", ""),
                 "module_name": m.get("module_name", ""),

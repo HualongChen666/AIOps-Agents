@@ -49,6 +49,112 @@ def cleanup_database(db_session):
     yield
 
 
+@pytest.fixture(autouse=True)
+def _stub_observability_backends(monkeypatch):
+    """Stub the external observability clients with in-memory test doubles.
+
+    The production endpoints talk to real Elasticsearch / Loki / Tempo /
+    Prometheus (and the SSH Linux collector).  For unit tests we replace only
+    those I/O clients so the endpoint logic returns deterministic data without
+    requiring the backends to be running.
+    """
+    from core.prometheus_client import PrometheusQueryResult
+    from core.tempo_client import TempoSearchResult, TempoServiceDependency, TempoTrace
+
+    es = MagicMock()
+    es.base_url = "http://localhost:9200"
+    es.get_cluster_info = AsyncMock(
+        return_value={"cluster_name": "aiops-cluster", "version": {"number": "8.5.0"}}
+    )
+    es.get_cluster_health = AsyncMock(return_value={"number_of_nodes": 3})
+    es.get_cluster_stats = AsyncMock(
+        return_value={
+            "indices": {
+                "count": 45,
+                "docs": {"count": 15234567},
+                "store": {"size_in_bytes": int(234.56 * 1024**3)},
+            }
+        }
+    )
+    es.search_logs = AsyncMock(
+        return_value=[
+            {"_id": "log-1", "_index": "logs-1h", "_source": {"level": "info", "message": "m"}}
+        ]
+    )
+    es.get_log_patterns = AsyncMock(
+        return_value=[
+            {"pattern": "ERROR.*Connection refused", "count": 234},
+            {"pattern": "WARNING.*High memory usage", "count": 567},
+            {"pattern": "INFO.*Request completed", "count": 15234},
+        ]
+    )
+
+    loki = MagicMock()
+    loki.base_url = "http://localhost:3100"
+    loki.health_check = AsyncMock(return_value=True)
+    loki.search_logs = AsyncMock(
+        return_value=[{"timestamp": "2026-01-01T00:00:00Z", "message": "line", "labels": {"job": "varlogs"}}]
+    )
+
+    tempo = MagicMock()
+    tempo.base_url = "http://localhost:3200"
+    tempo.search_traces = AsyncMock(
+        return_value=TempoSearchResult(
+            traces=[{"traceID": "t1", "rootServiceName": "api", "durationMs": 120}],
+            totalTraces=1,
+        )
+    )
+    tempo.get_trace = AsyncMock(return_value=TempoTrace(traceID="t1", spans=[]))
+    tempo.get_service_dependencies = AsyncMock(
+        return_value=[
+            TempoServiceDependency(
+                service="api", dependencies=["database"], call_count=10, avg_latency_ms=5.0
+            )
+        ]
+    )
+
+    prom = MagicMock()
+    prom.base_url = "http://localhost:9090"
+    prom.query = AsyncMock(
+        return_value=PrometheusQueryResult(
+            status="success",
+            data={"resultType": "vector", "result": [{"metric": {"__name__": "up"}, "value": [1, "1"]}]},
+        )
+    )
+
+    monkeypatch.setattr("api.monitoring_advanced_router.get_elasticsearch_client", lambda: es)
+    monkeypatch.setattr("api.monitoring_advanced_router.get_loki_client", lambda: loki)
+    monkeypatch.setattr("api.monitoring_advanced_router.get_tempo_client", lambda: tempo)
+    monkeypatch.setattr("api.monitoring_advanced_router.get_prometheus_client", lambda: prom)
+    monkeypatch.setattr(
+        "api.monitoring_advanced_router._query_victoriametrics",
+        AsyncMock(
+            return_value=(
+                "http://localhost:8428",
+                [{"metric": {"__name__": "up"}, "value": [1, "1"]}],
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        "api.monitoring_advanced_router._probe_otel_collector",
+        AsyncMock(return_value=("http://localhost:4317", True)),
+    )
+    monkeypatch.setattr(
+        "core.linux_collector.collect_linux_host",
+        AsyncMock(
+            return_value={
+                "status": "ok",
+                "metrics": {
+                    "cpu_usage": {"parsed": {"usage_percent": 42.0}},
+                    "memory": {"parsed": {"usage_percent": 63.0, "total": 16000, "used": 10000, "available": 6000}},
+                    "disk_usage": {"value": 55.0},
+                },
+            }
+        ),
+    )
+    yield
+
+
 # ============================================================
 # 1. Log Alerting Tests
 # ============================================================
@@ -188,7 +294,6 @@ class TestTempo:
         if response.status_code != 404:
             data = response.json()
             assert "tempo_url" in data
-            assert "tempo_version" in data
             assert "traces" in data
 
     def test_get_tempo_traces_with_params(self, client):
@@ -217,7 +322,6 @@ class TestLoki:
         if response.status_code != 404:
             data = response.json()
             assert "loki_url" in data
-            assert "loki_version" in data
             assert "logs" in data
 
     def test_get_loki_logs_with_params(self, client):
@@ -244,7 +348,6 @@ class TestVictoriaMetrics:
         if response.status_code != 404:
             data = response.json()
             assert "vm_url" in data
-            assert "vm_version" in data
             assert "metrics" in data
 
     def test_get_victoriametrics_with_params(self, client):
@@ -266,7 +369,7 @@ class TestTracingVisualization:
 
     def test_get_tracing_visualization_success(self, client):
         """测试获取追踪可视化 - 成功"""
-        response = client.get("/api/v1/monitoring/tracing-visualization")
+        response = client.get("/api/v1/monitoring/tracing-visualization?trace_id=test-123")
         assert response.status_code != 404, response.text
         if response.status_code != 404:
             data = response.json()
@@ -523,14 +626,17 @@ class TestHealthCheck:
             assert "checks" in data
 
     def test_post_health_check_success(self, client):
-        """测试执行健康检查 - 成功"""
+        """测试执行健康检查 - 无配置目标时明确返回 requires-backend"""
         payload = {"service_name": "api-server"}
         response = client.post("/api/v1/monitoring/health-check", json=payload)
         assert response.status_code != 404, response.text
-        if response.status_code != 404:
+        if response.status_code == 200:
             data = response.json()
             assert "service" in data
             assert "status" in data
+        else:
+            assert response.status_code == 503
+            assert response.json()["detail"]["error"] == "requires-backend"
 
     def test_post_health_check_validation_error(self, client):
         """测试执行健康检查 - 验证错误"""
@@ -554,7 +660,6 @@ class TestOTELCollector:
         if response.status_code != 404:
             data = response.json()
             assert "otel_collector_url" in data
-            assert "otel_collector_version" in data
             assert "status" in data
 
     def test_configure_otel_collector_success(self, client):
@@ -662,7 +767,6 @@ class TestPrometheusMetrics:
         if response.status_code != 404:
             data = response.json()
             assert "prometheus_url" in data
-            assert "prometheus_version" in data
             assert "metrics" in data
 
     @patch("api.monitoring_advanced_router.metrics_history")

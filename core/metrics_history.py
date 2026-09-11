@@ -261,6 +261,22 @@ class MetricsHistory:
                 return point.value
         return None
 
+    def services(self, metric: str | None = None) -> list[str]:
+        """返回观测到的去重 service 列表(可按 metric 过滤,保持出现顺序)。
+
+        ``metric`` 为 ``None`` 时返回所有 metric 的 service 并集。
+        """
+        with self._lock:
+            samples = list(self._samples)
+
+        seen: list[str] = []
+        for point in samples:
+            if metric is not None and point.metric != metric:
+                continue
+            if point.service not in seen:
+                seen.append(point.service)
+        return seen
+
     # ----------------------------------------------------------
     # 辅助方法
     # ----------------------------------------------------------

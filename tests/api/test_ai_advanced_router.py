@@ -71,10 +71,12 @@ from api.ai_advanced_router import (
     AiAdvancedSearchRequest,
     TopologyAnalysisRequest,
     AiAdvancedWorkflowCreate,
+    WorkflowResponse,
     router,
     get_current_user,
     AiAdvancedDocumentResponse,
     AiAdvancedDocumentListResponse,
+    _workflows,
 )
 from core.auth_db import SessionLocal
 from core.authentication import UserInDB
@@ -384,15 +386,16 @@ class TestRunbookGenerator:
                 assert "steps" in data
 
     def test_generate_runbook_fallback(self, client, sample_runbook_request):
-        """Test generating runbook with fallback (AI engine not available)"""
-        response = client.post(
-            "/api/ai/runbook-generator/generate", json=sample_runbook_request.dict()
-        )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "id" in data
-            assert "steps" in data
+        """AI engine unavailable must surface an explicit requires-backend 503 (no fabrication)."""
+        with patch("core.ai_engine.analyze", new_callable=AsyncMock) as mock_analyze:
+            mock_analyze.side_effect = RuntimeError("ai engine offline")
+            response = client.post(
+                "/api/ai/runbook-generator/generate", json=sample_runbook_request.dict()
+            )
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "ai-engine"
 
     def test_generate_runbook_missing_incident_type(self, client):
         """Test generating runbook without incident type"""
@@ -435,7 +438,11 @@ class TestIntelligentAnalysis:
             response = client.post(
                 "/api/ai/intelligent-analysis/analyze", json=sample_analyze_request.dict()
             )
-            assert response.status_code in (200, 404)  # Changed to 200 because we now use fallback
+            # No fabrication: when the AI engine fails the endpoint must signal
+            # requires-backend instead of returning an invented report.
+            assert response.status_code == 503, response.text
+            assert response.json()["detail"]["error"] == "requires-backend"
+            assert response.json()["detail"]["backend"] == "ai-engine"
 
     def test_run_intelligent_analysis_missing_name(self, client):
         """Test running analysis without name"""
@@ -552,23 +559,20 @@ class TestLangGraphWorkflow:
 
     @pytest.mark.asyncio
     async def test_create_workflow_with_engine(self, client, sample_workflow):
-        """Test creating workflow with actual engine"""
-        # Since the actual create_workflow function doesn't exist, this test will use fallback
+        """Creating a workflow needs the LangGraph engine."""
         response = client.post("/api/ai/langgraph-workflow/workflows", json=sample_workflow.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "id" in data
-            assert data["name"] == "Test Workflow"
+        # The engine's create_workflow() is unavailable, so the router must
+        # report requires-backend instead of inventing a workflow record.
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "langgraph-workflow-engine"
 
     def test_create_workflow_fallback(self, client, sample_workflow):
-        """Test creating workflow with fallback"""
+        """Without the engine the router must never fabricate a workflow."""
         response = client.post("/api/ai/langgraph-workflow/workflows", json=sample_workflow.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "id" in data
-            assert data["status"] == "draft"
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
     def test_get_workflows_empty(self, client):
         """Test getting workflows when empty"""
@@ -579,23 +583,29 @@ class TestLangGraphWorkflow:
             assert "workflows" in data
             assert isinstance(data["workflows"], list)
 
-    def test_update_workflow(self, client, sample_workflow):
-        """Test updating a workflow"""
-        # First create a workflow
-        create_response = client.post(
-            "/api/ai/langgraph-workflow/workflows", json=sample_workflow.dict()
+    def test_update_workflow(self, client):
+        """Test updating a workflow that exists in the store"""
+        workflow_id = f"wf-{uuid.uuid4()}"
+        _workflows[workflow_id] = WorkflowResponse(
+            id=workflow_id,
+            name="Original Workflow",
+            description="orig",
+            status="draft",
+            node_count=0,
+            last_executed=None,
+            created_at=datetime.utcnow().isoformat() + "Z",
         )
-        workflow_id = create_response.json()["id"]
-
-        # Update the workflow
-        update_data = {"name": "Updated Workflow", "status": "active"}
-        response = client.patch(
-            f"/api/ai/langgraph-workflow/workflows/{workflow_id}", json=update_data
-        )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
+        try:
+            update_data = {"name": "Updated Workflow", "status": "active"}
+            response = client.patch(
+                f"/api/ai/langgraph-workflow/workflows/{workflow_id}", json=update_data
+            )
+            assert response.status_code == 200, response.text
             data = response.json()
             assert data["name"] == "Updated Workflow"
+            assert data["status"] == "active"
+        finally:
+            _workflows.pop(workflow_id, None)
 
     def test_update_workflow_not_found(self, client):
         """Test updating non-existent workflow"""
@@ -616,27 +626,24 @@ class TestLangGraphVisualizer:
 
     @pytest.mark.asyncio
     async def test_generate_visualization_with_engine(self, client):
-        """Test generating visualization with actual engine"""
-        # Since the actual generate_graph_viz function doesn't exist, this test will use fallback
+        """Generating a visualization needs the LangGraph visualizer."""
         response = client.post(
             "/api/ai/langgraph-visualizer/generate", json={"workflow_id": "workflow-123"}
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "visualization_id" in data
-            assert "data" in data
+        # generate_graph_viz() is unavailable; must signal requires-backend
+        # rather than return a fabricated visualization.
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "langgraph-visualizer"
 
     def test_generate_visualization_fallback(self, client):
-        """Test generating visualization with fallback"""
+        """Without the visualizer the router must never fabricate a graph."""
         response = client.post(
             "/api/ai/langgraph-visualizer/generate", json={"workflow_id": "workflow-123"}
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "visualization_id" in data
-            assert "data" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
     def test_generate_visualization_missing_workflow_id(self, client):
         """Test generating visualization without workflow_id"""
@@ -727,27 +734,24 @@ class TestModelOptimization:
     async def test_optimize_model_with_engine(
         self, client, sample_optimization_request
     ):
-        """Test optimizing model with actual engine"""
-        # Since the actual optimize_model_cost function doesn't exist, this test will use fallback
+        """Optimizing model cost needs the cost optimizer backend."""
         response = client.post(
             "/api/ai/model-optimization/optimize", json=sample_optimization_request.dict()
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "optimization_id" in data
-            assert data["status"] == "completed"
+        # optimize_model_cost() is unavailable; must signal requires-backend
+        # instead of returning invented optimisation results.
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "cost-optimizer"
 
     def test_optimize_model_fallback(self, client, sample_optimization_request):
-        """Test optimizing model with fallback"""
+        """Without the cost optimizer the router must not fabricate results."""
         response = client.post(
             "/api/ai/model-optimization/optimize", json=sample_optimization_request.dict()
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "optimization_id" in data
-            assert data["status"] == "completed"
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================
@@ -832,14 +836,12 @@ class TestKnowledgeRetrieval:
                 assert "results" in data
 
     def test_retrieve_knowledge_fallback(self, client, sample_retrieval_request):
-        """Test retrieving knowledge with fallback"""
+        """Without the RAG engine retrieval must signal requires-backend."""
         response = client.post(
             "/api/ai/knowledge-retrieval/retrieve", json=sample_retrieval_request.dict()
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "results" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================
@@ -892,12 +894,10 @@ class TestSemanticSearch:
                 assert "results" in data
 
     def test_semantic_search_fallback(self, client, sample_search_request):
-        """Test semantic search with fallback"""
+        """Without the semantic search engine the router must signal requires-backend."""
         response = client.post("/api/ai/semantic-search/search", json=sample_search_request.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "results" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================
@@ -1044,28 +1044,24 @@ class TestTopologyAnalysis:
     async def test_analyze_topology_with_engine(
         self, client, sample_topology_request
     ):
-        """Test analyzing topology with actual engine"""
-        # Since the actual analyze_topology function doesn't exist, this test will use fallback
+        """Topology analysis needs the topology engine."""
         response = client.post(
             "/api/ai/topology-analysis/analyze", json=sample_topology_request.dict()
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "id" in data
-            assert "critical_path" in data
-            assert "risk_score" in data
+        # analyze_topology() is unavailable; must signal requires-backend
+        # instead of returning a fabricated critical path / risk score.
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "topology-engine"
 
     def test_analyze_topology_fallback(self, client, sample_topology_request):
-        """Test analyzing topology with fallback"""
+        """Without the topology engine the router must not fabricate a result."""
         response = client.post(
             "/api/ai/topology-analysis/analyze", json=sample_topology_request.dict()
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "id" in data
-            assert "critical_path" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================
@@ -1150,21 +1146,20 @@ class TestFusion:
 
     @pytest.mark.asyncio
     async def test_fuse_results_with_engine(self, client, sample_fusion_request):
-        """Test fusing results with actual engine"""
-        # Since the actual fuse_results function doesn't exist, this test will use fallback
+        """Result fusion needs the fusion engine."""
         response = client.post("/api/ai/fusion/fuse", json=sample_fusion_request.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "results" in data
+        # fuse_results() is unavailable; must signal requires-backend instead of
+        # returning an invented fused result with a made-up score.
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "fusion-engine"
 
     def test_fuse_results_fallback(self, client, sample_fusion_request):
-        """Test fusing results with fallback"""
+        """Without the fusion engine the router must not fabricate results."""
         response = client.post("/api/ai/fusion/fuse", json=sample_fusion_request.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "results" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================
@@ -1177,21 +1172,20 @@ class TestReranker:
 
     @pytest.mark.asyncio
     async def test_rerank_results_with_engine(self, client, sample_rerank_request):
-        """Test reranking results with actual engine"""
-        # Since the actual rerank function doesn't exist, this test will use fallback
+        """Reranking needs the reranker model."""
         response = client.post("/api/ai/reranker/rerank", json=sample_rerank_request.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "results" in data
+        # rerank() is unavailable; must signal requires-backend instead of
+        # returning invented rerank scores.
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "reranker-model"
 
     def test_rerank_results_fallback(self, client, sample_rerank_request):
-        """Test reranking results with fallback"""
+        """Without the reranker the router must not fabricate scores."""
         response = client.post("/api/ai/reranker/rerank", json=sample_rerank_request.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "results" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================
@@ -1204,25 +1198,23 @@ class TestVectorizer:
 
     @pytest.mark.asyncio
     async def test_embed_text_with_engine(self, client, sample_embed_request):
-        """Test embedding text with actual engine"""
+        """Test embedding text with the vectorizer model available"""
         mock_model = Mock()
-        mock_model.encode.return_value = [0.1, 0.2, 0.3]
+        mock_embedding = Mock()
+        mock_embedding.tolist.return_value = [0.1, 0.2, 0.3]
+        mock_model.encode.return_value = mock_embedding
         with patch("core.rag_engine._get_model", return_value=mock_model):
             response = client.post("/api/ai/vectorizer/embed", json=sample_embed_request.dict())
-            assert response.status_code != 404, response.text
-            if response.status_code != 404:
-                data = response.json()
-                assert "embedding" in data
-                assert "dimensions" in data
+            assert response.status_code == 200, response.text
+            data = response.json()
+            assert data["embedding"] == [0.1, 0.2, 0.3]
+            assert data["dimensions"] == 3
 
     def test_embed_text_fallback(self, client, sample_embed_request):
-        """Test embedding text with fallback"""
+        """Without the vectorizer the router must not fabricate an embedding."""
         response = client.post("/api/ai/vectorizer/embed", json=sample_embed_request.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "embedding" in data
-            assert "dimensions" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================
@@ -1237,21 +1229,20 @@ class TestRetriever:
     async def test_retrieve_documents_with_engine(
         self, client, sample_retrieve_request
     ):
-        """Test retrieving documents with actual engine"""
-        # Since the actual retrieve function doesn't exist, this test will use fallback
+        """Document retrieval needs the retriever backend."""
         response = client.post("/api/ai/retriever/retrieve", json=sample_retrieve_request.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "results" in data
+        # retrieve() is unavailable; must signal requires-backend instead of
+        # returning an invented document with a made-up score.
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "retriever-backend"
 
     def test_retrieve_documents_fallback(self, client, sample_retrieve_request):
-        """Test retrieving documents with fallback"""
+        """Without the retriever the router must not fabricate documents."""
         response = client.post("/api/ai/retriever/retrieve", json=sample_retrieve_request.dict())
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "results" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================
@@ -1499,29 +1490,24 @@ class TestCapabilityEvaluator:
     async def test_evaluate_capability_with_engine(
         self, client, sample_evaluate_request
     ):
-        """Test evaluating capability with actual engine"""
-        # Since the actual evaluate_model function doesn't exist, this test will use fallback
+        """Capability evaluation needs the evaluator backend."""
         response = client.post(
             "/api/ai/capability-evaluator/evaluate", json=sample_evaluate_request.dict()
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "model_id" in data
-            assert "capabilities" in data
-            assert "overall_score" in data
+        # evaluate_model() is unavailable; must signal requires-backend instead of
+        # returning invented capability scores.
+        assert response.status_code == 503, response.text
+        detail = response.json()["detail"]
+        assert detail["error"] == "requires-backend"
+        assert detail["backend"] == "capability-evaluator"
 
     def test_evaluate_capability_fallback(self, client, sample_evaluate_request):
-        """Test evaluating capability with fallback"""
+        """Without the evaluator the router must not fabricate scores."""
         response = client.post(
             "/api/ai/capability-evaluator/evaluate", json=sample_evaluate_request.dict()
         )
-        assert response.status_code != 404, response.text
-        if response.status_code != 404:
-            data = response.json()
-            assert "model_id" in data
-            assert "capabilities" in data
-            assert "overall_score" in data
+        assert response.status_code == 503, response.text
+        assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # ============================================================================

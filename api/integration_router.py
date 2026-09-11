@@ -14,7 +14,6 @@ API endpoints for comprehensive integration ecosystem including:
 - Webhook management and handling
 """
 
-import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional
@@ -1452,8 +1451,8 @@ async def batch_integrations(
                     "error": str(e),
                 })
         
-        # Small delay between batches to avoid rate limiting
-        await asyncio.sleep(0.1)
+        # NOTE: no artificial sleep here — it did not gate any real batch and
+        # only added latency (see project norm: no sleep to fake progress).
     
     logger.info(f"Batch {request.operation} operation completed by user {current_user.username}")
     
@@ -1975,8 +1974,6 @@ async def batch_webhooks(
                     "error": str(e),
                 })
         
-        await asyncio.sleep(0.1)
-    
     logger.info(f"Batch webhook {request.operation} completed by user {current_user.username}")
     
     return {
@@ -2506,9 +2503,6 @@ async def batch_send_notifications(
                     "error": str(e),
                 })
         
-        # Small delay between batches
-        await asyncio.sleep(0.1)
-    
     logger.info(f"Batch notification send completed by user {current_user.username}")
     
     return {
@@ -3333,9 +3327,6 @@ async def batch_query_integrations(
                     "error": str(e),
                 })
         
-        # Small delay between batches
-        await asyncio.sleep(0.1)
-    
     logger.info(f"Batch query completed by user {current_user.username}")
     
     return {

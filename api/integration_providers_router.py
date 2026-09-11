@@ -22,10 +22,13 @@ API endpoints for managing integration provider configurations including:
 - Prometheus
 """
 
+import asyncio
 import logging
+import socket
+import time
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel, Field, validator
@@ -316,34 +319,136 @@ def mask_sensitive_value(value: str) -> str:
     return value[:2] + "*" * (len(value) - 4) + value[-2:]
 
 
-def test_connection_mock(provider: str, config: Dict[str, Any]) -> Dict[str, Any]:
+#: Well-known endpoints used when a provider config carries no explicit URL.
+_PROVIDER_DEFAULT_ENDPOINTS: Dict[str, Optional[str]] = {
+    "microsoft teams": "https://graph.microsoft.com/v1.0",
+    "slack": "https://slack.com/api/api.test",
+    "github": "https://api.github.com",
+    "jira": "https://api.atlassian.com",
+    "pagerduty": "https://api.pagerduty.com",
+    "opsgenie": "https://api.opsgenie.com",
+    "aws": "https://sts.amazonaws.com",
+    "azure": "https://management.azure.com",
+    "gcp": "https://cloudresourcemanager.googleapis.com",
+    "google cloud": "https://cloudresourcemanager.googleapis.com",
+    "alibaba": "https://ecs.aliyuncs.com",
+    "aliyun": "https://ecs.aliyuncs.com",
+    "kafka": "localhost:9092",
+    "elasticsearch": "http://localhost:9200",
+    "elk": "http://localhost:9200",
+    "prometheus": "http://localhost:9090/-/ready",
+    "grafana": "http://localhost:3000/api/health",
+    "datadog": "https://api.datadoghq.com/api/v1/validate",
+    "servicenow": None,
+}
+
+#: URL-ish config keys, checked in order when deriving a provider endpoint.
+_ENDPOINT_KEYS = (
+    "url",
+    "instance_url",
+    "elasticsearch_url",
+    "kibana_url",
+    "endpoint",
+    "base_url",
+    "webhook_url",
+    "api_url",
+)
+
+
+def _extract_endpoint(provider: str, config: Dict[str, Any]) -> Optional[str]:
+    """Derive a concrete endpoint from a provider config (or a known default)."""
+    if not isinstance(config, dict):
+        return None
+
+    for key in _ENDPOINT_KEYS:
+        value = config.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+
+    bootstrap = config.get("bootstrap_servers")
+    if isinstance(bootstrap, str) and bootstrap.strip():
+        return bootstrap.split(",")[0].strip()
+    if isinstance(bootstrap, list) and bootstrap:
+        return str(bootstrap[0]).strip()
+
+    host = config.get("host")
+    if isinstance(host, str) and host.strip():
+        port = config.get("port")
+        return f"{host.strip()}:{port}" if port else host.strip()
+
+    site = config.get("site")
+    if isinstance(site, str) and site.strip() and "datadog" in provider.lower():
+        return f"https://api.{site.strip()}"
+
+    return _PROVIDER_DEFAULT_ENDPOINTS.get(provider.strip().lower())
+
+
+def _probe_endpoint(endpoint: str, timeout: float = 5.0) -> Tuple[bool, float, str]:
+    """Probe an endpoint and return ``(reachable, latency_ms, detail)``.
+
+    HTTP(S) endpoints are checked with a real HTTP request; anything else is
+    treated as ``host:port`` and checked with a real TCP connect.  This performs
+    genuine network I/O and never fabricates a result.
     """
-    Mock connection test function.
-    In production, this would make actual API calls to the provider.
-    """
-    import random
-    import time
+    start = time.perf_counter()
 
-    # Simulate network delay
-    time.sleep(0.5)
+    if "://" not in endpoint:
+        host, _, port_str = endpoint.partition(":")
+        if not port_str:
+            return False, 0.0, f"endpoint '{endpoint}' has no port"
+        try:
+            port = int(port_str)
+        except ValueError:
+            return False, 0.0, f"invalid port in '{endpoint}'"
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                pass
+        except OSError as e:
+            return False, (time.perf_counter() - start) * 1000.0, str(e)
+        return True, (time.perf_counter() - start) * 1000.0, f"TCP {host}:{port} reachable"
 
-    # Simulate random success/failure (90% success rate)
-    success = random.random() < 0.9
+    try:
+        import httpx
 
-    if success:
-        return {
-            "status": "success",
-            "message": f"Successfully connected to {provider}",
-            "latency_ms": random.randint(50, 200),
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    else:
+        with httpx.Client(timeout=timeout, follow_redirects=True) as client:
+            response = client.get(endpoint)
+        latency_ms = (time.perf_counter() - start) * 1000.0
+        if response.status_code < 500:
+            return True, latency_ms, f"HTTP {response.status_code}"
+        return False, latency_ms, f"HTTP {response.status_code}"
+    except Exception as e:  # noqa: BLE001 - surfaced to the caller as a failure
+        return False, (time.perf_counter() - start) * 1000.0, str(e)
+
+
+async def test_connection(provider: str, config: Dict[str, Any]) -> Dict[str, Any]:
+    """Perform a real connectivity test against a provider endpoint."""
+    endpoint = _extract_endpoint(provider, config)
+    if not endpoint:
         return {
             "status": "error",
-            "message": f"Failed to connect to {provider}: Connection timeout",
-            "error_code": "CONNECTION_TIMEOUT",
+            "message": f"No endpoint configured for {provider}",
+            "error_code": "ENDPOINT_NOT_CONFIGURED",
             "timestamp": datetime.utcnow().isoformat(),
         }
+
+    # Network I/O is blocking; run it off the event loop.
+    ok, latency_ms, detail = await asyncio.to_thread(_probe_endpoint, endpoint)
+
+    if ok:
+        return {
+            "status": "success",
+            "message": f"Successfully connected to {provider} ({detail})",
+            "latency_ms": round(latency_ms, 1),
+            "endpoint": endpoint,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    return {
+        "status": "error",
+        "message": f"Failed to connect to {provider}: {detail}",
+        "error_code": "CONNECTION_FAILED",
+        "endpoint": endpoint,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
 
 
 # ============================================================================
@@ -413,7 +518,7 @@ async def test_teams_connection(
         raise HTTPException(status_code=404, detail=f"Teams configuration {config_id} not found")
 
     config = TEAMS_CONFIGS[config_id]
-    result = test_connection_mock("Microsoft Teams", config)
+    result = await test_connection("Microsoft Teams", config)
 
     # Update status based on test result
     config["status"] = "connected" if result["status"] == "success" else "error"
@@ -490,7 +595,7 @@ async def test_kafka_connection(
         raise HTTPException(status_code=404, detail=f"Kafka configuration {config_id} not found")
 
     config = KAFKA_CONFIGS[config_id]
-    result = test_connection_mock("Kafka", config)
+    result = await test_connection("Kafka", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -565,7 +670,7 @@ async def test_cloud_connection(
         raise HTTPException(status_code=404, detail=f"Cloud configuration {config_id} not found")
 
     config = CLOUD_CONFIGS[config_id]
-    result = test_connection_mock(f"{config['provider'].upper()}", config)
+    result = await test_connection(f"{config['provider'].upper()}", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -638,7 +743,7 @@ async def test_gitops_connection(
         raise HTTPException(status_code=404, detail=f"GitOps configuration {config_id} not found")
 
     config = GITOPS_CONFIGS[config_id]
-    result = test_connection_mock(config["gitops_type"], config)
+    result = await test_connection(config["gitops_type"], config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -711,7 +816,7 @@ async def test_cicd_connection(
         raise HTTPException(status_code=404, detail=f"CI/CD configuration {config_id} not found")
 
     config = CICD_CONFIGS[config_id]
-    result = test_connection_mock(config["cicd_type"], config)
+    result = await test_connection(config["cicd_type"], config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -786,7 +891,7 @@ async def test_itsm_connection(
         raise HTTPException(status_code=404, detail=f"ITSM configuration {config_id} not found")
 
     config = ITSM_CONFIGS[config_id]
-    result = test_connection_mock(config["itsm_type"], config)
+    result = await test_connection(config["itsm_type"], config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -857,7 +962,7 @@ async def test_oncall_connection(
         raise HTTPException(status_code=404, detail=f"Oncall configuration {config_id} not found")
 
     config = ONCALL_CONFIGS[config_id]
-    result = test_connection_mock(config["provider"], config)
+    result = await test_connection(config["provider"], config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -931,7 +1036,7 @@ async def test_slack_connection(
         raise HTTPException(status_code=404, detail=f"Slack configuration {config_id} not found")
 
     config = SLACK_CONFIGS[config_id]
-    result = test_connection_mock("Slack", config)
+    result = await test_connection("Slack", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -1004,7 +1109,7 @@ async def test_jira_connection(
         raise HTTPException(status_code=404, detail=f"Jira configuration {config_id} not found")
 
     config = JIRA_CONFIGS[config_id]
-    result = test_connection_mock("Jira", config)
+    result = await test_connection("Jira", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -1079,7 +1184,7 @@ async def test_servicenow_connection(
         )
 
     config = SERVICENOW_CONFIGS[config_id]
-    result = test_connection_mock("ServiceNow", config)
+    result = await test_connection("ServiceNow", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -1159,7 +1264,7 @@ async def test_message_queue_connection(
         )
 
     config = MESSAGE_QUEUE_CONFIGS[config_id]
-    result = test_connection_mock(config["mq_type"], config)
+    result = await test_connection(config["mq_type"], config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -1232,7 +1337,7 @@ async def test_github_connection(
         raise HTTPException(status_code=404, detail=f"GitHub configuration {config_id} not found")
 
     config = GITHUB_CONFIGS[config_id]
-    result = test_connection_mock("GitHub", config)
+    result = await test_connection("GitHub", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -1312,7 +1417,7 @@ async def test_elk_connection(
         )
 
     config = ELK_CONFIGS[config_id]
-    result = test_connection_mock("Elasticsearch", config)
+    result = await test_connection("Elasticsearch", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -1384,7 +1489,7 @@ async def test_datadog_connection(
         raise HTTPException(status_code=404, detail=f"Datadog configuration {config_id} not found")
 
     config = DATADOG_CONFIGS[config_id]
-    result = test_connection_mock("Datadog", config)
+    result = await test_connection("Datadog", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -1457,7 +1562,7 @@ async def test_grafana_connection(
         raise HTTPException(status_code=404, detail=f"Grafana configuration {config_id} not found")
 
     config = GRAFANA_CONFIGS[config_id]
-    result = test_connection_mock("Grafana", config)
+    result = await test_connection("Grafana", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()
@@ -1533,7 +1638,7 @@ async def test_prometheus_connection(
         )
 
     config = PROMETHEUS_CONFIGS[config_id]
-    result = test_connection_mock("Prometheus", config)
+    result = await test_connection("Prometheus", config)
 
     config["status"] = "connected" if result["status"] == "success" else "error"
     config["last_sync"] = datetime.utcnow().isoformat()

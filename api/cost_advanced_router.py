@@ -42,7 +42,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/cost", tags=["成本管理高级功能"])
 
 # ============================================================================
-# In-Memory Data Storage (Simulating database)
+# Durable data storage (PersistentStore; replaces the old in-memory "simulated
+# database" — fabricated sample rows were removed, see below)
 # ============================================================================
 
 # Durable storage (``persistent_records``) — survives process restarts.

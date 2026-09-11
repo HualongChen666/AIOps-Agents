@@ -23,6 +23,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from core.backend_requirements import requires_backend
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/monitoring", tags=["监控配置"])
 
@@ -253,36 +255,60 @@ async def get_monitoring_status() -> Dict[str, Any]:
 async def test_monitoring_connection(backend: str = Query(..., description="存储后端")) -> Dict[str, Any]:
     """测试监控存储后端连接"""
     try:
-        # 模拟连接测试
+        import time as _time
+
+        start = _time.perf_counter()
+
         if backend == "victoriametrics":
-            result = {
-                "backend": "victoriametrics",
-                "status": "connected",
-                "latency_ms": 15,
-                "version": "1.96.0",
-            }
+            import httpx
+
+            from config import VICTORIAMETRICS_URL
+
+            base = str(VICTORIAMETRICS_URL).rstrip("/")
+            try:
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    response = await client.get(f"{base}/-/healthy")
+                connected = response.status_code < 500
+            except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+                requires_backend(
+                    "victoriametrics",
+                    capability="monitoring connection test",
+                    reason=f"VictoriaMetrics unreachable: {e}",
+                )
         elif backend == "loki":
-            result = {
-                "backend": "loki",
-                "status": "connected",
-                "latency_ms": 20,
-                "version": "2.9.0",
-            }
+            from core.loki_client import get_loki_client
+
+            connected = await get_loki_client().health_check()
+            if not connected:
+                requires_backend(
+                    "loki",
+                    capability="monitoring connection test",
+                    reason="Loki is not reachable or not configured",
+                )
         elif backend == "tempo":
-            result = {
-                "backend": "tempo",
-                "status": "connected",
-                "latency_ms": 25,
-                "version": "2.4.0",
-            }
+            from core.tempo_client import get_tempo_client
+
+            connected = await get_tempo_client().health_check()
+            if not connected:
+                requires_backend(
+                    "tempo",
+                    capability="monitoring connection test",
+                    reason="Tempo is not reachable or not configured",
+                )
         else:
-            result = {
-                "backend": backend,
-                "status": "unknown",
-                "latency_ms": 0,
-                "version": "unknown",
-            }
-        return result
+            requires_backend(
+                backend,
+                capability="monitoring connection test",
+                reason=f"Unsupported monitoring backend '{backend}'",
+            )
+
+        return {
+            "backend": backend,
+            "status": "connected" if connected else "degraded",
+            "latency_ms": round((_time.perf_counter() - start) * 1000, 1),
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"测试监控连接失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"测试监控连接失败: {str(e)[:200]}")

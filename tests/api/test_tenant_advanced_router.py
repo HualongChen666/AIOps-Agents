@@ -158,6 +158,38 @@ def cleanup_database(db_session):
         pass
 
 
+@pytest.fixture(autouse=True)
+def _stub_audit_logs(monkeypatch):
+    """Stub the real audit-log fetch with deterministic in-memory records.
+
+    The production endpoint reads from the audit service (real DB); tests only
+    replace that I/O boundary so the mapping/filtering logic is still exercised.
+    """
+
+    async def _fake_fetch_audit_logs(limit, action, start_date, end_date):
+        records = [
+            {
+                "id": f"log-{i}",
+                "action": "create" if i % 2 == 0 else "update",
+                "resource_type": "tenant",
+                "resource_id": f"resource-{i}",
+                "user_id": "1",
+                "username": "admin",
+                "created_at": "2026-01-01T00:00:00",
+                "ip_address": "127.0.0.1",
+                "details": {"changes": f"change-{i}"},
+                "status": "success",
+            }
+            for i in range(5)
+        ]
+        if action:
+            records = [r for r in records if r["action"] == action]
+        return records[:limit]
+
+    monkeypatch.setattr("api.tenant_advanced_router._fetch_audit_logs", _fake_fetch_audit_logs)
+    yield
+
+
 @pytest.fixture
 def sample_tenant_config(db_session):
     """Create a sample tenant config in database"""
@@ -520,12 +552,12 @@ class TestTenantMemberEndpoints:
     """Test tenant member endpoints"""
 
     @pytest.mark.asyncio
-    async def test_get_tenant_members_success(self, mock_admin_user, mock_tenant):
-        """Test successful tenant members retrieval"""
+    async def test_get_tenant_members_success(self, mock_admin_user, mock_tenant, db_session):
+        """Test successful tenant members retrieval against a real DB session"""
         with patch("api.tenant_advanced_router.get_tenant", return_value=mock_tenant):
-            # Mock database session
-            mock_db = Mock()
-            result = await get_tenant_members("default", current_user=mock_admin_user, db=mock_db)
+            result = await get_tenant_members(
+                "default", current_user=mock_admin_user, db=db_session
+            )
 
             assert isinstance(result, list)
             assert len(result) >= 1
@@ -886,9 +918,9 @@ class TestTenantExportEndpoints:
 
             assert isinstance(result, TenantExportResponse)
             assert result.tenant_id == "default"
-            assert result.status == "processing"
+            assert result.status == "completed"
             assert result.export_id is not None
-            assert result.download_url is None
+            assert result.download_url is not None
 
     @pytest.mark.asyncio
     async def test_export_tenant_data_not_found(self, mock_admin_user):
@@ -909,15 +941,35 @@ class TestTenantExportEndpoints:
             assert exc_info.value.detail == "Tenant not found"
 
     @pytest.mark.asyncio
-    async def test_get_export_status_success(self, mock_admin_user):
-        """Test successful export status retrieval"""
-        result = await get_export_status("export-123", current_user=mock_admin_user)
+    async def test_get_export_status_success(self, mock_admin_user, mock_tenant):
+        """Test export status retrieval for a task created by this router"""
+        with patch("api.tenant_advanced_router.get_tenant", return_value=mock_tenant):
+            from fastapi import Request
+
+            request = Mock(spec=Request)
+            request.headers = {}
+            request.client = Mock(host="127.0.0.1")
+
+            created = await export_tenant_data(
+                TenantExportRequest(tenant_id="default"),
+                request,
+                current_user=mock_admin_user,
+            )
+
+        result = await get_export_status(created.export_id, current_user=mock_admin_user)
 
         assert isinstance(result, TenantExportResponse)
-        assert result.export_id == "export-123"
+        assert result.export_id == created.export_id
         assert result.status == "completed"
         assert result.download_url is not None
         assert result.expires_at is not None
+
+    @pytest.mark.asyncio
+    async def test_get_export_status_not_found(self, mock_admin_user):
+        """Unknown export id returns 404 instead of a fabricated task"""
+        with pytest.raises(HTTPException) as exc_info:
+            await get_export_status("does-not-exist", current_user=mock_admin_user)
+        assert exc_info.value.status_code == status.HTTP_404_NOT_FOUND
 
     @pytest.mark.asyncio
     async def test_export_request_validation_invalid_format(self):
@@ -944,7 +996,7 @@ class TestTenantExportEndpoints:
             result = await export_tenant_data(export_request, request, current_user=mock_admin_user)
 
             assert isinstance(result, TenantExportResponse)
-            assert result.status == "processing"
+            assert result.status == "completed"
 
 
 # Wave2 #24: production routers now require authentication (no FAKE_ADMIN

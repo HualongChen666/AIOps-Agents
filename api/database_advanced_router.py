@@ -4,12 +4,14 @@ Database Advanced API Router
 Provides comprehensive API endpoints for database optimization, performance, queries, indexes, backups, and migrations
 """
 
+import asyncio
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 
+from core.backend_requirements import requires_backend
 from core.persistent_store import PersistentStore
 from loguru import logger
 from pydantic import BaseModel
@@ -105,7 +107,7 @@ class DatabaseBackup(BaseModel):
     backup_id: str
     database_name: str
     backup_type: str
-    size_bytes: int
+    size_bytes: Optional[int] = None
     status: str
     created_at: str
     completed_at: Optional[str] = None
@@ -588,31 +590,37 @@ async def create_backup(request: DatabaseBackupCreate):
         Created backup details
     """
     try:
-        from core.backup_manager import get_backup_manager
+        from core.backup_manager import backup_database
 
-        backup_manager = get_backup_manager()  # noqa: F841 - Reserved for future use
         backup_id = str(uuid4())
 
-        # Simulate backup creation
+        # Run the real backup backend (wal-g backup-push). If it is not
+        # available we refuse instead of reporting a fabricated success.
+        success = await asyncio.to_thread(backup_database)
+        if not success:
+            requires_backend(
+                "database-backup",
+                capability="database backup",
+                reason="Backup backend (wal-g/S3) is unavailable; no backup was created",
+            )
+
+        now = datetime.utcnow().isoformat()
         backup = {
             "backup_id": backup_id,
             "database_name": request.database_name,
             "backup_type": request.backup_type,
-            "size_bytes": 1073741824 if request.backup_type == "full" else 536870912,
-            "status": "in_progress",
-            "created_at": datetime.utcnow().isoformat(),
-            "completed_at": None,
+            "size_bytes": None,
+            "status": "completed",
+            "created_at": now,
+            "completed_at": now,
         }
 
         _backups[backup_id] = backup
-        logger.info(f"Started backup {backup_id} for database {request.database_name}")
-
-        # Simulate completion
-        backup["status"] = "completed"
-        backup["completed_at"] = datetime.utcnow().isoformat()
-        _backups[backup_id] = backup
+        logger.info(f"Completed backup {backup_id} for database {request.database_name}")
 
         return DatabaseBackup(**backup)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating backup: {e}")
         raise HTTPException(status_code=500, detail=str(e))

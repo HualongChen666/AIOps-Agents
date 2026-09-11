@@ -146,6 +146,33 @@ def clear_data():
     _user_groups.clear()
 
 
+def _seed_team_users(count: int = 2) -> None:
+    """Insert real user rows so the team-members endpoint has data to read."""
+    from core.models import User
+
+    db = SessionLocal()
+    try:
+        now = datetime.utcnow()
+        for i in range(count):
+            username = f"teamuser{i}"
+            if db.query(User).filter(User.username == username).first() is None:
+                db.add(
+                    User(
+                        username=username,
+                        email=f"{username}@example.com",
+                        full_name=f"Team User {i}",
+                        hashed_password="x",
+                        role="admin" if i == 0 else "operator",
+                        disabled=False,
+                        created_at=now,
+                        updated_at=now,
+                    )
+                )
+        db.commit()
+    finally:
+        db.close()
+
+
 # ============ Profile Endpoints Tests ============
 
 
@@ -442,6 +469,7 @@ class TestUserTeamsEndpoints:
 
     def test_get_team_members_success(self, client, clear_data):
         """Test successful team members retrieval"""
+        _seed_team_users(2)
         response = client.get("/api/v1/users/teams")
 
         assert response.status_code != 404, response.text
@@ -636,11 +664,12 @@ class TestHelperFunctions:
         assert len(result) == 2
 
     def test_get_team_members(self, clear_data):
-        """Test _get_team_members returns mock data"""
+        """Test _get_team_members returns real users from the database"""
+        _seed_team_users(2)
         result = _get_team_members()
 
         assert isinstance(result, list)
-        assert len(result) == 2
+        assert len(result) >= 2
 
 
 # ============ Integration Tests ============

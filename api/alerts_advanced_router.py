@@ -39,6 +39,7 @@ Endpoints:
 
 import logging
 import uuid
+from collections import Counter
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -47,10 +48,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.database import get_db
+from core.backend_requirements import requires_backend
 from core.auth import check_rate_limit, get_current_user, parse_rate_limit_per_minute, require_role
 from core.models import User
 from core.rate_limiter import get_rate_limit_for_endpoint
 from core.models import (
+    Alert,
     AlertConfiguration,
     NotificationChannel,
     AlertEscalationRule,
@@ -324,6 +327,72 @@ def get_timestamp() -> str:
     return datetime.utcnow().isoformat()
 
 
+async def _fetch_zabbix_triggers(config: Dict[str, Any]) -> list:
+    """Fetch triggers from a real Zabbix JSON-RPC API (raises on failure)."""
+    import httpx
+
+    url = str(config.get("url") or "").rstrip("/")
+    if not url:
+        raise RuntimeError("Zabbix URL is not configured")
+
+    token = config.get("token") or config.get("api_token")
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        if not token:
+            username = config.get("username")
+            password = config.get("password")
+            if not username or not password:
+                raise RuntimeError("Zabbix credentials (username/password or token) not configured")
+            login = await client.post(
+                f"{url}/api_jsonrpc.php",
+                json={
+                    "jsonrpc": "2.0",
+                    "method": "user.login",
+                    "params": {"user": username, "password": password},
+                    "id": 1,
+                },
+            )
+            login.raise_for_status()
+            login_payload = login.json()
+            if "error" in login_payload:
+                raise RuntimeError(str(login_payload["error"]))
+            token = login_payload.get("result")
+
+        response = await client.post(
+            f"{url}/api_jsonrpc.php",
+            json={
+                "jsonrpc": "2.0",
+                "method": "trigger.get",
+                "params": {"output": "extend"},
+                "id": 2,
+                "auth": token,
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+    if "error" in payload:
+        raise RuntimeError(str(payload["error"]))
+    return payload.get("result", [])
+
+
+def _alert_to_dict(alert: Alert) -> Dict[str, Any]:
+    """Serialise an ``Alert`` row for the intelligence engine."""
+    return {
+        "id": alert.id,
+        "title": alert.title,
+        "level": alert.level,
+        "category": alert.category,
+        "alert_type": alert.alert_type,
+        "status": alert.status,
+        "host": alert.host,
+        "platform": alert.platform,
+        "priority": alert.priority,
+        "metric": alert.metric,
+        "value": alert.value,
+        "detected_at": alert.detected_at.isoformat() if alert.detected_at else None,
+    }
+
+
 # ============================================================================
 # API Endpoints
 # ============================================================================
@@ -331,54 +400,59 @@ def get_timestamp() -> str:
 
 @router.get("/dashboard", summary="获取告警仪表盘数据")
 async def get_dashboard(
-    time_range: str = Query(default="24h")
+    time_range: str = Query(default="24h"),
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     获取告警仪表盘数据，包括告警统计、分布、趋势等
     """
-    # 模拟数据生成
-    now = datetime.utcnow()
-    hours = (
-        24
-        if time_range == "24h"
-        else 1 if time_range == "1h" else 168 if time_range == "7d" else 720
-    )
+    hours = {"1h": 1, "24h": 24, "7d": 168, "30d": 720}.get(time_range, 24)
+    since = datetime.utcnow() - timedelta(hours=hours)
 
+    alerts = db.query(Alert).filter(Alert.detected_at >= since).all()
+
+    by_status = Counter(a.status for a in alerts)
+    by_level = Counter(a.level for a in alerts)
+    by_source = Counter((a.category or "unknown") for a in alerts)
+    by_service = Counter((a.host or "unknown") for a in alerts)
+
+    window = min(hours, 24)
+    now_hour = datetime.utcnow().replace(minute=0, second=0, microsecond=0)
     trend_data = []
-    for i in range(min(hours, 24)):
-        hour = (now - timedelta(hours=hours - i)).hour
-        trend_data.append({"hour": hour, "count": max(0, 50 + (i % 10) * 5 - 20)})
+    for i in range(window):
+        hour_start = now_hour - timedelta(hours=window - 1 - i)
+        hour_end = hour_start + timedelta(hours=1)
+        count = sum(
+            1 for a in alerts if a.detected_at and hour_start <= a.detected_at < hour_end
+        )
+        trend_data.append({"hour": hour_start.hour, "count": count})
+
+    recent = sorted(
+        alerts, key=lambda a: a.detected_at or datetime.min, reverse=True
+    )[:5]
 
     return {
-        "total_alerts": 1247,
-        "open_alerts": 89,
-        "resolved_alerts": 1158,
-        "critical_alerts": 12,
-        "high_alerts": 34,
-        "medium_alerts": 56,
-        "low_alerts": 1145,
-        "avg_resolution_time": 1847,
-        "alerts_by_source": [
-            {"source": "Prometheus", "count": 456},
-            {"source": "Zabbix", "count": 345},
-            {"source": "CloudWatch", "count": 234},
-            {"source": "Custom", "count": 212},
-        ],
-        "alerts_by_service": [
-            {"service": "api-server", "count": 345},
-            {"service": "database", "count": 234},
-            {"service": "cache", "count": 156},
-            {"service": "worker", "count": 512},
-        ],
+        "total_alerts": len(alerts),
+        "open_alerts": len(alerts)
+        - by_status.get("resolved", 0)
+        - by_status.get("suppressed", 0),
+        "resolved_alerts": by_status.get("resolved", 0),
+        "critical_alerts": by_level.get("critical", 0),
+        "high_alerts": by_level.get("high", 0),
+        "medium_alerts": by_level.get("medium", 0),
+        "low_alerts": by_level.get("low", 0),
+        "avg_resolution_time": None,
+        "alerts_by_source": [{"source": k, "count": v} for k, v in by_source.items()],
+        "alerts_by_service": [{"service": k, "count": v} for k, v in by_service.items()],
         "recent_alerts": [
             {
-                "id": generate_id(),
-                "title": "CPU使用率过高",
-                "severity": "high",
-                "status": "open",
-                "timestamp": get_timestamp(),
+                "id": a.id,
+                "title": a.title,
+                "severity": a.level,
+                "status": a.status,
+                "timestamp": a.detected_at.isoformat() if a.detected_at else None,
             }
-            for _ in range(5)
+            for a in recent
         ],
         "trend_data": trend_data,
     }
@@ -601,71 +675,91 @@ async def delete_notification_channel(
 
 
 @router.get("/prediction", summary="获取告警预测")
-async def get_prediction(time_range: str = Query(default="24h")) -> Dict[str, Any]:
-    """获取告警预测数据"""
+async def get_prediction(
+    time_range: str = Query(default="24h"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """获取告警预测数据（基于真实告警时间序列）"""
+    from core.alert_intelligence import AlertIntelligenceEngine
+
+    hours = {"1h": 1, "24h": 24, "7d": 168, "30d": 720}.get(time_range, 24)
+    since = datetime.utcnow() - timedelta(hours=hours)
+    alerts = db.query(Alert).filter(Alert.detected_at >= since).all()
+
+    histories: Dict[str, list] = {}
+    for alert in alerts:
+        if alert.metric and alert.detected_at:
+            histories.setdefault(alert.metric, []).append(
+                (alert.detected_at, float(alert.value or 0.0))
+            )
+
+    engine = AlertIntelligenceEngine()
     predictions = []
-    for i in range(10):
+    for metric_name, history in histories.items():
+        history.sort(key=lambda item: item[0])
+        trend = await engine.predict_alert_trends(
+            metric_name, history, horizon_hours=min(hours, 24)
+        )
+        if not trend.predicted_values:
+            continue
         predictions.append(
             {
                 "id": generate_id(),
-                "metric": f"metric_{i}",
-                "predicted_value": 50 + (i % 5) * 10,
-                "confidence": 0.7 + (i % 3) * 0.1,
+                "metric": metric_name,
+                "predicted_value": trend.predicted_values[-1],
+                "confidence": trend.confidence,
                 "predicted_at": get_timestamp(),
-                "severity": "critical" if i % 3 == 0 else "high" if i % 3 == 1 else "medium",
-                "model": "prophet",
+                "severity": "high" if trend.predicted_anomalies else "medium",
+                "model": trend.model_used,
             }
         )
 
+    total = len(predictions)
     return {
         "predictions": predictions,
         "stats": {
-            "total_predictions": len(predictions),
-            "accurate_predictions": int(len(predictions) * 0.85),
-            "accuracy_rate": 0.85,
-            "avg_confidence": 0.82,
+            "total_predictions": total,
+            "accurate_predictions": None,
+            "accuracy_rate": None,
+            "avg_confidence": (
+                round(sum(p["confidence"] for p in predictions) / total, 4) if total else 0.0
+            ),
         },
     }
 
 
 @router.get("/correlation", summary="获取告警关联")
-async def get_correlation() -> Dict[str, Any]:
-    """获取告警关联数据"""
+async def get_correlation(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """获取告警关联数据（基于真实告警聚类）"""
+    from core.alert_intelligence import AlertIntelligenceEngine
+
+    since = datetime.utcnow() - timedelta(hours=24)
+    alerts = db.query(Alert).filter(Alert.detected_at >= since).all()
+    engine = AlertIntelligenceEngine()
+    clusters = await engine.analyze_and_aggregate_alerts([_alert_to_dict(a) for a in alerts])
+
     correlations = []
-    for i in range(5):
+    for cluster in clusters:
+        members = cluster.get("aggregated_alerts", [])
+        if len(members) < 2:
+            continue
         correlations.append(
             {
-                "id": generate_id(),
-                "alert_id": generate_id(),
-                "alert_title": f"告警 {i+1}",
+                "id": cluster.get("id"),
+                "alert_id": members[0].get("id"),
+                "alert_title": members[0].get("title"),
+                "cluster_id": cluster.get("cluster_id"),
+                "count": len(members),
                 "related_alerts": [
-                    {
-                        "alert_id": generate_id(),
-                        "alert_title": f"相关告警 {j}",
-                        "correlation_score": 0.8 - j * 0.1,
-                        "correlation_type": "temporal" if j % 2 == 0 else "causal",
-                    }
-                    for j in range(3)
+                    {"alert_id": m.get("id"), "alert_title": m.get("title")}
+                    for m in members[1:]
                 ],
-                "correlation_group": f"group_{i}",
-                "created_at": get_timestamp(),
             }
         )
 
     return {
         "correlations": correlations,
-        "stats": {
-            "total_correlations": len(correlations),
-            "correlation_groups": len(set(c["correlation_group"] for c in correlations)),
-            "avg_correlation_score": 0.75,
-            "high_confidence_correlations": len(
-                [
-                    c
-                    for c in correlations
-                    if any(r["correlation_score"] > 0.8 for r in c["related_alerts"])
-                ]
-            ),
-        },
+        "stats": {"total_correlations": len(correlations)},
     }
 
 
@@ -1053,60 +1147,79 @@ async def delete_suppression_rule(
 
 
 @router.get("/trends", summary="获取告警趋势")
-async def get_trends(time_range: str = Query(default="7d")) -> Dict[str, Any]:
-    """获取告警趋势数据"""
+async def get_trends(
+    time_range: str = Query(default="7d"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """获取告警趋势数据（基于真实告警记录）"""
     days = 7 if time_range == "7d" else 30 if time_range == "30d" else 90
+    since = datetime.utcnow() - timedelta(days=days)
+    alerts = db.query(Alert).filter(Alert.detected_at >= since).all()
 
-    daily_trends = []
-    for i in range(days):
-        date = (datetime.utcnow() - timedelta(days=days - i)).strftime("%Y-%m-%d")
-        daily_trends.append(
-            {
-                "date": date,
-                "total": 50 + (i % 5) * 10,
-                "critical": 5 + (i % 3),
-                "high": 10 + (i % 4),
-                "medium": 15 + (i % 5),
-                "low": 20 + (i % 6),
-            }
+    buckets: Dict[str, Dict[str, int]] = {}
+    for offset in range(days):
+        day = (datetime.utcnow() - timedelta(days=days - 1 - offset)).strftime("%Y-%m-%d")
+        buckets[day] = {"total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
+
+    for alert in alerts:
+        if not alert.detected_at:
+            continue
+        day = alert.detected_at.strftime("%Y-%m-%d")
+        bucket = buckets.setdefault(
+            day, {"total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
         )
+        bucket["total"] += 1
+        if alert.level in bucket:
+            bucket[alert.level] += 1
+
+    daily_trends = [{"date": day, **buckets[day]} for day in sorted(buckets)]
 
     return {
         "daily_trends": daily_trends[-7:],
         "weekly_trends": daily_trends[::7],
         "monthly_trends": daily_trends[::30],
-        "prediction": daily_trends[-7:],
+        "prediction": [],
     }
 
 
 @router.get("/statistics", summary="获取告警统计")
-async def get_statistics(time_range: str = Query(default="24h")) -> Dict[str, Any]:
-    """获取告警统计数据"""
+async def get_statistics(
+    time_range: str = Query(default="24h"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """获取告警统计数据（基于真实告警记录）"""
+    hours = {"1h": 1, "24h": 24, "7d": 168, "30d": 720}.get(time_range, 24)
+    since = datetime.utcnow() - timedelta(hours=hours)
+    alerts = db.query(Alert).filter(Alert.detected_at >= since).all()
+
+    by_status = Counter(a.status for a in alerts)
+    by_level = Counter(a.level for a in alerts)
+    by_category = Counter((a.category or "unknown") for a in alerts)
+    by_host = Counter((a.host or "unknown") for a in alerts)
+    by_hour = Counter((a.detected_at.hour if a.detected_at else None) for a in alerts)
+    by_day = Counter(
+        (a.detected_at.strftime("%Y-%m-%d") if a.detected_at else None) for a in alerts
+    )
+
     return {
-        "total_alerts": 1247,
-        "open_alerts": 89,
-        "acknowledged_alerts": 45,
-        "resolved_alerts": 1158,
-        "critical_alerts": 12,
-        "high_alerts": 34,
-        "medium_alerts": 56,
-        "low_alerts": 1145,
-        "avg_resolution_time": 1847,
-        "avg_acknowledgement_time": 234,
-        "alerts_by_source": [
-            {"source": "Prometheus", "count": 456},
-            {"source": "Zabbix", "count": 345},
-            {"source": "CloudWatch", "count": 234},
-            {"source": "Custom", "count": 212},
+        "total_alerts": len(alerts),
+        "open_alerts": len(alerts)
+        - by_status.get("resolved", 0)
+        - by_status.get("suppressed", 0),
+        "acknowledged_alerts": by_status.get("acknowledged", 0),
+        "resolved_alerts": by_status.get("resolved", 0),
+        "critical_alerts": by_level.get("critical", 0),
+        "high_alerts": by_level.get("high", 0),
+        "medium_alerts": by_level.get("medium", 0),
+        "low_alerts": by_level.get("low", 0),
+        "avg_resolution_time": None,
+        "avg_acknowledgement_time": None,
+        "alerts_by_source": [{"source": k, "count": v} for k, v in by_category.items()],
+        "alerts_by_service": [{"service": k, "count": v} for k, v in by_host.items()],
+        "alerts_by_hour": [{"hour": h, "count": by_hour.get(h, 0)} for h in range(24)],
+        "alerts_by_day": [
+            {"date": d, "count": c} for d, c in sorted(by_day.items()) if d
         ],
-        "alerts_by_service": [
-            {"service": "api-server", "count": 345},
-            {"service": "database", "count": 234},
-            {"service": "cache", "count": 156},
-            {"service": "worker", "count": 512},
-        ],
-        "alerts_by_hour": [{"hour": i, "count": 30 + (i % 5) * 10} for i in range(24)],
-        "alerts_by_day": [{"date": f"2026-07-{i:02d}", "count": 100 + i * 10} for i in range(1, 8)],
     }
 
 
@@ -1116,28 +1229,36 @@ async def get_history(
     status: Optional[str] = None,
     source: Optional[str] = None,
     date_range: str = Query(default="7d"),
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    """获取告警历史记录"""
-    history = []
-    for i in range(20):
-        history.append(
-            {
-                "id": generate_id(),
-                "alert_id": generate_id(),
-                "title": f"告警 {i+1}",
-                "severity": ["critical", "high", "medium", "low"][i % 4],
-                "status": ["open", "acknowledged", "resolved"][i % 3],
-                "source": ["Prometheus", "Zabbix", "CloudWatch"][i % 3],
-                "service": ["api-server", "database", "cache"][i % 3],
-                "labels": {"env": "prod", "region": "us-east-1"},
-                "created_at": get_timestamp(),
-                "acknowledged_at": get_timestamp() if i % 3 == 1 else None,
-                "resolved_at": get_timestamp() if i % 3 == 2 else None,
-                "acknowledged_by": "user1" if i % 3 == 1 else None,
-                "resolved_by": "user2" if i % 3 == 2 else None,
-                "duration": 3600 if i % 3 == 2 else None,
-            }
-        )
+    """获取告警历史记录（基于真实告警表）"""
+    days = 7 if date_range == "7d" else 30 if date_range == "30d" else 90
+    since = datetime.utcnow() - timedelta(days=days)
+
+    query = db.query(Alert).filter(Alert.detected_at >= since)
+    if severity:
+        query = query.filter(Alert.level == severity)
+    if status:
+        query = query.filter(Alert.status == status)
+    if source:
+        query = query.filter(Alert.category == source)
+
+    alerts = query.order_by(Alert.detected_at.desc()).limit(200).all()
+
+    history = [
+        {
+            "id": alert.id,
+            "alert_id": alert.id,
+            "title": alert.title,
+            "severity": alert.level,
+            "status": alert.status,
+            "source": alert.category,
+            "service": alert.host,
+            "labels": alert.dataset_metadata or {},
+            "created_at": alert.detected_at.isoformat() if alert.detected_at else None,
+        }
+        for alert in alerts
+    ]
 
     return {"history": history}
 
@@ -2149,44 +2270,25 @@ async def delete_rule(
 @router.get("/zabbix", summary="获取Zabbix集成配置")
 async def get_zabbix(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取Zabbix集成配置和触发器"""
-    try:
-        integration = db.query(AlertIntegration).filter(
-            AlertIntegration.integration_type == "zabbix"
-        ).first()
-        
-        config = {}
-        if integration:
-            config = integration.config
-        else:
-            config = _zabbix_config.copy()
-        
-        triggers = []
-        for i in range(10):
-            triggers.append(
-                {
-                    "triggerid": str(i),
-                    "expression": f"last(/host/item{i}) > 80",
-                    "description": f"触发器 {i+1}",
-                    "status": "0",
-                    "value": "1" if i % 3 == 0 else "0",
-                    "priority": i % 6,
-                    "lastchange": int((datetime.utcnow() - timedelta(hours=i)).timestamp()),
-                    "state": "0",
-                    "type": 0,
-                    "flags": 0,
-                }
-            )
+    integration = db.query(AlertIntegration).filter(
+        AlertIntegration.integration_type == "zabbix"
+    ).first()
 
-        return {
-            "config": config,
-            "triggers": triggers,
-        }
-    except Exception as e:
-        logger.error(f"Error getting Zabbix integration: {e}")
-        return {
-            "config": _zabbix_config.copy(),
-            "triggers": [],
-        }
+    config = integration.config if integration else _zabbix_config.copy()
+
+    try:
+        triggers = await _fetch_zabbix_triggers(config)
+    except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+        requires_backend(
+            "zabbix",
+            capability="zabbix triggers",
+            reason=f"Zabbix API unavailable: {e}",
+        )
+
+    return {
+        "config": config,
+        "triggers": triggers,
+    }
 
 
 @router.put("/zabbix", summary="更新Zabbix集成配置")

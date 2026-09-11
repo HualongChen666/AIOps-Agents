@@ -117,3 +117,6 @@ frontend/coverage/
 frontend/coverage-batched/
 frontend/tsconfig.tsbuildinfo
 *.tsbuildinfo
+
+# Tenant data-export artifacts (written to <cwd>/exports/tenant at runtime)
+/exports/

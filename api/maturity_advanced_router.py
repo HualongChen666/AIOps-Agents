@@ -910,11 +910,6 @@ async def batch_create_assessments(
                         "error": str(e)[:200],
                     })
 
-            # Small delay between batches to avoid rate limiting
-            if i + batch_size < len(batch_request.assessments):
-                import asyncio
-                await asyncio.sleep(0.1)
-
         logger.info(
             f"Batch maturity assessments created | created={len(created_assessments)} "
             f"| failed={len(failed_assessments)} | user={current_user.username} "
@@ -983,11 +978,6 @@ async def batch_delete_assessments(
                         "assessment_id": assessment_id,
                         "error": "Assessment not found",
                     })
-
-            # Small delay between batches to avoid rate limiting
-            if i + batch_size < len(batch_request.assessment_ids):
-                import asyncio
-                await asyncio.sleep(0.1)
 
         logger.info(
             f"Batch maturity assessments deleted | deleted={len(deleted_assessments)} "

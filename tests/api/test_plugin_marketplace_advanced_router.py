@@ -61,6 +61,28 @@ def cleanup_database(db_session):
     db_session.commit()
 
 
+@pytest.fixture(autouse=True)
+def _stub_plugin_download(monkeypatch):
+    """Stub the artifact download so install tests stay offline.
+
+    Production installs download the real artifact
+    (:func:`api.plugin_marketplace_advanced_router._download_plugin_artifact`);
+    here we replace only that network boundary.
+    """
+
+    async def _fake_download(download_url, dest_dir):
+        import os
+
+        os.makedirs(dest_dir, exist_ok=True)
+        return os.path.join(dest_dir, "plugin.zip")
+
+    monkeypatch.setattr(
+        "api.plugin_marketplace_advanced_router._download_plugin_artifact",
+        _fake_download,
+    )
+    yield
+
+
 @pytest.fixture
 def sample_category():
     """Create a sample category for testing"""

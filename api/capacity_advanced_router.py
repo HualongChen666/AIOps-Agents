@@ -25,8 +25,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from core.auth_service import require_roles
-from core.capacity_engine import forecast_capacity, generate_scaling_recommendations
+from core.backend_requirements import requires_backend
+from core.capacity_engine import (
+    forecast_capacity,
+    generate_scaling_recommendations,
+    linear_forecast,
+)
 from core.collector import get_disk_metrics
+from core.cost_monitor import collect_costs, get_resource_costs
 from core.persistent_store import PersistentList, PersistentStore
 from core.database import get_db
 from core.metrics_history import METRICS_HISTORY as metrics_history
@@ -41,7 +47,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/capacity", tags=["capacity-advanced"])
 
 _NETWORK_CAP_MB = 100.0
-_DISK_HISTORY_LEN = 10
 
 
 # ============================================================================
@@ -170,6 +175,11 @@ class CapacityAdvancedOptimizationRequest(BaseModel):
     min_performance_sla: float = Field(
         default=0.95, ge=0, le=1, description="Minimum performance SLA"
     )
+    implementation_cost: Optional[float] = Field(
+        default=None,
+        ge=0,
+        description="One-off implementation cost used to compute ROI (payback in months)",
+    )
     constraints: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
@@ -187,6 +197,9 @@ class OptimizationResult(BaseModel):
     implementation_steps: List[str] = Field(default_factory=list)
     risk_assessment: str = Field(..., description="Risk assessment")
     estimated_implementation_time: str = Field(..., description="Implementation time estimate")
+    implementation_cost: Optional[float] = Field(
+        default=None, description="One-off implementation cost (for ROI)"
+    )
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -505,7 +518,15 @@ def _generate_rightsizing_id() -> str:
 
 
 async def _build_metric_history() -> Dict[str, List[float]]:
-    """Build a normalized metric history dict for the forecasting engine."""
+    """Build a real (non-fabricated) metric history dict for the engine.
+
+    CPU / memory / network come straight from the in-process collector ring
+    buffer.  Disk is taken from real per-sample history when the collector has
+    recorded it; otherwise the current real reading is used (a single point).
+    No synthetic ramp or default value is injected: a missing metric is simply
+    absent so callers can report ``requires-backend`` instead of forecasting on
+    invented data.
+    """
     hist = metrics_history.to_dict()
 
     cpu = [float(v) for v in hist.get("cpu", [])]
@@ -513,23 +534,188 @@ async def _build_metric_history() -> Dict[str, List[float]]:
     net_in = [float(v) for v in hist.get("net_in", [])]
     network = [max(0.0, min(100.0, v / _NETWORK_CAP_MB * 100.0)) for v in net_in]
 
-    try:
-        disks = await asyncio.to_thread(get_disk_metrics)
-        avg = sum(d.get("usage_percent", 0.0) for d in disks) / max(len(disks), 1)
-    except Exception as e:
-        logger.warning(f"磁盘指标采集失败，使用默认值: {e}")
-        avg = 45.0
+    disk: List[float] = []
+    for svc in ("default", "global"):
+        try:
+            points = metrics_history.query("disk", svc)
+        except Exception:  # pragma: no cover - defensive
+            points = []
+        if points:
+            disk = [float(p.value) for p in points]
+            break
 
-    disk = [
-        max(0.0, min(100.0, avg - (_DISK_HISTORY_LEN - 1 - i) * 0.5))
-        for i in range(_DISK_HISTORY_LEN)
-    ]
+    if not disk:
+        try:
+            disks = await asyncio.to_thread(get_disk_metrics)
+            if disks:
+                avg = sum(d.get("usage_percent", 0.0) for d in disks) / max(len(disks), 1)
+                disk = [round(max(0.0, min(100.0, avg)), 1)]
+        except Exception as e:
+            logger.warning(f"磁盘指标采集失败(无磁盘历史数据): {e}")
 
     return {
         "cpu": cpu,
         "memory": memory,
         "disk": disk,
         "network": network,
+    }
+
+
+def _require_metric_series(
+    metric_history: Dict[str, List[float]], resource_key: str, *, min_points: int = 2
+) -> List[float]:
+    """Return a real series with at least ``min_points`` samples.
+
+    Raises a ``requires-backend`` 503 when the monitoring collector has not
+    produced enough genuine samples to compute against.
+    """
+    values = [float(v) for v in (metric_history.get(resource_key) or [])]
+    if len(values) < min_points:
+        requires_backend(
+            "metrics-collector",
+            capability="capacity analysis",
+            reason=(
+                f"Insufficient real metric samples for '{resource_key}' "
+                f"(need >= {min_points}, have {len(values)})"
+            ),
+        )
+    return values
+
+
+def _require_current_value(metric_history: Dict[str, List[float]], resource_key: str) -> float:
+    """Return the latest real sample for ``resource_key`` or raise 503."""
+    values = [float(v) for v in (metric_history.get(resource_key) or [])]
+    if not values:
+        requires_backend(
+            "metrics-collector",
+            capability="capacity analysis",
+            reason=f"No metric samples available for '{resource_key}'",
+        )
+    return values[-1]
+
+
+def _observed_monthly_cost(service: Optional[str] = None) -> Optional[float]:
+    """Return the observed monthly cost from the billing backend.
+
+    ``None`` means no billing integration produced any cost records, so the
+    caller must signal ``requires-backend`` rather than invent a figure.
+    """
+    try:
+        records = collect_costs()
+    except Exception as e:  # pragma: no cover - billing backend errors
+        logger.warning("Cost collection failed: %s", e)
+        return None
+    if not records:
+        return None
+    if service:
+        matched = [r for r in records if str(r.get("service", "")).lower() == service.lower()]
+        if matched:
+            records = matched
+    total = sum(float(r.get("cost", 0.0) or 0.0) for r in records)
+    return round(total, 2)
+
+
+def _resource_cost_share() -> Dict[str, float]:
+    """Return real cost grouped by resource type (empty when unavailable)."""
+    try:
+        rows = get_resource_costs()
+    except Exception as e:  # pragma: no cover - billing backend errors
+        logger.warning("Resource cost lookup failed: %s", e)
+        return {}
+    share: Dict[str, float] = {}
+    for row in rows or []:
+        try:
+            share[str(row.get("resource_type"))] = float(row.get("cost", 0.0) or 0.0)
+        except (TypeError, ValueError):  # pragma: no cover - defensive
+            continue
+    return share
+
+
+def _require_resource_costs() -> Dict[str, float]:
+    """Return real per-resource-type costs or raise ``requires-backend``."""
+    share = _resource_cost_share()
+    if not share:
+        requires_backend(
+            "cloud-billing",
+            capability="capacity cost analysis",
+            reason="No cloud billing integration returned resource cost data",
+        )
+    return share
+
+
+#: Maps an API metric key to the metric name recorded by the collector.
+_RESOURCE_METRIC_KEY: Dict[str, str] = {
+    "cpu": "cpu",
+    "memory": "memory",
+    "disk": "disk",
+    "network": "net_in",
+}
+
+#: Service labels that do not represent a real, individually managed service.
+_GENERIC_SERVICES = frozenset({"global", "default", "unknown"})
+
+
+#: Maps an API ``ResourceType`` to the billing resource-type bucket.
+_RESOURCE_COST_GROUP: Dict["ResourceType", str] = {
+    ResourceType.CPU: "compute",
+    ResourceType.GPU: "compute",
+    ResourceType.MEMORY: "compute",
+    ResourceType.DISK: "storage",
+    ResourceType.STORAGE: "storage",
+    ResourceType.NETWORK: "network",
+}
+
+#: Human-readable optimization action per resource type.
+_OPTIMIZATION_ACTIONS: Dict["ResourceType", str] = {
+    ResourceType.CPU: "rightsize_compute_instances",
+    ResourceType.GPU: "rightsize_gpu_instances",
+    ResourceType.MEMORY: "optimize_memory_allocation",
+    ResourceType.DISK: "optimize_storage_allocation",
+    ResourceType.STORAGE: "implement_storage_tiering",
+    ResourceType.NETWORK: "optimize_network_egress",
+}
+
+
+def _walk_forward_accuracy(series: List[float], horizon: int = 7) -> Optional[Dict[str, float]]:
+    """Back-test the forecast engine on real history (walk-forward validation).
+
+    Every prefix of ``series`` is used as a training window; the engine predicts
+    ``horizon`` steps ahead and the prediction is compared with the value that
+    was actually observed.  Returns ``None`` when there is not enough genuine
+    history to form at least one prediction/observation pair.
+    """
+    if len(series) < horizon + 3:
+        return None
+
+    pairs: List[tuple] = []
+    for k in range(3, len(series) - horizon + 1):
+        window = series[:k]
+        try:
+            predicted = float(
+                forecast_capacity({"cpu": window}, days_ahead=7)["cpu"]["forecast7d"]
+            )
+        except Exception:  # pragma: no cover - defensive
+            continue
+        actual = float(series[k - 1 + horizon])
+        pairs.append((predicted, actual))
+
+    if not pairs:
+        return None
+
+    n = len(pairs)
+    abs_err = [abs(p - a) for p, a in pairs]
+    sq_err = [(p - a) ** 2 for p, a in pairs]
+    pct_err = [abs(p - a) / abs(a) for p, a in pairs if a != 0]
+    mae = sum(abs_err) / n
+    rmse = (sum(sq_err) / n) ** 0.5
+    mape = (sum(pct_err) / len(pct_err)) if pct_err else 0.0
+    accuracy = max(0.0, min(1.0, 1.0 - mape))
+    return {
+        "mae": round(mae, 4),
+        "mape": round(mape, 4),
+        "rmse": round(rmse, 4),
+        "accuracy_score": round(accuracy, 4),
+        "samples": n,
     }
 
 
@@ -610,8 +796,8 @@ async def create_capacity_plan(
         # Get current capacity from metrics
         metric_history = await _build_metric_history()
         resource_key = plan.resource_type.value
-        current_values = metric_history.get(resource_key, [50.0])
-        current_capacity = current_values[-1] if current_values else 50.0
+        current_values = _require_metric_series(metric_history, resource_key)
+        current_capacity = current_values[-1]
 
         # Calculate projected capacity based on horizon
         if plan.horizon == PlanningHorizon.WEEKLY:
@@ -623,9 +809,8 @@ async def create_capacity_plan(
         else:
             days_ahead = 365
 
-        # Simple projection: assume 2% growth per week
-        growth_rate = 1.02 ** (days_ahead / 7)
-        projected_capacity = current_capacity * growth_rate
+        # Project with the real regression forecast over observed samples.
+        projected_capacity = linear_forecast(current_values, days_ahead)
 
         # Determine unit based on resource type
         unit_map = {
@@ -784,16 +969,20 @@ async def get_capacity_forecasts(
 
         result = []
         for key, forecast in forecasts.items():
+            series = metric_history.get(key) or []
+            if len(series) < 2:
+                # No genuine history for this metric: do not fabricate one.
+                continue
+
             rt = resource_type_map.get(key, ResourceType.CPU)
             svc = service or service_map.get(key, "unknown")
 
-            # Calculate 90-day forecast (extrapolate from 30-day)
             forecast_30 = forecast.get("forecast30d", 0.0)
-            forecast_90 = forecast_30 * 1.1  # Assume 10% additional growth
+            forecast_90 = forecast.get("forecast90d", 0.0)
 
             current = forecast.get("currentValue", 0.0)
             trend = _calculate_trend(current, forecast_90)
-            confidence = _calculate_confidence(len(metric_history.get(key, [])))
+            confidence = _calculate_confidence(len(series))
 
             result.append(
                 CapacityForecast(
@@ -814,7 +1003,16 @@ async def get_capacity_forecasts(
         if resource_type:
             result = [f for f in result if f.resource_type == resource_type]
 
+        if not result:
+            requires_backend(
+                "metrics-collector",
+                capability="capacity forecasting",
+                reason="No metric series with enough real samples is available for forecasting",
+            )
+
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting capacity forecasts: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get forecasts: {str(e)}")
@@ -870,72 +1068,55 @@ async def create_optimization(
     try:
         opt_id = _generate_optimization_id()
 
-        # Get current metrics
-        metric_history = await _build_metric_history()  # noqa: F841 - Reserved for future use
+        # Real cost basis from the billing backend; without it we cannot compute
+        # savings and must say so instead of inventing a figure.
+        current_cost = _observed_monthly_cost(request.service)
+        if current_cost is None:
+            requires_backend(
+                "cloud-billing",
+                capability="capacity cost optimization",
+                reason=(
+                    "No cloud billing integration returned cost data; "
+                    "cost savings cannot be computed"
+                ),
+            )
 
-        # Calculate current cost (simplified model)
-        current_cost = 1000.0  # Base monthly cost
-
-        # Calculate optimization based on strategy
+        # Strategy driving parameters are policy inputs, not measurements.
         if request.strategy == OptimizationStrategy.COST_OPTIMIZATION:
             cost_reduction = request.target_cost_reduction
-            performance_impact = (
-                0.05  # 5% performance impact  # noqa: F841 - Reserved for future use
-            )
         elif request.strategy == OptimizationStrategy.PERFORMANCE_OPTIMIZATION:
-            cost_reduction = 0.1  # 10% cost reduction
-            performance_impact = (
-                -0.15
-            )  # 15% performance improvement  # noqa: F841 - Reserved for future use
+            cost_reduction = 0.1
         elif request.strategy == OptimizationStrategy.AGGRESSIVE:
-            cost_reduction = 0.3  # 30% cost reduction
-            performance_impact = (
-                0.15  # 15% performance impact  # noqa: F841 - Reserved for future use
-            )
+            cost_reduction = 0.3
         else:  # BALANCED
-            cost_reduction = 0.2  # 20% cost reduction
-            performance_impact = (
-                0.02  # 2% performance impact  # noqa: F841 - Reserved for future use
-            )
+            cost_reduction = 0.2
 
-        optimized_cost = current_cost * (1 - cost_reduction)
-        cost_savings = current_cost - optimized_cost
-        savings_percentage = cost_savings / current_cost * 100
+        optimized_cost = round(current_cost * (1 - cost_reduction), 2)
+        cost_savings = round(current_cost - optimized_cost, 2)
+        savings_percentage = round(cost_savings / current_cost * 100, 2) if current_cost else 0.0
 
-        # Generate recommendations
+        # Recommendations are attributed to the *observed* cost of each bucket.
+        cost_share = _resource_cost_share()
+        total_share = sum(cost_share.values())
+        requested_types = request.resource_types or [
+            ResourceType.CPU,
+            ResourceType.MEMORY,
+            ResourceType.DISK,
+        ]
         recommendations = []
-        if request.resource_types:
-            for rt in request.resource_types:
-                if rt == ResourceType.CPU:
-                    recommendations.append(
-                        {
-                            "resource_type": "CPU",
-                            "action": "rightsize_instances",
-                            "current": "4 vCPU",
-                            "recommended": "2 vCPU",
-                            "savings": 200.0,
-                        }
-                    )
-                elif rt == ResourceType.MEMORY:
-                    recommendations.append(
-                        {
-                            "resource_type": "Memory",
-                            "action": "optimize_memory_allocation",
-                            "current": "16 GB",
-                            "recommended": "8 GB",
-                            "savings": 150.0,
-                        }
-                    )
-                elif rt == ResourceType.STORAGE:
-                    recommendations.append(
-                        {
-                            "resource_type": "Storage",
-                            "action": "implement_storage_tiering",
-                            "current": "1 TB SSD",
-                            "recommended": "500 GB SSD + 500 GB HDD",
-                            "savings": 100.0,
-                        }
-                    )
+        for rt in requested_types:
+            group = _RESOURCE_COST_GROUP.get(rt, "other")
+            base_cost = cost_share.get(group, 0.0)
+            if base_cost <= 0 and total_share > 0:
+                base_cost = total_share / max(len(requested_types), 1)
+            recommendations.append(
+                {
+                    "resource_type": rt.value,
+                    "action": _OPTIMIZATION_ACTIONS.get(rt, "review_resource_allocation"),
+                    "current_cost": round(base_cost, 2),
+                    "savings": round(base_cost * cost_reduction, 2),
+                }
+            )
 
         # Implementation steps
         implementation_steps = [
@@ -969,6 +1150,7 @@ async def create_optimization(
             implementation_steps=implementation_steps,
             risk_assessment=risk_assessment,
             estimated_implementation_time=implementation_time,
+            implementation_cost=request.implementation_cost,
         )
 
         _set_optimization_result(result, db_core)
@@ -976,6 +1158,8 @@ async def create_optimization(
         logger.info(f"Created optimization analysis: {opt_id} for service {request.service}")
 
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating optimization: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create optimization: {str(e)}")
@@ -1017,34 +1201,56 @@ async def get_rightsizing_recommendations(
             recommendations = [r for r in recommendations if r.priority == priority]
 
         return recommendations
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting rightsizing recommendations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get rightsizing: {str(e)}")
 
 
 async def _generate_rightsizing_recommendations(db_core: Optional[Session] = None) -> None:
-    """Generate rightsizing recommendations based on current metrics."""
+    """Generate rightsizing recommendations from real, service-level metrics.
+
+    Services and utilisation come from the monitoring collector; the monthly
+    savings estimate is derived from the *real* per-resource-type billing cost
+    apportioned across the observed services.  Nothing is invented: when the
+    collector or the billing backend has not produced data we raise
+    ``requires-backend`` instead of seeding fabricated rows.
+    """
     global _rightsizing_recommendations
 
-    metric_history = await _build_metric_history()
+    cost_share = _require_resource_costs()
 
-    services = ["compute-service", "cache-service", "database", "api-gateway"]
+    real_services = [s for s in metrics_history.services() if s not in _GENERIC_SERVICES]
+    if not real_services:
+        requires_backend(
+            "metrics-collector",
+            capability="rightsizing",
+            reason="No service-level metric samples are available to analyse",
+        )
+
     resource_types = [ResourceType.CPU, ResourceType.MEMORY, ResourceType.DISK]
+    service_count = len(real_services)
 
-    for service in services:
+    for service in real_services:
         for rt in resource_types:
-            key = rt.value
-            values = metric_history.get(key, [50.0])
-            current_value = values[-1] if values else 50.0
+            metric_key = _RESOURCE_METRIC_KEY.get(rt.value, rt.value)
+            latest = metrics_history.get_latest(metric_key, service)
+            if latest is None:
+                continue
+            current_value = float(latest)
 
-            # Determine action based on utilization
+            group_cost = cost_share.get(_RESOURCE_COST_GROUP.get(rt, "other"), 0.0)
+            per_service_cost = group_cost / service_count if service_count else 0.0
+
+            # Determine action based on real utilisation.
             if current_value < 30:
                 action = RightsizingAction.SCALE_DOWN
                 priority = CapacityAdvancedPriority.MEDIUM
                 reason = f"Low utilization ({current_value:.1f}%) indicates over-provisioning"
                 current_spec = {"value": current_value, "unit": "%"}
                 recommended_spec = {"value": current_value * 0.7, "unit": "%"}
-                savings = 100.0
+                savings = round(per_service_cost * 0.3, 2)
                 performance_impact = "Minimal - current usage well below capacity"
             elif current_value > 85:
                 action = RightsizingAction.SCALE_UP
@@ -1052,7 +1258,7 @@ async def _generate_rightsizing_recommendations(db_core: Optional[Session] = Non
                 reason = f"High utilization ({current_value:.1f}%) indicates under-provisioning"
                 current_spec = {"value": current_value, "unit": "%"}
                 recommended_spec = {"value": current_value * 1.3, "unit": "%"}
-                savings = -50.0  # Cost increase
+                savings = round(-per_service_cost * 0.3, 2)  # cost increase
                 performance_impact = "Positive - improved performance and stability"
             else:
                 action = RightsizingAction.NO_ACTION
@@ -1102,16 +1308,13 @@ async def get_scaling_recommendations(
     """
     try:
         metric_history = await _build_metric_history()
+        cost_share = _require_resource_costs()
+
+        real_services = [s for s in metrics_history.services() if s not in _GENERIC_SERVICES]
+        service_count = max(len(real_services), 1)
+
         forecasts = forecast_capacity(metric_history, days_ahead=7)
         base_recommendations = generate_scaling_recommendations(forecasts)
-
-        # Map to enhanced model
-        service_map = {
-            "cpu": "compute-service",
-            "memory": "cache-service",
-            "disk": "database",
-            "network": "api-gateway",
-        }
 
         resource_type_map = {
             "cpu": ResourceType.CPU,
@@ -1129,20 +1332,30 @@ async def get_scaling_recommendations(
         result = []
         for rec in base_recommendations:
             key = rec["id"].split("-")[1].lower()
+            series = metric_history.get(key) or []
+            if len(series) < 2:
+                # No genuine history for this metric: do not fabricate advice.
+                continue
+
             rt = resource_type_map.get(key, ResourceType.CPU)
-            svc = service or service_map.get(key, "unknown")
+            svc = service or "aggregate"
 
             forecast = forecasts.get(key, {})
             current_value = forecast.get("currentValue", 0.0)
             threshold = forecast.get("threshold", 80.0)
 
-            # Calculate recommended value
+            # Cost of the action, derived from the real billing cost share.
+            group_cost = cost_share.get(_RESOURCE_COST_GROUP.get(rt, "other"), 0.0)
+            per_service_cost = group_cost / service_count
             if rec["action"] == "scale-up":
                 recommended_value = threshold * 0.9
+                estimated_cost = round(per_service_cost * 0.3, 2)
             elif rec["action"] == "scale-down":
                 recommended_value = threshold * 0.5
+                estimated_cost = round(-per_service_cost * 0.3, 2)
             else:
                 recommended_value = current_value
+                estimated_cost = 0.0
 
             result.append(
                 ScalingRecommendation(
@@ -1151,13 +1364,13 @@ async def get_scaling_recommendations(
                     action=rec["action"],
                     reason=rec["reason"],
                     priority=priority_map.get(rec["priority"], CapacityAdvancedPriority.MEDIUM),
-                    estimated_cost=rec["estimatedCost"],
+                    estimated_cost=estimated_cost,
                     resource_type=rt,
                     current_value=current_value,
                     recommended_value=recommended_value,
                     unit=forecast.get("unit", "%"),
                     time_horizon="7-30 days",
-                    confidence=0.75,
+                    confidence=_calculate_confidence(len(series)),
                 )
             )
 
@@ -1168,7 +1381,16 @@ async def get_scaling_recommendations(
         if priority:
             result = [r for r in result if r.priority == priority]
 
+        if not result:
+            requires_backend(
+                "metrics-collector",
+                capability="scaling recommendations",
+                reason="No metric series with enough real samples is available for scaling analysis",
+            )
+
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting scaling recommendations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to get recommendations: {str(e)}")
@@ -1290,18 +1512,16 @@ async def execute_capacity_plan(
                 detail=f"Plan {plan_id} must be approved before execution. Current status: {plan.status}"
             )
 
-        # Simulate execution - in production this would trigger actual infrastructure changes
-        # For now, we record the execution metadata
-        plan.status = "executed"
-        plan.metadata["executed_by"] = current_user.username if hasattr(current_user, "username") else "system"
-        plan.metadata["executed_at"] = datetime.utcnow().isoformat()
-        plan.metadata["execution_result"] = "success"
-
-        _set_capacity_plan(plan, db_core)
-
-        logger.info(f"Executed capacity plan: {plan_id} by {plan.metadata.get('executed_by')}")
-
-        return plan
+        # Executing a capacity plan changes real infrastructure. No such backend
+        # is wired here, so we must not mark the plan as executed.
+        requires_backend(
+            "capacity-action-executor",
+            capability="execute capacity plan",
+            reason=(
+                "No infrastructure backend is wired to execute capacity plans; "
+                "the plan was not applied"
+            ),
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -1373,8 +1593,8 @@ async def create_capacity_plans_batch(
             plan_id = _generate_plan_id()
 
             resource_key = plan_create.resource_type.value
-            current_values = metric_history.get(resource_key, [50.0])
-            current_capacity = current_values[-1] if current_values else 50.0
+            current_values = _require_metric_series(metric_history, resource_key)
+            current_capacity = current_values[-1]
 
             if plan_create.horizon == PlanningHorizon.WEEKLY:
                 days_ahead = 7
@@ -1385,8 +1605,7 @@ async def create_capacity_plans_batch(
             else:
                 days_ahead = 365
 
-            growth_rate = 1.02 ** (days_ahead / 7)
-            projected_capacity = current_capacity * growth_rate
+            projected_capacity = linear_forecast(current_values, days_ahead)
 
             unit_map = {
                 ResourceType.CPU: "%",
@@ -1471,16 +1690,16 @@ async def create_capacity_forecast(
 
         metric_history = await _build_metric_history()
         resource_key = forecast_request.resource_type.value
-        current_values = metric_history.get(resource_key, [50.0])
-        current_value = current_values[-1] if current_values else 50.0
+        current_values = _require_metric_series(metric_history, resource_key)
+        current_value = current_values[-1]
 
-        # Generate forecasts for different horizons
+        # Generate forecasts for different horizons from the real engine.
         forecasts = forecast_capacity(metric_history, days_ahead=forecast_request.forecast_days)
         forecast_data = forecasts.get(resource_key, {})
 
-        forecast_7d = forecast_data.get("forecast7d", current_value * 1.05)
-        forecast_30d = forecast_data.get("forecast30d", current_value * 1.15)
-        forecast_90d = forecast_data.get("forecast30d", current_value * 1.25) * 1.1
+        forecast_7d = forecast_data.get("forecast7d", current_value)
+        forecast_30d = forecast_data.get("forecast30d", current_value)
+        forecast_90d = forecast_data.get("forecast90d", current_value)
 
         threshold = forecast_request.custom_threshold or forecast_data.get("threshold", 80.0)
 
@@ -1507,6 +1726,8 @@ async def create_capacity_forecast(
         logger.info(f"Created custom forecast: {forecast_id} for service {forecast_request.service}")
 
         return forecast
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating capacity forecast: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create forecast: {str(e)}")
@@ -1565,33 +1786,31 @@ async def get_forecast_accuracy(
 
         forecast = _capacity_forecasts[forecast_id]
 
-        # Simulate accuracy calculation based on forecast age
-        forecast_age = (datetime.utcnow() - forecast.generated_at).days
+        # Real walk-forward back-test of the forecast engine on observed history.
+        metric_history = await _build_metric_history()
+        series = [float(v) for v in (metric_history.get(forecast.resource_type.value) or [])]
 
-        if forecast_age < 7:
-            mae = 2.5
-            mape = 0.05
-            rmse = 3.0
-            accuracy_score = 0.95
-        elif forecast_age < 30:
-            mae = 5.0
-            mape = 0.10
-            rmse = 6.0
-            accuracy_score = 0.85
-        else:
-            mae = 8.0
-            mape = 0.15
-            rmse = 10.0
-            accuracy_score = 0.75
+        metrics = _walk_forward_accuracy(series, horizon=7)
+        if metrics is None:
+            requires_backend(
+                "metrics-collector",
+                capability="forecast accuracy back-test",
+                reason=(
+                    f"Insufficient real history for '{forecast.resource_type.value}' to "
+                    "back-test the forecast (need at least 10 samples)"
+                ),
+            )
 
         accuracy = ForecastAccuracy(
             forecast_id=forecast_id,
             metric=forecast.metric,
-            mae=mae,
-            mape=mape,
-            rmse=rmse,
-            accuracy_score=accuracy_score,
-            evaluation_period=f"Last {max(forecast_age, 1)} days",
+            mae=metrics["mae"],
+            mape=metrics["mape"],
+            rmse=metrics["rmse"],
+            accuracy_score=metrics["accuracy_score"],
+            evaluation_period=(
+                f"walk-forward, {int(metrics['samples'])} origins, 7-sample horizon"
+            ),
         )
 
         logger.debug(f"Retrieved accuracy metrics for forecast: {forecast_id}")
@@ -1624,16 +1843,16 @@ async def recalculate_forecast(
         # Get updated metrics
         metric_history = await _build_metric_history()
         resource_key = original_forecast.resource_type.value
-        current_values = metric_history.get(resource_key, [50.0])
-        current_value = current_values[-1] if current_values else 50.0
+        current_values = _require_metric_series(metric_history, resource_key)
+        current_value = current_values[-1]
 
-        # Recalculate forecasts
+        # Recalculate forecasts from the real engine.
         forecasts = forecast_capacity(metric_history, days_ahead=30)
         forecast_data = forecasts.get(resource_key, {})
 
-        forecast_7d = forecast_data.get("forecast7d", current_value * 1.05)
-        forecast_30d = forecast_data.get("forecast30d", current_value * 1.15)
-        forecast_90d = forecast_data.get("forecast30d", current_value * 1.25) * 1.1
+        forecast_7d = forecast_data.get("forecast7d", current_value)
+        forecast_30d = forecast_data.get("forecast30d", current_value)
+        forecast_90d = forecast_data.get("forecast90d", current_value)
 
         trend = _calculate_trend(current_value, forecast_90d)
         confidence = _calculate_confidence(len(current_values))
@@ -1720,35 +1939,40 @@ async def apply_optimization(
                 detail="Confirmation required for applying optimizations. Set confirmation=true or dry_run=true"
             )
 
-        # Simulate optimization application
+        if not request.dry_run:
+            # No infrastructure backend is wired to actually change resource
+            # sizes; refuse rather than pretend the changes were applied.
+            requires_backend(
+                "capacity-action-executor",
+                capability="apply capacity optimization",
+                reason=(
+                    "No infrastructure backend is wired to apply capacity changes; "
+                    "use dry_run=true to preview only"
+                ),
+            )
+
+        # Dry-run preview: nothing is changed and nothing is fabricated.
         applied_recommendations = []
         for rec in optimization.recommendations:
-            if request.dry_run:
-                status = "dry_run"
-                message = f"Would apply: {rec.get('action')} for {rec.get('resource_type')}"
-            else:
-                status = "applied"
-                message = f"Applied: {rec.get('action')} for {rec.get('resource_type')}"
-
             applied_recommendations.append({
                 "resource_type": rec.get("resource_type"),
                 "action": rec.get("action"),
-                "status": status,
-                "message": message,
+                "status": "dry_run",
+                "message": f"Would apply: {rec.get('action')} for {rec.get('resource_type')}",
                 "savings": rec.get("savings", 0.0),
             })
 
         result = {
             "optimization_id": request.optimization_id,
-            "dry_run": request.dry_run,
-            "applied_count": len(applied_recommendations),
+            "dry_run": True,
+            "applied_count": 0,
             "recommendations": applied_recommendations,
-            "total_savings": optimization.cost_savings if not request.dry_run else 0.0,
+            "total_savings": 0.0,
             "applied_by": current_user.username if hasattr(current_user, "username") else "system",
             "applied_at": datetime.utcnow().isoformat(),
         }
 
-        logger.info(f"Applied optimization: {request.optimization_id} (dry_run={request.dry_run})")
+        logger.info(f"Previewed optimization: {request.optimization_id} (dry_run)")
 
         return result
     except HTTPException:
@@ -1769,7 +1993,11 @@ class OptimizationImpact(BaseModel):
     reduction_percentage: float = Field(..., description="Cost reduction percentage")
     performance_impact: str = Field(..., description="Performance impact assessment")
     risk_level: str = Field(..., description="Risk level")
-    estimated_roi: float = Field(..., description="Estimated ROI in months")
+    estimated_roi: Optional[float] = Field(
+        default=None,
+        description="Estimated ROI (payback in months); null when it cannot be computed",
+    )
+    roi_basis: Optional[str] = Field(default=None, description="Basis used for the ROI figure")
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)
 
 
@@ -1800,19 +2028,25 @@ async def get_optimization_impact(
         if optimization.strategy == OptimizationStrategy.COST_OPTIMIZATION:
             performance_impact = "Moderate - may affect response times"
             risk_level = "Medium"
-            estimated_roi = 3.0
         elif optimization.strategy == OptimizationStrategy.PERFORMANCE_OPTIMIZATION:
             performance_impact = "Positive - improved performance expected"
             risk_level = "Low"
-            estimated_roi = 6.0
         elif optimization.strategy == OptimizationStrategy.AGGRESSIVE:
             performance_impact = "High - significant changes expected"
             risk_level = "High"
-            estimated_roi = 2.0
         else:  # BALANCED
             performance_impact = "Minimal - balanced approach"
             risk_level = "Low"
-            estimated_roi = 4.0
+
+        # ROI (payback months) is only computable from a real implementation cost
+        # and a real monthly saving; never fabricate a figure.
+        impl_cost = optimization.implementation_cost
+        if impl_cost and optimization.cost_savings > 0:
+            estimated_roi: Optional[float] = round(impl_cost / optimization.cost_savings, 2)
+            roi_basis: Optional[str] = "one-off implementation cost / monthly savings"
+        else:
+            estimated_roi = None
+            roi_basis = "implementation cost not provided; ROI unavailable"
 
         impact = OptimizationImpact(
             optimization_id=optimization_id,
@@ -1824,6 +2058,7 @@ async def get_optimization_impact(
             performance_impact=performance_impact,
             risk_level=risk_level,
             estimated_roi=estimated_roi,
+            roi_basis=roi_basis,
         )
 
         logger.debug(f"Retrieved impact analysis for optimization: {optimization_id}")
@@ -1848,6 +2083,9 @@ class RightsizingCreate(BaseModel):
     resource_type: ResourceType = Field(..., description="Resource type")
     current_spec: Dict[str, Any] = Field(..., description="Current specification")
     target_utilization: float = Field(default=70.0, ge=30, le=90, description="Target utilization percentage")
+    monthly_cost: Optional[float] = Field(
+        default=None, ge=0, description="Current monthly cost of the resource (for savings estimate)"
+    )
     metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
@@ -1867,22 +2105,40 @@ async def create_rightsizing_recommendation(
         rec_id = _generate_rightsizing_id()
 
         # Analyze current spec and determine action
-        current_value = request.current_spec.get("value", 50.0)
+        if "value" not in request.current_spec:
+            raise HTTPException(
+                status_code=422,
+                detail="current_spec must include a numeric 'value'",
+            )
+        try:
+            current_value = float(request.current_spec["value"])
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=422,
+                detail="current_spec['value'] must be numeric",
+            )
         target_value = request.target_utilization
+
+        if request.monthly_cost is None:
+            requires_backend(
+                "cloud-billing",
+                capability="rightsizing savings estimate",
+                reason="monthly_cost is required to estimate savings; no cost basis available",
+            )
 
         if current_value > target_value * 1.2:
             action = RightsizingAction.SCALE_DOWN
             recommended_value = current_value * 0.8
             priority = CapacityAdvancedPriority.HIGH
             reason = f"Current utilization ({current_value:.1f}%) significantly above target ({target_value}%)"
-            savings = (current_value - recommended_value) * 10.0
+            savings = round(request.monthly_cost * 0.2, 2)
             performance_impact = "Minimal - current usage well above recommended"
         elif current_value < target_value * 0.8:
             action = RightsizingAction.SCALE_UP
             recommended_value = current_value * 1.2
             priority = CapacityAdvancedPriority.HIGH
             reason = f"Current utilization ({current_value:.1f}%) below target ({target_value}%)"
-            savings = -50.0
+            savings = round(-request.monthly_cost * 0.2, 2)  # cost increase
             performance_impact = "Positive - improved performance and headroom"
         else:
             action = RightsizingAction.NO_ACTION
@@ -1914,6 +2170,8 @@ async def create_rightsizing_recommendation(
         logger.info(f"Created rightsizing recommendation: {rec_id} for service {request.service}")
 
         return recommendation
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error creating rightsizing recommendation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create rightsizing: {str(e)}")
@@ -1956,26 +2214,26 @@ async def apply_rightsizing_recommendation(
                 detail="Confirmation required for applying rightsizing. Set confirmation=true or dry_run=true"
             )
 
-        # Simulate rightsizing application
-        if request.dry_run:
-            status = "dry_run"
-            message = f"Would apply {recommendation.action} for {recommendation.service}"
-            actual_savings = 0.0
-        else:
-            status = "applied"
-            message = f"Applied {recommendation.action} for {recommendation.service}"
-            actual_savings = recommendation.estimated_monthly_savings
+        if not request.dry_run:
+            requires_backend(
+                "capacity-action-executor",
+                capability="apply rightsizing",
+                reason=(
+                    "No infrastructure backend is wired to apply rightsizing changes; "
+                    "use dry_run=true to preview only"
+                ),
+            )
 
         result = {
             "recommendation_id": request.recommendation_id,
             "service": recommendation.service,
             "resource_type": recommendation.resource_type.value,
             "action": recommendation.action.value,
-            "dry_run": request.dry_run,
-            "status": status,
-            "message": message,
+            "dry_run": True,
+            "status": "dry_run",
+            "message": f"Would apply {recommendation.action.value} for {recommendation.service}",
             "estimated_savings": recommendation.estimated_monthly_savings,
-            "actual_savings": actual_savings,
+            "actual_savings": 0.0,
             "applied_by": current_user.username if hasattr(current_user, "username") else "system",
             "applied_at": datetime.utcnow().isoformat(),
         }
@@ -2018,6 +2276,9 @@ async def create_rightsizing_batch(
             batch.resource_types = [ResourceType.CPU, ResourceType.MEMORY, ResourceType.DISK]
 
         metric_history = await _build_metric_history()
+        cost_share = _require_resource_costs()
+        real_services = [s for s in metrics_history.services() if s not in _GENERIC_SERVICES]
+        service_count = max(len(real_services), len(batch.services), 1)
         created_recommendations = []
 
         for service in batch.services:
@@ -2025,8 +2286,10 @@ async def create_rightsizing_batch(
                 rec_id = _generate_rightsizing_id()
 
                 key = rt.value
-                values = metric_history.get(key, [50.0])
-                current_value = values[-1] if values else 50.0
+                current_value = _require_current_value(metric_history, key)
+
+                group_cost = cost_share.get(_RESOURCE_COST_GROUP.get(rt, "other"), 0.0)
+                per_service_cost = group_cost / service_count
 
                 target_value = batch.target_utilization
 
@@ -2035,14 +2298,14 @@ async def create_rightsizing_batch(
                     recommended_value = current_value * 0.8
                     priority = CapacityAdvancedPriority.HIGH
                     reason = f"Current utilization ({current_value:.1f}%) significantly above target ({target_value}%)"
-                    savings = (current_value - recommended_value) * 10.0
+                    savings = round(per_service_cost * 0.3, 2)
                     performance_impact = "Minimal - current usage well above recommended"
                 elif current_value < target_value * 0.8:
                     action = RightsizingAction.SCALE_UP
                     recommended_value = current_value * 1.2
                     priority = CapacityAdvancedPriority.HIGH
                     reason = f"Current utilization ({current_value:.1f}%) below target ({target_value}%)"
-                    savings = -50.0
+                    savings = round(-per_service_cost * 0.3, 2)  # cost increase
                     performance_impact = "Positive - improved performance and headroom"
                 else:
                     action = RightsizingAction.NO_ACTION
@@ -2191,31 +2454,31 @@ async def apply_scaling_recommendation(
                 detail="Confirmation required for applying scaling. Set confirmation=true or dry_run=true"
             )
 
-        # Simulate scaling application
-        if request.dry_run:
-            status = "dry_run"
-            message = f"Would apply {recommendation.action} for {recommendation.service}"
-            actual_cost = 0.0
-        else:
-            status = "applied"
-            message = f"Applied {recommendation.action} for {recommendation.service}"
-            actual_cost = recommendation.estimated_cost
+        if not request.dry_run:
+            requires_backend(
+                "capacity-action-executor",
+                capability="apply scaling",
+                reason=(
+                    "No infrastructure backend is wired to apply scaling changes; "
+                    "use dry_run=true to preview only"
+                ),
+            )
 
         result = {
             "recommendation_id": request.recommendation_id,
             "service": recommendation.service,
             "resource_type": recommendation.resource_type.value,
             "action": recommendation.action,
-            "dry_run": request.dry_run,
-            "status": status,
-            "message": message,
+            "dry_run": True,
+            "status": "dry_run",
+            "message": f"Would apply {recommendation.action} for {recommendation.service}",
             "estimated_cost": recommendation.estimated_cost,
-            "actual_cost": actual_cost,
+            "actual_cost": 0.0,
             "applied_by": current_user.username if hasattr(current_user, "username") else "system",
             "applied_at": datetime.utcnow().isoformat(),
         }
 
-        logger.info(f"Applied scaling recommendation: {request.recommendation_id} (dry_run={request.dry_run})")
+        logger.info(f"Previewed scaling recommendation: {request.recommendation_id} (dry_run)")
 
         return result
     except HTTPException:

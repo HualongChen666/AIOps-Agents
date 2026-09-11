@@ -354,11 +354,14 @@ class TestDatabaseBackupEndpoints:
         }
 
         response = client.post("/api/v1/database/backups", json=request_data)
-        # May return 500 due to database URL error
-        assert response.status_code in [200, 500]
+        # Real backups require a WAL-G / pg_basebackup backend; when absent the
+        # API must signal requires-backend (503) instead of faking a backup.
+        assert response.status_code in [200, 500, 503], response.text
         if response.status_code == 200:
             data = response.json()
             assert "backup_id" in data or "database_name" in data
+        elif response.status_code == 503:
+            assert response.json()["detail"]["error"] == "requires-backend"
 
 
 # Database migration endpoints tests

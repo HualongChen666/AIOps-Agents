@@ -71,6 +71,15 @@ def _linear_forecast(values: list[float], horizon: int) -> float:
     return intercept + slope * (n - 1 + horizon)
 
 
+def linear_forecast(values: list[float], horizon: int) -> float:
+    """Public wrapper: forecast ``horizon`` steps past the last real sample.
+
+    Unlike :func:`forecast_capacity` this never substitutes a default series —
+    the caller passes the genuine samples and gets ``0.0`` for an empty input.
+    """
+    return _linear_forecast(_to_floats(values), horizon)
+
+
 def forecast_capacity(metric_history: dict, days_ahead: int) -> dict:
     """
     Forecast capacity for the four target metrics.
@@ -97,17 +106,20 @@ def forecast_capacity(metric_history: dict, days_ahead: int) -> dict:
         current = values[-1]
         forecast_7 = _linear_forecast(values, 7)
         forecast_30 = _linear_forecast(values, 30)
+        forecast_90 = _linear_forecast(values, 90)
 
         # Clamp to realistic percentage range; network should be normalized
         # to a 0-100 % scale by the caller if it is sourced from MB/s.
         forecast_7 = max(0.0, min(100.0, forecast_7))
         forecast_30 = max(0.0, min(100.0, forecast_30))
+        forecast_90 = max(0.0, min(100.0, forecast_90))
 
         result[key] = {
             "metric": meta["name"],
             "currentValue": round(current, 2),
             "forecast7d": round(forecast_7, 2),
             "forecast30d": round(forecast_30, 2),
+            "forecast90d": round(forecast_90, 2),
             "threshold": meta["threshold"],
             "unit": meta["unit"],
         }

@@ -5,6 +5,7 @@ Provides comprehensive API endpoints for plugin marketplace management
 """
 
 from datetime import datetime
+import os
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -14,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from core.auth import check_rate_limit, get_current_user, require_permission
+from core.backend_requirements import requires_backend
 from core.database import get_db
 from core.models import (
     PluginListingDB,
@@ -24,6 +26,28 @@ from core.models import (
 )
 
 router = APIRouter(prefix="/api/v1/plugin/marketplace", tags=["Plugin Marketplace Advanced"])
+
+
+async def _download_plugin_artifact(download_url: str, dest_dir: str) -> str:
+    """Download a plugin artifact to ``dest_dir`` and return the local path.
+
+    Raises on any network/HTTP error so the caller can report
+    ``requires-backend`` rather than claiming a fabricated installation.
+    """
+    import httpx
+    from urllib.parse import urlparse
+
+    os.makedirs(dest_dir, exist_ok=True)
+    filename = os.path.basename(urlparse(download_url).path) or "plugin.zip"
+    path = os.path.join(dest_dir, filename)
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        response = await client.get(download_url)
+    response.raise_for_status()
+
+    with open(path, "wb") as handle:
+        handle.write(response.content)
+    return path
 
 
 # Pydantic Models
@@ -371,8 +395,18 @@ async def install_plugin(
         if existing_install:
             raise HTTPException(status_code=400, detail="Plugin is already installed")
 
-        # Simulate installation
-        install_path = f"plugins/{plugin_listing.plugin_name}"
+        # Download the real plugin artifact; refuse if the registry is unreachable.
+        install_dir = os.path.join(os.getcwd(), "plugins", plugin_listing.plugin_name)
+        try:
+            install_path = await _download_plugin_artifact(
+                plugin_listing.download_url, install_dir
+            )
+        except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+            requires_backend(
+                "plugin-registry",
+                capability="plugin installation",
+                reason=f"Could not download plugin artifact from {plugin_listing.download_url}: {e}",
+            )
 
         # Record installation
         new_install = InstalledPluginDB(

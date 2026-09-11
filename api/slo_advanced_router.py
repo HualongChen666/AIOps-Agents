@@ -265,10 +265,15 @@ async def _get_current_user_or_internal(
     return get_current_user(token)
 
 
-def _get_metric_points(rule: SLORule) -> list[Any]:
-    """Fetch metric points for the rule's evaluation window."""
+def _get_metric_points(rule: SLORule, hours: Optional[int] = None) -> list[Any]:
+    """Fetch metric points for the rule's evaluation window.
+
+    ``hours`` overrides the window length (used for multi-window burn-rate
+    analysis); when omitted the rule's own configured window is used.
+    """
+    window = hours if hours is not None else rule.window
     end_dt = datetime.datetime.utcnow()
-    start_dt = end_dt - datetime.timedelta(hours=rule.window)
+    start_dt = end_dt - datetime.timedelta(hours=window)
     return metrics_history.query(rule.metric, rule.service, start_dt, end_dt)
 
 
@@ -555,23 +560,21 @@ async def get_slo_burn_rates(
 
     burn_rates = []
     for rule in rules:
-        points = _get_metric_points(rule)
-        result = evaluate_slo(rule, points)
-
-        # Calculate burn rate over different time windows
-        burn_rate_1h = result["burn_rate"]
-        burn_rate_24h = result["burn_rate"] * 0.8  # Simulated longer-term burn rate
-        burn_rate_7d = result["burn_rate"] * 0.6  # Simulated weekly burn rate
+        # Real burn rate per window: evaluate the rule against the metric
+        # samples that actually fall inside each window.
+        result_1h = evaluate_slo(rule, _get_metric_points(rule, 1))
+        result_24h = evaluate_slo(rule, _get_metric_points(rule, 24))
+        result_7d = evaluate_slo(rule, _get_metric_points(rule, 168))
 
         burn_rates.append(
             {
                 "slo_id": rule.id,
                 "slo_name": rule.name,
                 "service": rule.service,
-                "burn_rate_1h": round(burn_rate_1h, 3),
-                "burn_rate_24h": round(burn_rate_24h, 3),
-                "burn_rate_7d": round(burn_rate_7d, 3),
-                "status": result["status"],
+                "burn_rate_1h": round(result_1h["burn_rate"], 3),
+                "burn_rate_24h": round(result_24h["burn_rate"], 3),
+                "burn_rate_7d": round(result_7d["burn_rate"], 3),
+                "status": result_1h["status"],
                 "window": format_window(rule.window),
             }
         )

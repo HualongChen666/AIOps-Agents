@@ -26,6 +26,8 @@ from fastapi import APIRouter, HTTPException, Path, Query, Request
 from loguru import logger
 from pydantic import BaseModel, Field
 
+from core.backend_requirements import requires_backend
+from core.business_impact_engine import assess_business_impact
 from core.persistent_store import PersistentStore
 from core.topology_engine import (
     get_full_link_topology,
@@ -970,16 +972,22 @@ async def scan_services_alt() -> Dict[str, Any]:
     """Scan for new services"""
     logger.info("Scanning for services")
     try:
-        # Simulate scan delay
-        import asyncio
+        # Real scan: prefer the topology/service-discovery engine, and fall back
+        # to the registered service store.  Both counts are real; no delay is
+        # injected to fake work.
+        services_found = len(_topology_nodes)
+        try:
+            topology = get_full_link_topology()
+            scanned = topology.get("nodes", [])
+            if scanned:
+                services_found = len(scanned)
+        except Exception as e:  # noqa: BLE001 - engine optional, registry is authoritative fallback
+            logger.warning(f"Topology engine scan unavailable, using registry count: {e}")
 
-        await asyncio.sleep(1)
-
-        # Return success
         return {
             "message": "Service scan completed",
             "scanned_at": _get_current_timestamp(),
-            "services_found": len(_topology_nodes),
+            "services_found": services_found,
         }
     except Exception as e:
         logger.error(f"Failed to scan services: {e}", exc_info=True)
@@ -1103,24 +1111,18 @@ async def causal_inference_alt(request_data: Dict[str, Any]) -> Dict[str, Any]:
     """Perform causal inference on an event"""
     logger.info(f"Performing causal inference for event: {request_data.get('event')}")
     try:
-        event = request_data.get("event", "")
-
-        # Simulate causal inference
-        results = [
-            {
-                "cause": dep.get("source"),
-                "effect": dep.get("target"),
-                "probability": 0.7 + (hash(dep.get("source")) % 30) / 100.0,
-                "confidence": "high" if hash(dep.get("source")) % 2 == 0 else "medium",
-            }
-            for dep in list(_topology_dependencies.values())[:5]
-        ]
-
-        return {
-            "event": event,
-            "results": results,
-            "inference_time": _get_current_timestamp(),
-        }
+        # Causal inference needs observed anomaly/event data from an
+        # observability backend; no such backend is wired here.
+        requires_backend(
+            "observability-events",
+            capability="causal inference",
+            reason=(
+                "Causal inference requires an event/anomaly backend that is not "
+                "configured in this deployment"
+            ),
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to perform causal inference: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to perform causal inference: {str(e)}")
@@ -1131,26 +1133,18 @@ async def causal_prediction_alt(request_data: Dict[str, Any]) -> Dict[str, Any]:
     """Perform causal prediction"""
     logger.info(f"Performing causal prediction for event: {request_data.get('event')}")
     try:
-        event = request_data.get("event", "")
-        time_horizon = request_data.get("time_horizon", 24)
-
-        # Simulate prediction
-        predictions = [
-            {
-                "predicted_effect": node.get("name"),
-                "probability": 0.5 + (hash(node.get("name")) % 40) / 100.0,
-                "time_to_effect": f"{(hash(node.get('name')) % time_horizon) + 1}h",
-                "severity": "high" if hash(node.get("name")) % 3 == 0 else "medium",
-            }
-            for node in list(_topology_nodes.values())[:5]
-        ]
-
-        return {
-            "event": event,
-            "time_horizon": time_horizon,
-            "predictions": predictions,
-            "prediction_time": _get_current_timestamp(),
-        }
+        # Causal prediction needs a fitted causal model over observed time
+        # series; no such backend is wired here.
+        requires_backend(
+            "observability-events",
+            capability="causal prediction",
+            reason=(
+                "Causal prediction requires an event/metrics backend to fit a "
+                "causal model; none is configured in this deployment"
+            ),
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to perform causal prediction: {e}", exc_info=True)
         raise HTTPException(
@@ -1163,20 +1157,18 @@ async def get_call_chains_alt() -> Dict[str, Any]:
     """Get call chain analysis"""
     logger.info("Fetching call chains")
     try:
-        # Build call chains from dependencies
-        chains = []
-        for dep in list(_topology_dependencies.values())[:10]:
-            chain = {
-                "id": _generate_id(),
-                "source": dep.get("source"),
-                "target": dep.get("target"),
-                "type": dep.get("type"),
-                "latency_ms": 10 + (hash(dep.get("source")) % 100),
-                "success_rate": 0.9 + (hash(dep.get("source")) % 10) / 100.0,
-            }
-            chains.append(chain)
-
-        return {"chains": chains}
+        # Call chains are derived from real trace spans; no trace backend
+        # (Tempo/Jaeger/OTLP) is configured here.
+        requires_backend(
+            "trace-backend",
+            capability="call chain analysis",
+            reason=(
+                "Call chain analysis requires a trace backend (e.g. Tempo/Jaeger) "
+                "that is not configured in this deployment"
+            ),
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to fetch call chains: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to fetch call chains: {str(e)}")
@@ -1187,21 +1179,16 @@ async def analyze_call_chain_alt(request_data: Dict[str, Any]) -> Dict[str, Any]
     """Analyze a specific call chain"""
     logger.info(f"Analyzing call chain for trace: {request_data.get('trace_id')}")
     try:
-        trace_id = request_data.get("trace_id", "")
-
-        # Simulate analysis
-        chain = {
-            "id": trace_id,
-            "source": "service-a",
-            "target": "service-b",
-            "type": "sync",
-            "latency_ms": 45,
-            "success_rate": 0.95,
-            "bottlenecks": ["service-c", "database"],
-            "optimization_suggestions": ["Add caching", "Optimize query"],
-        }
-
-        return chain
+        requires_backend(
+            "trace-backend",
+            capability="call chain analysis",
+            reason=(
+                "Analysing a call chain requires the real trace spans from a trace "
+                "backend that is not configured in this deployment"
+            ),
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to analyze call chain: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to analyze call chain: {str(e)}")
@@ -1215,13 +1202,13 @@ async def search_call_chains_alt(criteria: Dict[str, Any]) -> Dict[str, Any]:
         source = criteria.get("source")
         target = criteria.get("target")
 
-        # Filter dependencies
+        # Search the real dependency graph; per-edge latency would require a
+        # trace backend and is intentionally omitted rather than fabricated.
         results = [
             {
                 "source": dep.get("source"),
                 "target": dep.get("target"),
                 "type": dep.get("type"),
-                "latency_ms": 10 + (hash(dep.get("source")) % 100),
             }
             for dep in _topology_dependencies.values()
             if (not source or dep.get("source") == source)
@@ -1241,23 +1228,31 @@ async def impact_analysis_alt(request_data: Dict[str, Any]) -> Dict[str, Any]:
     try:
         service_id = request_data.get("service_id", "")
 
-        # Find downstream services
+        # Find downstream services from the real dependency graph.
         downstream = [
             dep.get("target")
             for dep in _topology_dependencies.values()
             if dep.get("source") == service_id
         ]
 
-        # Calculate impact
-        results = [
-            {
-                "service": service,
-                "impact_level": "high" if hash(service) % 2 == 0 else "medium",
-                "affected_users": 100 + (hash(service) % 1000),
-                "business_impact": "critical" if hash(service) % 3 == 0 else "moderate",
-            }
-            for service in downstream[:5]
-        ]
+        # Real business impact from the business-impact engine.
+        results = []
+        for service in downstream[:5]:
+            try:
+                impact = await assess_business_impact(service)
+            except Exception as exc:  # noqa: BLE001 - skip services we cannot assess
+                logger.warning(f"Business impact assessment failed for {service}: {exc}")
+                continue
+            results.append(
+                {
+                    "service": service,
+                    "impact_level": impact.get("category"),
+                    "impact_score": impact.get("impactScore"),
+                    "affected_users": impact.get("affectedUsers"),
+                    "revenue_impact": impact.get("revenueImpact"),
+                    "status": impact.get("status"),
+                }
+            )
 
         return {
             "service_id": service_id,
@@ -1300,12 +1295,14 @@ async def get_topology_status_alt() -> Dict[str, Any]:
     try:
         graph_data = await get_topology_graph()
 
+        # Deterministic health score derived from the real node status.
+        status_health = {"healthy": 100.0, "warning": 60.0, "critical": 20.0}
         statuses = [
             {
                 "node_id": node.get("id"),
                 "name": node.get("name"),
                 "status": node.get("status"),
-                "health_score": 90 + (hash(node.get("id")) % 10),
+                "health_score": status_health.get(str(node.get("status")), 0.0),
                 "last_updated": _get_current_timestamp(),
             }
             for node in graph_data.get("nodes", [])
@@ -1339,17 +1336,7 @@ async def get_topology_management_alt() -> Dict[str, Any]:
     """Get topology management data"""
     logger.info("Fetching topology management data")
     try:
-        topologies = [
-            {
-                "id": _generate_id(),
-                "name": f"Topology {i}",
-                "type": "microservice",
-                "description": f"Microservice topology {i}",
-                "status": "active",
-                "created_at": _get_current_timestamp(),
-            }
-            for i in range(1, 4)
-        ]
+        topologies = list(_topology_graphs.values())
         return {"topologies": topologies}
     except Exception as e:
         logger.error(f"Failed to fetch topology management: {e}", exc_info=True)
@@ -1376,6 +1363,7 @@ async def create_topology_alt(topology: Dict[str, Any], request: Request) -> Dic
             "created_by": operator_ip,
         }
 
+        _topology_graphs[topology_id] = new_topology
         return new_topology
     except Exception as e:
         logger.error(f"Failed to create topology: {e}", exc_info=True)
@@ -1387,7 +1375,12 @@ async def delete_topology_alt(topology_id: str) -> Dict[str, Any]:
     """Delete a topology"""
     logger.info(f"Deleting topology: {topology_id}")
     try:
+        if topology_id not in _topology_graphs:
+            raise HTTPException(status_code=404, detail=f"Topology {topology_id} not found")
+        del _topology_graphs[topology_id]
         return {"message": "Topology deleted successfully", "id": topology_id}
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Failed to delete topology: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to delete topology: {str(e)}")

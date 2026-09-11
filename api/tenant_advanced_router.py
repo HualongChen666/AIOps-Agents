@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -15,6 +17,7 @@ from core.authentication import UserInDB, get_user, verify_token
 from core.api_helpers import create_success_response, create_error_response
 from core.database import get_db
 from core.models import TenantConfigDB, TenantSettingsDB, TenantMemberDB
+from core.persistent_store import PersistentStore
 from core.tenant_engine import (
     _PLAN_LIMITS,
     get_tenant,
@@ -349,6 +352,34 @@ def _calculate_usage_percentage(used: float, total: float) -> float:
     if total == 0:
         return 0.0
     return round((used / total) * 100, 2)
+
+
+def _parse_iso(value: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO date/datetime string, returning ``None`` when invalid."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+    except ValueError:
+        logger.warning(f"Invalid audit-log date filter ignored: {value!r}")
+        return None
+
+
+async def _fetch_audit_logs(
+    limit: int,
+    action: Optional[str],
+    start_date: Optional[datetime],
+    end_date: Optional[datetime],
+) -> List[Dict[str, Any]]:
+    """Fetch real audit-log records from the audit service."""
+    from core.audit_service import AuditService
+
+    return await AuditService.get_audit_logs(
+        limit=limit,
+        action=action,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
 
 # ============ Config Endpoints ============
@@ -723,48 +754,22 @@ async def get_tenant_metrics(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
-    # 生成模拟指标数据
-    import random
-    from datetime import datetime
-
+    # Real tenant resource usage; latency/throughput metrics would require a
+    # per-tenant metrics backend, which is reported explicitly rather than
+    # fabricated.
     now = datetime.now()
     metrics = {
         "tenant_id": tenant_id,
         "period": period,
         "timestamp": now.isoformat(),
-        "cpu_usage": {
-            "current": tenant.usage.cpu,
-            "average": tenant.usage.cpu * 0.9,
-            "peak": tenant.usage.cpu * 1.2,
-            "unit": "cores",
-        },
-        "memory_usage": {
-            "current": tenant.usage.memory,
-            "average": tenant.usage.memory * 0.85,
-            "peak": tenant.usage.memory * 1.1,
-            "unit": "GB",
-        },
-        "request_rate": {
-            "current": random.randint(100, 500),
-            "average": random.randint(80, 400),
-            "peak": random.randint(300, 600),
-            "unit": "req/s",
-        },
-        "response_time": {
-            "p50": random.randint(50, 100),
-            "p95": random.randint(150, 300),
-            "p99": random.randint(300, 500),
-            "unit": "ms",
-        },
-        "error_rate": {
-            "current": random.uniform(0.1, 0.5),
-            "average": random.uniform(0.1, 0.3),
-            "unit": "%",
-        },
-        "uptime": {
-            "current": 99.9,
-            "sla_target": 99.5,
-            "unit": "%",
+        "cpu_usage": {"current": tenant.usage.cpu, "unit": "cores"},
+        "memory_usage": {"current": tenant.usage.memory, "unit": "GB"},
+        "storage_usage": {"current": tenant.usage.storage, "unit": "GB"},
+        "users": {"current": tenant.usage.users, "unit": "count"},
+        "unavailable_metrics": {
+            "request_rate": "requires-backend",
+            "response_time": "requires-backend",
+            "error_rate": "requires-backend",
         },
     }
 
@@ -792,40 +797,21 @@ async def get_tenant_billing_endpoint(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
-    # 生成模拟发票
-    invoices = []
-    for i in range(3):
-        invoice_date = datetime.now() - timedelta(days=30 * (i + 1))
-        invoices.append(
-            {
-                "id": f"INV-{tenant_id}-{i+1:04d}",
-                "date": invoice_date.isoformat(),
-                "amount": tenant.billing.amount,
-                "currency": tenant.billing.currency,
-                "status": "paid" if i > 0 else "pending",
-                "download_url": f"/api/v1/tenant/{tenant_id}/billing/invoices/{i+1}",
-            }
-        )
-
+    # Invoice history and stored payment methods require a billing backend;
+    # only the tenant's real billing terms are returned.
     return BillingInfo(
         tenant_id=tenant_id,
         plan=tenant.plan,
         cycle=tenant.billing.cycle,
         amount=tenant.billing.amount,
         currency=tenant.billing.currency,
-        status="active",
+        status=tenant.status,
         next_billing_date=tenant.billing.nextBillingDate,
-        payment_method="credit_card",
-        payment_method_details={
-            "type": "visa",
-            "last4": "4242",
-            "expiry": "12/25",
-        },
-        invoices=invoices,
+        payment_method=None,
+        payment_method_details=None,
+        invoices=[],
         usage_summary={
             "current_month_cost": tenant.billing.amount,
-            "previous_month_cost": tenant.billing.amount,
-            "forecast_next_month": tenant.billing.amount * 1.1,
         },
     )
 
@@ -1127,31 +1113,29 @@ async def get_tenant_audit_logs(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
-    # 生成模拟审计日志数据
-    import uuid
-    from datetime import timedelta
+    records = await _fetch_audit_logs(
+        limit=limit,
+        action=action,
+        start_date=_parse_iso(start_date),
+        end_date=_parse_iso(end_date),
+    )
 
-    logs = []
-    actions = ["create", "update", "delete", "view", "export"]
-    resource_types = ["tenant", "user", "service", "alert", "config"]
-
-    for i in range(min(limit, 50)):
-        log_date = datetime.now() - timedelta(days=i)
-        logs.append(
-            AuditLogEntry(
-                id=str(uuid.uuid4()),
-                tenant_id=tenant_id,
-                action=actions[i % len(actions)],
-                resource_type=resource_types[i % len(resource_types)],
-                resource_id=f"resource-{i}",
-                user_id=str(current_user.id),
-                username=current_user.username,
-                timestamp=log_date.isoformat(),
-                ip_address="127.0.0.1",
-                details={"changes": f"Sample change {i}"},
-                status="success",
-            )
+    logs = [
+        AuditLogEntry(
+            id=str(record.get("id")),
+            tenant_id=tenant_id,
+            action=str(record.get("action") or ""),
+            resource_type=str(record.get("resource_type") or ""),
+            resource_id=str(record.get("resource_id") or ""),
+            user_id=str(record.get("user_id") or ""),
+            username=str(record.get("username") or ""),
+            timestamp=str(record.get("created_at") or ""),
+            ip_address=str(record.get("ip_address") or ""),
+            details=record.get("details") if isinstance(record.get("details"), dict) else {},
+            status=str(record.get("status") or "success"),
         )
+        for record in records
+    ]
 
     # 应用过滤
     if action:
@@ -1387,6 +1371,11 @@ async def deactivate_tenant(
 
 
 # ============ Export Endpoints ============
+_exports: PersistentStore = PersistentStore(
+    "tenant", "exports", decoder=TenantExportResponse.model_validate
+)
+
+
 @router.post(
     "/export",
     response_model=TenantExportResponse,
@@ -1409,22 +1398,54 @@ async def export_tenant_data(
     if not tenant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
 
+    from dataclasses import asdict
+
+    import json
     import uuid
+
     export_id = str(uuid.uuid4())
 
-    # 在实际实现中，这里会创建一个异步导出任务
-    # 这里我们模拟导出任务创建
+    # Build a real export payload from the tenant record, honouring the flags.
+    payload: Dict[str, Any] = {
+        "export_id": export_id,
+        "tenant_id": export_request.tenant_id,
+        "generated_at": datetime.now().isoformat(),
+        "generated_by": current_user.username,
+    }
+    if export_request.include_config:
+        payload["config"] = {
+            "name": tenant.name,
+            "plan": tenant.plan,
+            "primary_color": getattr(tenant, "primary_color", None),
+        }
+    if export_request.include_usage:
+        payload["usage"] = asdict(tenant.usage)
+    if export_request.include_billing:
+        payload["billing"] = asdict(tenant.billing)
+    if export_request.include_members:
+        payload["members"] = tenant.members if hasattr(tenant, "members") else []
+
+    content = json.dumps(payload, default=str, indent=2).encode("utf-8")
+    exports_dir = os.path.join(os.getcwd(), "exports", "tenant")
+    os.makedirs(exports_dir, exist_ok=True)
+    file_path = os.path.join(exports_dir, f"{export_id}.{export_request.format}")
+    with open(file_path, "wb") as handle:
+        handle.write(content)
+
+    now = datetime.now()
     export_response = TenantExportResponse(
         export_id=export_id,
         tenant_id=export_request.tenant_id,
-        status="processing",
-        download_url=None,
-        expires_at=None,
-        created_at=datetime.now().isoformat(),
+        status="completed",
+        download_url=f"/api/v1/tenant/export/{export_id}/download",
+        expires_at=(now + timedelta(hours=24)).isoformat(),
+        created_at=now.isoformat(),
     )
 
+    _exports[export_id] = export_response
+
     logger.info(
-        f"Tenant export requested | tenant_id={export_request.tenant_id} | export_id={export_id} | "
+        f"Tenant export created | tenant_id={export_request.tenant_id} | export_id={export_id} | "
         f"user={current_user.username} | ip={get_client_ip(request)}"
     )
 
@@ -1446,17 +1467,10 @@ async def get_export_status(
     current_user: UserInDB = Depends(get_current_user),
 ) -> TenantExportResponse:
     """获取导出任务的状态"""
-    # 在实际实现中，这里会查询数据库中的导出任务状态
-    # 这里我们模拟一个完成的导出任务
-    from datetime import timedelta
-    export_response = TenantExportResponse(
-        export_id=export_id,
-        tenant_id="default",
-        status="completed",
-        download_url=f"/api/v1/tenant/export/{export_id}/download",
-        expires_at=(datetime.now() + timedelta(hours=24)).isoformat(),
-        created_at=datetime.now().isoformat(),
-    )
+    if export_id not in _exports:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Export task not found")
+
+    export_response = _exports[export_id]
 
     logger.info(
         f"Export status retrieved | export_id={export_id} | user={current_user.username}"

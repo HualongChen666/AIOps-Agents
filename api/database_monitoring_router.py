@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db_engine import async_get_session
+from core.backend_requirements import requires_backend
 from core.repositories.database_monitoring_repository import DatabaseMonitoringRepository
 from core.authentication import get_current_active_user
 from core.auth import check_rate_limit, parse_rate_limit_per_minute
@@ -32,6 +33,84 @@ from core.rbac import Permission, require_permission
 from core.rate_limiter import get_rate_limit_for_endpoint
 
 logger = logging.getLogger(__name__)
+
+
+async def _collect_db_metrics(db: AsyncSession) -> Dict[str, Any]:
+    """Collect real database performance metrics.
+
+    Query latency and connection counts are measured live via the shared
+    database router helper; database size comes from a dialect-aware SQL
+    query. Percentile latency and cache-hit statistics require a database
+    statistics backend (``pg_stat_statements`` / ``pg_stat_database``) and are
+    returned as ``None`` when unavailable so the caller can signal
+    ``requires-backend`` instead of inventing numbers.
+    """
+    from sqlalchemy import text
+
+    from api.database_advanced_router import _get_performance_metrics
+
+    live = _get_performance_metrics()
+
+    dialect = ""
+    try:
+        bind = db.get_bind()
+        dialect = getattr(getattr(bind, "dialect", None), "name", "") or ""
+    except Exception:  # pragma: no cover - defensive
+        dialect = ""
+
+    size_mb: Optional[float] = None
+    try:
+        if dialect == "postgresql":
+            size_query = text("SELECT pg_database_size(current_database())/1024.0/1024.0")
+        else:
+            size_query = text(
+                "SELECT (SELECT page_count FROM pragma_page_count()) * "
+                "(SELECT page_size FROM pragma_page_size()) / 1024.0/1024.0"
+            )
+        size_val = (await db.execute(size_query)).scalar()
+        size_mb = round(float(size_val), 2) if size_val is not None else None
+    except Exception as exc:  # noqa: BLE001 - size is best-effort
+        logger.warning(f"Failed to read database size: {exc}")
+
+    p95 = p99 = cache_hit_ratio = None
+    if dialect == "postgresql":
+        try:
+            p95 = (
+                await db.execute(
+                    text(
+                        "SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY mean_exec_time) "
+                        "FROM pg_stat_statements"
+                    )
+                )
+            ).scalar()
+            p99 = (
+                await db.execute(
+                    text(
+                        "SELECT percentile_cont(0.99) WITHIN GROUP (ORDER BY mean_exec_time) "
+                        "FROM pg_stat_statements"
+                    )
+                )
+            ).scalar()
+            cache_hit_ratio = (
+                await db.execute(
+                    text(
+                        "SELECT blks_hit::float / NULLIF(blks_hit + blks_read, 0) "
+                        "FROM pg_stat_database WHERE datname = current_database()"
+                    )
+                )
+            ).scalar()
+        except Exception as exc:  # noqa: BLE001 - statistics backend optional
+            logger.warning(f"PostgreSQL statistics backend unavailable: {exc}")
+            p95 = p99 = cache_hit_ratio = None
+
+    return {
+        "avg_query_time": round(float(live.get("query_latency", 0.0)), 2),
+        "avg_connection_count": float(live.get("connection_count", 0)),
+        "database_size_mb": size_mb,
+        "p95_query_time": round(float(p95), 2) if p95 is not None else None,
+        "p99_query_time": round(float(p99), 2) if p99 is not None else None,
+        "cache_hit_ratio": round(float(cache_hit_ratio), 4) if cache_hit_ratio is not None else None,
+    }
 
 
 def _check_rate_limit(request: Request) -> None:
@@ -697,23 +776,42 @@ async def establish_current_baseline(
     current_user = Depends(get_current_active_user)
 ) -> DatabasePerformanceBaseline:
     """基于当前性能数据建立基线"""
-    # In a real implementation, this would collect actual performance metrics
-    # For now, we create a baseline with sample data
     repo = DatabaseMonitoringRepository(db)
     existing = await repo.get_baseline_by_name(baseline_name)
 
     if existing:
         raise HTTPException(status_code=400, detail=f"Baseline {baseline_name} already exists")
 
+    metrics = await _collect_db_metrics(db)
+
+    # A meaningful baseline needs percentile latency and cache-hit statistics;
+    # refuse when the statistics backend is unavailable instead of inventing them.
+    missing = [
+        key
+        for key in ("p95_query_time", "p99_query_time", "cache_hit_ratio", "database_size_mb")
+        if metrics.get(key) is None
+    ]
+    if missing:
+        requires_backend(
+            "db-statistics",
+            capability="database performance baseline",
+            reason=(
+                "No database statistics backend available for: "
+                + ", ".join(missing)
+            ),
+        )
+
+    peak_connection_count = int(metrics["avg_connection_count"])
+
     baseline_db = await repo.create_baseline(
         baseline_name=baseline_name,
-        avg_query_time=45.0,  # Sample data
-        p95_query_time=120.0,
-        p99_query_time=250.0,
-        avg_connection_count=35.0,
-        peak_connection_count=65,
-        cache_hit_ratio=0.92,
-        database_size_mb=1024.0,
+        avg_query_time=metrics["avg_query_time"],
+        p95_query_time=metrics["p95_query_time"],
+        p99_query_time=metrics["p99_query_time"],
+        avg_connection_count=metrics["avg_connection_count"],
+        peak_connection_count=peak_connection_count,
+        cache_hit_ratio=metrics["cache_hit_ratio"],
+        database_size_mb=metrics["database_size_mb"],
         description=f"Baseline established on {datetime.utcnow().isoformat()}",
         created_by=current_user.username if current_user else None,
     )
@@ -742,17 +840,18 @@ async def get_database_health(
     """获取数据库健康状态"""
     repo = DatabaseMonitoringRepository(db)
     status_db = await repo.get_status()
+    metrics = await _collect_db_metrics(db)
 
     return {
         "status": status_db.database_health if status_db else "healthy",
         "timestamp": datetime.utcnow().isoformat(),
         "metrics": {
-            "query_time_ms": 45.0,
-            "connection_count": 35,
-            "cache_hit_ratio": 0.92,
-            "database_size_mb": 1024.0,
-            "slow_query_count": 2,
-            "deadlock_count": 0
+            "query_time_ms": metrics["avg_query_time"],
+            "connection_count": int(metrics["avg_connection_count"]),
+            "cache_hit_ratio": metrics["cache_hit_ratio"],
+            "database_size_mb": metrics["database_size_mb"],
+            "slow_query_count": None,
+            "deadlock_count": None,
         },
         "alerts": {
             "active": status_db.active_alerts if status_db else 0,

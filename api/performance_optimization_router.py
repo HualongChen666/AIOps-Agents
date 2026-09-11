@@ -23,6 +23,8 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from core.backend_requirements import requires_backend
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/performance", tags=["性能优化"])
 
@@ -120,9 +122,70 @@ _resource_limits = {
 
 
 # ============================================================================
-# API Endpoints
+# Real metric collection
 # ============================================================================
 
+
+def _collect_status() -> Dict[str, Any]:
+    """Collect real runtime performance status (psutil + pool + exporters)."""
+    import psutil
+
+    vm = psutil.virtual_memory()
+    disk = psutil.disk_usage("/")
+    process = psutil.Process()
+
+    pool_size = active_connections = max_overflow = None
+    try:
+        from core.database import engine
+
+        pool = engine.pool
+        pool_size = pool.size() if hasattr(pool, "size") else None
+        active_connections = pool.checkedout() if hasattr(pool, "checkedout") else None
+        max_overflow = _database_config.get("max_overflow")
+    except Exception as exc:  # noqa: BLE001 - pool introspection is best-effort
+        logger.warning(f"Failed to read DB pool stats: {exc}")
+
+    avg_ms = None
+    error_rate = 0.0
+    try:
+        from api.monitoring_advanced_router import _collect_api_telemetry
+
+        _, total_requests, total_errors, avg_ms = _collect_api_telemetry(None)
+        error_rate = round(total_errors / total_requests, 4) if total_requests else 0.0
+    except Exception as exc:  # noqa: BLE001 - telemetry is best-effort
+        logger.warning(f"Failed to read API telemetry: {exc}")
+
+    return {
+        "caching": {
+            "enabled": _cache_config.get("enabled", False),
+            "backend": _cache_config.get("backend", "unknown"),
+            "max_memory_mb": _cache_config.get("max_memory_mb", 1024),
+        },
+        "database": {
+            "pool_size": pool_size,
+            "active_connections": active_connections,
+            "max_overflow": max_overflow,
+        },
+        "resources": {
+            "memory_usage_mb": round(vm.used / (1024 ** 2), 2),
+            "max_memory_mb": round(vm.total / (1024 ** 2), 2),
+            "cpu_usage_percent": psutil.cpu_percent(interval=None),
+            "disk_usage_percent": disk.percent,
+            "max_disk_usage_percent": _resource_limits.get("max_disk_usage_percent", 90),
+            "open_files": len(process.open_files()),
+            "active_threads": process.num_threads(),
+            "max_threads": _resource_limits.get("max_threads", 100),
+        },
+        "performance_metrics": {
+            "avg_response_time_ms": avg_ms,
+            "error_rate": error_rate,
+        },
+    }
+
+
+# ============================================================================
+# API Endpoints
+# ============================================================================
 
 @router.get("/config", summary="获取性能配置")
 async def get_performance_config() -> Dict[str, Any]:
@@ -184,43 +247,8 @@ async def update_resource_limits(config: ResourceLimits) -> Dict[str, Any]:
 async def get_performance_status() -> Dict[str, Any]:
     """获取性能状态"""
     try:
-        # 模拟性能状态检查
-        status = {
-            "overall_status": "healthy",
-            "caching": {
-                "enabled": _cache_config.get("enabled", False),
-                "backend": _cache_config.get("backend", "unknown"),
-                "hit_rate": 0.85,
-                "memory_usage_mb": 512,
-                "max_memory_mb": _cache_config.get("max_memory_mb", 1024),
-            },
-            "database": {
-                "pool_size": _database_config.get("pool_size", 10),
-                "active_connections": 5,
-                "idle_connections": 5,
-                "max_overflow": _database_config.get("max_overflow", 20),
-                "query_cache_hit_rate": 0.72,
-            },
-            "resources": {
-                "memory_usage_mb": 2048,
-                "max_memory_mb": _resource_limits.get("max_memory_mb", 4096),
-                "cpu_usage_percent": 45,
-                "max_cpu_percent": _resource_limits.get("max_cpu_percent", 80),
-                "disk_usage_percent": 60,
-                "max_disk_usage_percent": _resource_limits.get("max_disk_usage_percent", 90),
-                "open_files": 2500,
-                "max_open_files": _resource_limits.get("max_open_files", 10000),
-                "active_threads": 25,
-                "max_threads": _resource_limits.get("max_threads", 100),
-            },
-            "performance_metrics": {
-                "avg_response_time_ms": 150,
-                "p95_response_time_ms": 450,
-                "p99_response_time_ms": 1200,
-                "requests_per_second": 125,
-                "error_rate": 0.005,
-            },
-        }
+        status = _collect_status()
+        status["overall_status"] = "healthy"
         return status
     except Exception as e:
         logger.error(f"获取性能状态失败: {e}", exc_info=True)
@@ -231,33 +259,15 @@ async def get_performance_status() -> Dict[str, Any]:
 async def optimize_performance() -> Dict[str, Any]:
     """执行性能优化"""
     try:
-        # 模拟性能优化操作
-        results = {
-            "status": "success",
-            "optimizations_applied": [
-                {
-                    "type": "cache_clear",
-                    "description": "清除缓存",
-                    "result": "cleared_150_entries",
-                },
-                {
-                    "type": "connection_pool_optimize",
-                    "description": "优化连接池",
-                    "result": "reduced_idle_connections_from_8_to_5",
-                },
-                {
-                    "type": "query_optimization",
-                    "description": "优化查询",
-                    "result": "analyzed_50_queries",
-                },
-            ],
-            "performance_improvement": {
-                "response_time_improvement_percent": 15,
-                "memory_usage_reduction_mb": 256,
-                "cpu_usage_reduction_percent": 10,
-            },
-        }
-        return results
+        # No performance-optimizer backend is wired here; refuse to fabricate
+        # the list of applied optimisations.
+        requires_backend(
+            "performance-optimizer",
+            capability="apply performance optimization",
+            reason="No performance-optimizer backend is configured in this deployment",
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"执行性能优化失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"执行性能优化失败: {str(e)[:200]}")
@@ -267,37 +277,57 @@ async def optimize_performance() -> Dict[str, Any]:
 async def get_performance_recommendations() -> Dict[str, Any]:
     """获取性能优化建议"""
     try:
-        # 模拟性能优化建议
-        recommendations = [
-            {
-                "category": "caching",
-                "priority": "high",
-                "title": "增加缓存大小",
-                "description": "当前缓存使用率超过80%，建议增加缓存大小到2048MB",
-                "expected_improvement": "减少数据库查询30%",
-            },
-            {
-                "category": "database",
-                "priority": "medium",
-                "title": "优化连接池配置",
-                "description": "建议将连接池大小从10增加到15以应对高并发",
-                "expected_improvement": "提升并发处理能力50%",
-            },
-            {
-                "category": "query",
-                "priority": "high",
-                "title": "添加缺失的索引",
-                "description": "检测到3个慢查询缺少索引，建议添加相应索引",
-                "expected_improvement": "查询速度提升200%",
-            },
-            {
-                "category": "resource",
-                "priority": "low",
-                "title": "启用异步操作",
-                "description": "部分操作可以改为异步执行以提升响应速度",
-                "expected_improvement": "减少响应时间20%",
-            },
-        ]
+        status = _collect_status()
+        resources = status["resources"]
+        recommendations = []
+
+        mem_pct = (
+            resources["memory_usage_mb"] / resources["max_memory_mb"] * 100
+            if resources["max_memory_mb"]
+            else 0.0
+        )
+        if mem_pct >= 80:
+            recommendations.append(
+                {
+                    "category": "resource",
+                    "priority": "high",
+                    "title": "内存使用率偏高",
+                    "description": f"内存使用率 {mem_pct:.1f}%，建议扩容或排查内存泄漏",
+                }
+            )
+        if resources["disk_usage_percent"] >= 85:
+            recommendations.append(
+                {
+                    "category": "resource",
+                    "priority": "high",
+                    "title": "磁盘使用率偏高",
+                    "description": f"磁盘使用率 {resources['disk_usage_percent']:.1f}%，建议清理",
+                }
+            )
+        if status["database"]["active_connections"] is not None and status["database"]["pool_size"]:
+            ratio = status["database"]["active_connections"] / status["database"]["pool_size"]
+            if ratio >= 0.8:
+                recommendations.append(
+                    {
+                        "category": "database",
+                        "priority": "medium",
+                        "title": "连接池接近饱和",
+                        "description": (
+                            f"活跃连接 {status['database']['active_connections']}/"
+                            f"{status['database']['pool_size']}，建议扩大连接池"
+                        ),
+                    }
+                )
+        if status["performance_metrics"]["error_rate"] and status["performance_metrics"]["error_rate"] > 0.01:
+            recommendations.append(
+                {
+                    "category": "api",
+                    "priority": "high",
+                    "title": "API 错误率偏高",
+                    "description": f"错误率 {status['performance_metrics']['error_rate']:.2%}，建议排查",
+                }
+            )
+
         return {"recommendations": recommendations}
     except Exception as e:
         logger.error(f"获取性能优化建议失败: {e}", exc_info=True)

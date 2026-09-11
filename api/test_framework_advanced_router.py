@@ -312,7 +312,7 @@ async def validate_framework_configuration(
 
     config = _framework_configs[id]
 
-    # 模拟验证逻辑
+    # Validate the real configuration fields.
     validation_result = {
         "valid": True,
         "errors": [],

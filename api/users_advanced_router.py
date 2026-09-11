@@ -334,26 +334,28 @@ def _get_user_notifications(user_id: int) -> List[Notification]:
 
 
 def _get_team_members() -> List[TeamMember]:
-    """获取团队成员（模拟数据）"""
+    """获取团队成员（来自真实用户表）"""
+    from core.auth_db import SessionLocal
+    from core.models import User
+
+    try:
+        with SessionLocal() as session:
+            users = session.query(User).filter(User.disabled.is_(False)).limit(100).all()
+    except Exception as e:  # noqa: BLE001 - no users when the DB is unavailable
+        logger.error(f"Failed to load team members: {e}", exc_info=True)
+        return []
+
     return [
         TeamMember(
-            id=1,
-            username="admin",
-            full_name="系统管理员",
-            email="admin@example.com",
-            role="admin",
-            team_role="owner",
-            joined_at=datetime.now() - timedelta(days=30),
-        ),
-        TeamMember(
-            id=2,
-            username="operator",
-            full_name="运维工程师",
-            email="operator@example.com",
-            role="operator",
-            team_role="member",
-            joined_at=datetime.now() - timedelta(days=15),
-        ),
+            id=user.id,
+            username=user.username,
+            full_name=user.full_name,
+            email=user.email,
+            role=user.role,
+            team_role="owner" if user.role == "admin" else "member",
+            joined_at=user.created_at,
+        )
+        for user in users
     ]
 
 

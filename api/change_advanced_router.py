@@ -1044,14 +1044,24 @@ async def perform_impact_analysis(
             "Test in staging environment first",
         ]
 
-        # Identify affected dependencies
+        # Identify affected dependencies from the real topology graph.
         dependencies_affected = []
-        for service in request.affected_services:
-            # Simulate dependency detection
-            if "database" in service.lower():
-                dependencies_affected.extend(["cache-service", "api-gateway"])
-            elif "api" in service.lower():
-                dependencies_affected.extend(["frontend", "mobile-app"])
+        try:
+            from core.topology_engine import get_full_link_topology
+
+            topology = get_full_link_topology()
+            edges = topology.get("edges", [])
+            names = {node.get("id"): node.get("name") for node in topology.get("nodes", [])}
+            for service in request.affected_services:
+                for edge in edges:
+                    source = edge.get("source")
+                    if source == service or names.get(source) == service:
+                        target = edge.get("target")
+                        dependencies_affected.append(names.get(target, target))
+        except Exception as exc:  # noqa: BLE001 - topology is optional
+            logger.warning(f"Dependency detection unavailable: {exc}")
+
+        dependencies_affected = sorted({d for d in dependencies_affected if d})
 
         # Assess rollback feasibility
         if request.risk_level == RiskLevel.HIGH:

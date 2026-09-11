@@ -1010,19 +1010,51 @@ async def get_performance(
             error_rate = 0
             throughput = 0
 
-        # Generate time series data
+        # Real time series: bucket the actual traces by minute over the last hour.
         time_series = []
         now = time.time()
-        for i in range(60):  # 60 data points
-            timestamp = now - (59 - i) * 60  # Last hour
-            time_series.append(
-                {
-                    "timestamp": datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat(),
-                    "avg_duration": avg_duration + (hash(str(i)) % 20 - 10),
-                    "error_rate": error_rate + (hash(str(i)) % 5) / 100.0,
-                    "throughput": throughput + (hash(str(i)) % 10),
-                }
+        buckets: Dict[int, Dict[str, Any]] = {}
+        for item in items:
+            try:
+                ts = datetime.fromisoformat(
+                    str(item.get("start_time")).replace("Z", "+00:00")
+                ).timestamp()
+            except (TypeError, ValueError):
+                continue
+            bucket_ts = int(ts // 60) * 60
+            bucket = buckets.setdefault(
+                bucket_ts, {"durations": [], "errors": 0, "count": 0}
             )
+            bucket["durations"].append(item.get("duration_ms", 0))
+            bucket["count"] += 1
+            if item.get("status") == "error":
+                bucket["errors"] += 1
+
+        for i in range(60):  # 60 one-minute buckets covering the last hour
+            bucket_ts = int((now - (59 - i) * 60) // 60) * 60
+            bucket = buckets.get(bucket_ts)
+            if bucket and bucket["count"]:
+                time_series.append(
+                    {
+                        "timestamp": datetime.fromtimestamp(
+                            bucket_ts, tz=timezone.utc
+                        ).isoformat(),
+                        "avg_duration": sum(bucket["durations"]) / bucket["count"],
+                        "error_rate": bucket["errors"] / bucket["count"],
+                        "throughput": bucket["count"],
+                    }
+                )
+            else:
+                time_series.append(
+                    {
+                        "timestamp": datetime.fromtimestamp(
+                            bucket_ts, tz=timezone.utc
+                        ).isoformat(),
+                        "avg_duration": 0,
+                        "error_rate": 0,
+                        "throughput": 0,
+                    }
+                )
 
         return {
             "time_range": time_range,

@@ -244,34 +244,42 @@ class TestConnection:
     """连接测试测试"""
 
     def test_test_connection_victoriametrics(self, client):
-        """测试连接 - VictoriaMetrics"""
+        """测试连接 - VictoriaMetrics（无后端时返回 requires-backend）"""
         response = client.post("/api/v1/monitoring/test-connection?backend=victoriametrics")
-        assert response.status_code == 200
+        assert response.status_code in (200, 503)
         data = response.json()
-        assert data["backend"] == "victoriametrics"
-        assert "status" in data
-        assert "latency_ms" in data
+        if response.status_code == 200:
+            assert data["backend"] == "victoriametrics"
+            assert "status" in data
+            assert "latency_ms" in data
+        else:
+            assert data["detail"]["error"] == "requires-backend"
 
     def test_test_connection_loki(self, client):
-        """测试连接 - Loki"""
+        """测试连接 - Loki（无后端时返回 requires-backend）"""
         response = client.post("/api/v1/monitoring/test-connection?backend=loki")
-        assert response.status_code == 200
+        assert response.status_code in (200, 503)
         data = response.json()
-        assert data["backend"] == "loki"
-        assert "status" in data
+        if response.status_code == 200:
+            assert data["backend"] == "loki"
+            assert "status" in data
+        else:
+            assert data["detail"]["error"] == "requires-backend"
 
     def test_test_connection_tempo(self, client):
-        """测试连接 - Tempo"""
+        """测试连接 - Tempo（无后端时返回 requires-backend）"""
         response = client.post("/api/v1/monitoring/test-connection?backend=tempo")
-        assert response.status_code == 200
+        assert response.status_code in (200, 503)
         data = response.json()
-        assert data["backend"] == "tempo"
-        assert "status" in data
+        if response.status_code == 200:
+            assert data["backend"] == "tempo"
+            assert "status" in data
+        else:
+            assert data["detail"]["error"] == "requires-backend"
 
     def test_test_connection_unknown(self, client):
-        """测试连接 - 未知后端"""
+        """测试连接 - 未知后端（返回 requires-backend）"""
         response = client.post("/api/v1/monitoring/test-connection?backend=unknown")
-        assert response.status_code == 200
+        assert response.status_code == 503
         data = response.json()
-        assert data["backend"] == "unknown"
-        assert data["status"] == "unknown"
+        assert data["detail"]["error"] == "requires-backend"

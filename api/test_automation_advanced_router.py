@@ -3,11 +3,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import uuid
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
@@ -16,6 +18,7 @@ from pydantic import BaseModel, Field
 from core.authentication import UserInDB, get_user, verify_token
 from core.database import get_db
 from core.models import TestSuiteDB, TestExecutionDB
+from core.persistent_store import PersistentStore
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -272,6 +275,30 @@ class TestMetricCreate(BaseModel):
     metadata: Optional[Dict] = None
 
     model_config = {"extra": "ignore"}
+
+
+# ============ Durable stores ============
+# Reports, environments, schedules and metrics are persisted through the shared
+# durable store rather than being regenerated as fabricated rows on every call.
+_reports: PersistentStore = PersistentStore(
+    "test_automation", "reports", decoder=TestReport.model_validate
+)
+_environments: PersistentStore = PersistentStore(
+    "test_automation", "environments", decoder=TestEnvironment.model_validate
+)
+_schedules: PersistentStore = PersistentStore(
+    "test_automation", "schedules", decoder=TestSchedule.model_validate
+)
+_metrics: PersistentStore = PersistentStore(
+    "test_automation", "metrics", decoder=TestMetric.model_validate
+)
+
+
+def _apply_update(model_obj: Any, update: BaseModel) -> None:
+    """Apply the provided (non-None) fields of ``update`` onto ``model_obj``."""
+    for field, value in update.model_dump(exclude_unset=True).items():
+        if value is not None and hasattr(model_obj, field):
+            setattr(model_obj, field, value)
 
 
 # ============ Database Helper Functions ============
@@ -802,25 +829,17 @@ async def get_execution_logs(
     if not execution_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found")
 
-    # 模拟日志数据 - 实际应用中应从日志存储中获取
+    # Execution metadata is real (from the DB); the log body requires an
+    # execution-log store, which is not configured — return it empty rather
+    # than fabricating log lines.
     logs = {
         "execution_id": id,
         "suite_id": execution_db.suite_id,
         "status": execution_db.status,
         "started_at": execution_db.started_at.isoformat() if execution_db.started_at else None,
         "completed_at": execution_db.completed_at.isoformat() if execution_db.completed_at else None,
-        "log_entries": [
-            {
-                "timestamp": execution_db.started_at.isoformat() if execution_db.started_at else None,
-                "level": "INFO",
-                "message": f"Test execution started for suite {execution_db.suite_name}",
-            },
-            {
-                "timestamp": execution_db.completed_at.isoformat() if execution_db.completed_at else None,
-                "level": "INFO",
-                "message": f"Test execution completed with status {execution_db.status}",
-            },
-        ],
+        "log_entries": [],
+        "log_entries_available": False,
     }
 
     return logs
@@ -934,7 +953,35 @@ async def create_test_report(
     report_id = str(uuid.uuid4())
     now = datetime.now()
 
-    # 模拟报告生成
+    # Build the report payload from the real execution record and persist it.
+    report_payload = {
+        "report_id": report_id,
+        "report_type": report_create.report_type,
+        "format": report_create.format,
+        "execution": {
+            "id": execution_db.id,
+            "suite_id": execution_db.suite_id,
+            "suite_name": execution_db.suite_name,
+            "status": execution_db.status,
+            "started_at": execution_db.started_at,
+            "completed_at": execution_db.completed_at,
+            "total_tests": execution_db.total_tests,
+            "passed_tests": execution_db.passed_tests,
+            "failed_tests": execution_db.failed_tests,
+            "skipped_tests": execution_db.skipped_tests,
+            "coverage": execution_db.coverage,
+        },
+        "generated_at": now,
+        "generated_by": current_user.username,
+    }
+    content = json.dumps(report_payload, default=str, indent=2).encode("utf-8")
+
+    reports_dir = os.path.join(os.getcwd(), "reports", "test-automation")
+    os.makedirs(reports_dir, exist_ok=True)
+    file_path = os.path.join(reports_dir, f"{report_id}.{report_create.format}")
+    with open(file_path, "wb") as handle:
+        handle.write(content)
+
     report = TestReport(
         id=report_id,
         execution_id=report_create.execution_id,
@@ -944,10 +991,12 @@ async def create_test_report(
         format=report_create.format,
         generated_at=now,
         generated_by=current_user.username,
-        file_url=f"/reports/{report_id}.{report_create.format}",
-        file_size_bytes=1024,  # 模拟文件大小
+        file_url=f"/reports/test-automation/{report_id}.{report_create.format}",
+        file_size_bytes=len(content),
         status="completed",
     )
+
+    _reports[report_id] = report
 
     logger.info(
         f"Test report created | report_id={report_id} | execution_id={report_create.execution_id} "
@@ -972,22 +1021,9 @@ async def get_test_report(
     current_user: UserInDB = Depends(get_current_user),
 ) -> TestReport:
     """获取指定测试报告的详情"""
-    # 模拟报告数据
-    report = TestReport(
-        id=id,
-        execution_id="exec-123",
-        suite_id="suite-123",
-        suite_name="Test Suite",
-        report_type="summary",
-        format="html",
-        generated_at=datetime.now(),
-        generated_by=current_user.username,
-        file_url=f"/reports/{id}.html",
-        file_size_bytes=1024,
-        status="completed",
-    )
-
-    return report
+    if id not in _reports:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test report not found")
+    return _reports[id]
 
 
 @router.get(
@@ -1007,24 +1043,12 @@ async def get_test_reports(
     current_user: UserInDB = Depends(get_current_user),
 ) -> List[TestReport]:
     """获取测试报告列表"""
-    # 模拟报告列表
-    reports = []
-    for i in range(min(10, limit)):
-        report = TestReport(
-            id=f"report-{i}",
-            execution_id=f"exec-{i}",
-            suite_id=f"suite-{i}",
-            suite_name=f"Test Suite {i}",
-            report_type="summary",
-            format="html",
-            generated_at=datetime.now(),
-            generated_by=current_user.username,
-            file_url=f"/reports/report-{i}.html",
-            file_size_bytes=1024,
-            status="completed",
-        )
-        reports.append(report)
-
+    reports = list(_reports.values())
+    if execution_id:
+        reports = [r for r in reports if r.execution_id == execution_id]
+    if report_type:
+        reports = [r for r in reports if r.report_type == report_type]
+    reports.sort(key=lambda r: r.generated_at, reverse=True)
     return reports[offset : offset + limit]
 
 
@@ -1044,6 +1068,19 @@ async def delete_test_report(
     current_user: UserInDB = Depends(get_current_user),
 ) -> None:
     """删除指定测试报告"""
+    if id not in _reports:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test report not found")
+    deleted = _reports.pop(id, None)
+    if deleted and deleted.file_url:
+        file_path = os.path.join(
+            os.getcwd(), "reports", "test-automation", os.path.basename(deleted.file_url)
+        )
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except OSError as exc:  # pragma: no cover - file cleanup is best effort
+            logger.warning(f"Failed to remove report file {file_path}: {exc}")
+
     logger.info(
         f"Test report deleted | report_id={id} | user={current_user.username} "
         f"| ip={get_client_ip(request)}"
@@ -1067,22 +1104,12 @@ async def get_test_environments(
     current_user: UserInDB = Depends(get_current_user),
 ) -> List[TestEnvironment]:
     """获取测试环境列表"""
-    # 模拟环境列表
-    environments = []
-    for i in range(min(5, limit)):
-        env = TestEnvironment(
-            id=f"env-{i}",
-            name=f"Environment {i}",
-            description=f"Test environment {i}",
-            environment_type="dev",
-            config={"key": "value"},
-            status="active",
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            created_by=current_user.username,
-        )
-        environments.append(env)
-
+    environments = list(_environments.values())
+    if environment_type:
+        environments = [e for e in environments if e.environment_type == environment_type]
+    if status:
+        environments = [e for e in environments if e.status == status]
+    environments.sort(key=lambda e: e.created_at, reverse=True)
     return environments[offset : offset + limit]
 
 
@@ -1118,6 +1145,8 @@ async def create_test_environment(
         created_by=current_user.username,
     )
 
+    _environments[env_id] = environment
+
     logger.info(
         f"Test environment created | env_id={env_id} | name={environment_create.name} "
         f"| user={current_user.username} | ip={get_client_ip(request)}"
@@ -1141,19 +1170,9 @@ async def get_test_environment(
     current_user: UserInDB = Depends(get_current_user),
 ) -> TestEnvironment:
     """获取指定测试环境的详情"""
-    environment = TestEnvironment(
-        id=id,
-        name="Test Environment",
-        description="Test environment description",
-        environment_type="dev",
-        config={"key": "value"},
-        status="active",
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        created_by=current_user.username,
-    )
-
-    return environment
+    if id not in _environments:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test environment not found")
+    return _environments[id]
 
 
 @router.patch(
@@ -1173,17 +1192,13 @@ async def update_test_environment(
     current_user: UserInDB = Depends(get_current_user),
 ) -> TestEnvironment:
     """更新指定测试环境"""
-    environment = TestEnvironment(
-        id=id,
-        name="Updated Environment",
-        description="Updated description",
-        environment_type="dev",
-        config={"key": "value"},
-        status="active",
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        created_by=current_user.username,
-    )
+    if id not in _environments:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test environment not found")
+
+    environment = _environments[id]
+    _apply_update(environment, environment_update)
+    environment.updated_at = datetime.now()
+    _environments[id] = environment
 
     logger.info(
         f"Test environment updated | env_id={id} | user={current_user.username} "
@@ -1209,6 +1224,10 @@ async def delete_test_environment(
     current_user: UserInDB = Depends(get_current_user),
 ) -> None:
     """删除指定测试环境"""
+    if id not in _environments:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test environment not found")
+    _environments.pop(id, None)
+
     logger.info(
         f"Test environment deleted | env_id={id} | user={current_user.username} "
         f"| ip={get_client_ip(request)}"
@@ -1233,25 +1252,12 @@ async def get_test_schedules(
     db: Session = Depends(get_db),
 ) -> List[TestSchedule]:
     """获取测试调度列表"""
-    # 模拟调度列表
-    schedules = []
-    for i in range(min(5, limit)):
-        schedule = TestSchedule(
-            id=f"schedule-{i}",
-            suite_id=f"suite-{i}",
-            suite_name=f"Test Suite {i}",
-            schedule_type="cron",
-            cron_expression="0 0 * * *",
-            interval_seconds=None,
-            enabled=True,
-            last_run=datetime.now() - timedelta(hours=1),
-            next_run=datetime.now() + timedelta(hours=1),
-            created_at=datetime.now(),
-            updated_at=datetime.now(),
-            created_by=current_user.username,
-        )
-        schedules.append(schedule)
-
+    schedules = list(_schedules.values())
+    if suite_id:
+        schedules = [s for s in schedules if s.suite_id == suite_id]
+    if enabled is not None:
+        schedules = [s for s in schedules if s.enabled == enabled]
+    schedules.sort(key=lambda s: s.created_at, reverse=True)
     return schedules[offset : offset + limit]
 
 
@@ -1300,6 +1306,8 @@ async def create_test_schedule(
         created_by=current_user.username,
     )
 
+    _schedules[schedule_id] = schedule
+
     logger.info(
         f"Test schedule created | schedule_id={schedule_id} | suite_id={schedule_create.suite_id} "
         f"| user={current_user.username} | ip={get_client_ip(request)}"
@@ -1323,22 +1331,9 @@ async def get_test_schedule(
     current_user: UserInDB = Depends(get_current_user),
 ) -> TestSchedule:
     """获取指定测试调度的详情"""
-    schedule = TestSchedule(
-        id=id,
-        suite_id="suite-123",
-        suite_name="Test Suite",
-        schedule_type="cron",
-        cron_expression="0 0 * * *",
-        interval_seconds=None,
-        enabled=True,
-        last_run=datetime.now() - timedelta(hours=1),
-        next_run=datetime.now() + timedelta(hours=1),
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        created_by=current_user.username,
-    )
-
-    return schedule
+    if id not in _schedules:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test schedule not found")
+    return _schedules[id]
 
 
 @router.patch(
@@ -1358,20 +1353,13 @@ async def update_test_schedule(
     current_user: UserInDB = Depends(get_current_user),
 ) -> TestSchedule:
     """更新指定测试调度"""
-    schedule = TestSchedule(
-        id=id,
-        suite_id="suite-123",
-        suite_name="Test Suite",
-        schedule_type="cron",
-        cron_expression="0 0 * * *",
-        interval_seconds=None,
-        enabled=True,
-        last_run=datetime.now() - timedelta(hours=1),
-        next_run=datetime.now() + timedelta(hours=1),
-        created_at=datetime.now(),
-        updated_at=datetime.now(),
-        created_by=current_user.username,
-    )
+    if id not in _schedules:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test schedule not found")
+
+    schedule = _schedules[id]
+    _apply_update(schedule, schedule_update)
+    schedule.updated_at = datetime.now()
+    _schedules[id] = schedule
 
     logger.info(
         f"Test schedule updated | schedule_id={id} | user={current_user.username} "
@@ -1397,6 +1385,10 @@ async def delete_test_schedule(
     current_user: UserInDB = Depends(get_current_user),
 ) -> None:
     """删除指定测试调度"""
+    if id not in _schedules:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test schedule not found")
+    _schedules.pop(id, None)
+
     logger.info(
         f"Test schedule deleted | schedule_id={id} | user={current_user.username} "
         f"| ip={get_client_ip(request)}"
@@ -1420,38 +1412,46 @@ async def trigger_test_schedule(
     db: Session = Depends(get_db),
 ) -> TestExecution:
     """手动触发测试调度"""
-    # 模拟触发调度
+    if id not in _schedules:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test schedule not found")
+
+    schedule = _schedules[id]
+    suite_db = db.query(TestSuiteDB).filter(TestSuiteDB.id == schedule.suite_id).first()
+    if not suite_db:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test suite not found")
+
     execution_id = str(uuid.uuid4())
     now = datetime.now()
 
-    execution = TestExecution(
+    execution_db = TestExecutionDB(
         id=execution_id,
-        suite_id="suite-123",
-        suite_name="Test Suite",
-        status=ExecutionStatus.PENDING,
+        suite_id=schedule.suite_id,
+        suite_name=suite_db.name,
+        status=ExecutionStatus.PENDING.value,
         started_at=now,
-        completed_at=None,
-        duration=None,
         total_tests=0,
         passed_tests=0,
         failed_tests=0,
         skipped_tests=0,
-        coverage=None,
         triggered_by=current_user.username,
         trigger_type="scheduled",
-        logs_url=None,
-        artifacts=[],
-        environment="dev",
-        retry_count=0,
-        error_message=None,
     )
+    db.add(execution_db)
+    db.commit()
+    db.refresh(execution_db)
+
+    schedule.last_run = now
+    if schedule.schedule_type == "interval" and schedule.interval_seconds:
+        schedule.next_run = now + timedelta(seconds=schedule.interval_seconds)
+    schedule.updated_at = now
+    _schedules[id] = schedule
 
     logger.info(
         f"Test schedule triggered | schedule_id={id} | execution_id={execution_id} "
         f"| user={current_user.username} | ip={get_client_ip(request)}"
     )
 
-    return execution
+    return _db_to_execution(execution_db)
 
 
 @router.get(
@@ -1471,20 +1471,12 @@ async def get_test_metrics(
     current_user: UserInDB = Depends(get_current_user),
 ) -> List[TestMetric]:
     """获取测试指标列表"""
-    # 模拟指标列表
-    metrics = []
-    for i in range(min(10, limit)):
-        metric = TestMetric(
-            id=f"metric-{i}",
-            execution_id=f"exec-{i}",
-            metric_name="execution_time",
-            metric_value=float(i * 100),
-            unit="ms",
-            timestamp=datetime.now(),
-            metadata={"source": "test_runner"},
-        )
-        metrics.append(metric)
-
+    metrics = list(_metrics.values())
+    if execution_id:
+        metrics = [m for m in metrics if m.execution_id == execution_id]
+    if metric_name:
+        metrics = [m for m in metrics if m.metric_name == metric_name]
+    metrics.sort(key=lambda m: m.timestamp, reverse=True)
     return metrics[offset : offset + limit]
 
 
@@ -1517,6 +1509,8 @@ async def create_test_metric(
         metadata=metric_create.metadata,
     )
 
+    _metrics[metric_id] = metric
+
     logger.info(
         f"Test metric created | metric_id={metric_id} | execution_id={metric_create.execution_id} "
         f"| user={current_user.username} | ip={get_client_ip(request)}"
@@ -1539,21 +1533,30 @@ async def get_metrics_summary(
     current_user: UserInDB = Depends(get_current_user),
 ) -> Dict:
     """获取测试指标摘要统计"""
-    summary = {
-        "total_metrics": 100,
-        "metric_types": {
-            "execution_time": {"count": 50, "avg": 150.5, "min": 10.0, "max": 500.0},
-            "memory_usage": {"count": 30, "avg": 1024.0, "min": 512.0, "max": 2048.0},
-            "cpu_usage": {"count": 20, "avg": 45.5, "min": 10.0, "max": 90.0},
-        },
-        "trends": {
-            "execution_time": "stable",
-            "memory_usage": "increasing",
-            "cpu_usage": "decreasing",
-        },
+    metrics = list(_metrics.values())
+    if execution_id:
+        metrics = [m for m in metrics if m.execution_id == execution_id]
+    if metric_name:
+        metrics = [m for m in metrics if m.metric_name == metric_name]
+
+    grouped: Dict[str, List[float]] = {}
+    for metric in metrics:
+        grouped.setdefault(metric.metric_name, []).append(metric.metric_value)
+
+    metric_types = {
+        name: {
+            "count": len(values),
+            "avg": round(sum(values) / len(values), 2),
+            "min": min(values),
+            "max": max(values),
+        }
+        for name, values in grouped.items()
     }
 
-    return summary
+    return {
+        "total_metrics": len(metrics),
+        "metric_types": metric_types,
+    }
 
 
 @router.get(
@@ -1605,8 +1608,10 @@ async def get_overview_stats(
         "completed_executions": completed_executions,
         "failed_executions": failed_executions,
         "success_rate": (completed_executions / total_executions * 100) if total_executions > 0 else 0,
-        "active_schedules": 5,  # 模拟数据
-        "total_environments": 3,  # 模拟数据
+        "active_schedules": len([s for s in _schedules.values() if s.enabled]),
+        "total_environments": len(_environments),
+        "total_reports": len(_reports),
+        "total_metrics": len(_metrics),
     }
 
     return stats
@@ -1626,24 +1631,46 @@ async def get_execution_trends(
     db: Session = Depends(get_db),
 ) -> Dict:
     """获取测试执行趋势数据"""
-    # 模拟趋势数据
-    trends = {
-        "period_days": days,
-        "daily_executions": [
-            {"date": (datetime.now() - timedelta(days=i)).isoformat(), "count": 10 + i % 5}
-            for i in range(days)
-        ],
-        "success_rate_trend": [
-            {"date": (datetime.now() - timedelta(days=i)).isoformat(), "rate": 85 + (i % 10)}
-            for i in range(days)
-        ],
-        "avg_duration_trend": [
-            {"date": (datetime.now() - timedelta(days=i)).isoformat(), "duration": 120 + (i % 30)}
-            for i in range(days)
-        ],
-    }
+    since = datetime.now() - timedelta(days=days)
+    executions = (
+        db.query(TestExecutionDB)
+        .filter(TestExecutionDB.started_at >= since)
+        .all()
+    )
 
-    return trends
+    daily: Dict[str, Dict[str, float]] = {}
+    for execution in executions:
+        if not execution.started_at:
+            continue
+        day = execution.started_at.strftime("%Y-%m-%d")
+        bucket = daily.setdefault(day, {"count": 0, "success": 0, "duration_sum": 0.0, "duration_n": 0})
+        bucket["count"] += 1
+        if execution.status == ExecutionStatus.COMPLETED.value:
+            bucket["success"] += 1
+        if execution.started_at and execution.completed_at:
+            bucket["duration_sum"] += (execution.completed_at - execution.started_at).total_seconds()
+            bucket["duration_n"] += 1
+
+    ordered = sorted(daily.items())
+    daily_executions = [{"date": day, "count": int(b["count"])} for day, b in ordered]
+    success_rate_trend = [
+        {"date": day, "rate": round(b["success"] / b["count"] * 100, 2) if b["count"] else 0.0}
+        for day, b in ordered
+    ]
+    avg_duration_trend = [
+        {
+            "date": day,
+            "duration": round(b["duration_sum"] / b["duration_n"], 2) if b["duration_n"] else 0.0,
+        }
+        for day, b in ordered
+    ]
+
+    return {
+        "period_days": days,
+        "daily_executions": daily_executions,
+        "success_rate_trend": success_rate_trend,
+        "avg_duration_trend": avg_duration_trend,
+    }
 
 
 @router.post(
@@ -1891,15 +1918,9 @@ async def get_suite_history(
     if not suite_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Test suite not found")
 
-    # 模拟历史记录
-    history = [
-        {
-            "timestamp": suite_db.updated_at.isoformat() if suite_db.updated_at else None,
-            "action": "updated",
-            "user": suite_db.created_by,
-            "changes": {"status": "active"},
-        }
-    ]
+    # No suite change-audit store is configured; return an empty history rather
+    # than fabricating a change record.
+    history: List[Dict] = []
 
     return history[offset : offset + limit]
 
@@ -1975,20 +1996,16 @@ async def get_execution_artifacts(
     if not execution_db:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Execution not found")
 
-    # 模拟产物列表
+    # Artifacts are the real generated reports for this execution.
     artifacts = [
         {
-            "name": "test_report.html",
+            "name": os.path.basename(report.file_url) if report.file_url else f"{report.id}.{report.format}",
             "type": "report",
-            "size_bytes": 1024,
-            "url": f"/artifacts/{id}/test_report.html",
-        },
-        {
-            "name": "coverage.xml",
-            "type": "coverage",
-            "size_bytes": 512,
-            "url": f"/artifacts/{id}/coverage.xml",
-        },
+            "size_bytes": report.file_size_bytes,
+            "url": report.file_url,
+        }
+        for report in _reports.values()
+        if report.execution_id == id
     ]
 
     return artifacts

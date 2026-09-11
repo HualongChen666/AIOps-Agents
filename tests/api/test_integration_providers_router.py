@@ -74,6 +74,22 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _stub_endpoint_probe():
+    """Stub the low-level network probe so connection tests stay offline.
+
+    The production code performs a *real* connectivity probe
+    (:func:`api.integration_providers_router._probe_endpoint`); here we replace
+    only that I/O primitive with a deterministic "reachable" result so the
+    surrounding endpoint logic is still exercised without real network access.
+    """
+    with patch(
+        "api.integration_providers_router._probe_endpoint",
+        return_value=(True, 12.5, "HTTP 200"),
+    ):
+        yield
+
+
 @pytest.fixture
 def sample_teams_config():
     """Sample Teams configuration"""
