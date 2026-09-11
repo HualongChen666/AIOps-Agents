@@ -28,6 +28,7 @@ from api.change_management_router import (
     ScheduleRequestModel,
     router,
 )
+import core.change_management_engine as cme
 from core.change_management_engine import (
     AuditEntry,
     ChangeManagementError,
@@ -43,6 +44,27 @@ from core.change_management_engine import (
 # ============================================================================
 # Fixtures
 # ============================================================================
+
+
+@pytest.fixture(autouse=True)
+def isolate_change_engine(tmp_path, monkeypatch):
+    """Redirect the change-management engine's JSON store to a temp dir.
+
+    Without this, tests persist fabricated ``test-tenant`` records into the
+    git-tracked ``data/change_requests.json`` (repo pollution).  The engine
+    reads ``_DATA_DIR`` / ``_DATA_FILE`` as module globals at call time, so
+    monkeypatching them redirects every write into the pytest temp tree.
+    ``_REQUESTS`` is cleared in place so the module-level aliases imported
+    above stay valid.
+    """
+    data_dir = tmp_path / "change_management"
+    monkeypatch.setattr(cme, "_DATA_DIR", data_dir)
+    monkeypatch.setattr(cme, "_DATA_FILE", data_dir / "change_requests.json")
+    cme._REQUESTS.clear()
+    monkeypatch.setattr(cme, "_LOADED", False)
+    yield
+    cme._REQUESTS.clear()
+    monkeypatch.setattr(cme, "_LOADED", False)
 
 
 @pytest.fixture(scope="function")
