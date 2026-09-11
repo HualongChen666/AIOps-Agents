@@ -5,7 +5,9 @@
 使用数据库持久化存储
 """
 
+import json
 import logging
+import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Literal, Optional
@@ -602,208 +604,475 @@ async def update_certificate(
         "expiresAt": cert.expires_at.isoformat() if cert.expires_at else None,
         "autoRenew": cert.auto_renew,
     }
-
-
 # 7. Snapshot Encryption
 class SnapshotCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     source: str = Field(..., min_length=1, max_length=256)
+    encryptionAlgorithm: str = Field(default="AES-256", max_length=50)
+    retentionDays: int = Field(default=7, ge=1, le=3650)
 
 
 class SnapshotUpdateRequest(BaseModel):
-    status: Optional[Literal["active", "archived"]] = None
+    status: Optional[Literal["active", "archived", "completed", "failed"]] = None
+
+
+def _seal_state(payload: Dict[str, Any]) -> tuple[str, str]:
+    """Seal a snapshot pre/post-state with the platform AES key.
+
+    Returns ``(ciphertext_hex, iv_hex)`` suitable for the ``*_encrypted`` /
+    ``*_iv`` columns.  Uses a process-wide cipher so the master key stays
+    stable across calls (env ``ENCRYPTION_MASTER_KEY`` in production).
+    """
+    ciphertext, iv = _get_state_cipher().encrypt(json.dumps(payload, sort_keys=True, default=str))
+    return ciphertext, iv
+
+
+_state_cipher: Optional[Any] = None
+
+
+def _get_state_cipher() -> Any:
+    global _state_cipher
+    if _state_cipher is None:
+        from core.key_management import KeyEncryptionService
+
+        _state_cipher = KeyEncryptionService()
+    return _state_cipher
 
 
 @router.get("/snapshot-encryption/snapshots")
-async def get_snapshots() -> Dict[str, Any]:
-    _init_data(_snapshots, [{"id": str(uuid.uuid4()), "name": "Backup", "status": "active"}])
-    return {"snapshots": _snapshots, "total": len(_snapshots)}
+async def get_snapshots(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    snapshots = repo.get_snapshot_encryptions(status=status)
+    return {
+        "snapshots": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "source": s.source,
+                "status": s.status,
+                "encryptionAlgorithm": s.encryption_algorithm,
+                "retentionDays": s.retention_days,
+                "expiresAt": s.expires_at.isoformat() if s.expires_at else None,
+                "createdAt": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in snapshots
+        ],
+        "total": len(snapshots),
+    }
 
 
 @router.post("/snapshot-encryption/snapshots")
-async def create_snapshot(req: SnapshotCreateRequest) -> Dict[str, Any]:
-    snap_id = str(uuid.uuid4())
-    new_snap = {"id": snap_id, "name": req.name, "status": "active"}
-    _snapshots.append(new_snap)
-    logger.info(f"创建加密快照: {req.name}")
-    return new_snap
+async def create_snapshot(
+    req: SnapshotCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    pre_state = {
+        "name": req.name,
+        "source": req.source,
+        "captured_at": datetime.now(timezone.utc).isoformat(),
+    }
+    ciphertext, iv = _seal_state(pre_state)
+    snapshot = repo.create_snapshot_encryption(
+        name=req.name,
+        source=req.source,
+        pre_state_encrypted=ciphertext,
+        pre_state_iv=iv,
+        encryption_algorithm=req.encryptionAlgorithm,
+        retention_days=req.retentionDays,
+    )
+    logger.info("创建加密快照: %s", req.name)
+    return {
+        "id": snapshot.id,
+        "name": snapshot.name,
+        "source": snapshot.source,
+        "status": snapshot.status,
+        "encryptionAlgorithm": snapshot.encryption_algorithm,
+        "retentionDays": snapshot.retention_days,
+        "expiresAt": snapshot.expires_at.isoformat() if snapshot.expires_at else None,
+        "createdAt": snapshot.created_at.isoformat() if snapshot.created_at else None,
+    }
 
 
 @router.patch("/snapshot-encryption/snapshots/{snapshot_id}")
-async def update_snapshot(snapshot_id: str, req: SnapshotUpdateRequest) -> Dict[str, Any]:
-    for snap in _snapshots:
-        if snap["id"] == snapshot_id:
-            if req.status is not None:
-                snap["status"] = req.status
-            logger.info(f"更新加密快照: {snapshot_id}")
-            return snap
-    raise HTTPException(status_code=404, detail="快照不存在")
+async def update_snapshot(
+    snapshot_id: str,
+    req: SnapshotUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    snapshot = repo.update_snapshot_encryption(snapshot_id, status=req.status)
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="快照不存在")
+    logger.info("更新加密快照: %s", snapshot_id)
+    return {
+        "id": snapshot.id,
+        "name": snapshot.name,
+        "source": snapshot.source,
+        "status": snapshot.status,
+        "encryptionAlgorithm": snapshot.encryption_algorithm,
+        "retentionDays": snapshot.retention_days,
+        "expiresAt": snapshot.expires_at.isoformat() if snapshot.expires_at else None,
+        "createdAt": snapshot.created_at.isoformat() if snapshot.created_at else None,
+    }
 
 
 # 8. Data Encryption
 class DataKeyCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
+    purpose: str = Field(default="database", max_length=50)
+    algorithm: str = Field(default="AES-256", max_length=50)
+    keySize: int = Field(default=256, ge=128, le=512)
+    scope: Optional[str] = Field(default=None, max_length=256)
 
 
 class DataKeyUpdateRequest(BaseModel):
-    status: Optional[Literal["active", "disabled"]] = None
+    status: Optional[Literal["active", "disabled", "rotated"]] = None
 
 
 @router.get("/data-encryption/keys")
-async def get_data_keys() -> Dict[str, Any]:
-    _init_data(_data_keys, [{"id": str(uuid.uuid4()), "name": "DB Key", "status": "active"}])
-    return {"keys": _data_keys, "total": len(_data_keys)}
+async def get_data_keys(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    keys = repo.get_data_encryption_keys(status=status)
+    return {
+        "keys": [
+            {
+                "id": k.id,
+                "name": k.name,
+                "purpose": k.purpose,
+                "algorithm": k.algorithm,
+                "keySize": k.key_size,
+                "scope": k.scope,
+                "status": k.status,
+                "rotationEnabled": k.rotation_enabled,
+                "createdAt": k.created_at.isoformat() if k.created_at else None,
+            }
+            for k in keys
+        ],
+        "total": len(keys),
+    }
 
 
 @router.post("/data-encryption/keys")
-async def create_data_key(req: DataKeyCreateRequest) -> Dict[str, Any]:
-    key_id = str(uuid.uuid4())
-    new_key = {"id": key_id, "name": req.name, "status": "active"}
-    _data_keys.append(new_key)
-    logger.info(f"创建数据加密密钥: {req.name}")
-    return new_key
+async def create_data_key(
+    req: DataKeyCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    # Generate a real random key and seal it with the platform master key.
+    raw_key = secrets.token_hex(max(16, req.keySize // 8))
+    ciphertext, iv = _get_state_cipher().encrypt(raw_key)
+    key = repo.create_data_encryption_key(
+        name=req.name,
+        key_encrypted=ciphertext,
+        key_iv=iv,
+        purpose=req.purpose,
+        algorithm=req.algorithm,
+        key_size=req.keySize,
+        scope=req.scope,
+    )
+    logger.info("创建数据加密密钥: %s", req.name)
+    return {
+        "id": key.id,
+        "name": key.name,
+        "purpose": key.purpose,
+        "algorithm": key.algorithm,
+        "keySize": key.key_size,
+        "scope": key.scope,
+        "status": key.status,
+        "rotationEnabled": key.rotation_enabled,
+        "createdAt": key.created_at.isoformat() if key.created_at else None,
+    }
 
 
 @router.patch("/data-encryption/keys/{key_id}")
-async def update_data_key(key_id: str, req: DataKeyUpdateRequest) -> Dict[str, Any]:
-    for key in _data_keys:
-        if key["id"] == key_id:
-            if req.status is not None:
-                key["status"] = req.status
-            logger.info(f"更新数据加密密钥: {key_id}")
-            return key
-    raise HTTPException(status_code=404, detail="密钥不存在")
+async def update_data_key(
+    key_id: str,
+    req: DataKeyUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    key = repo.update_data_encryption_key(key_id, status=req.status)
+    if not key:
+        raise HTTPException(status_code=404, detail="密钥不存在")
+    logger.info("更新数据加密密钥: %s", key_id)
+    return {
+        "id": key.id,
+        "name": key.name,
+        "purpose": key.purpose,
+        "algorithm": key.algorithm,
+        "keySize": key.key_size,
+        "scope": key.scope,
+        "status": key.status,
+        "rotationEnabled": key.rotation_enabled,
+        "createdAt": key.created_at.isoformat() if key.created_at else None,
+    }
 
 
 # 9. Data Privacy
 class PrivacySubjectCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     type: Literal["user", "customer"] = Field(default="user")
+    email: Optional[str] = Field(default=None, max_length=255)
+    phone: Optional[str] = Field(default=None, max_length=50)
+    identifier: Optional[str] = Field(default=None, max_length=255)
+    consentLevel: Literal["full", "partial", "none"] = Field(default="partial")
 
 
 class PrivacySubjectUpdateRequest(BaseModel):
-    consentLevel: Optional[Literal["full", "partial"]] = None
+    consentLevel: Optional[Literal["full", "partial", "none"]] = None
 
 
 @router.get("/data-privacy/subjects")
-async def get_privacy_subjects() -> Dict[str, Any]:
-    _init_data(_privacy_subjects, [{"id": str(uuid.uuid4()), "name": "User", "type": "user"}])
-    return {"subjects": _privacy_subjects, "total": len(_privacy_subjects)}
+async def get_privacy_subjects(
+    subject_type: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    subjects = repo.get_privacy_subjects(subject_type=subject_type)
+    return {
+        "subjects": [
+            {
+                "id": s.id,
+                "name": s.name,
+                "type": s.subject_type,
+                "email": s.email,
+                "phone": s.phone,
+                "identifier": s.identifier,
+                "consentLevel": s.consent_level,
+                "consentGivenAt": s.consent_given_at.isoformat() if s.consent_given_at else None,
+                "createdAt": s.created_at.isoformat() if s.created_at else None,
+            }
+            for s in subjects
+        ],
+        "total": len(subjects),
+    }
 
 
 @router.post("/data-privacy/subjects")
-async def create_privacy_subject(req: PrivacySubjectCreateRequest) -> Dict[str, Any]:
-    subject_id = str(uuid.uuid4())
-    new_subject = {"id": subject_id, "name": req.name, "type": req.type}
-    _privacy_subjects.append(new_subject)
-    logger.info(f"创建隐私主体: {req.name}")
-    return new_subject
+async def create_privacy_subject(
+    req: PrivacySubjectCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    subject = repo.create_privacy_subject(
+        name=req.name,
+        subject_type=req.type,
+        email=req.email,
+        phone=req.phone,
+        identifier=req.identifier,
+        consent_level=req.consentLevel,
+    )
+    logger.info("创建隐私主体: %s", req.name)
+    return {
+        "id": subject.id,
+        "name": subject.name,
+        "type": subject.subject_type,
+        "email": subject.email,
+        "phone": subject.phone,
+        "identifier": subject.identifier,
+        "consentLevel": subject.consent_level,
+        "consentGivenAt": subject.consent_given_at.isoformat() if subject.consent_given_at else None,
+        "createdAt": subject.created_at.isoformat() if subject.created_at else None,
+    }
 
 
 @router.patch("/data-privacy/subjects/{subject_id}")
 async def update_privacy_subject(
-    subject_id: str, req: PrivacySubjectUpdateRequest
+    subject_id: str,
+    req: PrivacySubjectUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    for subject in _privacy_subjects:
-        if subject["id"] == subject_id:
-            if req.consentLevel is not None:
-                subject["consentLevel"] = req.consentLevel
-            logger.info(f"更新隐私主体: {subject_id}")
-            return subject
-    raise HTTPException(status_code=404, detail="隐私主体不存在")
+    repo = _get_repository(db)
+    subject = repo.update_privacy_subject(subject_id, consent_level=req.consentLevel)
+    if not subject:
+        raise HTTPException(status_code=404, detail="隐私主体不存在")
+    logger.info("更新隐私主体: %s", subject_id)
+    return {
+        "id": subject.id,
+        "name": subject.name,
+        "type": subject.subject_type,
+        "email": subject.email,
+        "phone": subject.phone,
+        "identifier": subject.identifier,
+        "consentLevel": subject.consent_level,
+        "consentUpdatedAt": (
+            subject.consent_updated_at.isoformat() if subject.consent_updated_at else None
+        ),
+    }
 
 
 # 10. Compliance Management
 class CompliancePolicyCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    framework: Literal["GDPR", "HIPAA"] = Field(default="GDPR")
+    framework: Literal["GDPR", "HIPAA", "SOC2", "ISO27001"] = Field(default="GDPR")
+    description: Optional[str] = None
+    requirements: Optional[List[str]] = None
 
 
 class CompliancePolicyUpdateRequest(BaseModel):
     status: Optional[Literal["active", "inactive"]] = None
 
 
+_FRAMEWORK_REQUIREMENTS: Optional[Dict[str, List[str]]] = None
+
+
+def _framework_requirements(framework: str) -> List[str]:
+    """Return the canonical requirement list for *framework*.
+
+    Sourced from :class:`core.compliance_manager.ComplianceManager`'s default
+    policies (real, in-repo definitions) rather than invented data.
+    """
+    global _FRAMEWORK_REQUIREMENTS
+    if _FRAMEWORK_REQUIREMENTS is None:
+        from core.compliance_manager import ComplianceManager
+
+        mapping: Dict[str, List[str]] = {}
+        for policy in ComplianceManager().policies.values():
+            key = policy.standard.value.lower()
+            bucket = mapping.setdefault(key, [])
+            for requirement in policy.requirements:
+                if requirement not in bucket:
+                    bucket.append(requirement)
+        _FRAMEWORK_REQUIREMENTS = mapping
+    return list(_FRAMEWORK_REQUIREMENTS.get(framework.lower(), []))
+
+
+def _compliance_policy_dict(policy: Any) -> Dict[str, Any]:
+    return {
+        "id": policy.id,
+        "name": policy.name,
+        "framework": policy.framework,
+        "description": policy.description,
+        "requirements": policy.requirements,
+        "controls": policy.controls,
+        "status": policy.status,
+        "lastAuditDate": policy.last_audit_date.isoformat() if policy.last_audit_date else None,
+        "createdAt": policy.created_at.isoformat() if policy.created_at else None,
+    }
+
+
 @router.get("/compliance-management/policies")
-async def get_compliance_policies() -> Dict[str, Any]:
-    _init_data(
-        _compliance_policies,
-        [
-            {
-                "id": str(uuid.uuid4()),
-                "name": "GDPR Policy",
-                "framework": "GDPR",
-                "status": "active",
-            }
-        ],
-    )
-    return {"policies": _compliance_policies, "total": len(_compliance_policies)}
+async def get_compliance_policies(
+    framework: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    policies = repo.get_compliance_policies(framework=framework)
+    return {"policies": [_compliance_policy_dict(p) for p in policies], "total": len(policies)}
 
 
 @router.post("/compliance-management/policies")
-async def create_compliance_policy(req: CompliancePolicyCreateRequest) -> Dict[str, Any]:
-    policy_id = str(uuid.uuid4())
-    new_policy = {
-        "id": policy_id,
-        "name": req.name,
-        "framework": req.framework,
-        "status": "active",
-    }
-    _compliance_policies.append(new_policy)
-    logger.info(f"创建合规策略: {req.name}")
-    return new_policy
+async def create_compliance_policy(
+    req: CompliancePolicyCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    requirements = req.requirements or _framework_requirements(req.framework)
+    description = req.description or f"{req.framework} compliance policy: {req.name}"
+    policy = repo.create_compliance_policy(
+        name=req.name,
+        framework=req.framework,
+        description=description,
+        requirements=requirements,
+    )
+    logger.info("创建合规策略: %s", req.name)
+    return _compliance_policy_dict(policy)
 
 
 @router.patch("/compliance-management/policies/{policy_id}")
 async def update_compliance_policy(
-    policy_id: str, req: CompliancePolicyUpdateRequest
+    policy_id: str,
+    req: CompliancePolicyUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    for policy in _compliance_policies:
-        if policy["id"] == policy_id:
-            if req.status is not None:
-                policy["status"] = req.status
-            logger.info(f"更新合规策略: {policy_id}")
-            return policy
-    raise HTTPException(status_code=404, detail="合规策略不存在")
+    repo = _get_repository(db)
+    policy = repo.update_compliance_policy(policy_id, status=req.status)
+    if not policy:
+        raise HTTPException(status_code=404, detail="合规策略不存在")
+    logger.info("更新合规策略: %s", policy_id)
+    return _compliance_policy_dict(policy)
 
 
 # 11. Compliance Check
 class ComplianceStandardCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    category: str = Field(default="general")
+    category: str = Field(default="general", max_length=50)
+    description: Optional[str] = None
+    severity: Literal["low", "medium", "high", "critical"] = Field(default="medium")
+    checkCriteria: Optional[Dict[str, Any]] = None
 
 
 class ComplianceStandardUpdateRequest(BaseModel):
     status: Optional[Literal["active", "inactive"]] = None
 
 
+def _compliance_standard_dict(standard: Any) -> Dict[str, Any]:
+    return {
+        "id": standard.id,
+        "name": standard.name,
+        "category": standard.category,
+        "description": standard.description,
+        "checkCriteria": standard.check_criteria,
+        "severity": standard.severity,
+        "status": standard.status,
+        "createdAt": standard.created_at.isoformat() if standard.created_at else None,
+    }
+
+
 @router.get("/compliance-check/standards")
-async def get_compliance_standards() -> Dict[str, Any]:
-    _init_data(
-        _compliance_standards, [{"id": str(uuid.uuid4()), "name": "SSL Check", "status": "active"}]
-    )
-    return {"standards": _compliance_standards, "total": len(_compliance_standards)}
+async def get_compliance_standards(
+    category: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    standards = repo.get_compliance_standards(category=category)
+    return {
+        "standards": [_compliance_standard_dict(s) for s in standards],
+        "total": len(standards),
+    }
 
 
 @router.post("/compliance-check/standards")
-async def create_compliance_standard(req: ComplianceStandardCreateRequest) -> Dict[str, Any]:
-    standard_id = str(uuid.uuid4())
-    new_standard = {"id": standard_id, "name": req.name, "status": "active"}
-    _compliance_standards.append(new_standard)
-    logger.info(f"创建合规检查标准: {req.name}")
-    return new_standard
+async def create_compliance_standard(
+    req: ComplianceStandardCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    check_criteria = req.checkCriteria or {
+        "category": req.category,
+        "severity": req.severity,
+        "evidence_required": True,
+    }
+    standard = repo.create_compliance_standard(
+        name=req.name,
+        category=req.category,
+        description=req.description or f"{req.category} compliance standard: {req.name}",
+        check_criteria=check_criteria,
+        severity=req.severity,
+    )
+    logger.info("创建合规检查标准: %s", req.name)
+    return _compliance_standard_dict(standard)
 
 
 @router.patch("/compliance-check/standards/{standard_id}")
 async def update_compliance_standard(
-    standard_id: str, req: ComplianceStandardUpdateRequest
+    standard_id: str,
+    req: ComplianceStandardUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    for standard in _compliance_standards:
-        if standard["id"] == standard_id:
-            if req.status is not None:
-                standard["status"] = req.status
-            logger.info(f"更新合规检查标准: {standard_id}")
-            return standard
-    raise HTTPException(status_code=404, detail="合规标准不存在")
+    repo = _get_repository(db)
+    standard = repo.update_compliance_standard(standard_id, status=req.status)
+    if not standard:
+        raise HTTPException(status_code=404, detail="合规标准不存在")
+    logger.info("更新合规检查标准: %s", standard_id)
+    return _compliance_standard_dict(standard)
 
 
 # 12. Database Security
@@ -811,398 +1080,620 @@ class DatabaseInstanceCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     type: Literal["postgresql", "mysql"] = Field(default="postgresql")
     host: str = Field(..., min_length=1, max_length=256)
+    port: Optional[int] = Field(default=None, ge=1, le=65535)
 
 
 class DatabaseInstanceUpdateRequest(BaseModel):
     status: Optional[Literal["active", "inactive"]] = None
 
 
+def _database_instance_dict(instance: Any) -> Dict[str, Any]:
+    return {
+        "id": instance.id,
+        "name": instance.name,
+        "type": instance.instance_type,
+        "host": instance.host,
+        "port": instance.port,
+        "encryptionEnabled": instance.encryption_enabled,
+        "sslEnabled": instance.ssl_enabled,
+        "auditEnabled": instance.audit_enabled,
+        "status": instance.status,
+        "createdAt": instance.created_at.isoformat() if instance.created_at else None,
+    }
+
+
 @router.get("/database-security/instances")
-async def get_database_instances() -> Dict[str, Any]:
-    _init_data(
-        _database_instances,
-        [{"id": str(uuid.uuid4()), "name": "Postgres", "type": "postgresql", "status": "active"}],
-    )
-    return {"instances": _database_instances, "total": len(_database_instances)}
+async def get_database_instances(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    instances = repo.get_database_security_instances(status=status)
+    return {
+        "instances": [_database_instance_dict(i) for i in instances],
+        "total": len(instances),
+    }
 
 
 @router.post("/database-security/instances")
-async def create_database_instance(req: DatabaseInstanceCreateRequest) -> Dict[str, Any]:
-    instance_id = str(uuid.uuid4())
-    new_instance = {"id": instance_id, "name": req.name, "type": req.type, "status": "active"}
-    _database_instances.append(new_instance)
-    logger.info(f"创建数据库实例: {req.name}")
-    return new_instance
+async def create_database_instance(
+    req: DatabaseInstanceCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    instance = repo.create_database_security_instance(
+        name=req.name,
+        instance_type=req.type,
+        host=req.host,
+        port=req.port,
+    )
+    logger.info("创建数据库实例: %s", req.name)
+    return _database_instance_dict(instance)
 
 
 @router.patch("/database-security/instances/{instance_id}")
 async def update_database_instance(
-    instance_id: str, req: DatabaseInstanceUpdateRequest
+    instance_id: str,
+    req: DatabaseInstanceUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    for instance in _database_instances:
-        if instance["id"] == instance_id:
-            if req.status is not None:
-                instance["status"] = req.status
-            logger.info(f"更新数据库实例: {instance_id}")
-            return instance
-    raise HTTPException(status_code=404, detail="数据库实例不存在")
+    repo = _get_repository(db)
+    instance = repo.update_database_security_instance(instance_id, status=req.status)
+    if not instance:
+        raise HTTPException(status_code=404, detail="数据库实例不存在")
+    logger.info("更新数据库实例: %s", instance_id)
+    return _database_instance_dict(instance)
 
 
 # 13. API Security
 class ApiEndpointCreateRequest(BaseModel):
     path: str = Field(..., min_length=1, max_length=256)
-    method: str = Field(default="GET")
+    method: str = Field(default="GET", max_length=10)
+    authenticationRequired: bool = Field(default=True)
+    authorizationRequired: bool = Field(default=True)
 
 
 class ApiEndpointUpdateRequest(BaseModel):
     status: Optional[Literal["active", "disabled"]] = None
 
 
+def _api_endpoint_dict(endpoint: Any) -> Dict[str, Any]:
+    return {
+        "id": endpoint.id,
+        "path": endpoint.path,
+        "method": endpoint.method,
+        "authenticationRequired": endpoint.authentication_required,
+        "authorizationRequired": endpoint.authorization_required,
+        "rateLimitEnabled": endpoint.rate_limit_enabled,
+        "status": endpoint.status,
+        "createdAt": endpoint.created_at.isoformat() if endpoint.created_at else None,
+    }
+
+
 @router.get("/api-security/endpoints")
-async def get_api_endpoints() -> Dict[str, Any]:
-    _init_data(
-        _api_endpoints,
-        [{"id": str(uuid.uuid4()), "path": "/api/v1/users", "method": "GET", "status": "active"}],
-    )
-    return {"endpoints": _api_endpoints, "total": len(_api_endpoints)}
+async def get_api_endpoints(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    endpoints = repo.get_api_security_endpoints(status=status)
+    return {
+        "endpoints": [_api_endpoint_dict(e) for e in endpoints],
+        "total": len(endpoints),
+    }
 
 
 @router.post("/api-security/endpoints")
-async def create_api_endpoint(req: ApiEndpointCreateRequest) -> Dict[str, Any]:
-    endpoint_id = str(uuid.uuid4())
-    new_endpoint = {"id": endpoint_id, "path": req.path, "method": req.method, "status": "active"}
-    _api_endpoints.append(new_endpoint)
-    logger.info(f"创建API端点: {req.method} {req.path}")
-    return new_endpoint
+async def create_api_endpoint(
+    req: ApiEndpointCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    endpoint = repo.create_api_security_endpoint(
+        path=req.path,
+        method=req.method.upper(),
+        authentication_required=req.authenticationRequired,
+        authorization_required=req.authorizationRequired,
+    )
+    logger.info("创建API端点: %s %s", req.method, req.path)
+    return _api_endpoint_dict(endpoint)
 
 
 @router.patch("/api-security/endpoints/{endpoint_id}")
-async def update_api_endpoint(endpoint_id: str, req: ApiEndpointUpdateRequest) -> Dict[str, Any]:
-    for endpoint in _api_endpoints:
-        if endpoint["id"] == endpoint_id:
-            if req.status is not None:
-                endpoint["status"] = req.status
-            logger.info(f"更新API端点: {endpoint_id}")
-            return endpoint
-    raise HTTPException(status_code=404, detail="API端点不存在")
+async def update_api_endpoint(
+    endpoint_id: str,
+    req: ApiEndpointUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    endpoint = repo.update_api_security_endpoint(endpoint_id, status=req.status)
+    if not endpoint:
+        raise HTTPException(status_code=404, detail="API端点不存在")
+    logger.info("更新API端点: %s", endpoint_id)
+    return _api_endpoint_dict(endpoint)
 
 
 @router.delete("/api-security/endpoints/{endpoint_id}")
-async def delete_api_endpoint(endpoint_id: str) -> Dict[str, Any]:
-    for i, endpoint in enumerate(_api_endpoints):
-        if endpoint["id"] == endpoint_id:
-            _api_endpoints.pop(i)
-            logger.info(f"删除API端点: {endpoint_id}")
-            return {"success": True}
-    raise HTTPException(status_code=404, detail="API端点不存在")
+async def delete_api_endpoint(
+    endpoint_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    success = repo.delete_api_security_endpoint(endpoint_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="API端点不存在")
+    logger.info("删除API端点: %s", endpoint_id)
+    return {"success": True}
 
 
 # 14. Input Validation
 class InputValidationRuleCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     field: str = Field(..., min_length=1, max_length=128)
+    validationType: Literal["regex", "length", "type", "range", "custom"] = Field(
+        default="regex"
+    )
+    validationPattern: Optional[str] = Field(default=None, max_length=500)
 
 
 class InputValidationRuleUpdateRequest(BaseModel):
     enabled: Optional[bool] = None
 
 
+def _validation_rule_dict(rule: Any) -> Dict[str, Any]:
+    return {
+        "id": rule.id,
+        "name": rule.name,
+        "field": rule.field,
+        "validationType": rule.validation_type,
+        "validationPattern": rule.validation_pattern,
+        "enabled": rule.enabled,
+        "createdAt": rule.created_at.isoformat() if rule.created_at else None,
+    }
+
+
 @router.get("/input-validation/rules")
-async def get_input_validation_rules() -> Dict[str, Any]:
-    _init_data(
-        _input_validation_rules,
-        [{"id": str(uuid.uuid4()), "name": "Email Validation", "field": "email", "enabled": True}],
-    )
-    return {"rules": _input_validation_rules, "total": len(_input_validation_rules)}
+async def get_input_validation_rules(
+    enabled: Optional[bool] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rules = repo.get_input_validation_rules(enabled=enabled)
+    return {"rules": [_validation_rule_dict(r) for r in rules], "total": len(rules)}
 
 
 @router.post("/input-validation/rules")
-async def create_input_validation_rule(req: InputValidationRuleCreateRequest) -> Dict[str, Any]:
-    rule_id = str(uuid.uuid4())
-    new_rule = {"id": rule_id, "name": req.name, "field": req.field, "enabled": True}
-    _input_validation_rules.append(new_rule)
-    logger.info(f"创建输入验证规则: {req.name}")
-    return new_rule
+async def create_input_validation_rule(
+    req: InputValidationRuleCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rule = repo.create_input_validation_rule(
+        name=req.name,
+        field=req.field,
+        validation_type=req.validationType,
+        validation_pattern=req.validationPattern,
+    )
+    logger.info("创建输入验证规则: %s", req.name)
+    return _validation_rule_dict(rule)
 
 
 @router.patch("/input-validation/rules/{rule_id}")
 async def update_input_validation_rule(
-    rule_id: str, req: InputValidationRuleUpdateRequest
+    rule_id: str,
+    req: InputValidationRuleUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    for rule in _input_validation_rules:
-        if rule["id"] == rule_id:
-            if req.enabled is not None:
-                rule["enabled"] = req.enabled
-            logger.info(f"更新输入验证规则: {rule_id}")
-            return rule
-    raise HTTPException(status_code=404, detail="验证规则不存在")
+    repo = _get_repository(db)
+    rule = repo.update_input_validation_rule(rule_id, enabled=req.enabled)
+    if not rule:
+        raise HTTPException(status_code=404, detail="验证规则不存在")
+    logger.info("更新输入验证规则: %s", rule_id)
+    return _validation_rule_dict(rule)
 
 
 @router.delete("/input-validation/rules/{rule_id}")
-async def delete_input_validation_rule(rule_id: str) -> Dict[str, Any]:
-    for i, rule in enumerate(_input_validation_rules):
-        if rule["id"] == rule_id:
-            _input_validation_rules.pop(i)
-            logger.info(f"删除输入验证规则: {rule_id}")
-            return {"success": True}
-    raise HTTPException(status_code=404, detail="验证规则不存在")
+async def delete_input_validation_rule(
+    rule_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    success = repo.delete_input_validation_rule(rule_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="验证规则不存在")
+    logger.info("删除输入验证规则: %s", rule_id)
+    return {"success": True}
 
 
 # 15. Penetration Testing
 class PenetrationTestProjectCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     target: str = Field(..., min_length=1, max_length=256)
+    testType: Literal["black_box", "white_box", "gray_box"] = Field(default="black_box")
 
 
 class PenetrationTestProjectUpdateRequest(BaseModel):
     status: Optional[Literal["scheduled", "in_progress", "completed"]] = None
 
 
+def _penetration_project_dict(project: Any) -> Dict[str, Any]:
+    return {
+        "id": project.id,
+        "name": project.name,
+        "target": project.target,
+        "testType": project.test_type,
+        "status": project.status,
+        "riskScore": project.risk_score,
+        "createdAt": project.created_at.isoformat() if project.created_at else None,
+    }
+
+
 @router.get("/penetration-testing/projects")
-async def get_penetration_projects() -> Dict[str, Any]:
-    _init_data(
-        _penetration_projects,
-        [{"id": str(uuid.uuid4()), "name": "Security Test", "status": "completed"}],
-    )
-    return {"projects": _penetration_projects, "total": len(_penetration_projects)}
+async def get_penetration_projects(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    projects = repo.get_penetration_test_projects(status=status)
+    return {
+        "projects": [_penetration_project_dict(p) for p in projects],
+        "total": len(projects),
+    }
 
 
 @router.post("/penetration-testing/projects")
-async def create_penetration_project(req: PenetrationTestProjectCreateRequest) -> Dict[str, Any]:
-    project_id = str(uuid.uuid4())
-    new_project = {"id": project_id, "name": req.name, "target": req.target, "status": "scheduled"}
-    _penetration_projects.append(new_project)
-    logger.info(f"创建渗透测试项目: {req.name}")
-    return new_project
+async def create_penetration_project(
+    req: PenetrationTestProjectCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    project = repo.create_penetration_test_project(
+        name=req.name,
+        target=req.target,
+        test_type=req.testType,
+    )
+    logger.info("创建渗透测试项目: %s", req.name)
+    return _penetration_project_dict(project)
 
 
 @router.patch("/penetration-testing/projects/{project_id}")
 async def update_penetration_project(
-    project_id: str, req: PenetrationTestProjectUpdateRequest
+    project_id: str,
+    req: PenetrationTestProjectUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    for project in _penetration_projects:
-        if project["id"] == project_id:
-            if req.status is not None:
-                project["status"] = req.status
-            logger.info(f"更新渗透测试项目: {project_id}")
-            return project
-    raise HTTPException(status_code=404, detail="项目不存在")
+    repo = _get_repository(db)
+    project = repo.update_penetration_test_project(project_id, status=req.status)
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    logger.info("更新渗透测试项目: %s", project_id)
+    return _penetration_project_dict(project)
 
 
 # 16. Security Testing
 class SecurityTestCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    testType: str = Field(default="sast")
+    testType: str = Field(default="sast", max_length=50)
+    target: Optional[str] = Field(default=None, max_length=256)
 
 
 class SecurityTestUpdateRequest(BaseModel):
-    status: Optional[Literal["pending", "running", "completed"]] = None
+    status: Optional[Literal["pending", "running", "completed", "failed"]] = None
+
+
+def _security_test_dict(test: Any) -> Dict[str, Any]:
+    return {
+        "id": test.id,
+        "name": test.name,
+        "testType": test.test_type,
+        "target": test.target,
+        "status": test.status,
+        "vulnerabilitiesFound": test.vulnerabilities_found,
+        "createdAt": test.created_at.isoformat() if test.created_at else None,
+    }
 
 
 @router.get("/security-testing/tests")
-async def get_security_tests() -> Dict[str, Any]:
-    _init_data(
-        _security_tests, [{"id": str(uuid.uuid4()), "name": "SAST Scan", "status": "completed"}]
-    )
-    return {"tests": _security_tests, "total": len(_security_tests)}
+async def get_security_tests(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    tests = repo.get_security_tests(status=status)
+    return {"tests": [_security_test_dict(t) for t in tests], "total": len(tests)}
 
 
 @router.post("/security-testing/tests")
-async def create_security_test(req: SecurityTestCreateRequest) -> Dict[str, Any]:
-    test_id = str(uuid.uuid4())
-    new_test = {"id": test_id, "name": req.name, "testType": req.testType, "status": "pending"}
-    _security_tests.append(new_test)
-    logger.info(f"创建安全测试: {req.name}")
-    return new_test
+async def create_security_test(
+    req: SecurityTestCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    test = repo.create_security_test(
+        name=req.name,
+        test_type=req.testType,
+        target=req.target,
+    )
+    logger.info("创建安全测试: %s", req.name)
+    return _security_test_dict(test)
 
 
 @router.patch("/security-testing/tests/{test_id}")
-async def update_security_test(test_id: str, req: SecurityTestUpdateRequest) -> Dict[str, Any]:
-    for test in _security_tests:
-        if test["id"] == test_id:
-            if req.status is not None:
-                test["status"] = req.status
-            logger.info(f"更新安全测试: {test_id}")
-            return test
-    raise HTTPException(status_code=404, detail="测试不存在")
+async def update_security_test(
+    test_id: str,
+    req: SecurityTestUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    test = repo.update_security_test(test_id, status=req.status)
+    if not test:
+        raise HTTPException(status_code=404, detail="测试不存在")
+    logger.info("更新安全测试: %s", test_id)
+    return _security_test_dict(test)
 
 
 # 17. Vulnerability Management
 class VulnerabilityTicketCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=128)
     severity: Literal["low", "medium", "high", "critical"] = Field(default="medium")
+    description: Optional[str] = None
+    cveId: Optional[str] = Field(default=None, max_length=50)
 
 
 class VulnerabilityTicketUpdateRequest(BaseModel):
     status: Optional[Literal["open", "in_progress", "resolved"]] = None
 
 
+def _vulnerability_ticket_dict(ticket: Any) -> Dict[str, Any]:
+    return {
+        "id": ticket.id,
+        "title": ticket.title,
+        "severity": ticket.severity,
+        "description": ticket.description,
+        "cveId": ticket.cve_id,
+        "cvssScore": ticket.cvss_score,
+        "status": ticket.status,
+        "detectedAt": ticket.detected_at.isoformat() if ticket.detected_at else None,
+    }
+
+
 @router.get("/vulnerability-management/tickets")
-async def get_vulnerability_tickets() -> Dict[str, Any]:
-    _init_data(
-        _vulnerability_tickets,
-        [
-            {
-                "id": str(uuid.uuid4()),
-                "title": "SQL Injection",
-                "severity": "high",
-                "status": "open",
-            }
-        ],
-    )
-    return {"tickets": _vulnerability_tickets, "total": len(_vulnerability_tickets)}
+async def get_vulnerability_tickets(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    tickets = repo.get_vulnerability_tickets(status=status)
+    return {
+        "tickets": [_vulnerability_ticket_dict(t) for t in tickets],
+        "total": len(tickets),
+    }
 
 
 @router.post("/vulnerability-management/tickets")
-async def create_vulnerability_ticket(req: VulnerabilityTicketCreateRequest) -> Dict[str, Any]:
-    ticket_id = str(uuid.uuid4())
-    new_ticket = {
-        "id": ticket_id,
-        "title": req.title,
-        "severity": req.severity,
-        "status": "open",
-    }
-    _vulnerability_tickets.append(new_ticket)
-    logger.info(f"创建漏洞工单: {req.title}")
-    return new_ticket
+async def create_vulnerability_ticket(
+    req: VulnerabilityTicketCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    ticket = repo.create_vulnerability_ticket(
+        title=req.title,
+        severity=req.severity,
+        description=req.description or f"{req.severity} severity vulnerability: {req.title}",
+        cve_id=req.cveId,
+    )
+    logger.info("创建漏洞工单: %s", req.title)
+    return _vulnerability_ticket_dict(ticket)
 
 
 @router.patch("/vulnerability-management/tickets/{ticket_id}")
 async def update_vulnerability_ticket(
-    ticket_id: str, req: VulnerabilityTicketUpdateRequest
+    ticket_id: str,
+    req: VulnerabilityTicketUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    for ticket in _vulnerability_tickets:
-        if ticket["id"] == ticket_id:
-            if req.status is not None:
-                ticket["status"] = req.status
-            logger.info(f"更新漏洞工单: {ticket_id}")
-            return ticket
-    raise HTTPException(status_code=404, detail="工单不存在")
+    repo = _get_repository(db)
+    ticket = repo.update_vulnerability_ticket(ticket_id, status=req.status)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="工单不存在")
+    logger.info("更新漏洞工单: %s", ticket_id)
+    return _vulnerability_ticket_dict(ticket)
 
 
 # 18. Vulnerability Intelligence
 class ThreatCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
-    threatType: str = Field(default="malware")
+    threatType: str = Field(default="malware", max_length=50)
+    description: Optional[str] = None
+    severity: Literal["low", "medium", "high", "critical"] = Field(default="medium")
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+def _threat_dict(threat: Any) -> Dict[str, Any]:
+    return {
+        "id": threat.id,
+        "name": threat.name,
+        "threatType": threat.threat_type,
+        "description": threat.description,
+        "severity": threat.severity,
+        "confidence": threat.confidence,
+        "status": threat.status,
+        "createdAt": threat.created_at.isoformat() if threat.created_at else None,
+    }
 
 
 @router.get("/vulnerability-intelligence/threats")
-async def get_threats() -> Dict[str, Any]:
-    _init_data(
-        _threat_intel,
-        [{"id": str(uuid.uuid4()), "name": "CVE-2024-0001", "threatType": "exploit"}],
-    )
-    return {"threats": _threat_intel, "total": len(_threat_intel)}
+async def get_threats(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    threats = repo.get_threat_intelligences(status=status)
+    return {"threats": [_threat_dict(t) for t in threats], "total": len(threats)}
 
 
 @router.post("/vulnerability-intelligence/threats")
-async def create_threat(req: ThreatCreateRequest) -> Dict[str, Any]:
-    threat_id = str(uuid.uuid4())
-    new_threat = {"id": threat_id, "name": req.name, "threatType": req.threatType}
-    _threat_intel.append(new_threat)
-    logger.info(f"创建威胁情报: {req.name}")
-    return new_threat
+async def create_threat(
+    req: ThreatCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    threat = repo.create_threat_intelligence(
+        name=req.name,
+        threat_type=req.threatType,
+        description=req.description or f"{req.threatType} threat intelligence: {req.name}",
+        severity=req.severity,
+        confidence=req.confidence,
+    )
+    logger.info("创建威胁情报: %s", req.name)
+    return _threat_dict(threat)
 
 
 # 19. Vulnerability Scan
 class VulnerabilityScanCreateRequest(BaseModel):
     target: str = Field(..., min_length=1, max_length=256)
-    scanType: str = Field(default="full")
+    scanType: Literal["full", "quick", "custom"] = Field(default="full")
 
 
 class VulnerabilityScanUpdateRequest(BaseModel):
-    status: Optional[Literal["pending", "running", "completed"]] = None
+    status: Optional[Literal["pending", "running", "completed", "failed"]] = None
+
+
+def _vulnerability_scan_dict(scan: Any) -> Dict[str, Any]:
+    return {
+        "id": scan.id,
+        "target": scan.target,
+        "scanType": scan.scan_type,
+        "status": scan.status,
+        "vulnerabilitiesFound": scan.vulnerabilities_found,
+        "createdAt": scan.created_at.isoformat() if scan.created_at else None,
+    }
 
 
 @router.get("/vulnerability-scan/vulnerabilities")
-async def get_vulnerability_scans() -> Dict[str, Any]:
-    _init_data(
-        _vulnerability_scans,
-        [{"id": str(uuid.uuid4()), "target": "api.example.com", "status": "completed"}],
-    )
-    return {"vulnerabilities": _vulnerability_scans, "total": len(_vulnerability_scans)}
+async def get_vulnerability_scans(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    scans = repo.get_vulnerability_scans(status=status)
+    return {
+        "vulnerabilities": [_vulnerability_scan_dict(s) for s in scans],
+        "total": len(scans),
+    }
 
 
 @router.post("/vulnerability-scan/vulnerabilities")
-async def create_vulnerability_scan(req: VulnerabilityScanCreateRequest) -> Dict[str, Any]:
-    scan_id = str(uuid.uuid4())
-    new_scan = {"id": scan_id, "target": req.target, "scanType": req.scanType, "status": "pending"}
-    _vulnerability_scans.append(new_scan)
-    logger.info(f"创建漏洞扫描: {req.target}")
-    return new_scan
+async def create_vulnerability_scan(
+    req: VulnerabilityScanCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    scan = repo.create_vulnerability_scan(target=req.target, scan_type=req.scanType)
+    logger.info("创建漏洞扫描: %s", req.target)
+    return _vulnerability_scan_dict(scan)
 
 
 @router.patch("/vulnerability-scan/vulnerabilities/{scan_id}")
 async def update_vulnerability_scan(
-    scan_id: str, req: VulnerabilityScanUpdateRequest
+    scan_id: str,
+    req: VulnerabilityScanUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    for scan in _vulnerability_scans:
-        if scan["id"] == scan_id:
-            if req.status is not None:
-                scan["status"] = req.status
-            logger.info(f"更新漏洞扫描: {scan_id}")
-            return scan
-    raise HTTPException(status_code=404, detail="扫描不存在")
+    repo = _get_repository(db)
+    scan = repo.update_vulnerability_scan(scan_id, status=req.status)
+    if not scan:
+        raise HTTPException(status_code=404, detail="扫描不存在")
+    logger.info("更新漏洞扫描: %s", scan_id)
+    return _vulnerability_scan_dict(scan)
 
 
 # 20. Audit Center
 class AuditReportCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=128)
-    reportType: str = Field(default="security")
+    reportType: str = Field(default="security", max_length=50)
+    description: Optional[str] = None
 
 
 class AuditReportUpdateRequest(BaseModel):
     status: Optional[Literal["draft", "published"]] = None
 
 
+def _audit_report_dict(report: Any) -> Dict[str, Any]:
+    return {
+        "id": report.id,
+        "title": report.title,
+        "reportType": report.report_type,
+        "description": report.description,
+        "status": report.status,
+        "publishedAt": report.published_at.isoformat() if report.published_at else None,
+        "createdAt": report.created_at.isoformat() if report.created_at else None,
+    }
+
+
 @router.get("/audit-center/reports")
-async def get_audit_reports() -> Dict[str, Any]:
-    _init_data(
-        _audit_reports,
-        [{"id": str(uuid.uuid4()), "title": "Monthly Audit", "status": "published"}],
-    )
-    return {"reports": _audit_reports, "total": len(_audit_reports)}
+async def get_audit_reports(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    reports = repo.get_audit_reports(status=status)
+    return {"reports": [_audit_report_dict(r) for r in reports], "total": len(reports)}
 
 
 @router.post("/audit-center/reports")
-async def create_audit_report(req: AuditReportCreateRequest) -> Dict[str, Any]:
-    report_id = str(uuid.uuid4())
-    new_report = {
-        "id": report_id,
-        "title": req.title,
-        "reportType": req.reportType,
-        "status": "draft",
-    }
-    _audit_reports.append(new_report)
-    logger.info(f"创建审计报告: {req.title}")
-    return new_report
+async def create_audit_report(
+    req: AuditReportCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    report = repo.create_audit_report(
+        title=req.title,
+        report_type=req.reportType,
+        description=req.description,
+    )
+    logger.info("创建审计报告: %s", req.title)
+    return _audit_report_dict(report)
 
 
 @router.patch("/audit-center/reports/{report_id}")
-async def update_audit_report(report_id: str, req: AuditReportUpdateRequest) -> Dict[str, Any]:
-    for report in _audit_reports:
-        if report["id"] == report_id:
-            if req.status is not None:
-                report["status"] = req.status
-            logger.info(f"更新审计报告: {report_id}")
-            return report
-    raise HTTPException(status_code=404, detail="报告不存在")
+async def update_audit_report(
+    report_id: str,
+    req: AuditReportUpdateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    report = repo.update_audit_report(report_id, status=req.status)
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在")
+    logger.info("更新审计报告: %s", report_id)
+    return _audit_report_dict(report)
 
 
 # 21. Operation Records
 @router.get("/operation-records")
-async def get_operation_records(limit: int = Query(default=50, ge=1, le=500)) -> Dict[str, Any]:
-    _init_data(
-        _operation_records,
-        [
+async def get_operation_records(
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    records = repo.get_security_operation_records(limit=limit)
+    return {
+        "records": [
             {
-                "id": str(uuid.uuid4()),
-                "operation": "deploy",
-                "timestamp": datetime.now().isoformat(),
+                "id": r.id,
+                "operation": r.operation,
+                "operationType": r.operation_type,
+                "targetResource": r.target_resource,
+                "executor": r.executor,
+                "result": r.result,
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+                "durationMs": r.duration_ms,
             }
+            for r in records
         ],
-    )
-    return {"records": _operation_records[:limit], "total": len(_operation_records)}
+        "total": len(records),
+    }
 
 
 # 22. Audit Logs
@@ -1216,53 +1707,74 @@ async def get_audit_logs(limit: int = Query(default=50, ge=1, le=500)) -> Dict[s
 class CommandRewriteRuleCreateRequest(BaseModel):
     pattern: str = Field(..., min_length=1, max_length=256)
     replacement: str = Field(..., min_length=1, max_length=256)
+    description: Optional[str] = None
 
 
 class CommandRewriteRuleUpdateRequest(BaseModel):
     enabled: Optional[bool] = None
 
 
+def _command_rewrite_dict(rule: Any) -> Dict[str, Any]:
+    return {
+        "id": rule.id,
+        "pattern": rule.pattern,
+        "replacement": rule.replacement,
+        "description": rule.description,
+        "enabled": rule.enabled,
+        "priority": rule.priority,
+        "usageCount": rule.usage_count,
+    }
+
+
 @router.get("/command-rewrite/rules")
-async def get_command_rewrite_rules() -> Dict[str, Any]:
-    _init_data(
-        _command_rewrite_rules,
-        [{"id": str(uuid.uuid4()), "pattern": "rm -rf", "replacement": "mv", "enabled": True}],
-    )
-    return {"rules": list(_command_rewrite_rules.values()), "total": len(_command_rewrite_rules)}
+async def get_command_rewrite_rules(
+    enabled: Optional[bool] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rules = repo.get_command_rewrite_rules(enabled=enabled)
+    return {"rules": [_command_rewrite_dict(r) for r in rules], "total": len(rules)}
 
 
 @router.post("/command-rewrite/rules")
-async def create_command_rewrite_rule(req: CommandRewriteRuleCreateRequest) -> Dict[str, Any]:
-    rule_id = str(uuid.uuid4())
-    new_rule = {
-        "id": rule_id,
-        "pattern": req.pattern,
-        "replacement": req.replacement,
-        "enabled": True,
-    }
-    _command_rewrite_rules[rule_id] = new_rule
-    logger.info(f"创建命令改写规则: {req.pattern}")
-    return new_rule
+async def create_command_rewrite_rule(
+    req: CommandRewriteRuleCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rule = repo.create_command_rewrite_rule(
+        pattern=req.pattern,
+        replacement=req.replacement,
+        description=req.description,
+    )
+    logger.info("创建命令改写规则: %s", req.pattern)
+    return _command_rewrite_dict(rule)
 
 
 @router.patch("/command-rewrite/rules/{rule_id}")
 async def update_command_rewrite_rule(
-    rule_id: str, req: CommandRewriteRuleUpdateRequest
+    rule_id: str,
+    req: CommandRewriteRuleUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    if rule_id not in _command_rewrite_rules:
+    repo = _get_repository(db)
+    rule = repo.update_command_rewrite_rule(rule_id, enabled=req.enabled)
+    if not rule:
         raise HTTPException(status_code=404, detail="规则不存在")
-    if req.enabled is not None:
-        _command_rewrite_rules[rule_id]["enabled"] = req.enabled
-    logger.info(f"更新命令改写规则: {rule_id}")
-    return _command_rewrite_rules[rule_id]
+    logger.info("更新命令改写规则: %s", rule_id)
+    return _command_rewrite_dict(rule)
 
 
 @router.delete("/command-rewrite/rules/{rule_id}")
-async def delete_command_rewrite_rule(rule_id: str) -> Dict[str, Any]:
-    if rule_id not in _command_rewrite_rules:
+async def delete_command_rewrite_rule(
+    rule_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    success = repo.delete_command_rewrite_rule(rule_id)
+    if not success:
         raise HTTPException(status_code=404, detail="规则不存在")
-    del _command_rewrite_rules[rule_id]
-    logger.info(f"删除命令改写规则: {rule_id}")
+    logger.info("删除命令改写规则: %s", rule_id)
     return {"success": True}
 
 
@@ -1290,62 +1802,75 @@ class CommandGuardRuleCreateRequest(BaseModel):
     pattern: str = Field(..., min_length=1, max_length=256)
     severity: Literal["critical", "high", "medium", "low"] = Field(default="high")
     action: Literal["block", "warn", "allow"] = Field(default="block")
+    description: Optional[str] = None
 
 
 class CommandGuardRuleUpdateRequest(BaseModel):
     enabled: Optional[bool] = None
 
 
+def _command_guard_dict(rule: Any) -> Dict[str, Any]:
+    return {
+        "id": rule.id,
+        "command": rule.command,
+        "pattern": rule.pattern,
+        "severity": rule.severity,
+        "action": rule.action,
+        "description": rule.description,
+        "enabled": rule.enabled,
+        "triggerCount": rule.trigger_count,
+    }
+
+
 @router.get("/command-guard/rules")
-async def get_command_guard_rules() -> Dict[str, Any]:
-    _init_data(
-        _command_guard_rules,
-        [
-            {
-                "id": str(uuid.uuid4()),
-                "command": "rm -rf",
-                "pattern": "rm.*-rf",
-                "severity": "high",
-                "action": "block",
-                "enabled": True,
-            }
-        ],
-    )
-    return {"rules": list(_command_guard_rules.values()), "total": len(_command_guard_rules)}
+async def get_command_guard_rules(
+    enabled: Optional[bool] = None,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rules = repo.get_command_guard_rules(enabled=enabled)
+    return {"rules": [_command_guard_dict(r) for r in rules], "total": len(rules)}
 
 
 @router.post("/command-guard/rules")
-async def create_command_guard_rule(req: CommandGuardRuleCreateRequest) -> Dict[str, Any]:
-    rule_id = str(uuid.uuid4())
-    new_rule = {
-        "id": rule_id,
-        "command": req.command,
-        "pattern": req.pattern,
-        "severity": req.severity,
-        "action": req.action,
-        "enabled": True,
-    }
-    _command_guard_rules[rule_id] = new_rule
-    logger.info(f"创建命令管控规则: {req.command}")
-    return new_rule
+async def create_command_guard_rule(
+    req: CommandGuardRuleCreateRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    rule = repo.create_command_guard_rule(
+        command=req.command,
+        pattern=req.pattern,
+        severity=req.severity,
+        action=req.action,
+        description=req.description,
+    )
+    logger.info("创建命令管控规则: %s", req.command)
+    return _command_guard_dict(rule)
 
 
 @router.patch("/command-guard/rules/{rule_id}")
 async def update_command_guard_rule(
-    rule_id: str, req: CommandGuardRuleUpdateRequest
+    rule_id: str,
+    req: CommandGuardRuleUpdateRequest,
+    db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
-    if rule_id not in _command_guard_rules:
+    repo = _get_repository(db)
+    rule = repo.update_command_guard_rule(rule_id, enabled=req.enabled)
+    if not rule:
         raise HTTPException(status_code=404, detail="规则不存在")
-    if req.enabled is not None:
-        _command_guard_rules[rule_id]["enabled"] = req.enabled
-    logger.info(f"更新命令管控规则: {rule_id}")
-    return _command_guard_rules[rule_id]
+    logger.info("更新命令管控规则: %s", rule_id)
+    return _command_guard_dict(rule)
 
 
 @router.delete("/command-guard/rules/{rule_id}")
-async def delete_command_guard_rule(rule_id: str) -> Dict[str, Any]:
-    if rule_id not in _command_guard_rules:
+async def delete_command_guard_rule(
+    rule_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    success = repo.delete_command_guard_rule(rule_id)
+    if not success:
         raise HTTPException(status_code=404, detail="规则不存在")
-    del _command_guard_rules[rule_id]
-    logger.info(f"删除命令管控规则: {rule_id}")
+    logger.info("删除命令管控规则: %s", rule_id)
     return {"success": True}

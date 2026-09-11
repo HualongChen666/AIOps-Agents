@@ -13,6 +13,24 @@ import pytest
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# --- Deterministic test secrets ---------------------------------------------
+# Must be set *before* ``config`` / ``core.authentication`` are imported: the
+# JWT secret is read straight from the environment at import time, and the
+# hardened config no longer ships a hardcoded development default.
+import os as _os
+
+_os.environ.setdefault("JWT_SECRET_KEY", "test-jwt-secret-key-for-tests-only")
+_os.environ.setdefault("INTERNAL_API_KEY", "test-internal-key")
+
+# The async engine (core.db_engine) defaults to Postgres, which is unavailable in
+# the test sandbox (no asyncpg).  Route it at the same file-backed SQLite DB the
+# synchronous engine uses so async repositories (users, frontend, …) work.
+_os.environ.setdefault("USE_SQLITE", "true")
+_os.environ.setdefault(
+    "SQLITE_URL",
+    "sqlite+aiosqlite:///" + str(project_root.joinpath("data", "aiops.db")).replace(_os.sep, "/"),
+)
+
 # --- Wave2 #25: endpoints protected by X-Internal-Key now fail closed when
 # INTERNAL_API_KEY is unset.  The suite needs a configured key
 # (tests/test_security_audit.py already asserts INTERNAL_API_KEY != "").
@@ -21,6 +39,12 @@ try:
 
     if not _config.INTERNAL_API_KEY:
         _config.INTERNAL_API_KEY = "test-internal-key"
+
+    # The hardened JWT config no longer falls back to a hardcoded secret in
+    # development (Wave0 #2 / #4), so token issuance fails with an empty key.
+    # Tests need a deterministic secret to mint/verify access tokens.
+    if not getattr(_config, "JWT_SECRET_KEY", ""):
+        _config.JWT_SECRET_KEY = "test-jwt-secret-key-for-tests-only"
 except Exception:  # pragma: no cover - config problems surface elsewhere
     pass
 
@@ -49,6 +73,34 @@ def _ensure_database_schema():
         import core.models  # noqa: F401  (register all mapped tables)
 
         Base.metadata.create_all(bind=engine, checkfirst=True)
+
+        # Seed a real admin row so the login flow and authenticated endpoints
+        # resolve an actual user (password: admin123).
+        try:
+            from core.database import SessionLocal as _SessionLocal
+            from core.models import User as _User
+            from core.auth_service import hash_password as _hash_password
+
+            _seed_db = _SessionLocal()
+            try:
+                if not _seed_db.query(_User).filter(_User.username == "admin").first():
+                    _seed_db.add(
+                        _User(
+                            username="admin",
+                            email="admin@example.com",
+                            full_name="Admin",
+                            hashed_password=_hash_password("admin123"),
+                            role="admin",
+                            disabled=False,
+                        )
+                    )
+                    _seed_db.commit()
+            finally:
+                _seed_db.close()
+        except Exception as exc:
+            import logging
+
+            logging.getLogger(__name__).warning("Could not seed test admin user: %s", exc)
     except Exception as exc:  # pragma: no cover - schema problems surface in tests
         import logging
 

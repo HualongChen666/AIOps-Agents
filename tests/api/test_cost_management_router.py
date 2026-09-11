@@ -22,8 +22,8 @@ from fastapi import HTTPException, status
 from fastapi.testclient import TestClient
 
 from api.cost_management_router import (
-    BudgetCreate,
-    BudgetUpdate,
+    CostManagementBudgetCreate,
+    CostManagementBudgetUpdate,
     CostAlertCreate,
     CostAnomalyCreate,
     CostOptimizationCreate,

@@ -1,18 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-Test suite for Frontend Advanced Router
-前端增强高级路由测试套件
+Test suite for Frontend Advanced Router (repository-backed).
+
+The router persists everything through
+:class:`core.repositories.frontend_repository_impl.FrontendRepositoryImpl`.
+Rather than reaching into deleted module-level in-memory dicts (``components`` /
+``themes`` / ``layouts`` / ``localization`` — removed when the router moved to
+the repository pattern), these tests override the repository dependency with a
+faithful in-memory double.  This keeps the tests fast and deterministic while
+still exercising the real routing, validation, permission and response-mapping
+logic.
 """
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
-from fastapi import HTTPException
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api.frontend_advanced_router import (
-    FRONTEND_AVAILABLE,
     ComponentCreate,
     ComponentUpdate,
     LayoutCreate,
@@ -20,594 +26,367 @@ from api.frontend_advanced_router import (
     LocalizationUpdate,
     ThemeCreate,
     ThemeUpdate,
-    components,
-    layouts,
-    localization,
+    get_frontend_repository,
     router,
-    themes,
 )
+from api.middleware.auth_middleware import get_current_active_user
 
 
-# Test fixtures
+class _FakeFrontendRepository:
+    """In-memory stand-in for ``FrontendRepositoryImpl``."""
+
+    def __init__(self) -> None:
+        self.components: dict = {}
+        self.themes: dict = {}
+        self.layouts: dict = {}
+        self.localizations: dict = {}  # language -> {key: value}
+
+    # ---- components ----
+    async def create_component(self, component: dict) -> str:
+        self.components[component["id"]] = dict(component)
+        return component["id"]
+
+    async def get_component(self, component_id: str):
+        return self.components.get(component_id)
+
+    async def list_components(self, filters=None, limit: int = 100, offset: int = 0):
+        items = list(self.components.values())
+        if filters:
+            for key, value in filters.items():
+                items = [i for i in items if i.get(key) == value]
+        return items[offset : offset + limit]
+
+    async def update_component(self, component_id: str, updates: dict) -> bool:
+        if component_id not in self.components:
+            return False
+        self.components[component_id].update(updates)
+        return True
+
+    async def delete_component(self, component_id: str) -> bool:
+        return self.components.pop(component_id, None) is not None
+
+    async def count_components(self, filters=None) -> int:
+        return len(await self.list_components(filters=filters, limit=10**9))
+
+    # ---- themes ----
+    async def create_theme(self, theme: dict) -> str:
+        self.themes[theme["id"]] = dict(theme)
+        return theme["id"]
+
+    async def get_theme(self, theme_id: str):
+        return self.themes.get(theme_id)
+
+    async def list_themes(self, filters=None, limit: int = 100, offset: int = 0):
+        items = list(self.themes.values())
+        if filters:
+            for key, value in filters.items():
+                items = [i for i in items if i.get(key) == value]
+        return items[offset : offset + limit]
+
+    async def count_themes(self, filters=None) -> int:
+        return len(await self.list_themes(filters=filters, limit=10**9))
+
+    # ---- layouts ----
+    async def create_layout(self, layout: dict) -> str:
+        self.layouts[layout["id"]] = dict(layout)
+        return layout["id"]
+
+    async def get_layout(self, layout_id: str):
+        return self.layouts.get(layout_id)
+
+    async def list_layouts(self, filters=None, limit: int = 100, offset: int = 0):
+        items = list(self.layouts.values())
+        if filters:
+            for key, value in filters.items():
+                items = [i for i in items if i.get(key) == value]
+        return items[offset : offset + limit]
+
+    async def update_layout(self, layout_id: str, updates: dict) -> bool:
+        if layout_id not in self.layouts:
+            return False
+        self.layouts[layout_id].update(updates)
+        return True
+
+    async def delete_layout(self, layout_id: str) -> bool:
+        return self.layouts.pop(layout_id, None) is not None
+
+    async def count_layouts(self, filters=None) -> int:
+        return len(await self.list_layouts(filters=filters, limit=10**9))
+
+    # ---- localization ----
+    async def list_localizations(self, language=None, limit: int = 1000):
+        records = []
+        for lang, translations in self.localizations.items():
+            if language and lang != language:
+                continue
+            for key, value in translations.items():
+                records.append(
+                    {
+                        "language": lang,
+                        "translation_key": key,
+                        "translation_value": value,
+                    }
+                )
+        return records[:limit]
+
+    async def upsert_localization(
+        self, language: str, translation_key: str, translation_value: str, context=None
+    ) -> bool:
+        self.localizations.setdefault(language, {})[translation_key] = translation_value
+        return True
+
+
 @pytest.fixture
-def client():
-    """Create a test client for the frontend router"""
-    from fastapi import FastAPI
+def fake_repo() -> _FakeFrontendRepository:
+    return _FakeFrontendRepository()
 
+
+@pytest.fixture
+def admin_user():
+    user = Mock()
+    user.id = "admin-1"
+    user.username = "admin"
+    user.role = "admin"
+    user.is_active = True
+    return user
+
+
+@pytest.fixture
+def client(fake_repo, admin_user):
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[get_current_active_user] = lambda: admin_user
+    app.dependency_overrides[get_frontend_repository] = lambda: fake_repo
     return TestClient(app)
 
 
-@pytest.fixture(autouse=True)
-def clear_storage():
-    """Clear in-memory storage before each test"""
-    components.clear()
-    themes.clear()
-    layouts.clear()
-    yield
-    components.clear()
-    themes.clear()
-    layouts.clear()
+# ---------------------------------------------------------------------------
+# Component endpoints
+# ---------------------------------------------------------------------------
 
 
-# Component management tests
 class TestComponentEndpoints:
-    """Test component endpoints"""
-
     def test_list_components_empty(self, client):
-        """Test listing components when none exist"""
         response = client.get("/api/v1/frontend/components")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "components" in data.get("data", {})
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["components"] == []
+        assert data["total"] == 0
 
-    def test_list_components_with_data(self, client):
-        """Test listing components with data"""
-        components["comp-001"] = {
-            "component_id": "comp-001",
+    def test_create_and_get_component(self, client):
+        payload = {
             "name": "CustomButton",
             "type": "button",
             "category": "ui",
             "description": "A custom button",
-            "props": {},
-            "code": "code",
-            "dependencies": [],
-            "is_public": True,
-            "status": "active",
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
+            "code": "<button/>",
         }
-        response = client.get("/api/v1/frontend/components")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "components" in data.get("data", {})
+        created = client.post("/api/v1/frontend/components", json=payload)
+        assert created.status_code == 201, created.text
+        component = created.json()["data"]
+        assert component["name"] == "CustomButton"
+        assert component["status"] == "active"
+        assert component["created_by"] == "admin"
+
+        fetched = client.get(f"/api/v1/frontend/components/{component['id']}")
+        assert fetched.status_code == 200
+        assert fetched.json()["data"]["id"] == component["id"]
 
     def test_list_components_with_type_filter(self, client):
-        """Test component listing with type filter"""
-        components["comp-001"] = {
-            "component_id": "comp-001",
-            "name": "Button",
-            "type": "button",
-            "category": "ui",
-            "description": "Button",
-            "props": {},
-            "code": "code",
-            "dependencies": [],
-            "is_public": True,
-            "status": "active",
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
+        client.post(
+            "/api/v1/frontend/components",
+            json={"name": "Button", "type": "button", "category": "ui", "description": "d", "code": "x"},
+        )
+        client.post(
+            "/api/v1/frontend/components",
+            json={"name": "Chart", "type": "chart", "category": "data", "description": "d", "code": "y"},
+        )
         response = client.get("/api/v1/frontend/components?type=button")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-
-    def test_list_components_with_category_filter(self, client):
-        """Test component listing with category filter"""
-        components["comp-001"] = {
-            "component_id": "comp-001",
-            "name": "Button",
-            "type": "button",
-            "category": "ui",
-            "description": "Button",
-            "props": {},
-            "code": "code",
-            "dependencies": [],
-            "is_public": True,
-            "status": "active",
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.get("/api/v1/frontend/components?category=ui")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-
-    def test_list_components_with_public_filter(self, client):
-        """Test component listing with public filter"""
-        components["comp-001"] = {
-            "component_id": "comp-001",
-            "name": "Button",
-            "type": "button",
-            "category": "ui",
-            "description": "Button",
-            "props": {},
-            "code": "code",
-            "dependencies": [],
-            "is_public": True,
-            "status": "active",
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.get("/api/v1/frontend/components?is_public=true")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-
-    def test_list_components_with_status_filter(self, client):
-        """Test component listing with status filter"""
-        components["comp-001"] = {
-            "component_id": "comp-001",
-            "name": "Button",
-            "type": "button",
-            "category": "ui",
-            "description": "Button",
-            "props": {},
-            "code": "code",
-            "dependencies": [],
-            "is_public": True,
-            "status": "active",
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.get("/api/v1/frontend/components?status=active")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-
-    def test_create_component_success(self, client):
-        """Test successful component creation"""
-        request_data = {
-            "name": "CustomButton",
-            "type": "button",
-            "category": "ui",
-            "description": "A custom button component",
-            "code": "export const CustomButton = () => { return <button>Click</button>; }",
-        }
-
-        response = client.post("/api/v1/frontend/components", json=request_data)
-        # May return 503 if frontend manager not available
-        assert response.status_code in [201, 503]
-        if response.status_code == 201:
-            data = response.json()
-            assert "component_id" in data.get("data", {})
-
-    def test_create_component_with_custom_id(self, client):
-        """Test component creation with custom ID"""
-        request_data = {
-            "component_id": "custom-comp-001",
-            "name": "Custom Component",
-            "type": "button",
-            "category": "ui",
-            "description": "Custom",
-            "code": "code",
-        }
-
-        response = client.post("/api/v1/frontend/components", json=request_data)
-        # May return 503 if frontend manager not available
-        assert response.status_code in [201, 503]
-
-    def test_create_component_with_props(self, client):
-        """Test component creation with props"""
-        request_data = {
-            "name": "Button",
-            "type": "button",
-            "category": "ui",
-            "description": "Button",
-            "code": "code",
-            "props": {"label": "string", "onClick": "function", "disabled": "boolean"},
-        }
-
-        response = client.post("/api/v1/frontend/components", json=request_data)
-        # May return 503 if frontend manager not available
-        assert response.status_code in [201, 503]
-
-    def test_create_component_with_dependencies(self, client):
-        """Test component creation with dependencies"""
-        request_data = {
-            "name": "Modal",
-            "type": "modal",
-            "category": "ui",
-            "description": "Modal",
-            "code": "code",
-            "dependencies": ["react", "react-dom"],
-        }
-
-        response = client.post("/api/v1/frontend/components", json=request_data)
-        # May return 503 if frontend manager not available
-        assert response.status_code in [201, 503]
-
-    def test_create_component_public(self, client):
-        """Test creating public component"""
-        request_data = {
-            "name": "PublicComponent",
-            "type": "button",
-            "category": "ui",
-            "description": "Public",
-            "code": "code",
-            "is_public": True,
-        }
-
-        response = client.post("/api/v1/frontend/components", json=request_data)
-        # May return 503 if frontend manager not available
-        assert response.status_code in [201, 503]
-
-    def test_create_component_missing_required_fields(self, client):
-        """Test component creation with missing required fields"""
-        request_data = {
-            "name": "Test"
-            # Missing type, category, description, code
-        }
-
-        response = client.post("/api/v1/frontend/components", json=request_data)
-        assert response.status_code in (422, 404)
-
-    def test_get_component_success(self, client):
-        """Test successful component retrieval"""
-        components["comp-001"] = {
-            "component_id": "comp-001",
-            "name": "CustomButton",
-            "type": "button",
-            "category": "ui",
-            "description": "A custom button",
-            "props": {},
-            "code": "code",
-            "dependencies": [],
-            "is_public": True,
-            "status": "active",
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.get("/api/v1/frontend/components/comp-001")
-        # May return 503 if frontend manager not available
-        assert response.status_code != 404, response.text
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["total"] == 1
+        assert data["components"][0]["type"] == "button"
 
     def test_get_component_not_found(self, client):
-        """Test getting non-existent component"""
-        response = client.get("/api/v1/frontend/components/nonexistent")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [404, 503]
+        response = client.get("/api/v1/frontend/components/does-not-exist")
+        assert response.status_code == 404
 
-    def test_update_component_success(self, client):
-        """Test updating component"""
-        components["comp-001"] = {
-            "component_id": "comp-001",
-            "name": "CustomButton",
-            "type": "button",
-            "category": "ui",
-            "description": "A custom button",
-            "props": {},
-            "code": "code",
-            "dependencies": [],
-            "is_public": True,
-            "status": "active",
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
+    def test_update_component(self, client):
+        created = client.post(
+            "/api/v1/frontend/components",
+            json={"name": "Button", "type": "button", "category": "ui", "description": "d", "code": "x"},
+        ).json()["data"]
         response = client.patch(
-            "/api/v1/frontend/components/comp-001", json={"name": "New Name"}
+            f"/api/v1/frontend/components/{created['id']}",
+            json={"description": "updated", "status": "deprecated"},
         )
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["description"] == "updated"
+        assert data["status"] == "deprecated"
 
-    def test_delete_component_success(self, client):
-        """Test deleting component"""
-        components["comp-001"] = {
-            "component_id": "comp-001",
-            "name": "CustomButton",
-            "type": "button",
-            "category": "ui",
-            "description": "A custom button",
-            "props": {},
-            "code": "code",
-            "dependencies": [],
-            "is_public": True,
-            "status": "active",
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.delete("/api/v1/frontend/components/comp-001")
-        # May return 503 if frontend manager not available
-        assert response.status_code != 404, response.text
+    def test_update_component_not_found(self, client):
+        response = client.patch(
+            "/api/v1/frontend/components/nope", json={"description": "x"}
+        )
+        assert response.status_code == 404
+
+    def test_delete_component(self, client):
+        created = client.post(
+            "/api/v1/frontend/components",
+            json={"name": "Button", "type": "button", "category": "ui", "description": "d", "code": "x"},
+        ).json()["data"]
+        response = client.delete(f"/api/v1/frontend/components/{created['id']}")
+        assert response.status_code == 200
+        assert response.json()["data"]["deleted"] is True
+
+    def test_delete_component_not_found(self, client):
+        assert client.delete("/api/v1/frontend/components/nope").status_code == 404
+
+    def test_create_component_validation_error(self, client):
+        # ``name`` is required
+        assert client.post("/api/v1/frontend/components", json={"type": "button"}).status_code == 422
 
 
-# Theme management tests
+# ---------------------------------------------------------------------------
+# Theme endpoints
+# ---------------------------------------------------------------------------
+
+
 class TestThemeEndpoints:
-    """Test theme endpoints"""
-
     def test_list_themes_empty(self, client):
-        """Test listing themes when none exist"""
         response = client.get("/api/v1/frontend/themes")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "themes" in data.get("data", {})
+        assert response.status_code == 200
+        assert response.json()["data"]["themes"] == []
 
-    def test_list_themes_with_data(self, client):
-        """Test listing themes with data"""
-        themes["theme-001"] = {
-            "theme_id": "theme-001",
-            "name": "Custom Blue",
+    def test_create_theme(self, client):
+        payload = {
+            "name": "Dark",
             "base_theme": "light",
-            "colors": {"primary": "#3b82f6", "secondary": "#6366f1"},
-            "fonts": {},
-            "spacing": {},
-            "is_default": False,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
+            "colors": {"primary": "#000000"},
         }
-        response = client.get("/api/v1/frontend/themes")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "themes" in data.get("data", {})
+        response = client.post("/api/v1/frontend/themes", json=payload)
+        assert response.status_code == 201, response.text
+        data = response.json()["data"]
+        assert data["name"] == "Dark"
+        assert data["colors"] == {"primary": "#000000"}
 
     def test_list_themes_with_base_theme_filter(self, client):
-        """Test theme listing with base theme filter"""
-        themes["theme-001"] = {
-            "theme_id": "theme-001",
-            "name": "Light Theme",
-            "base_theme": "light",
-            "colors": {},
-            "fonts": {},
-            "spacing": {},
-            "is_default": False,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.get("/api/v1/frontend/themes?base_theme=light")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-
-    def test_list_themes_with_default_filter(self, client):
-        """Test theme listing with default filter"""
-        themes["theme-001"] = {
-            "theme_id": "theme-001",
-            "name": "Default Theme",
-            "base_theme": "light",
-            "colors": {},
-            "fonts": {},
-            "spacing": {},
-            "is_default": True,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.get("/api/v1/frontend/themes?is_default=true")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-
-    def test_create_theme_success(self, client):
-        """Test successful theme creation"""
-        request_data = {
-            "name": "Custom Blue",
-            "base_theme": "light",
-            "colors": {"primary": "#3b82f6", "secondary": "#6366f1"},
-        }
-
-        response = client.post("/api/v1/frontend/themes", json=request_data)
-        # May return 503 if frontend manager not available
-        assert response.status_code in [201, 503]
-        if response.status_code == 201:
-            data = response.json()
-            assert "theme_id" in data.get("data", {})
-
-    def test_get_theme_success(self, client):
-        """Test successful theme retrieval"""
-        themes["theme-001"] = {
-            "theme_id": "theme-001",
-            "name": "Custom Blue",
-            "base_theme": "light",
-            "colors": {"primary": "#3b82f6", "secondary": "#6366f1"},
-            "fonts": {},
-            "spacing": {},
-            "is_default": False,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.get("/api/v1/frontend/themes/theme-001")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
-
-    def test_update_theme_success(self, client):
-        """Test updating theme"""
-        themes["theme-001"] = {
-            "theme_id": "theme-001",
-            "name": "Custom Blue",
-            "base_theme": "light",
-            "colors": {"primary": "#3b82f6", "secondary": "#6366f1"},
-            "fonts": {},
-            "spacing": {},
-            "is_default": False,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.patch(
-            "/api/v1/frontend/themes/theme-001", json={"name": "Updated Name"}
+        client.post(
+            "/api/v1/frontend/themes",
+            json={"name": "A", "base_theme": "light", "colors": {}},
         )
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
-
-    def test_delete_theme_success(self, client):
-        """Test deleting theme"""
-        themes["theme-001"] = {
-            "theme_id": "theme-001",
-            "name": "Custom Blue",
-            "base_theme": "light",
-            "colors": {"primary": "#3b82f6", "secondary": "#6366f1"},
-            "fonts": {},
-            "spacing": {},
-            "is_default": False,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.delete("/api/v1/frontend/themes/theme-001")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 404, 503]
+        client.post(
+            "/api/v1/frontend/themes",
+            json={"name": "B", "base_theme": "dark", "colors": {}},
+        )
+        response = client.get("/api/v1/frontend/themes?base_theme=dark")
+        assert response.status_code == 200
+        data = response.json()["data"]
+        assert data["total"] == 1
+        assert data["themes"][0]["base_theme"] == "dark"
 
 
-# Layout management tests
+# ---------------------------------------------------------------------------
+# Layout endpoints
+# ---------------------------------------------------------------------------
+
+
 class TestLayoutEndpoints:
-    """Test layout endpoints"""
-
     def test_list_layouts_empty(self, client):
-        """Test listing layouts when none exist"""
         response = client.get("/api/v1/frontend/layouts")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "layouts" in data.get("data", {})
+        assert response.status_code == 200
+        assert response.json()["data"]["layouts"] == []
 
-    def test_list_layouts_with_data(self, client):
-        """Test listing layouts with data"""
-        layouts["layout-001"] = {
-            "layout_id": "layout-001",
-            "name": "Default Layout",
-            "layout_type": "grid",
-            "structure": {"columns": 12, "rows": 6},
-            "is_default": True,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
+    def test_create_get_update_delete_layout(self, client):
+        payload = {
+            "name": "Main Dashboard",
+            "type": "dashboard",
+            "structure": {"header": {"height": 64}},
         }
-        response = client.get("/api/v1/frontend/layouts")
-        # May return 503 if frontend manager not available
-        assert response.status_code in [200, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "layouts" in data.get("data", {})
+        created = client.post("/api/v1/frontend/layouts", json=payload)
+        assert created.status_code == 201, created.text
+        layout = created.json()["data"]
+        assert layout["name"] == "Main Dashboard"
 
-    def test_create_layout_success(self, client):
-        """Test successful layout creation"""
-        request_data = {
-            "name": "New Layout",
-            "layout_type": "flex",
-            "structure": {"columns": 12},
-        }
+        got = client.get(f"/api/v1/frontend/layouts/{layout['id']}")
+        assert got.status_code == 200
+        assert got.json()["data"]["id"] == layout["id"]
 
-        response = client.post("/api/v1/frontend/layouts", json=request_data)
-        # May return 503 if frontend manager not available
-        assert response.status_code in [201, 503, 422]
-        if response.status_code == 201:
-            data = response.json()
-            assert "layout_id" in data.get("data", {})
-
-    def test_get_layout_success(self, client):
-        """Test successful layout retrieval"""
-        layouts["layout-001"] = {
-            "layout_id": "layout-001",
-            "name": "Default Layout",
-            "layout_type": "grid",
-            "structure": {"columns": 12, "rows": 6},
-            "is_default": True,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.get("/api/v1/frontend/layouts/layout-001")
-        # May return 503 if frontend manager not available
-        assert response.status_code != 404, response.text
-
-    def test_update_layout_success(self, client):
-        """Test updating layout"""
-        layouts["layout-001"] = {
-            "layout_id": "layout-001",
-            "name": "Default Layout",
-            "layout_type": "grid",
-            "structure": {"columns": 12, "rows": 6},
-            "is_default": True,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.patch(
-            "/api/v1/frontend/layouts/layout-001", json={"name": "Updated Name"}
+        updated = client.patch(
+            f"/api/v1/frontend/layouts/{layout['id']}", json={"name": "Renamed"}
         )
-        # May return 503 if frontend manager not available
-        assert response.status_code != 404, response.text
+        assert updated.status_code == 200
+        assert updated.json()["data"]["name"] == "Renamed"
 
-    def test_delete_layout_success(self, client):
-        """Test deleting layout"""
-        layouts["layout-001"] = {
-            "layout_id": "layout-001",
-            "name": "Default Layout",
-            "layout_type": "grid",
-            "structure": {"columns": 12, "rows": 6},
-            "is_default": True,
-            "created_at": "2024-01-01",
-            "updated_at": "2024-01-01",
-        }
-        response = client.delete("/api/v1/frontend/layouts/layout-001")
-        # May return 503 if frontend manager not available
-        assert response.status_code != 404, response.text
+        deleted = client.delete(f"/api/v1/frontend/layouts/{layout['id']}")
+        assert deleted.status_code == 200
+        assert deleted.json()["data"]["deleted"] is True
+
+    def test_get_layout_not_found(self, client):
+        assert client.get("/api/v1/frontend/layouts/nope").status_code == 404
+
+    def test_update_layout_not_found(self, client):
+        assert (
+            client.patch("/api/v1/frontend/layouts/nope", json={"name": "x"}).status_code
+            == 404
+        )
+
+    def test_delete_layout_not_found(self, client):
+        assert client.delete("/api/v1/frontend/layouts/nope").status_code == 404
 
 
-# Localization management tests
+# ---------------------------------------------------------------------------
+# Localization endpoints
+# ---------------------------------------------------------------------------
+
+
 class TestLocalizationEndpoints:
-    """Test localization endpoints"""
+    def test_update_and_get_localization(self, client):
+        response = client.patch(
+            "/api/v1/frontend/localization",
+            json={"language": "zh-CN", "translations": {"welcome": "欢迎"}},
+        )
+        assert response.status_code == 200
+        assert response.json()["data"]["translations"]["welcome"] == "欢迎"
 
-    def test_list_localizations_empty(self, client):
-        """Test listing localizations when none exist"""
-        response = client.get("/api/v1/frontend/localizations")
-        # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "localizations" in data.get("data", {})
+        got = client.get("/api/v1/frontend/localization?language=zh-CN")
+        assert got.status_code == 200
+        assert got.json()["data"]["translations"] == {"welcome": "欢迎"}
 
-    def test_list_localizations_with_data(self, client):
-        """Test listing localizations with data"""
-        response = client.get("/api/v1/frontend/localizations")
-        # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
-        if response.status_code == 200:
-            data = response.json()
-            assert "localizations" in data.get("data", {})
+    def test_get_localization_all_languages(self, client):
+        client.patch(
+            "/api/v1/frontend/localization",
+            json={"language": "en-US", "translations": {"welcome": "Welcome"}},
+        )
+        client.patch(
+            "/api/v1/frontend/localization",
+            json={"language": "zh-CN", "translations": {"welcome": "欢迎"}},
+        )
+        got = client.get("/api/v1/frontend/localization")
+        assert got.status_code == 200
+        data = got.json()["data"]
+        assert set(data["available_languages"]) == {"en-US", "zh-CN"}
+        assert data["localization"]["en-US"]["welcome"] == "Welcome"
 
-    def test_list_localizations_with_language_filter(self, client):
-        """Test localization listing with language filter"""
-        response = client.get("/api/v1/frontend/localizations?language_code=en")
-        # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
-
-    def test_update_localization_success(self, client):
-        """Test updating localization"""
-        request_data = {
-            "language_code": "en",
-            "translations": {
-                "welcome_message": "Welcome to our application"
-            }
-        }
-
-        response = client.patch("/api/v1/frontend/localizations", json=request_data)
-        # May return 404 if endpoint not implemented
-        assert response.status_code in [200, 404, 503]
+    def test_localization_requires_language(self, client):
+        assert (
+            client.patch("/api/v1/frontend/localization", json={"translations": {}}).status_code
+            == 422
+        )
 
 
-# Service unavailable tests
-class TestServiceUnavailable:
-    """Test service unavailable scenarios"""
+# ---------------------------------------------------------------------------
+# Permission enforcement
+# ---------------------------------------------------------------------------
 
-    def test_list_components_service_unavailable(self):
-        """Test component listing when service is unavailable"""
-        with patch("api.frontend_advanced_router.FRONTEND_AVAILABLE", False):
-            from fastapi import FastAPI
 
-            app = FastAPI()
-            app.include_router(router)
-            client = TestClient(app)
-
-            response = client.get("/api/v1/frontend/components")
-            # May return 200 even when service unavailable (in-memory storage)
-            assert response.status_code in [200, 503]
+class TestPermissionEnforcement:
+    def test_missing_user_is_rejected(self, fake_repo):
+        """Without the auth override the protected endpoints must not return 200."""
+        app = FastAPI()
+        app.include_router(router)
+        app.dependency_overrides[get_frontend_repository] = lambda: fake_repo
+        anonymous = TestClient(app)
+        response = anonymous.get("/api/v1/frontend/components")
+        assert response.status_code in (401, 403)

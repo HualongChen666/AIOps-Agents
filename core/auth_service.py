@@ -137,8 +137,13 @@ def create_access_token(data: dict) -> str:
             "jti": str(uuid.uuid4()),
             "exp": expire,
             "iat": now,
+            "nbf": now,
             "iss": config.JWT_ISSUER,
             "aud": config.JWT_AUDIENCE,
+            # ``core.authentication.verify_token`` requires a ``type`` claim and
+            # only accepts "access"/"refresh".  Without it every token minted by
+            # the login endpoint is rejected as invalid.
+            "type": "access",
         }
     )
     # Ensure tenant is encoded in the token for multi-tenant endpoints.
@@ -227,7 +232,7 @@ def get_current_user(
         user = db.query(User).filter(User.username == username).first()
     finally:
         db.close()
-    if user is None or not user.is_active:
+    if user is None or user.disabled:
         raise credentials_exception
     # Attach tenant_id from token so downstream code can enforce multi-tenant isolation.
     user.tenant_id = str(payload.get("tenant_id", "default"))
@@ -244,7 +249,7 @@ def has_role(user: User, *roles: str) -> bool:
     Returns:
         True if user is active and has at least one of the specified roles
     """
-    return bool(user.is_active and user.role in roles)
+    return bool(not user.disabled and user.role in roles)
 
 
 def require_roles(*roles: str) -> Callable[[User], User]:

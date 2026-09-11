@@ -88,10 +88,15 @@ class LinuxCollectRequest(BaseModel):
     def _validate_metrics(cls, v: Optional[list[str]]) -> Optional[list[str]]:
         if v is None:
             return None
-        # 🔧 重构:使用公共 validate_list_length 函数
-        validated = validate_list_length(v, "metrics", max_length=_METRICS_LIST_MAX)
+        # Raise ``ValueError`` (the Pydantic contract) rather than an
+        # ``HTTPException`` so the validation error is reported as a normal
+        # request-validation failure.
+        if not isinstance(v, list):
+            raise ValueError("metrics 必须是字符串列表")
+        if len(v) > _METRICS_LIST_MAX:
+            raise ValueError("metrics 列表长度超出")
         cleaned = []
-        for item in validated:
+        for item in v:
             if not isinstance(item, str):
                 continue
             stripped = item.strip()[:64]

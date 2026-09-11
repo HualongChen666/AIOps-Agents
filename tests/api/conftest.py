@@ -33,7 +33,16 @@ def client():
     user.role = "admin"
     user.is_active = True
     user.disabled = False
-    user.password_hash = "hashed_password"
+    # A *real* bcrypt hash so password checks (login / change-password) against
+    # this identity do not blow up inside passlib with a Mock argument.
+    try:
+        from passlib.context import CryptContext as _CryptContext
+
+        _MOCK_PASSWORD_HASH = _CryptContext(schemes=["bcrypt"]).hash("admin123")
+    except Exception:  # pragma: no cover - hashing backend always present in CI
+        _MOCK_PASSWORD_HASH = "$2b$12$" + "x" * 53
+    user.password_hash = _MOCK_PASSWORD_HASH
+    user.hashed_password = _MOCK_PASSWORD_HASH
 
     async def mock_get_current_active_user():
         return user
@@ -47,7 +56,10 @@ def client():
     try:
         import core.auth_service
         original_auth_service_func = core.auth_service.get_current_user
-        async def mock_get_current_user(token):
+        # The real ``get_current_user`` is synchronous; keep the mock sync so
+        # routers that lazily ``from core.auth_service import get_current_user``
+        # (and call it directly, e.g. slo_router) do not receive a coroutine.
+        def mock_get_current_user(token=None, request=None):
             return user
         core.auth_service.get_current_user = mock_get_current_user
 
@@ -66,11 +78,31 @@ def client():
     try:
         import core.auth_db
         original_auth_db_get_session = core.auth_db.get_session
+
         def mock_auth_db_get_session():
-            from unittest.mock import Mock
-            mock_session = Mock()
-            mock_session.query = Mock(return_value=Mock())
+            from unittest.mock import MagicMock
+
+            db_user = MagicMock()
+            db_user.id = 1
+            db_user.username = "admin"
+            db_user.email = "admin@example.com"
+            db_user.full_name = "Admin"
+            db_user.role = "admin"
+            db_user.disabled = False
+            db_user.is_active = True
+            db_user.hashed_password = _MOCK_PASSWORD_HASH
+            db_user.mfa_enabled = False
+            db_user.created_at = None
+            db_user.last_login_at = None
+
+            mock_session = MagicMock()
+            mock_session.query.return_value.filter.return_value.first.return_value = db_user
+            mock_session.query.return_value.filter.return_value.all.return_value = [db_user]
+            mock_session.query.return_value.first.return_value = db_user
+            mock_session.query.return_value.all.return_value = [db_user]
+            mock_session.query.return_value.count.return_value = 1
             return mock_session
+
         core.auth_db.get_session = mock_auth_db_get_session
     except ImportError:
         original_auth_db_get_session = None
@@ -125,6 +157,23 @@ def client():
             for _route in app.routes:
                 if isinstance(_route, _APIRoute):
                     _walk_dep(_route.dependant)
+        except Exception:
+            pass
+
+        # Authenticate ``core.authentication`` dependencies too.  Routers that
+        # import ``get_current_active_user`` at module-import time (which happens
+        # before this fixture runs when a test module imports the router at the
+        # top, e.g. api.system_resource_router) capture that original function
+        # object, so it must be overridden by identity.  The global RBAC
+        # middleware is bypassed under TEST_MODE, so this only affects the
+        # routers' own auth dependencies.
+        try:
+            import core.authentication as _core_auth
+
+            app.dependency_overrides.setdefault(
+                _core_auth.get_current_active_user, _override_current_user
+            )
+            app.dependency_overrides.setdefault(_core_auth.get_current_user, _override_current_user)
         except Exception:
             pass
 
@@ -262,3 +311,45 @@ def event_loop():
     loop = asyncio.new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters():
+    """Reset all in-process rate limiters before and after every test.
+
+    The API app installs global rate-limit middleware (per client IP → all
+    ``TestClient`` traffic shares ``127.0.0.1``).  Without resetting between
+    tests, suites that log in / call the same endpoint repeatedly trip the
+    limiter and get spurious ``429`` responses.
+    """
+    def _clear() -> None:
+        try:
+            from core.middleware.rate_limit_middleware import rate_limiter as _rl
+
+            _rl._requests.clear()
+        except Exception:
+            pass
+        try:
+            from core.rate_limiter import get_advanced_rate_limiter
+
+            get_advanced_rate_limiter()._requests.clear()
+        except Exception:
+            pass
+        try:
+            from core import rate_limiter as _module
+
+            _module._in_memory_rate_limits.clear()
+        except Exception:
+            pass
+        try:
+            from core import auth as _auth
+
+            for _limiter in getattr(_auth, "_rate_limiters", {}).values():
+                if hasattr(_limiter, "requests"):
+                    _limiter.requests.clear()
+        except Exception:
+            pass
+
+    _clear()
+    yield
+    _clear()

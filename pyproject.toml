@@ -50,6 +50,8 @@ grpcio = ">=1.83.1"
 cryptography = ">=50.0.1"
 pyjwt = {version = ">=2.13.0", extras = ['crypto']}
 passlib = {version = ">=1.7.4", extras = ['bcrypt']}
+# passlib 1.7.4 is incompatible with bcrypt>=4.1 (see requirements.txt note).
+bcrypt = ">=4.0,<4.1"
 python-multipart = ">=0.0.18"
 authlib = ">=1.8.0"
 slowapi = ">=0.1.9"

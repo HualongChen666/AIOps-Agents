@@ -64,6 +64,10 @@ requests>=2.32.4
 cryptography>=50.0.1
 pyjwt[crypto]>=2.13.0
 passlib[bcrypt]>=1.7.4
+# passlib 1.7.4 loads the bcrypt backend via bcrypt.__about__, which was
+# removed in bcrypt 4.1; bcrypt 5.x additionally rejects the >72-byte probe
+# used by passlib's backend detection.  Constrain to the compatible 4.0.x line.
+bcrypt>=4.0,<4.1
 python-multipart>=0.0.18
 authlib>=1.8.0
 ecdsa>=0.19.2

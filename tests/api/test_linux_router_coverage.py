@@ -184,9 +184,10 @@ def test_linux_collect_all_cancelled(client, monkeypatch):
         _lrx, "find_linux_host_config", lambda host: {"name": host, "host": "1.1.1.1"}
     )
     monkeypatch.setattr(_lrx, "collect_all_linux", _async_raise(asyncio.CancelledError()))
-    resp = client.get("/api/v1/platforms/linux/collect/all")
-    # CancelledError is re-raised, which FastAPI handles as 500
-    assert resp.status_code != 404, resp.text
+    # CancelledError propagates out of the handler; the test client surfaces the
+    # aborted stream as an exception instead of a 500 response.
+    with pytest.raises(Exception):
+        client.get("/api/v1/platforms/linux/collect/all")
 
 
 def test_linux_collect_all_general_error(client, monkeypatch):
@@ -214,12 +215,11 @@ def test_linux_collect_host_cancelled(client, monkeypatch):
         _lrx, "find_linux_host_config", lambda host: {"name": host, "host": "1.1.1.1"}
     )
     monkeypatch.setattr(_lrx, "collect_linux_host", _async_raise(asyncio.CancelledError()))
-    resp = client.post(
-        "/api/v1/platforms/linux/collect/host",
-        json={"host_name": "h1", "metrics": ["cpu"]},
-    )
-    # CancelledError is re-raised, which FastAPI handles as 500
-    assert resp.status_code != 404, resp.text
+    with pytest.raises(Exception):
+        client.post(
+            "/api/v1/platforms/linux/collect/host",
+            json={"host_name": "h1", "metrics": ["cpu"]},
+        )
 
 
 def test_linux_collect_host_general_error(client, monkeypatch):
@@ -266,12 +266,11 @@ def test_linux_repair_cancelled(client, monkeypatch):
         _lrx, "find_linux_host_config", lambda host: {"name": host, "host": "1.1.1.1"}
     )
     monkeypatch.setattr(_lrx, "execute_linux_repair", _async_raise(asyncio.CancelledError()))
-    resp = client.post(
-        "/api/v1/platforms/linux/repair/execute",
-        json={"host_name": "h1", "script_key": "clear_tmp", "params": {}},
-    )
-    # CancelledError is re-raised, which FastAPI handles as 500
-    assert resp.status_code != 404, resp.text
+    with pytest.raises(Exception):
+        client.post(
+            "/api/v1/platforms/linux/repair/execute",
+            json={"host_name": "h1", "script_key": "clear_tmp", "params": {}},
+        )
 
 
 # =============================================================================

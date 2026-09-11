@@ -25,7 +25,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
+from core.db_engine import async_get_session
 from core.repositories.frontend_repository_impl import FrontendRepositoryImpl
 from api.middleware.auth_middleware import get_current_active_user
 from api.middleware.rbac_auth_middleware import require_permission
@@ -190,7 +190,7 @@ class LocalizationUpdate(BaseModel):
 
 
 # Repository dependency
-async def get_frontend_repository(db: AsyncSession = Depends(get_db)) -> FrontendRepositoryImpl:
+async def get_frontend_repository(db: AsyncSession = Depends(async_get_session)) -> FrontendRepositoryImpl:
     """获取Frontend Repository实例"""
     return FrontendRepositoryImpl(session=db)
 
@@ -606,12 +606,16 @@ async def create_layout(
         500: {"description": "获取失败"},
     },
 )
-async def get_layout(layout_id: str) -> Dict[str, Any]:
+async def get_layout(
+    layout_id: str,
+    current_user: User = Depends(require_permission("layouts:read")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     根据ID获取布局详情
     """
     try:
-        layout = layouts.get(layout_id)
+        layout = await repo.get_layout(layout_id)
         if not layout:
             raise HTTPException(status_code=404, detail="布局未找到")
 
@@ -633,27 +637,31 @@ async def get_layout(layout_id: str) -> Dict[str, Any]:
         500: {"description": "更新失败"},
     },
 )
-async def update_layout(layout_id: str, request: LayoutUpdate) -> Dict[str, Any]:
+async def update_layout(
+    layout_id: str,
+    request: LayoutUpdate,
+    current_user: User = Depends(require_permission("layouts:write")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     更新布局信息
     """
     try:
-        layout = layouts.get(layout_id)
-        if not layout:
+        updates: Dict[str, Any] = {}
+        if request.name is not None:
+            updates["name"] = request.name
+        if request.structure is not None:
+            updates["structure"] = request.structure
+        if request.breakpoints is not None:
+            updates["breakpoints"] = request.breakpoints
+        if request.is_default is not None:
+            updates["is_default"] = request.is_default
+
+        updated = await repo.update_layout(layout_id, updates)
+        if not updated:
             raise HTTPException(status_code=404, detail="布局未找到")
 
-        # Update fields
-        if request.name is not None:
-            layout["name"] = request.name
-        if request.structure is not None:
-            layout["structure"].update(request.structure)
-        if request.breakpoints is not None:
-            layout["breakpoints"].update(request.breakpoints)
-        if request.is_default is not None:
-            layout["is_default"] = request.is_default
-
-        layout["updated_at"] = datetime.utcnow().isoformat()
-
+        layout = await repo.get_layout(layout_id)
         return {"status": "success", "data": layout, "timestamp": datetime.utcnow().isoformat()}
     except HTTPException:
         raise
@@ -671,17 +679,18 @@ async def update_layout(layout_id: str, request: LayoutUpdate) -> Dict[str, Any]
         500: {"description": "删除失败"},
     },
 )
-async def delete_layout(layout_id: str) -> Dict[str, Any]:
+async def delete_layout(
+    layout_id: str,
+    current_user: User = Depends(require_permission("layouts:write")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     删除布局
     """
     try:
-        layout = layouts.get(layout_id)
-        if not layout:
+        deleted = await repo.delete_layout(layout_id)
+        if not deleted:
             raise HTTPException(status_code=404, detail="布局未找到")
-
-        # Delete layout
-        del layouts[layout_id]
 
         return {
             "status": "success",
@@ -704,28 +713,39 @@ async def delete_layout(layout_id: str) -> Dict[str, Any]:
     },
 )
 async def get_localization(
-    language: Optional[str] = Query(None, description="语言代码")
+    language: Optional[str] = Query(None, description="语言代码"),
+    current_user: User = Depends(require_permission("localization:read")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
 ) -> Dict[str, Any]:
     """
     获取本地化翻译
     """
     try:
+        records = await repo.list_localizations(language=language, limit=1000)
+
         if language:
-            translations = localization.get(language, {})
+            translations = {
+                r["translation_key"]: r["translation_value"] for r in records
+            }
             return {
                 "status": "success",
                 "data": {"language": language, "translations": translations},
                 "timestamp": datetime.utcnow().isoformat(),
             }
-        else:
-            return {
-                "status": "success",
-                "data": {
-                    "available_languages": list(localization.keys()),
-                    "localization": localization,
-                },
-                "timestamp": datetime.utcnow().isoformat(),
-            }
+
+        localization: Dict[str, Dict[str, str]] = {}
+        for r in records:
+            localization.setdefault(r["language"], {})[r["translation_key"]] = r[
+                "translation_value"
+            ]
+        return {
+            "status": "success",
+            "data": {
+                "available_languages": list(localization.keys()),
+                "localization": localization,
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+        }
     except Exception as e:
         logger.error(f"Error getting localization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -740,21 +760,21 @@ async def get_localization(
         500: {"description": "更新失败"},
     },
 )
-async def update_localization(request: LocalizationUpdate) -> Dict[str, Any]:
+async def update_localization(
+    request: LocalizationUpdate,
+    current_user: User = Depends(require_permission("localization:write")),
+    repo: FrontendRepositoryImpl = Depends(get_frontend_repository),
+) -> Dict[str, Any]:
     """
     更新本地化翻译
     """
     try:
-        # Initialize language if not exists
-        if request.language not in localization:
-            localization[request.language] = {}
-
-        # Update translations
-        localization[request.language].update(request.translations)
+        for key, value in request.translations.items():
+            await repo.upsert_localization(request.language, key, value)
 
         return {
             "status": "success",
-            "data": {"language": request.language, "translations": localization[request.language]},
+            "data": {"language": request.language, "translations": dict(request.translations)},
             "timestamp": datetime.utcnow().isoformat(),
         }
     except Exception as e:

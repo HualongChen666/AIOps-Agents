@@ -27,52 +27,80 @@ def client():
 
 
 @pytest.fixture(autouse=True)
-def cleanup_in_memory_storage():
-    """Clean up in-memory storage before and after each test"""
-    # Import and clear all in-memory stores
-    from api import security_advanced_router
-    
-    stores = [
-        security_advanced_router._keys_store,
-        security_advanced_router._mfa_methods,
-        security_advanced_router._abac_policies,
-        security_advanced_router._rbac_roles,
-        security_advanced_router._rate_limit_rules,
-        security_advanced_router._certificates,
-        security_advanced_router._snapshots,
-        security_advanced_router._data_keys,
-        security_advanced_router._privacy_subjects,
-        security_advanced_router._compliance_policies,
-        security_advanced_router._compliance_standards,
-        security_advanced_router._database_instances,
-        security_advanced_router._api_endpoints,
-        security_advanced_router._input_validation_rules,
-        security_advanced_router._penetration_projects,
-        security_advanced_router._security_tests,
-        security_advanced_router._vulnerability_tickets,
-        security_advanced_router._threat_intel,
-        security_advanced_router._vulnerability_scans,
-        security_advanced_router._audit_reports,
-        security_advanced_router._operation_records,
-        security_advanced_router._command_rewrite_rules,
-        security_advanced_router._command_guard_rules,
-    ]
-    
-    # Clear before test
-    for store in stores:
-        if isinstance(store, dict):
-            store.clear()
-        elif isinstance(store, list):
-            store.clear()
-    
+def cleanup_security_tables():
+    """Clean up the DB-backed security tables before and after each test.
+
+    The router was migrated from module-level in-memory stores to
+    :class:`core.repositories.security_repository.SecurityRepository` over the
+    real SQLAlchemy models, so the old ``security_advanced_router._*_store``
+    attributes no longer exist (referencing them raised ``AttributeError`` on
+    every test).  We now truncate the concrete tables instead.
+    """
+    from core.database import SessionLocal
+    from core.models import (
+        AbacPolicy,
+        ApiSecurityEndpoint,
+        AuditReport,
+        CommandGuardRule,
+        CommandRewriteRule,
+        CompliancePolicy,
+        ComplianceStandard,
+        DatabaseSecurityInstance,
+        DataEncryptionKey,
+        HttpsCertificate,
+        InputValidationRule,
+        MfaMethod,
+        PenetrationTestProject,
+        PrivacySubject,
+        RateLimitRule,
+        RbacRole,
+        SecurityKey,
+        SecurityOperationRecord,
+        SecurityTest,
+        SnapshotEncryption,
+        ThreatIntelligence,
+        VulnerabilityScan,
+        VulnerabilityTicket,
+    )
+
+    models = (
+        SecurityKey,
+        MfaMethod,
+        AbacPolicy,
+        RbacRole,
+        RateLimitRule,
+        HttpsCertificate,
+        SnapshotEncryption,
+        DataEncryptionKey,
+        PrivacySubject,
+        CompliancePolicy,
+        ComplianceStandard,
+        DatabaseSecurityInstance,
+        ApiSecurityEndpoint,
+        InputValidationRule,
+        PenetrationTestProject,
+        SecurityTest,
+        VulnerabilityTicket,
+        ThreatIntelligence,
+        VulnerabilityScan,
+        AuditReport,
+        SecurityOperationRecord,
+        CommandRewriteRule,
+        CommandGuardRule,
+    )
+
+    def _clear() -> None:
+        db = SessionLocal()
+        try:
+            for model in models:
+                db.query(model).delete()
+            db.commit()
+        finally:
+            db.close()
+
+    _clear()
     yield
-    
-    # Clear after test
-    for store in stores:
-        if isinstance(store, dict):
-            store.clear()
-        elif isinstance(store, list):
-            store.clear()
+    _clear()
 
 
 @pytest.fixture

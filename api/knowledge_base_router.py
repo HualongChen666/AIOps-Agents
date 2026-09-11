@@ -56,8 +56,8 @@ def get_knowledge_base() -> KnowledgeBase:
 # Pydantic models for request/response
 class DocumentCreateRequest(BaseModel):
     """Request model for creating a document"""
-    document_id: str = Field(..., description="Unique document identifier")
-    content: str = Field(..., description="Document content")
+    document_id: str = Field(..., min_length=1, description="Unique document identifier")
+    content: str = Field(..., min_length=1, description="Document content")
     metadata: Optional[Dict[str, Any]] = Field(default=None, description="Document metadata")
 
     model_config = {

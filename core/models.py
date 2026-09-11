@@ -4266,6 +4266,8 @@ class TestExecutionDB(Base):
     passed_tests = Column(Integer, nullable=False, default=0)
     failed_tests = Column(Integer, nullable=False, default=0)
     skipped_tests = Column(Integer, nullable=False, default=0)
+    retry_count = Column(Integer, nullable=False, default=0, server_default="0")
+    coverage = Column(Float, nullable=True)
     trigger_type = Column(String(50), nullable=False, default="manual")
     environment = Column(String(50), nullable=True)
     triggered_by = Column(String(100), nullable=True)
