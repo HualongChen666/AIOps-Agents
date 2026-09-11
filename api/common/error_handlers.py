@@ -206,14 +206,29 @@ def check_feature_availability(
         feature_name: Name of the feature
         status_code: HTTP status code to raise (default: 503)
 
+    The detail message is rendered in the same language as ``feature_name`` so
+    that Chinese feature names (e.g. "智能告警引擎") do not produce a
+    code-switched "… is not available" string; callers pass the localised
+    feature name and receive a coherent localised message.
+
     Raises:
         HTTPException: If feature is not available
 
     Example:
         check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "Alert Intelligence")
+        check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     """
     if not feature_available:
-        raise HTTPException(status_code=status_code, detail=f"{feature_name} is not available")
+        if _contains_cjk(feature_name):
+            detail = f"{feature_name}不可用"
+        else:
+            detail = f"{feature_name} is not available"
+        raise HTTPException(status_code=status_code, detail=detail)
+
+
+def _contains_cjk(text: str) -> bool:
+    """Return True if ``text`` contains at least one CJK (Han) character."""
+    return any("\u4e00" <= ch <= "\u9fff" for ch in text)
 
 
 def get_client_ip(request: Request) -> str:

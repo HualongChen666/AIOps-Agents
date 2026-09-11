@@ -208,6 +208,10 @@ def _create_export_file(
             _write_csv_file(tmp_path, logs)
         else:
             _write_excel_file(tmp_path, logs)
+    except HTTPException:
+        # Preserve intentional, specific errors (e.g. "openpyxl 未安装") instead
+        # of masking them behind a generic message.
+        raise
     except Exception as exc:
         logger.error(f"Failed to generate audit export: {exc}")
         raise HTTPException(status_code=500, detail=f"Failed to generate audit export")

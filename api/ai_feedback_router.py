@@ -26,6 +26,29 @@ _FEEDBACK_DB_PATH = os.environ.get(
 )
 _feedback_lock = Lock()
 
+# A plain ``:memory:`` database is private to each connection, so the schema
+# created by ``_init_feedback_db`` would be invisible to later writes/queries.
+# Route the in-memory case through a *shared-cache* URI and keep one anchor
+# connection alive for the process lifetime so the schema and rows persist.
+_FEEDBACK_DB_URI: Optional[str] = (
+    "file:ai_feedback_shared?mode=memory&cache=shared"
+    if _FEEDBACK_DB_PATH == ":memory:"
+    else None
+)
+_anchor_connection: Optional[sqlite3.Connection] = None
+
+
+def _connect() -> sqlite3.Connection:
+    """Open a connection to the feedback store (shared for the in-memory case)."""
+    global _anchor_connection
+    if _FEEDBACK_DB_URI is not None:
+        if _anchor_connection is None:
+            _anchor_connection = sqlite3.connect(
+                _FEEDBACK_DB_URI, uri=True, check_same_thread=False
+            )
+        return sqlite3.connect(_FEEDBACK_DB_URI, uri=True, check_same_thread=False)
+    return sqlite3.connect(_FEEDBACK_DB_PATH, check_same_thread=False)
+
 
 def _init_feedback_db() -> None:
     """初始化 SQLite 反馈表（幂等）。"""
@@ -35,7 +58,7 @@ def _init_feedback_db() -> None:
         except Exception as e:
             logging.exception("Unexpected exception: %s", e)
             logging.warning("Suppressed exception", exc_info=True)
-    conn = sqlite3.connect(_FEEDBACK_DB_PATH, check_same_thread=False)
+    conn = _connect()
     conn.execute("""
         CREATE TABLE IF NOT EXISTS ai_feedback (
             feedback_id TEXT PRIMARY KEY,
@@ -56,7 +79,7 @@ def _init_feedback_db() -> None:
 
 def _insert_feedback(record: dict[str, Any]) -> None:
     with _feedback_lock:
-        conn = sqlite3.connect(_FEEDBACK_DB_PATH, check_same_thread=False)
+        conn = _connect()
         try:
             conn.execute(
                 """
@@ -102,7 +125,7 @@ def _fetch_feedback(
         sql += " AND feedback_type = ?"
         params.append(feedback_type)
     sql += " ORDER BY created_at DESC"
-    conn = sqlite3.connect(_FEEDBACK_DB_PATH, check_same_thread=False)
+    conn = _connect()
     try:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(sql, params).fetchall()

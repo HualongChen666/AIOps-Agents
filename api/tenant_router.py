@@ -19,7 +19,7 @@ from core.tenant_engine import (
     update_tenant,
 )
 
-router = APIRouter(prefix="/api/tenant", tags=["tenants"])
+router = APIRouter(prefix="/api/v1/tenants", tags=["tenants"])
 
 
 class TenantTenantCreate(BaseModel):

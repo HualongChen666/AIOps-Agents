@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/ai-advanced", tags=["高级AI能力"])
 try:
     from core.advanced_ai_capabilities import (
+        ADVANCED_AI_CAPABILITIES as advanced_ai_capabilities,
         LearningMode,
         PredictionType,
-        advanced_ai_capabilities,
     )
 
     ADVANCED_AI_AVAILABLE = True

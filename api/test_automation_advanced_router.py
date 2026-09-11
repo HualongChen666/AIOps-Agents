@@ -752,6 +752,7 @@ async def delete_test_execution(
 @router.post(
     "/executions/{id}/retry",
     response_model=TestExecution,
+    status_code=status.HTTP_201_CREATED,
     summary="重试执行",
     responses={
         (201): {"description": "执行重试成功"},
@@ -1398,6 +1399,7 @@ async def delete_test_schedule(
 @router.post(
     "/schedules/{id}/trigger",
     response_model=TestExecution,
+    status_code=status.HTTP_201_CREATED,
     summary="手动触发调度",
     responses={
         (201): {"description": "调度触发成功"},
@@ -1553,9 +1555,31 @@ async def get_metrics_summary(
         for name, values in grouped.items()
     }
 
+    # Time-series view: per-day average of each metric so the summary surfaces
+    # how metrics evolve over time rather than only their aggregate statistics.
+    daily: Dict[str, Dict[str, List[float]]] = {}
+    for metric in metrics:
+        timestamp = getattr(metric, "timestamp", None)
+        if not timestamp:
+            continue
+        day = timestamp.strftime("%Y-%m-%d")
+        daily.setdefault(day, {}).setdefault(metric.metric_name, []).append(metric.metric_value)
+
+    trends = [
+        {
+            "date": day,
+            "metrics": {
+                name: {"count": len(values), "avg": round(sum(values) / len(values), 2)}
+                for name, values in sorted(metrics_by_name.items())
+            },
+        }
+        for day, metrics_by_name in sorted(daily.items())
+    ]
+
     return {
         "total_metrics": len(metrics),
         "metric_types": metric_types,
+        "trends": trends,
     }
 
 
@@ -2044,3 +2068,21 @@ async def archive_test_suite(
     )
 
     return _db_to_suite(suite_db)
+
+
+# ---------------------------------------------------------------------------
+# Route precedence
+# ---------------------------------------------------------------------------
+# Starlette matches routes in registration order and stops at the first route
+# whose path template AND HTTP method both match. Literal paths such as
+# ``/executions/trends`` therefore have to be registered before the
+# parameterised ``/executions/{id}`` route, otherwise ``trends`` is captured as
+# an execution id and the request 404s. Re-order explicitly so static segments
+# always win over parameterised ones (fewer ``{...}`` placeholders first).
+def _route_precedence(route: Any) -> tuple[int, int]:
+    """Sort key placing literal routes before parameterised ones."""
+    path = getattr(route, "path", "")
+    return (path.count("{"), len(path))
+
+
+router.routes.sort(key=_route_precedence)

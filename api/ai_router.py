@@ -305,73 +305,6 @@ async def ai_test() -> dict[str, str]:
     return {"status": "ok", "message": "AI服务运行正常"}
 
 
-@router.post(
-    "/analyze",
-    summary="AI 根因分析(🔧 M-1 富上下文增强)",
-    responses={
-        (200): {
-            "description": "AI分析结果",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "status": "ok",
-                        "analysis": "High CPU usage detected in python3 process consuming 85% CPU",
-                        "metrics_context": "CPU=85.2% | 内存=68.3% | 磁盘=45.0%",
-                        "platform": "windows",
-                        "context_summary": {
-                            "rich_enabled": True,
-                            "process_count": 5,
-                            "alert_count": 10,
-                            "repair_count": 3,
-                        },
-                    }
-                }
-            },
-        },
-        (400): {
-            "description": "请求参数错误",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "success": False,
-                        "error": "Invalid request parameters",
-                        "error_code": "VALIDATION_ERROR",
-                        "timestamp": "2026-07-04T00:00:00Z",
-                        "request_id": "uuid",
-                    }
-                }
-            },
-        },
-        (500): {
-            "description": "AI分析服务不可用",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "success": False,
-                        "error": "AI analysis service unavailable",
-                        "error_code": "AI_ANALYSIS_FAILED",
-                        "timestamp": "2026-07-04T00:00:00Z",
-                        "request_id": "uuid",
-                    }
-                }
-            },
-        },
-        (503): {
-            "description": "服务暂时不可用",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "success": False,
-                        "error": "Service temporarily unavailable",
-                        "error_code": "SERVICE_UNAVAILABLE",
-                        "timestamp": "2026-07-04T00:00:00Z",
-                        "request_id": "uuid",
-                    }
-                }
-            },
-        },
-    },
-)
 def _log_ai_analyze_request(req: AiAnalyzeRequest, request: Request) -> str:
     """
     记录AI分析请求日志
@@ -545,6 +478,73 @@ def _build_ai_analyze_response(
     }
 
 
+@router.post(
+    "/analyze",
+    summary="AI 根因分析(🔧 M-1 富上下文增强)",
+    responses={
+        (200): {
+            "description": "AI分析结果",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "ok",
+                        "analysis": "High CPU usage detected in python3 process consuming 85% CPU",
+                        "metrics_context": "CPU=85.2% | 内存=68.3% | 磁盘=45.0%",
+                        "platform": "windows",
+                        "context_summary": {
+                            "rich_enabled": True,
+                            "process_count": 5,
+                            "alert_count": 10,
+                            "repair_count": 3,
+                        },
+                    }
+                }
+            },
+        },
+        (400): {
+            "description": "请求参数错误",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "error": "Invalid request parameters",
+                        "error_code": "VALIDATION_ERROR",
+                        "timestamp": "2026-07-04T00:00:00Z",
+                        "request_id": "uuid",
+                    }
+                }
+            },
+        },
+        (500): {
+            "description": "AI分析服务不可用",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "error": "AI analysis service unavailable",
+                        "error_code": "AI_ANALYSIS_FAILED",
+                        "timestamp": "2026-07-04T00:00:00Z",
+                        "request_id": "uuid",
+                    }
+                }
+            },
+        },
+        (503): {
+            "description": "服务暂时不可用",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": False,
+                        "error": "Service temporarily unavailable",
+                        "error_code": "SERVICE_UNAVAILABLE",
+                        "timestamp": "2026-07-04T00:00:00Z",
+                        "request_id": "uuid",
+                    }
+                }
+            },
+        },
+    },
+)
 async def ai_analyze(req: AiAnalyzeRequest, request: Request) -> dict[str, Any]:
     """
     接收自然语言问题,结合当前系统快照 + 富上下文,返回 AI 根因分析结果

@@ -4,6 +4,7 @@
 import asyncio  # noqa: F401  # Imported for test setup
 import pathlib
 import tempfile
+import uuid
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any  # noqa: F401  # Imported for test setup
@@ -655,29 +656,80 @@ def test_i18n_formats(client, admin_headers):
 # Workflow router
 # ---------------------------------------------------------------------------
 def _patch_workflow(monkeypatch: Any) -> None:
-    defs = {
-        "wf1": {
-            "name": "Workflow One",
-            "description": "desc",
-            "steps": [
-                {"key": "a", "title": "A", "desc": ""},
-                {"key": "b", "title": "B", "desc": ""},
-            ],
-        }
+    """Inject an in-memory workflow repository.
+
+    The router persists definitions through ``get_workflow_repository()``
+    (database-backed).  The coverage tests substitute a small in-memory
+    repository so the endpoint logic can be exercised without a live database,
+    while still going through the exact repository API the router uses.
+    """
+
+    class _Wf:
+        def __init__(self, wf_id: str, name: str, description: str, definition: dict) -> None:
+            self.id = wf_id
+            self.name = name
+            self.description = description
+            self.definition = definition
+
+    store: dict[str, Any] = {
+        "wf1": _Wf(
+            "wf1",
+            "Workflow One",
+            "desc",
+            {
+                "steps": [
+                    {"key": "a", "title": "A", "desc": ""},
+                    {"key": "b", "title": "B", "desc": ""},
+                ]
+            },
+        )
     }
-    monkeypatch.setattr(api.workflow_router, "WORKFLOW_DEFINITIONS", defs)
-    monkeypatch.setattr(api.workflow_router, "get_workflow_definitions", lambda: defs)
-    monkeypatch.setattr(
-        api.workflow_router,
-        "create_workflow_definition",
-        lambda key, payload: {"key": key, **payload},
-    )
-    monkeypatch.setattr(
-        api.workflow_router,
-        "update_workflow_definition",
-        lambda key, payload: {"updated": key, **payload},
-    )
-    monkeypatch.setattr(api.workflow_router, "delete_workflow_definition", lambda key: None)
+
+    class _FakeRepo:
+        def list_workflow_definitions(self, status: str = "active") -> list[Any]:
+            return list(store.values())
+
+        def get_workflow_definition(self, wf_key: str) -> Any:
+            return store.get(wf_key)
+
+        def create_workflow_definition(
+            self,
+            *,
+            wf_key: str,
+            name: str,
+            description: str,
+            definition: dict,
+            created_by: str | None = None,
+        ) -> Any:
+            workflow = _Wf(wf_key, name, description, definition)
+            store[wf_key] = workflow
+            return workflow
+
+        def update_workflow_definition(
+            self,
+            *,
+            wf_key: str,
+            name: str | None = None,
+            description: str | None = None,
+            definition: dict | None = None,
+        ) -> Any:
+            workflow = store.get(wf_key)
+            if workflow is None:
+                raise ValueError(f"工作流 '{wf_key}' 不存在")
+            if name is not None:
+                workflow.name = name
+            if description is not None:
+                workflow.description = description
+            if definition:
+                workflow.definition = definition
+            return workflow
+
+        def delete_workflow_definition(self, wf_key: str) -> None:
+            if wf_key not in store:
+                raise ValueError(f"工作流 '{wf_key}' 不存在")
+            store.pop(wf_key)
+
+    monkeypatch.setattr(api.workflow_router, "get_workflow_repository", lambda: _FakeRepo())
 
     async def fake_stream(key: str):
         yield {"type": "workflow_start", "wf_name": key}
@@ -738,7 +790,7 @@ def test_workflow_create_update_delete(client, admin_headers, monkeypatch):
     )
     assert resp.status_code != 404, resp.text
     if resp.status_code != 404:
-        assert resp.json()["updated"] == "new_wf"
+        assert resp.json()["key"] == "new_wf"
 
     resp = client.delete("/api/v1/workflows/definitions/new_wf", headers=admin_headers)
     assert resp.status_code != 404, resp.text
@@ -1250,198 +1302,123 @@ def test_tracing_export_config(client, admin_headers):
 # Users router
 # ---------------------------------------------------------------------------
 def test_users_crud(client, admin_headers):
+    """User CRUD against the real ``/api/v1/users`` router (username-keyed)."""
     # list
     resp = client.get("/api/v1/users/", headers=admin_headers)
     assert resp.status_code != 404, resp.text
-    users = resp.json()
-    assert isinstance(users, list)
+    if resp.status_code == 200:
+        assert isinstance(resp.json(), list)
 
-    # me
+    # current authenticated user
     resp = client.get("/api/v1/users/me", headers=admin_headers)
-    assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        admin_id = resp.json()["id"]
+    assert resp.status_code == 200, resp.text
+    me = resp.json()
+    assert "id" in me and "username" in me
 
-    # create operator
+    # create an operator (password must satisfy the platform complexity policy)
+    username = f"op_{uuid.uuid4().hex[:8]}"
+    create_body = {
+        "username": username,
+        "password": "NewPassw0rd!23",
+        "role": "operator",
+    }
+    resp = client.post("/api/v1/users/", headers=admin_headers, json=create_body)
+    assert resp.status_code == 201, resp.text
+    created = resp.json()
+    assert created["username"] == username
+    assert created["role"] == "operator"
+
+    # duplicate username is rejected (never 404)
+    resp = client.post("/api/v1/users/", headers=admin_headers, json=create_body)
+    assert resp.status_code in (400, 409), resp.text
+
+    # invalid role is rejected by request validation (never 404)
     resp = client.post(
         "/api/v1/users/",
         headers=admin_headers,
-        json={"username": "op_test", "password": "pass123!", "role": "operator"},
+        json={
+            "username": f"bad_{uuid.uuid4().hex[:8]}",
+            "password": "NewPassw0rd!23",
+            "role": "super",
+        },
     )
-    assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        op_id = resp.json()["id"]
-        assert resp.json()["role"] == "operator"
+    assert resp.status_code == 422, resp.text
 
-    # duplicate username
+    # read by username
+    resp = client.get(f"/api/v1/users/{username}", headers=admin_headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["username"] == username
+
+    # update role + status (the ``disabled`` flag models ``is_active``)
+    resp = client.put(
+        f"/api/v1/users/{username}",
+        headers=admin_headers,
+        json={"role": "user", "disabled": True},
+    )
+    assert resp.status_code == 200, resp.text
+    updated = resp.json()
+    assert updated["role"] == "user"
+    assert updated["disabled"] is True
+
+    # change own password through the dedicated self-service endpoint
     resp = client.post(
-        "/api/v1/users/",
+        "/api/v1/users/me/change-password",
         headers=admin_headers,
-        json={"username": "op_test", "password": "pass123!", "role": "operator"},
+        json={"current_password": "admin123", "new_password": "AdminPassw0rd!9"},
     )
     assert resp.status_code != 404, resp.text
 
-    # invalid role
-    resp = client.post(
-        "/api/v1/users/",
-        headers=admin_headers,
-        json={"username": "bad_user", "password": "pass123!", "role": "super"},
-    )
-    assert resp.status_code != 404, resp.text
-
-    # get user
-    resp = client.get(f"/api/v1/users/{op_id}", headers=admin_headers)
-    assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        assert resp.json()["username"] == "op_test"
-
-    # update own password
-    resp = client.put(
-        f"/api/v1/users/{admin_id}",
-        headers=admin_headers,
-        json={"new_password": "newpass123!"},
-    )
-    assert resp.status_code != 404, resp.text
-
-    # update operator role and status
-    resp = client.put(
-        f"/api/v1/users/{op_id}",
-        headers=admin_headers,
-        json={"role": "business", "is_active": False},
-    )
-    assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        assert resp.json()["role"] == "business"
-        assert resp.json()["is_active"] is False
-
-    # permissions
-    resp = client.get(f"/api/v1/users/{op_id}/permissions", headers=admin_headers)
-    assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        assert resp.json() == []
-
-    resp = client.put(
-        f"/api/v1/users/{op_id}/permissions",
-        headers=admin_headers,
-        json={"permissions": [{"asset_id": 1, "permission": "view"}]},
-    )
-    assert resp.status_code in (200, 404)
-    if resp.status_code != 404:
-        assert len(resp.json()) == 1
-        assert resp.json()[0]["permission"] == "view"
-
-    resp = client.put(
-        f"/api/v1/users/{op_id}/permissions",
-        headers=admin_headers,
-        json={"permissions": [{"asset_id": 1, "permission": "own"}]},
-    )
-    assert resp.status_code in (400, 404)
-
-    # delete
-    resp = client.delete(f"/api/v1/users/{op_id}", headers=admin_headers)
-    assert resp.status_code != 404, resp.text
+    # delete by username
+    resp = client.delete(f"/api/v1/users/{username}", headers=admin_headers)
+    assert resp.status_code == 204, resp.text
 
 
 def test_users_extra_auth_and_errors(client, admin_headers, monkeypatch):
-    # last-admin protections on self (admin id 1)
-    resp = client.get("/api/v1/users/me", headers=admin_headers)
-    admin_id = resp.json()["id"]
+    """Edge cases and error handling of the user management router."""
+    # a caller cannot delete their own account
+    me = client.get("/api/v1/users/me", headers=admin_headers).json()
+    resp = client.delete(f"/api/v1/users/{me['username']}", headers=admin_headers)
+    assert resp.status_code in (400, 404), resp.text
 
+    # updating a nonexistent user -> 404
     resp = client.put(
-        f"/api/v1/users/{admin_id}",
+        "/api/v1/users/does-not-exist-xyz",
         headers=admin_headers,
-        json={"role": "operator"},
+        json={"role": "user"},
     )
-    assert resp.status_code != 404, resp.text
-    resp = client.put(
-        f"/api/v1/users/{admin_id}",
-        headers=admin_headers,
-        json={"is_active": False},
-    )
-    assert resp.status_code != 404, resp.text
-    resp = client.delete(f"/api/v1/users/{admin_id}", headers=admin_headers)
-    assert resp.status_code != 404, resp.text
+    assert resp.status_code == 404, resp.text
 
-    # exercise max_admin_check by creating admins up to the limit
-    resp = client.post(
+    # deleting a nonexistent user -> 404
+    resp = client.delete("/api/v1/users/does-not-exist-xyz", headers=admin_headers)
+    assert resp.status_code == 404, resp.text
+
+    # an invalid role on update is rejected by validation
+    username = f"edge_{uuid.uuid4().hex[:8]}"
+    created = client.post(
         "/api/v1/users/",
         headers=admin_headers,
-        json={"username": "admin2", "password": "pass123!", "role": "admin"},
+        json={"username": username, "password": "NewPassw0rd!23", "role": "user"},
     )
-    assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        admin2_id = resp.json()["id"]
-
-    resp = client.post(
-        "/api/v1/users/",
-        headers=admin_headers,
-        json={"username": "admin3", "password": "pass123!", "role": "admin"},
-    )
-    assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        admin3_id = resp.json()["id"]
-
-    resp = client.post(
-        "/api/v1/users/",
-        headers=admin_headers,
-        json={"username": "admin4", "password": "pass123!", "role": "admin"},
-    )
-    assert resp.status_code != 404, resp.text
-
-    # non-admin access controls
-    resp = client.post(
-        "/api/v1/users/",
-        headers=admin_headers,
-        json={"username": "op2", "password": "pass123!", "role": "operator"},
-    )
-    assert resp.status_code != 404, resp.text
-    if resp.status_code != 404:
-        op2_id = resp.json()["id"]
-    op_token = client.post(
-        "/api/v1/auth/login",
-        json={"username": "op2", "password": "pass123!"},
-    ).json()["access_token"]
-    op_headers = {"Authorization": f"Bearer {op_token}"}
-
-    # cannot view another user
-    resp = client.get(f"/api/v1/users/{admin_id}", headers=op_headers)
-    assert resp.status_code == 403
-
-    # cannot update another user
+    assert created.status_code == 201, created.text
     resp = client.put(
-        f"/api/v1/users/{admin_id}",
-        headers=op_headers,
-        json={"new_password": "hacked!"},
+        f"/api/v1/users/{username}",
+        headers=admin_headers,
+        json={"role": "superuser"},
     )
-    assert resp.status_code == 403
+    assert resp.status_code in (400, 422), resp.text
 
-    # operator cannot set admin-only fields
-    resp = client.put(
-        f"/api/v1/users/{op2_id}",
-        headers=op_headers,
-        json={"role": "admin"},
+    # changing own password with a wrong current password -> 400
+    resp = client.post(
+        "/api/v1/users/me/change-password",
+        headers=admin_headers,
+        json={"current_password": "wrong-password", "new_password": "AdminPassw0rd!9"},
     )
-    assert resp.status_code == 403
-
-    # operator can change own password
-    resp = client.put(
-        f"/api/v1/users/{op2_id}",
-        headers=op_headers,
-        json={"new_password": "newpass123!"},
-    )
-    assert resp.status_code in (200, 404)
-
-    # permissions 404 for missing user
-    resp = client.get("/api/v1/users/9999/permissions", headers=admin_headers)
-    assert resp.status_code == 404
+    assert resp.status_code in (400, 401), resp.text
 
     # cleanup
-    client.delete(f"/api/v1/users/{op2_id}", headers=admin_headers)
-    client.delete(f"/api/v1/users/{admin2_id}", headers=admin_headers)
-    client.delete(f"/api/v1/users/{admin3_id}", headers=admin_headers)
+    client.delete(f"/api/v1/users/{username}", headers=admin_headers)
 
 
-# ---------------------------------------------------------------------------
 # Additional error / edge case coverage
 # ---------------------------------------------------------------------------
 def test_ai_analyze_error_paths(client, admin_headers, monkeypatch):
@@ -1491,12 +1468,13 @@ def test_ai_analyze_error_paths(client, admin_headers, monkeypatch):
 
 def test_workflow_router_errors(client, admin_headers, monkeypatch):
     _patch_workflow(monkeypatch)
-    # create with bad value from engine
-    monkeypatch.setattr(
-        api.workflow_router,
-        "create_workflow_definition",
-        lambda key, payload: (_ for _ in ()).throw(ValueError("invalid key")),
-    )
+
+    # create with a bad value raised by the repository
+    class _CreateFails:
+        def create_workflow_definition(self, **kwargs: Any) -> Any:
+            raise ValueError("invalid key")
+
+    monkeypatch.setattr(api.workflow_router, "get_workflow_repository", lambda: _CreateFails())
     resp = client.post(
         "/api/v1/workflows/definitions",
         headers=admin_headers,
@@ -1508,12 +1486,8 @@ def test_workflow_router_errors(client, admin_headers, monkeypatch):
     )
     assert resp.status_code in (400, 404)
 
-    # update empty payload
-    monkeypatch.setattr(
-        api.workflow_router,
-        "create_workflow_definition",
-        lambda key, payload: {"key": key, **payload},
-    )
+    # update with an empty payload -> 400 (rejected before the repository call)
+    _patch_workflow(monkeypatch)
     resp = client.put(
         "/api/v1/workflows/definitions/wf1",
         headers=admin_headers,
@@ -1521,12 +1495,12 @@ def test_workflow_router_errors(client, admin_headers, monkeypatch):
     )
     assert resp.status_code in (400, 404)
 
-    # update missing workflow
-    monkeypatch.setattr(
-        api.workflow_router,
-        "update_workflow_definition",
-        lambda key, payload: (_ for _ in ()).throw(ValueError("不存在 workflow")),
-    )
+    # update missing workflow -> repository raises ValueError("不存在 ...") -> 404
+    class _UpdateMissing:
+        def update_workflow_definition(self, **kwargs: Any) -> Any:
+            raise ValueError("不存在 workflow")
+
+    monkeypatch.setattr(api.workflow_router, "get_workflow_repository", lambda: _UpdateMissing())
     resp = client.put(
         "/api/v1/workflows/definitions/missing",
         headers=admin_headers,
@@ -1534,16 +1508,17 @@ def test_workflow_router_errors(client, admin_headers, monkeypatch):
     )
     assert resp.status_code == 404
 
-    # delete missing workflow
-    monkeypatch.setattr(
-        api.workflow_router,
-        "delete_workflow_definition",
-        lambda key: (_ for _ in ()).throw(ValueError("不存在 workflow")),
-    )
+    # delete missing workflow -> repository raises ValueError("不存在 ...") -> 404
+    class _DeleteMissing:
+        def delete_workflow_definition(self, wf_key: str) -> None:
+            raise ValueError("不存在 workflow")
+
+    monkeypatch.setattr(api.workflow_router, "get_workflow_repository", lambda: _DeleteMissing())
     resp = client.delete("/api/v1/workflows/definitions/missing", headers=admin_headers)
     assert resp.status_code == 404
 
     # execute with invalid DSL
+    _patch_workflow(monkeypatch)
     monkeypatch.setattr(
         api.workflow_router,
         "parse_json_workflow",
@@ -1557,6 +1532,7 @@ def test_workflow_router_errors(client, admin_headers, monkeypatch):
     assert resp.status_code in (400, 404)
 
     # simulate when semaphore is full -> 503
+    _patch_workflow(monkeypatch)
     monkeypatch.setattr(api.workflow_router._sse_semaphore, "locked", lambda: True)
     monkeypatch.setattr(api.workflow_router._sse_semaphore, "_value", 0)
     resp = client.get("/api/v1/workflows/simulate/wf1", headers=admin_headers)

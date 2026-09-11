@@ -14,6 +14,21 @@ import pytest
 pytestmark = [pytest.mark.api]
 
 
+def _make_user(user_id="user-1", username="admin", tenant_id="tenant-1"):
+    """Build a transient ``User`` with the tenant claim attached.
+
+    Production ``get_current_user`` attaches ``tenant_id`` from the JWT claim
+    onto the ORM instance; these unit tests bypass that dependency, so replicate
+    the attachment explicitly rather than passing ``tenant_id`` to the
+    SQLAlchemy constructor (which only accepts mapped columns).
+    """
+    from core.auth_db import User
+
+    user = User(id=user_id, username=username)
+    user.tenant_id = tenant_id
+    return user
+
+
 def _raise(exc):
     """Helper to raise an exception."""
 
@@ -281,13 +296,8 @@ def test_submit_change_request_exception_handling(mock_dependencies, mock_reques
 def test_approve_change_request_success(mock_dependencies):
     """Test successful approve_change_request endpoint (lines 104-133)."""
     from api.change_management_router import approve_change_request
-    from core.auth_db import User
 
-    mock_user = User(
-        id="user-1",
-        username="admin",
-        tenant_id="tenant-1",
-    )
+    mock_user = _make_user()
 
     result = asyncio.run(approve_change_request("cr-1", mock_user))
 
@@ -308,11 +318,10 @@ def test_approve_change_request_change_management_error(mock_dependencies):
     from fastapi import HTTPException
 
     from api.change_management_router import approve_change_request
-    from core.auth_db import User
     from core.change_management_engine import ChangeManagementError
 
     mock_dependencies["approve"].side_effect = ChangeManagementError("Cannot approve")
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(approve_change_request("cr-1", mock_user))
@@ -326,10 +335,9 @@ def test_approve_change_request_exception_handling(mock_dependencies):
     from fastapi import HTTPException
 
     from api.change_management_router import approve_change_request
-    from core.auth_db import User
 
     mock_dependencies["approve"].side_effect = Exception("System error")
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(approve_change_request("cr-1", mock_user))
@@ -341,14 +349,9 @@ def test_approve_change_request_exception_handling(mock_dependencies):
 def test_approve_change_request_user_without_id(mock_dependencies):
     """Test approve_change_request with user without id (line 123)."""
     from api.change_management_router import approve_change_request
-    from core.auth_db import User
 
     # Mock user without id
-    mock_user = User(
-        id=None,
-        username="admin",
-        tenant_id="tenant-1",
-    )
+    mock_user = _make_user(user_id=None)
 
     result = asyncio.run(approve_change_request("cr-1", mock_user))
 
@@ -360,14 +363,9 @@ def test_approve_change_request_user_without_id(mock_dependencies):
 def test_approve_change_request_user_without_tenant_id(mock_dependencies):
     """Test approve_change_request with user without tenant_id (lines 124-126)."""
     from api.change_management_router import approve_change_request
-    from core.auth_db import User
 
     # Mock user without tenant_id
-    mock_user = User(
-        id="user-1",
-        username="admin",
-        tenant_id=None,
-    )
+    mock_user = _make_user(tenant_id=None)
 
     result = asyncio.run(approve_change_request("cr-1", mock_user))
 
@@ -379,9 +377,8 @@ def test_approve_change_request_user_without_tenant_id(mock_dependencies):
 def test_reject_change_request_success(mock_dependencies):
     """Test successful reject_change_request endpoint (lines 136-165)."""
     from api.change_management_router import reject_change_request
-    from core.auth_db import User
 
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     result = asyncio.run(reject_change_request("cr-1", mock_user))
 
@@ -402,11 +399,10 @@ def test_reject_change_request_change_management_error(mock_dependencies):
     from fastapi import HTTPException
 
     from api.change_management_router import reject_change_request
-    from core.auth_db import User
     from core.change_management_engine import ChangeManagementError
 
     mock_dependencies["reject"].side_effect = ChangeManagementError("Cannot reject")
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(reject_change_request("cr-1", mock_user))
@@ -420,10 +416,9 @@ def test_reject_change_request_exception_handling(mock_dependencies):
     from fastapi import HTTPException
 
     from api.change_management_router import reject_change_request
-    from core.auth_db import User
 
     mock_dependencies["reject"].side_effect = Exception("System error")
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(reject_change_request("cr-1", mock_user))
@@ -435,9 +430,8 @@ def test_reject_change_request_exception_handling(mock_dependencies):
 def test_implement_change_request_success(mock_dependencies):
     """Test successful implement_change_request endpoint (lines 168-197)."""
     from api.change_management_router import implement_change_request
-    from core.auth_db import User
 
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     result = asyncio.run(implement_change_request("cr-1", mock_user))
 
@@ -458,11 +452,10 @@ def test_implement_change_request_change_management_error(mock_dependencies):
     from fastapi import HTTPException
 
     from api.change_management_router import implement_change_request
-    from core.auth_db import User
     from core.change_management_engine import ChangeManagementError
 
     mock_dependencies["implement"].side_effect = ChangeManagementError("Cannot implement")
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(implement_change_request("cr-1", mock_user))
@@ -476,10 +469,9 @@ def test_implement_change_request_exception_handling(mock_dependencies):
     from fastapi import HTTPException
 
     from api.change_management_router import implement_change_request
-    from core.auth_db import User
 
     mock_dependencies["implement"].side_effect = Exception("System error")
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(implement_change_request("cr-1", mock_user))
@@ -491,9 +483,8 @@ def test_implement_change_request_exception_handling(mock_dependencies):
 def test_rollback_change_request_success(mock_dependencies):
     """Test successful rollback_change_request endpoint (lines 200-229)."""
     from api.change_management_router import rollback_change_request
-    from core.auth_db import User
 
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     result = asyncio.run(rollback_change_request("cr-1", mock_user))
 
@@ -514,11 +505,10 @@ def test_rollback_change_request_change_management_error(mock_dependencies):
     from fastapi import HTTPException
 
     from api.change_management_router import rollback_change_request
-    from core.auth_db import User
     from core.change_management_engine import ChangeManagementError
 
     mock_dependencies["rollback"].side_effect = ChangeManagementError("Cannot rollback")
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(rollback_change_request("cr-1", mock_user))
@@ -532,10 +522,9 @@ def test_rollback_change_request_exception_handling(mock_dependencies):
     from fastapi import HTTPException
 
     from api.change_management_router import rollback_change_request
-    from core.auth_db import User
 
     mock_dependencies["rollback"].side_effect = Exception("System error")
-    mock_user = User(id="user-1", username="admin", tenant_id="tenant-1")
+    mock_user = _make_user()
 
     with pytest.raises(HTTPException) as exc_info:
         asyncio.run(rollback_change_request("cr-1", mock_user))

@@ -72,7 +72,7 @@ def test_audit_router_endpoints(client, approval_headers, monkeypatch):
     if resp.status_code == 200:
         assert "audit_export_excel.xlsx" in resp.headers.get("content-disposition", "")
     else:
-        assert "openpyxl" in resp.json()["detail"]
+        assert "openpyxl" in resp.json()["error"]["message"]
 
     resp = client.get("/api/v1/audit/report?limit=10", headers=approval_headers)
     assert resp.status_code != 404, resp.text
@@ -563,7 +563,7 @@ def test_realtime_router_status(client, admin_headers, monkeypatch):
 
     monkeypatch.setattr(rr, "websocket_manager", FakeManager())
 
-    resp = client.get("/api/v1/realtime/status", headers=admin_headers)
+    resp = client.get("/api/realtime/status", headers=admin_headers)
     assert resp.status_code in (200, 404)
     if resp.status_code != 404:
         data = resp.json()
@@ -573,7 +573,7 @@ def test_realtime_router_status(client, admin_headers, monkeypatch):
 
 def test_realtime_router_websocket(client):
     """Connect to the unified realtime WebSocket."""
-    with client.websocket_connect("/api/v1/realtime/ws") as ws:
+    with client.websocket_connect("/api/realtime/ws") as ws:
         ws.send_text(json.dumps({"msg": "ping"}))
         data = _read_websocket_message(ws)
         assert isinstance(data, dict)
@@ -1348,7 +1348,7 @@ def test_realtime_router_error_paths(client, admin_headers, monkeypatch):
     from core.websocket_manager import ConnectionManager
 
     # realtime websocket invalid JSON
-    with client.websocket_connect("/api/v1/realtime/ws") as ws:
+    with client.websocket_connect("/api/realtime/ws") as ws:
         ws.send_text("not-json")
         data = ws.receive_json()
         assert data["data"]["raw"] == "not-json"
@@ -1359,7 +1359,7 @@ def test_realtime_router_error_paths(client, admin_headers, monkeypatch):
             raise RuntimeError("boom")
 
     monkeypatch.setattr(rr, "websocket_manager", BadManager())
-    with client.websocket_connect("/api/v1/realtime/ws") as ws:
+    with client.websocket_connect("/api/realtime/ws") as ws:
         ws.send_text(json.dumps({"x": 1}))
         # the server should close the connection; just ensure no crash
 

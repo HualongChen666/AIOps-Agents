@@ -3,6 +3,7 @@
 
 import datetime
 import sys  # noqa: F401  # Imported for test setup
+import uuid
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -1397,7 +1398,11 @@ def test_infrastructure_happy(client, admin_headers, monkeypatch):
     r = client.post(
         "/api/v1/infrastructure/flink/job",
         headers=admin_headers,
-        json={"job_name": "j1", "job_type": "metrics_aggregation", "parallelism": 2},
+        json={
+            "job_name": f"job-{uuid.uuid4().hex[:8]}",
+            "job_type": "metrics_aggregation",
+            "parallelism": 2,
+        },
     )
     assert r.status_code == 200
 
@@ -1460,10 +1465,11 @@ def test_infrastructure_errors(client, admin_headers, monkeypatch):
 
     _patch_infrastructure(monkeypatch)
 
-    def boom():
+    def boom(*args, **kwargs):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(mod, "get_kafka_processor", boom)
+    # Kafka send is served through the infrastructure service facade.
+    monkeypatch.setattr(mod, "get_infrastructure_service", boom)
     r = client.post(
         "/api/v1/infrastructure/kafka/send",
         headers=admin_headers,

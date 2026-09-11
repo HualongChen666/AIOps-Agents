@@ -53,6 +53,18 @@ _logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/change-management", tags=["变更管理"])
 
 
+def _resolve_user_tenant_id(user: User) -> str:
+    """Return the caller's tenant id, defaulting to ``"default"``.
+
+    ``tenant_id`` is attached to the ``User`` instance by
+    :func:`core.auth_service.get_current_user` from the JWT claims; fall back to
+    the platform default tenant when it is absent so downstream engine calls
+    always receive a concrete tenant scope.
+    """
+    tenant_id = getattr(user, "tenant_id", None)
+    return str(tenant_id) if tenant_id else "default"
+
+
 class ChangeManagementChangeRequestCreate(BaseModel):
     """创建变更请求请求体."""
 
@@ -137,7 +149,7 @@ async def approve_change_request(
 ) -> ChangeRequest:
     """审批通过待审批/审核中的变更请求."""
     try:
-        tenant_id = str(current_user.tenant_id)
+        tenant_id = _resolve_user_tenant_id(current_user)
         result = await approve_request(id, tenant_id=tenant_id)
         record_audit(
             host=id,
@@ -169,7 +181,7 @@ async def reject_change_request(
 ) -> ChangeRequest:
     """拒绝变更请求."""
     try:
-        tenant_id = str(current_user.tenant_id)
+        tenant_id = _resolve_user_tenant_id(current_user)
         result = await reject_request(id, tenant_id=tenant_id)
         record_audit(
             host=id,
@@ -201,7 +213,7 @@ async def implement_change_request(
 ) -> ChangeRequest:
     """实施已批准的变更请求."""
     try:
-        tenant_id = str(current_user.tenant_id)
+        tenant_id = _resolve_user_tenant_id(current_user)
         result = await implement_request(id, tenant_id=tenant_id)
         record_audit(
             host=id,
@@ -233,7 +245,7 @@ async def rollback_change_request(
 ) -> ChangeRequest:
     """回滚已实施的变更请求."""
     try:
-        tenant_id = str(current_user.tenant_id)
+        tenant_id = _resolve_user_tenant_id(current_user)
         result = await rollback_request(id, tenant_id=tenant_id)
         record_audit(
             host=id,
@@ -955,7 +967,7 @@ async def batch_approve_requests(
 ) -> dict[str, str]:
     """批量审批变更请求（分批处理避免速率限制）."""
     try:
-        tenant_id = str(current_user.tenant_id)
+        tenant_id = _resolve_user_tenant_id(current_user)
         results = {}
         batch_size = 10
         for i in range(0, len(payload.request_ids), batch_size):

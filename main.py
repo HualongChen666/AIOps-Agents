@@ -1185,7 +1185,6 @@ CORE_ROUTERS = [
     team_collaboration_router,
     integration_providers_router,
     topology_advanced_router_alt,
-    tracing_advanced_router_alt,
     unified_repair_advanced_router_alt,
 ]
 
@@ -1216,6 +1215,9 @@ ADDON_ROUTERS = [
     (realtime_router, TOPOLOGY_ENABLED),
     (realtime_advanced_router, TOPOLOGY_ENABLED),
     (tracing_router, TRACING_ENABLED),
+    # Registered *after* the canonical tracing_router so its duplicate
+    # ``/api/tracing/traces`` alias cannot shadow the primary implementation.
+    (tracing_advanced_router_alt, TRACING_ENABLED),
     (tracing_advanced_router, TRACING_ENABLED),
     (apm_router, TRACING_ENABLED),
     (log_router, LOG_AGGREGATION_ENABLED),

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     create_engine,
+    func,
 )
 
 try:
@@ -40,6 +41,11 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
+def _utcnow() -> datetime:
+    """Naive UTC timestamp for the timezone-naive ``DateTime`` columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class TokenBlacklist(Base):
     __tablename__ = "token_blacklist"
     id = Column(Integer, primary_key=True, index=True)
@@ -57,8 +63,16 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False)
     disabled = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, nullable=False)
-    updated_at = Column(DateTime, nullable=False)
+    # NOTE: this mapping and ``core.models.User`` both target the ``users``
+    # table.  The timestamps MUST carry a database-side default here as well —
+    # ``init_db()`` below creates the physical table from *this* metadata first,
+    # so a server_default-less ``NOT NULL`` column would make ORM inserts issued
+    # through ``core.models.User`` (which relies on the default being present)
+    # fail with a NOT NULL constraint violation.
+    created_at = Column(DateTime, default=_utcnow, server_default=func.now(), nullable=False)
+    updated_at = Column(
+        DateTime, default=_utcnow, server_default=func.now(), onupdate=_utcnow, nullable=False
+    )
     last_login_at = Column(DateTime, nullable=True)
     mfa_enabled = Column(Boolean, default=False, nullable=False)
     mfa_secret = Column(String(255), nullable=True)

@@ -57,6 +57,24 @@ def db_session():
         db.close()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_plugin_db():
+    """Reset the shared test database before every test.
+
+    The fixtures below commit rows with fixed unique keys (``username`` /
+    plugin ``name``); without a per-test reset the second test to request the
+    same fixture fails with a UNIQUE-constraint error.
+    """
+    db = TestingSessionLocal()
+    try:
+        for table in reversed(Base.metadata.sorted_tables):
+            db.execute(table.delete())
+        db.commit()
+    finally:
+        db.close()
+    yield
+
+
 @pytest.fixture(scope="function")
 def test_user(db_session):
     """Create a test user."""

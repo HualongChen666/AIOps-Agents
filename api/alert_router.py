@@ -570,7 +570,9 @@ async def add_routing_rule(rule: RoutingRule) -> dict[str, Any]:
     """
     check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     alert_intelligence_engine.add_routing_rule(rule.dict())
-    return create_success_response(data=rule.dict(), message="路由规则已添加")
+    return create_success_response(
+        status="success", message="路由规则已添加", rule=rule.dict()
+    )
 
 
 @router.post(
@@ -624,7 +626,9 @@ async def add_suppression_rule(rule: AlertSuppressionRule) -> dict[str, Any]:
     """
     check_feature_availability(ALERT_INTELLIGENCE_AVAILABLE, "智能告警引擎")
     alert_intelligence_engine.add_suppression_rule(rule.dict())
-    return create_success_response(data=rule.dict(), message="抑制规则已添加")
+    return create_success_response(
+        status="success", message="抑制规则已添加", rule=rule.dict()
+    )
 
 
 @router.post(

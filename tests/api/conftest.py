@@ -31,6 +31,7 @@ def client():
     user.id = 1
     user.username = "test_admin"
     user.role = "admin"
+    user.tenant_id = "default"
     user.is_active = True
     user.disabled = False
     # A *real* bcrypt hash so password checks (login / change-password) against
@@ -63,12 +64,18 @@ def client():
             return user
         core.auth_service.get_current_user = mock_get_current_user
 
-        # Patch require_roles to bypass role checks
+        # Patch require_roles to bypass role checks.  It must return a *dependency*
+        # (a zero-argument callable) that yields the authenticated user — a
+        # function taking a ``func`` argument would be misinterpreted by FastAPI
+        # as a required ``func`` query parameter on every guarded endpoint.
         original_require_roles = core.auth_service.require_roles
+
         def mock_require_roles(*roles):
-            def decorator(func):
-                return func
-            return decorator
+            def checker():
+                return user
+
+            return checker
+
         core.auth_service.require_roles = mock_require_roles
     except ImportError:
         original_auth_service_func = None
@@ -170,10 +177,36 @@ def client():
         try:
             import core.authentication as _core_auth
 
-            app.dependency_overrides.setdefault(
-                _core_auth.get_current_active_user, _override_current_user
-            )
+            app.dependency_overrides.setdefault(original_auth_func, _override_current_user)
             app.dependency_overrides.setdefault(_core_auth.get_current_user, _override_current_user)
+        except Exception:
+            pass
+
+        # Routers that guard endpoints with ``core.auth.require_permission`` /
+        # ``core.auth.require_role`` captured ``core.auth.get_current_user`` as
+        # the dependency default at import time.  Override that exact callable so
+        # those endpoints run authenticated instead of querying the (empty) user
+        # store and returning 404.
+        try:
+            import core.auth as _core_auth_module
+
+            app.dependency_overrides.setdefault(
+                _core_auth_module.get_current_user, _override_current_user
+            )
+        except Exception:
+            pass
+
+        # Endpoints guarded with ``Depends(require_roles(...))`` capture the real
+        # ``get_current_user`` as the dependency default when the router module is
+        # imported (before this fixture monkeypatches the module attribute).  The
+        # captured callable must therefore be overridden *by identity* so those
+        # endpoints also run authenticated instead of hitting the (empty) user
+        # store and returning 401.
+        try:
+            if original_auth_service_func is not None:
+                app.dependency_overrides.setdefault(
+                    original_auth_service_func, _override_current_user
+                )
         except Exception:
             pass
 
@@ -256,18 +289,15 @@ def _internal_api_key() -> str:
 
 
 @pytest.fixture(scope="module")
-def approval_headers():
+def approval_headers(admin_headers, _internal_api_key):
     """Create approval authentication headers for API tests"""
     try:
         from core.auth_service import create_access_token
         token = create_access_token({"sub": "approver", "role": "admin", "permissions": ["approve"]})
-        return {"Authorization": f"Bearer {token}", "X-Internal-Key": _internal_api_key()}
+        return {"Authorization": f"Bearer {token}", "X-Internal-Key": _internal_api_key}
     except Exception:
-        # If auth service is not available, return admin headers or empty headers
-        try:
-            return admin_headers()
-        except Exception:
-            return {}
+        # If auth service is not available, fall back to the admin headers.
+        return dict(admin_headers)
 
 
 @pytest.fixture(scope="module")

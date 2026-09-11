@@ -27,6 +27,19 @@ from sqlalchemy.sql import func
 from core.database import Base
 
 
+def _utcnow() -> "datetime":
+    """Return a naive UTC timestamp.
+
+    The mapped ``DateTime()`` columns are timezone-naive; this mirrors the
+    value ``func.now()`` would produce server-side without depending on a
+    server-side default being present (see ``User.created_at``).
+    """
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+
 class AlertSeverity(str, Enum):
     """告警严重程度枚举"""
 
@@ -78,8 +91,19 @@ class User(Base):
     disabled = Column(Boolean, default=False, nullable=False)
 
     # 时间戳
-    created_at = Column(DateTime(), server_default=func.now())
-    updated_at = Column(DateTime(), server_default=func.now(), onupdate=func.now())
+    #
+    # NOTE: the live ``users`` table is created at start-up by
+    # ``core.auth_db.init_db()`` (whose own ``User`` mapping — same table name —
+    # declares the timestamps WITHOUT any server-side default).  Because
+    # ``create_all`` never ALTERs an existing table, relying on ``server_default``
+    # alone means the ORM *omits* these columns from the INSERT and Postgres /
+    # SQLite then reject the row with a NOT NULL violation.  Supplying a
+    # Python-side ``default`` makes SQLAlchemy always emit the value, so user
+    # creation works regardless of which mapping created the physical table.
+    created_at = Column(DateTime(), default=_utcnow, server_default=func.now())
+    updated_at = Column(
+        DateTime(), default=_utcnow, server_default=func.now(), onupdate=_utcnow
+    )
     last_login_at = Column(DateTime(), nullable=True)
 
     # MFA相关

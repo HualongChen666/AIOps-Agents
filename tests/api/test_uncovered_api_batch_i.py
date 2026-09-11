@@ -148,6 +148,7 @@ import core.cloud_repair
 import core.collector
 import core.database_optimization_manager
 import core.db_engine
+import core.disaster_recovery
 import core.es_logger
 import core.health_check
 import core.log_collector
@@ -218,7 +219,7 @@ def test_realtime_status(client, monkeypatch):
         "websocket_manager",
         MagicMock(rooms={"realtime": [1, 2]}, active_connections=[1, 2, 3]),
     )
-    resp = client.get("/api/v1/realtime/status")
+    resp = client.get("/api/realtime/status")
     assert resp.status_code in (200, 404)
     if resp.status_code != 404:
         data = resp.json()
@@ -232,7 +233,7 @@ def test_realtime_status_exception(client, monkeypatch):
     monkeypatch.setattr(realtime_router, "websocket_manager", MagicMock())
     monkeypatch.setattr(realtime_router.websocket_manager, "rooms", bad_rooms)
     monkeypatch.setattr(realtime_router.websocket_manager, "active_connections", [])
-    resp = client.get("/api/v1/realtime/status")
+    resp = client.get("/api/realtime/status")
     assert resp.status_code in (200, 404)
     if resp.status_code != 404:
         assert resp.json()["connections"] == 0
@@ -242,14 +243,14 @@ def test_realtime_sse(client, monkeypatch):
     fake_asyncio = MagicMock()
     fake_asyncio.sleep = AsyncMock()
     monkeypatch.setattr(realtime_router, "asyncio", fake_asyncio)
-    resp = client.get("/api/v1/realtime/events?count=2")
+    resp = client.get("/api/realtime/events?count=2")
     assert resp.status_code != 404, resp.text
     lines = resp.text.splitlines()
     assert any("heartbeat" in line or "data:" in line for line in lines)
 
 
 def test_realtime_websocket(client):
-    with client.websocket_connect("/api/v1/realtime/ws") as ws:
+    with client.websocket_connect("/api/realtime/ws") as ws:
         ws.send_json({"hello": "world"})
         msg = ws.receive_json()
         assert "type" in msg
@@ -362,23 +363,14 @@ def _fake_dbopt_manager(fail=False):
 
 
 def test_database_optimization_endpoints(client, monkeypatch):
-    monkeypatch.setattr(
-        core.database_optimization_manager,
-        "get_database_optimization_manager",
-        MagicMock(return_value=_fake_dbopt_manager()),
-    )
+    """Exercise the real database-optimization API surface (read endpoints)."""
     for url, method, kwargs in [
-        ("/api/database-optimization/status", "get", {}),
-        ("/api/database-optimization/optimize", "post", {}),
-        ("/api/database-optimization/slow-queries", "get", {}),
-        ("/api/database-optimization/connection-pool/optimize", "post", {}),
-        ("/api/database-optimization/cache/setup?ttl_seconds=300", "post", {}),
-        (
-            "/api/database-optimization/query/record?query_text=SELECT&duration_ms=1.2&database=db&table_name=t",  # noqa: E501  # Line too long (intentional)
-            "post",
-            {},
-        ),
-        ("/api/database-optimization/metrics", "get", {}),
+        ("/api/v1/database-optimization/query-metrics", "get", {}),
+        ("/api/v1/database-optimization/database-statistics", "get", {}),
+        ("/api/v1/database-optimization/performance-summary", "get", {}),
+        ("/api/v1/database-optimization/index-recommendations", "get", {}),
+        ("/api/v1/database-optimization/optimization-tasks", "get", {}),
+        ("/api/v1/database-optimization/tuning-recommendations", "get", {}),
     ]:
         resp = getattr(client, method)(url, **kwargs)
         assert resp.status_code != 404, f"{method} {url} failed: {resp.text}"
@@ -888,7 +880,7 @@ def test_system_resource_error(client, monkeypatch):
 # 11. Backup router
 # ---------------------------------------------------------------------------
 def test_backup_endpoints(client, monkeypatch):
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupSuccess)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupSuccess)
     monkeypatch.setattr(backup_router, "Path", _FakeBackupPath)
 
     resp = client.post("/api/v1/backup/database")
@@ -916,7 +908,7 @@ def test_backup_endpoints(client, monkeypatch):
 
 
 def test_backup_failure(client, monkeypatch):
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupFailure)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupFailure)
     resp = client.post("/api/v1/backup/database")
     assert resp.status_code in (500, 404)
 
@@ -926,21 +918,21 @@ def test_backup_failure(client, monkeypatch):
 
 def test_backup_redis_failure(client, monkeypatch):
     """Test backup_redis endpoint failure path (lines 119, 120-122)"""
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupFailure)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupFailure)
     resp = client.post("/api/v1/backup/redis")
     assert resp.status_code in (500, 404)
 
 
 def test_backup_configuration_failure(client, monkeypatch):
     """Test backup_configuration endpoint failure path (lines 166, 167-169)"""
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupFailure)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupFailure)
     resp = client.post("/api/v1/backup/configuration")
     assert resp.status_code in (500, 404)
 
 
 def test_backup_restore_database_failure(client, monkeypatch):
     """Test restore_database endpoint failure path (lines 276, 277-279)"""
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupFailure)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupFailure)
     resp = client.post("/api/v1/backup/restore/database?backup_file=/backups/db.sql")
     assert resp.status_code in (500, 404)
 
@@ -961,7 +953,7 @@ def test_backup_full_exception(client, monkeypatch):
         def cleanup_old_backups(self, retention_days: int = 30):
             return True
 
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupException)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupException)
     resp = client.post("/api/v1/backup/full")
     assert resp.status_code != 404, resp.text
 
@@ -1027,7 +1019,7 @@ def test_backup_database_exception(client, monkeypatch):
         def backup_database(self):
             raise Exception("Unexpected error")
 
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupException)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupException)
     resp = client.post("/api/v1/backup/database")
     assert resp.status_code != 404, resp.text
 
@@ -1039,7 +1031,7 @@ def test_backup_redis_exception(client, monkeypatch):
         def backup_redis(self):
             raise Exception("Unexpected error")
 
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupException)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupException)
     resp = client.post("/api/v1/backup/redis")
     assert resp.status_code != 404, resp.text
 
@@ -1051,7 +1043,7 @@ def test_backup_configuration_exception(client, monkeypatch):
         def backup_configuration(self):
             raise Exception("Unexpected error")
 
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupException)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupException)
     resp = client.post("/api/v1/backup/configuration")
     assert resp.status_code != 404, resp.text
 
@@ -1063,7 +1055,7 @@ def test_backup_restore_database_exception(client, monkeypatch):
         def restore_database(self, backup_file: str):
             raise Exception("Unexpected error")
 
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupException)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupException)
     resp = client.post("/api/v1/backup/restore/database?backup_file=/backups/db.sql")
     assert resp.status_code != 404, resp.text
 
@@ -1075,14 +1067,14 @@ def test_backup_cleanup_exception(client, monkeypatch):
         def cleanup_old_backups(self, retention_days: int = 30):
             raise Exception("Unexpected error")
 
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupException)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupException)
     resp = client.delete("/api/v1/backup/cleanup?retention_days=30")
     assert resp.status_code != 404, resp.text
 
 
 def test_backup_cleanup_with_different_retention(client, monkeypatch):
     """Test cleanup with different retention_days values"""
-    monkeypatch.setattr(_dr, "DisasterRecovery", _FakeBackupSuccess)
+    monkeypatch.setattr(core.disaster_recovery, "DisasterRecovery", _FakeBackupSuccess)
 
     # Test with default retention (30 days)
     resp = client.delete("/api/v1/backup/cleanup")
@@ -1246,7 +1238,7 @@ def test_log_es_search(client, monkeypatch):
 
 
 def test_log_errors(client, monkeypatch):
-    monkeypatch.setattr(log_router, "_log_cache", {})
+    log_router._log_cache.clear()
     monkeypatch.setattr(log_router, "get_system_errors", AsyncMock(side_effect=Exception("boom")))
     resp = client.get("/api/v1/logs/system/errors?newest=5")
     assert resp.status_code != 404, resp.text
@@ -1299,12 +1291,12 @@ def test_log_helper_functions(monkeypatch):
     with pytest.raises(HTTPException) as exc_info:
         _validate_keyword("   ")
     assert exc_info.value.status_code == 422
-    assert "不能为纯空白字符串" in exc_info.value.detail
+    assert "不能为纯空白" in exc_info.value.detail
 
 
 def test_log_app_errors_cache_and_exception(client, monkeypatch):
     """Test application errors cache hit and exception handling"""
-    monkeypatch.setattr(log_router, "_log_cache", {})
+    log_router._log_cache.clear()
     monkeypatch.setattr(
         log_router, "get_application_errors", AsyncMock(return_value=[{"msg": "e"}])
     )
@@ -1322,7 +1314,7 @@ def test_log_app_errors_cache_and_exception(client, monkeypatch):
         assert resp.json()["cached"] is True
 
     # Test exception handling (lines 239-241)
-    monkeypatch.setattr(log_router, "_log_cache", {})
+    log_router._log_cache.clear()
     monkeypatch.setattr(
         log_router, "get_application_errors", AsyncMock(side_effect=Exception("boom"))
     )
@@ -1339,7 +1331,7 @@ def test_log_query_exception(client, monkeypatch):
 
 def test_log_search_exception(client, monkeypatch):
     """Test search logs exception handling (lines 333-335)"""
-    monkeypatch.setattr(log_router, "_log_cache", {})
+    log_router._log_cache.clear()
     monkeypatch.setattr(log_router, "search_logs", AsyncMock(side_effect=Exception("boom")))
     resp = client.get("/api/v1/logs/search?keyword=test&newest=5")
     assert resp.status_code != 404, resp.text
@@ -1371,7 +1363,7 @@ def test_log_linux_errors_cache_and_exception(client, monkeypatch):
     monkeypatch.setattr(
         linux_router, "find_linux_host_config", MagicMock(return_value={"host": "server01"})
     )
-    monkeypatch.setattr(log_router, "_log_cache", {})
+    log_router._log_cache.clear()
     monkeypatch.setattr(log_router, "get_linux_errors", AsyncMock(return_value=[{"msg": "e"}]))
 
     # First call - no cache
@@ -1387,7 +1379,7 @@ def test_log_linux_errors_cache_and_exception(client, monkeypatch):
         assert resp.json()["cached"] is True
 
     # Test exception handling (lines 415-422)
-    monkeypatch.setattr(log_router, "_log_cache", {})
+    log_router._log_cache.clear()
     monkeypatch.setattr(log_router, "get_linux_errors", AsyncMock(side_effect=Exception("boom")))
     resp = client.get("/api/v1/logs/linux/errors?host_name=server01&newest=5")
     assert resp.status_code != 404, resp.text
@@ -1423,7 +1415,7 @@ def test_log_linux_http_exception_reraise(client, monkeypatch):
     monkeypatch.setattr(
         linux_router, "find_linux_host_config", MagicMock(return_value={"host": "server01"})
     )
-    monkeypatch.setattr(log_router, "_log_cache", {})
+    log_router._log_cache.clear()
 
     # Test linux_errors HTTPException re-raise (line 416)
     monkeypatch.setattr(

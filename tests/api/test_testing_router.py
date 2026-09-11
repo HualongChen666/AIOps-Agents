@@ -453,12 +453,23 @@ def test_create_test_report(client, sample_execution):
 
 
 @pytest.mark.xdist_group("test_automation")
-def test_get_test_report(client):
+def test_get_test_report(client, sample_execution):
     """Test GET /api/v1/test-automation/reports/{id} - Get report details."""
-    response = client.get("/api/v1/test-automation/reports/report-123")
+    created = client.post(
+        "/api/v1/test-automation/reports",
+        json={
+            "execution_id": sample_execution.id,
+            "report_type": "summary",
+            "format": "html",
+        },
+    )
+    assert created.status_code == 201
+    report_id = created.json()["id"]
+
+    response = client.get(f"/api/v1/test-automation/reports/{report_id}")
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == "report-123"
+    assert data["id"] == report_id
 
 
 @pytest.mark.xdist_group("test_automation")
@@ -471,9 +482,20 @@ def test_get_test_reports(client):
 
 
 @pytest.mark.xdist_group("test_automation")
-def test_delete_test_report(client):
+def test_delete_test_report(client, sample_execution):
     """Test DELETE /api/v1/test-automation/reports/{id} - Delete report."""
-    response = client.delete("/api/v1/test-automation/reports/report-123")
+    created = client.post(
+        "/api/v1/test-automation/reports",
+        json={
+            "execution_id": sample_execution.id,
+            "report_type": "summary",
+            "format": "html",
+        },
+    )
+    assert created.status_code == 201
+    report_id = created.json()["id"]
+
+    response = client.delete(f"/api/v1/test-automation/reports/{report_id}")
     assert response.status_code == 204
 
 
@@ -508,17 +530,41 @@ def test_create_test_environment(client):
 @pytest.mark.xdist_group("test_automation")
 def test_get_test_environment(client):
     """Test GET /api/v1/test-automation/environments/{id} - Get environment details."""
-    response = client.get("/api/v1/test-automation/environments/env-123")
+    created = client.post(
+        "/api/v1/test-automation/environments",
+        json={
+            "name": "Lookup Environment",
+            "description": "Created for lookup test",
+            "environment_type": "dev",
+            "config": {"key": "value"},
+        },
+    )
+    assert created.status_code == 201
+    env_id = created.json()["id"]
+
+    response = client.get(f"/api/v1/test-automation/environments/{env_id}")
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == "env-123"
+    assert data["id"] == env_id
 
 
 @pytest.mark.xdist_group("test_automation")
 def test_update_test_environment(client):
     """Test PATCH /api/v1/test-automation/environments/{id} - Update environment."""
+    created = client.post(
+        "/api/v1/test-automation/environments",
+        json={
+            "name": "Update Environment",
+            "description": "Created for update test",
+            "environment_type": "dev",
+            "config": {"key": "value"},
+        },
+    )
+    assert created.status_code == 201
+    env_id = created.json()["id"]
+
     update_data = {"name": "Updated Environment", "status": "inactive"}
-    response = client.patch("/api/v1/test-automation/environments/env-123", json=update_data)
+    response = client.patch(f"/api/v1/test-automation/environments/{env_id}", json=update_data)
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == update_data["name"]
@@ -527,7 +573,19 @@ def test_update_test_environment(client):
 @pytest.mark.xdist_group("test_automation")
 def test_delete_test_environment(client):
     """Test DELETE /api/v1/test-automation/environments/{id} - Delete environment."""
-    response = client.delete("/api/v1/test-automation/environments/env-123")
+    created = client.post(
+        "/api/v1/test-automation/environments",
+        json={
+            "name": "Delete Environment",
+            "description": "Created for delete test",
+            "environment_type": "dev",
+            "config": {"key": "value"},
+        },
+    )
+    assert created.status_code == 201
+    env_id = created.json()["id"]
+
+    response = client.delete(f"/api/v1/test-automation/environments/{env_id}")
     assert response.status_code == 204
 
 
@@ -572,35 +630,83 @@ def test_create_test_schedule_not_found(client):
 
 
 @pytest.mark.xdist_group("test_automation")
-def test_get_test_schedule(client):
+def test_get_test_schedule(client, sample_suite):
     """Test GET /api/v1/test-automation/schedules/{id} - Get schedule details."""
-    response = client.get("/api/v1/test-automation/schedules/schedule-123")
+    created = client.post(
+        "/api/v1/test-automation/schedules",
+        json={
+            "suite_id": sample_suite.id,
+            "schedule_type": "cron",
+            "cron_expression": "0 0 * * *",
+            "enabled": True,
+        },
+    )
+    assert created.status_code == 201
+    schedule_id = created.json()["id"]
+
+    response = client.get(f"/api/v1/test-automation/schedules/{schedule_id}")
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == "schedule-123"
+    assert data["id"] == schedule_id
 
 
 @pytest.mark.xdist_group("test_automation")
-def test_update_test_schedule(client):
+def test_update_test_schedule(client, sample_suite):
     """Test PATCH /api/v1/test-automation/schedules/{id} - Update schedule."""
+    created = client.post(
+        "/api/v1/test-automation/schedules",
+        json={
+            "suite_id": sample_suite.id,
+            "schedule_type": "cron",
+            "cron_expression": "0 0 * * *",
+            "enabled": True,
+        },
+    )
+    assert created.status_code == 201
+    schedule_id = created.json()["id"]
+
     update_data = {"enabled": False}
-    response = client.patch("/api/v1/test-automation/schedules/schedule-123", json=update_data)
+    response = client.patch(f"/api/v1/test-automation/schedules/{schedule_id}", json=update_data)
     assert response.status_code == 200
     data = response.json()
     assert data["enabled"] == update_data["enabled"]
 
 
 @pytest.mark.xdist_group("test_automation")
-def test_delete_test_schedule(client):
+def test_delete_test_schedule(client, sample_suite):
     """Test DELETE /api/v1/test-automation/schedules/{id} - Delete schedule."""
-    response = client.delete("/api/v1/test-automation/schedules/schedule-123")
+    created = client.post(
+        "/api/v1/test-automation/schedules",
+        json={
+            "suite_id": sample_suite.id,
+            "schedule_type": "cron",
+            "cron_expression": "0 0 * * *",
+            "enabled": True,
+        },
+    )
+    assert created.status_code == 201
+    schedule_id = created.json()["id"]
+
+    response = client.delete(f"/api/v1/test-automation/schedules/{schedule_id}")
     assert response.status_code == 204
 
 
 @pytest.mark.xdist_group("test_automation")
-def test_trigger_test_schedule(client):
+def test_trigger_test_schedule(client, sample_suite):
     """Test POST /api/v1/test-automation/schedules/{id}/trigger - Trigger schedule."""
-    response = client.post("/api/v1/test-automation/schedules/schedule-123/trigger")
+    created = client.post(
+        "/api/v1/test-automation/schedules",
+        json={
+            "suite_id": sample_suite.id,
+            "schedule_type": "cron",
+            "cron_expression": "0 0 * * *",
+            "enabled": True,
+        },
+    )
+    assert created.status_code == 201
+    schedule_id = created.json()["id"]
+
+    response = client.post(f"/api/v1/test-automation/schedules/{schedule_id}/trigger")
     assert response.status_code == 201
     data = response.json()
     assert data["trigger_type"] == "scheduled"
@@ -773,8 +879,8 @@ def test_sql_injection_protection(client):
     """Test SQL injection protection."""
     malicious_id = "'; DROP TABLE test_suites; --"
     response = client.get(f"/api/v1/test-automation/suites/{malicious_id}")
-    # Should return 404, not 500
-    assert response.status_code != 404, response.text
+    # A non-existent id must yield a clean 404 (never a 500 / SQL error leak).
+    assert response.status_code == 404, response.text
 
 
 # ============ Error Handling Tests ============
