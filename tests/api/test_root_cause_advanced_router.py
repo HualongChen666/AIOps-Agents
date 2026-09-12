@@ -36,6 +36,74 @@ from api.root_cause_advanced_router import (
 
 
 # Test fixtures
+@pytest.fixture(autouse=True)
+def _seed_root_cause_rows():
+    """Seed the entities the get/delete/verify/export tests operate on.
+
+    The router endpoints read the real SQLAlchemy session, so the fixed ids the
+    tests reference (HYP-TEST001 / EXP-TEST001 / CON-TEST001 / evidence id 1)
+    must actually exist.  They are created here and removed afterwards.
+    """
+    from core.database import Base, SessionLocal, engine
+    import core.models  # noqa: F401
+    from core.models import (
+        RootCauseConclusion,
+        RootCauseEvidence,
+        RootCauseExperiment,
+        RootCauseHypothesis,
+    )
+
+    Base.metadata.create_all(bind=engine, checkfirst=True)
+    db = SessionLocal()
+    try:
+        db.merge(RootCauseHypothesis(
+            id="HYP-TEST001", alert_id="ALT-TEST001", root_cause="数据库连接池耗尽",
+            description="seed", confidence=0.8, impact_score=0.7,
+            evidence=[], causal_path=["API", "数据库"], verification_status="pending",
+            status="active", meta_data={},
+        ))
+        db.merge(RootCauseExperiment(
+            id="EXP-TEST001", hypothesis_id="HYP-TEST001", experiment_type="verification",
+            description="seed", parameters={}, status="pending", meta_data={},
+        ))
+        db.merge(RootCauseConclusion(
+            id="CON-TEST001", alert_id="ALT-TEST001", root_cause="数据库连接池耗尽",
+            summary="seed summary", confidence=0.8, status="draft", meta_data={},
+        ))
+        db.merge(RootCauseHypothesis(
+            id="HYP-001", alert_id="ALT-001", root_cause="seed root cause",
+            description="seed", confidence=0.8, impact_score=0.7,
+            evidence=[], causal_path=["API"], verification_status="pending",
+            status="active", meta_data={},
+        ))
+        db.merge(RootCauseConclusion(
+            id="CON-001", alert_id="ALT-001", root_cause="seed root cause",
+            summary="seed summary", confidence=0.8, status="draft", meta_data={},
+        ))
+        if db.query(RootCauseEvidence).filter(RootCauseEvidence.id == 1).first() is None:
+            db.add(RootCauseEvidence(
+                id=1, hypothesis_id="HYP-TEST001", evidence_type="metric",
+                evidence_data={"seed": True}, description="seed", strength=0.5,
+            ))
+        db.commit()
+    finally:
+        db.close()
+    try:
+        yield
+    finally:
+        db = SessionLocal()
+        try:
+            db.query(RootCauseHypothesis).filter(RootCauseHypothesis.id == "HYP-TEST001").delete()
+            db.query(RootCauseExperiment).filter(RootCauseExperiment.id == "EXP-TEST001").delete()
+            db.query(RootCauseConclusion).filter(RootCauseConclusion.id == "CON-TEST001").delete()
+            db.query(RootCauseHypothesis).filter(RootCauseHypothesis.id == "HYP-001").delete()
+            db.query(RootCauseConclusion).filter(RootCauseConclusion.id == "CON-001").delete()
+            db.query(RootCauseEvidence).filter(RootCauseEvidence.id == 1).delete()
+            db.commit()
+        finally:
+            db.close()
+
+
 @pytest.fixture
 def client():
     """Create a test client for the router"""

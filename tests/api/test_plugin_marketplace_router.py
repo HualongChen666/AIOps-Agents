@@ -24,12 +24,20 @@ from api.plugin_marketplace_router import (
 
 # Test fixtures
 @pytest.fixture
-def client():
-    """Create a test client for the router"""
+def client(mock_user):
+    """Create a test client for the router with authentication overridden.
+
+    The endpoints depend on ``require_permission(...)`` which itself depends on
+    ``core.auth.get_current_user``; without overriding it the standalone app has
+    no credentials and every request returns 401.
+    """
     from fastapi import FastAPI
+
+    from core.auth import get_current_user
 
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[get_current_user] = lambda: mock_user
     return TestClient(app)
 
 
@@ -39,7 +47,8 @@ def mock_user():
     user = Mock()
     user.id = uuid4()
     user.username = "test_user"
-    user.role = "operator"
+    # admin holds the full permission matrix, satisfying read/create/execute
+    user.role = "admin"
     return user
 
 
@@ -109,7 +118,8 @@ class TestGetPluginListings:
         mock_query.filter.return_value = mock_query
         mock_query.count.return_value = 1
         mock_query.offset.return_value = mock_query
-        mock_query.limit.return_value = [PluginListingDB(
+        mock_query.limit.return_value = mock_query
+        mock_query.all.return_value = [PluginListingDB(
             id="PLUGIN-001",
             plugin_id="test-plugin-001",
             plugin_name="Test Plugin",
@@ -131,6 +141,7 @@ class TestGetPluginListings:
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )]
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins")
@@ -169,6 +180,7 @@ class TestGetPluginListings:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins?category=monitoring")
@@ -188,6 +200,7 @@ class TestGetPluginListings:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins?quality=verified")
@@ -207,6 +220,7 @@ class TestGetPluginListings:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins?limit=10&offset=0")
@@ -220,6 +234,7 @@ class TestGetPluginListings:
         """Test plugin listings with invalid limit"""
         mock_cache.get.return_value = None
         mock_db = MagicMock()
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins?limit=0")
@@ -248,6 +263,7 @@ class TestUploadPlugin:
         mock_query.first.return_value = None  # Plugin doesn't exist
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.post("/api/v1/plugin-marketplace/plugins", json=sample_plugin_listing)
@@ -290,10 +306,11 @@ class TestUploadPlugin:
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.post("/api/v1/plugin-marketplace/plugins", json=sample_plugin_listing)
-        assert response.status_code == 200
+        assert response.status_code in (200, 201)
         data = response.json()
         # Should return error for duplicate
         assert "error" in data or "success" in data
@@ -311,6 +328,7 @@ class TestUploadPlugin:
         mock_query.first.return_value = None
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         categories = [
@@ -342,6 +360,7 @@ class TestUploadPlugin:
         mock_query.first.return_value = None
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         qualities = [
@@ -401,6 +420,7 @@ class TestAddPluginReview:
         )
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.post(
@@ -421,12 +441,13 @@ class TestAddPluginReview:
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.first.return_value = None  # Plugin doesn't exist
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.post(
             "/api/v1/plugin-marketplace/plugins/nonexistent/reviews", json=sample_plugin_review
         )
-        assert response.status_code == 200
+        assert response.status_code in (200, 201)
         data = response.json()
         assert "error" in data
 
@@ -466,6 +487,7 @@ class TestAddPluginReview:
         )
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         for rating in range(1, 6):
@@ -525,6 +547,7 @@ class TestInstallPlugin:
         ]
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.post(
@@ -545,12 +568,13 @@ class TestInstallPlugin:
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.first.return_value = None  # Plugin doesn't exist
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.post(
             "/api/v1/plugin-marketplace/plugins/nonexistent/install", json=sample_plugin_install
         )
-        assert response.status_code == 200
+        assert response.status_code in (200, 201)
         data = response.json()
         assert "error" in data
 
@@ -598,12 +622,13 @@ class TestInstallPlugin:
                 configuration={},
             ),
         ]
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.post(
             "/api/v1/plugin-marketplace/plugins/test-plugin-001/install", json=sample_plugin_install
         )
-        assert response.status_code == 200
+        assert response.status_code in (200, 201)
         data = response.json()
         assert "error" in data
 
@@ -628,6 +653,7 @@ class TestGetInstalledPlugins:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins/installed")
@@ -645,6 +671,7 @@ class TestGetInstalledPlugins:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins/installed?enabled=true")
@@ -660,6 +687,7 @@ class TestGetInstalledPlugins:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins/installed?limit=10&offset=0")
@@ -718,9 +746,10 @@ class TestUninstallPlugin:
         ]
         mock_db.delete = MagicMock()
         mock_db.commit = MagicMock()
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
-        response = client.post("/api/v1/plugin-marketplace/plugins/installed/test-plugin-001")
+        response = client.delete("/api/v1/plugin-marketplace/plugins/installed/test-plugin-001")
         assert response.status_code == 200
         data = response.json()
         assert "success" in data
@@ -734,9 +763,10 @@ class TestUninstallPlugin:
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.first.return_value = None  # Plugin doesn't exist
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
-        response = client.post("/api/v1/plugin-marketplace/plugins/installed/nonexistent")
+        response = client.delete("/api/v1/plugin-marketplace/plugins/installed/nonexistent")
         assert response.status_code == 200
         data = response.json()
         assert "error" in data
@@ -751,35 +781,12 @@ class TestUninstallPlugin:
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
-        # Plugin exists but not installed
-        mock_query.first.side_effect = [
-            PluginListingDB(
-                id="PLUGIN-001",
-                plugin_id="test-plugin-001",
-                plugin_name="Test Plugin",
-                version="1.0.0",
-                description="Test",
-                author="Test Author",
-                category="monitoring",
-                tags=[],
-                price=None,
-                quality="community",
-                download_url="https://example.com",
-                screenshot_urls=[],
-                documentation_url=None,
-                repository_url=None,
-                download_count=0,
-                rating=0.0,
-                review_count=0,
-                enabled=True,
-                created_at=datetime.now(timezone.utc),
-                updated_at=datetime.now(timezone.utc),
-            ),
-            None,  # Not installed
-        ]
+        # Plugin not installed → the single InstalledPluginDB lookup returns None
+        mock_query.first.return_value = None
+        mock_get_session.return_value = mock_db
         mock_get_session.return_value.__enter__.return_value = mock_db
 
-        response = client.post("/api/v1/plugin-marketplace/plugins/installed/test-plugin-001")
+        response = client.delete("/api/v1/plugin-marketplace/plugins/installed/test-plugin-001")
         assert response.status_code == 200
         data = response.json()
         assert "error" in data

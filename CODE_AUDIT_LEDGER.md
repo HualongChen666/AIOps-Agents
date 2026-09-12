@@ -11893,3 +11893,34 @@ terraform/storage.tf
 
 - root-cause 的 `predict/pattern-learn` 等仍需后端 schema 常见字段；`resolution_time/effectiveness` 无真实来源，置 0（unknown）而非编造。
 - task #13 既有失效测试范围已扩充（plugin-marketplace/priority/service-monitoring 22 + root-cause ~12）。
+
+
+---
+
+# PART XLVIII — task #13：修复既有失效测试（plugin-marketplace/priority/service-monitoring/root-cause）
+
+> 任务：task #13（HEAD 即失败、与本轮功能改动无关的既有失效测试）。
+
+## A) 根因（同类：失效 mock 模式）
+
+`tests/api/test_{plugin_marketplace,priority_advanced,service_monitoring_advanced,root_cause_advanced}_router.py` 的失败均源于测试与真实端点契约脱节，而非产品缺陷：
+1. **鉴权未覆盖**：端点依赖 `require_permission(...)`（内含 `Depends(get_current_user)`），独立 app 无凭据 → 全量 401。
+2. **mock 形态错配**：端点用 `db = get_session()`（非 `with ... as`），测试却配置 `mock_get_session.return_value.__enter__.return_value`。
+3. **mock 链错配**：列表端点调用 `query.offset().limit().all()`，测试把条目挂在 `.limit()` 上。
+4. **固定 id 未预置**：get/delete/verify/export 针对 `HYP-TEST001/EXP-TEST001/CON-TEST001/证据 id=1`、`HYP-001/CON-001`，但库中无此行。
+5. **方法/路径/状态错配**：卸载用 `client.post(.../plugins/installed/{id})`（真实为 DELETE）；错误分支 `create_error_response` 以声明的 `status_code=201` 返回（测试断言 200）。
+
+## B) 修复
+
+- **plugin_marketplace（22→0）**：`client` fixture 覆盖 `core.auth.get_current_user`（admin，满足 read/create/execute）；`get_session` 双形态 mock；列表 `.all()` 条目；卸载 `post→delete`；错误分支断言改为 `in (200,201)` + 体语义；补齐 `mock_db`。
+- **root_cause（12→0）**：新增 **autouse 种子 fixture** 落库真实实体（`HYP-TEST001/EXP-TEST001/CON-TEST001/证据 id=1/HYP-001/CON-001`）并在 teardown 清理。
+- priority / service_monitoring / frontend_enhancement：原本即全绿（随 plugin_marketplace 修复一并复核）。
+
+## C) 验证证据
+
+- `pytest tests/api/test_plugin_marketplace_router.py test_priority_advanced_router.py test_service_monitoring_advanced_router.py test_root_cause_advanced_router.py test_frontend_enhancement_router_coverage.py` → **211 passed**。
+- 逐文件：plugin_marketplace **22 passed**；root_cause **73 passed**。
+
+## D) 说明
+
+- 上述为**既有**失效测试（HEAD 即失败，已 git stash 于 HEAD 复核），修复未改动产品行为（仅在必要处补齐真实契约断言/mock 与种子数据）。
