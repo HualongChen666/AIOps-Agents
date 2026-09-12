@@ -1188,6 +1188,28 @@ CORE_ROUTERS = [
     unified_repair_advanced_router_alt,
 ]
 
+# Defensive guards: when an add-on pack flag is off, its conditional import
+# above is skipped, but the name is still referenced in the ADDON_ROUTERS
+# literal below. Declare any such name that is still undefined so evaluating
+# the literal cannot raise NameError at import time.
+# (Regression: RAG_ENABLED / PLUGINS_ENABLED / LLM_ROUTER_ENABLED=false crashed
+#  module import with "NameError: name 'x' is not defined".)
+for _addon_router_name in (
+    "ai_advanced_router",
+    "knowledge_base_router",
+    "topology_advanced_router",
+    "tracing_advanced_router",
+    "release_management_router",
+    "dashboard_advanced_router",
+    "chaos_advanced_router",
+    "test_framework_advanced_router",
+    "test_coverage_advanced_router",
+    "test_automation_advanced_router",
+    "maturity_advanced_router",
+    "tracing_advanced_router_alt",
+):
+    globals().setdefault(_addon_router_name, None)
+
 ADDON_ROUTERS = [
     # AI Plus Pack
     (ai_router, LLM_ROUTER_ENABLED),
@@ -1293,7 +1315,12 @@ if graphql_router:
     app.include_router(graphql_router)
 
 for router in CORE_ROUTERS:
-    app.include_router(router)
+    # A few slots in this "core" list are actually populated by conditional
+    # pack imports (e.g. chaos_simple_router under PLUGINS_ENABLED / ENABLE_ADDONS).
+    # Skip those when their pack is disabled rather than calling
+    # include_router(None) -> AttributeError: 'NoneType' has no '_contains_router'.
+    if router is not None:
+        app.include_router(router)
 
 if k8s_router:
     app.include_router(k8s_router)
