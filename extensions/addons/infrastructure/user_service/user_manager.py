@@ -25,6 +25,17 @@ class UserManager:
             organization_id=data.organization_id,
             tenant_id=data.tenant_id,
         )
+        # Persist a real password hash (previously the password was silently dropped).
+        password = getattr(data, "password", "") or ""
+        if password:
+            try:
+                from core.authentication import hash_password
+
+                user.password_hash = hash_password(password)
+            except Exception as e:  # noqa: BLE001 - never store plaintext; fail loudly in logs
+                import logging
+
+                logging.getLogger(__name__).error(f"Failed to hash user password: {e}")
         await self.repo.save_user(user)
         return user
 

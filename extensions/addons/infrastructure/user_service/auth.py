@@ -25,9 +25,23 @@ class AuthManager:
         user = await self.repo.get_user_by_username(username)
         if not user:
             return None
-        # Secure demo password check: compare against environment variable
+
+        # Prefer the user's stored password hash when present (real credentials).
+        stored_hash = getattr(user, "password_hash", None)
+        if stored_hash:
+            try:
+                from core.authentication import verify_password
+
+                return user if verify_password(password, stored_hash) else None
+            except Exception:  # noqa: BLE001 - verifier unavailable -> deny
+                return None
+
+        # Fallback: explicitly configured demo password. MUST be set and non-empty —
+        # the previous default of "" allowed empty-password login for any user.
         expected = os.environ.get("AIOPS_DEMO_PASSWORD", "")
-        if hmac.compare_digest(password, expected):
+        if not expected:
+            return None
+        if password and hmac.compare_digest(password, expected):
             return user
         return None
 

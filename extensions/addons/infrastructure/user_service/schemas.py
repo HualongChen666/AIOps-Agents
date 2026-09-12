@@ -38,6 +38,7 @@ class User(BaseModel):
     status: UserStatus = UserStatus.ACTIVE
     organization_id: Optional[str] = None
     tenant_id: str = "default"
+    password_hash: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

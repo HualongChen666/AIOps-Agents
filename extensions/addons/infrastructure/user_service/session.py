@@ -6,6 +6,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Optional
 
+import secrets
+
 from .config import settings
 from .repository import UserRepository
 from .schemas import Session
@@ -34,4 +36,5 @@ class SessionManager:
         return await self.repo.delete_session(session_id)
 
     def _generate_token(self, user_id: str) -> str:
-        return f"token-{user_id}"
+        # Unguessable session token (previously f"token-{user_id}", predictable).
+        return secrets.token_urlsafe(32)
