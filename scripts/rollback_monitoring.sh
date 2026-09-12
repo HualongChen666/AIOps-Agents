@@ -1,15 +1,15 @@
 #!/bin/bash
 # -*- coding: utf-8 -*-
-"""
-Monitoring Module Rollback Script
-=================================
-
-This script rolls back the Monitoring module migration to ensure
-zero data loss in case of issues.
-
-Usage:
-    bash scripts/rollback_monitoring.sh
-"""
+#"""
+# Monitoring Module Rollback Script
+# =================================
+# 
+# This script rolls back the Monitoring module migration to ensure
+# zero data loss in case of issues.
+# 
+# Usage:
+#     bash scripts/rollback_monitoring.sh
+#"""
 
 set -e  # Exit on error
 

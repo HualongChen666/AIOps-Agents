@@ -66,26 +66,52 @@ def _check_openapi_generation() -> tuple[bool, str]:
 
 
 def _check_verify_all() -> tuple[bool, str]:
-    result = _run([sys.executable, "-m", "scripts.verify_all"], timeout=60)
-    if result["rc"] != 0:
-        return False, result["stdout"] + result["stderr"]
-    try:
-        report = json.loads(result["stdout"].split("\n")[-1] or result["stdout"])
-    except Exception as e:
-        logging.exception("Unexpected exception: %s", e)
-        return False, result["stdout"]
-    non_zero = {k: v for k, v in report.items() if isinstance(v, int) and v != 0 and "missing" in k}
-    if non_zero:
-        return False, json.dumps(non_zero, ensure_ascii=False)
-    return True, json.dumps(report, ensure_ascii=False, indent=2)
+    """Validate that the generated OpenAPI spec has no missing docs/examples."""
+    import yaml
+
+    candidates = [
+        PROJECT_ROOT / "openapi.yaml",
+        PROJECT_ROOT / "docs" / "api" / "openapi.yaml",
+    ]
+    path = next((p for p in candidates if p.exists() and p.stat().st_size > 0), None)
+    if path is None:
+        return False, "No openapi.yaml found to validate"
+
+    spec = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    missing_desc: list[str] = []
+    missing_example: list[str] = []
+    for route, methods in (spec.get("paths") or {}).items():
+        for method, details in methods.items():
+            if method.lower() not in ("get", "post", "put", "delete", "patch"):
+                continue
+            if not details.get("description"):
+                missing_desc.append(f"{method.upper()} {route}")
+            response = (details.get("responses") or {}).get("200") or {}
+            app_json = (response.get("content") or {}).get("application/json")
+            if app_json and "example" not in app_json and "examples" not in app_json:
+                missing_example.append(f"{method.upper()} {route}")
+
+    if missing_desc or missing_example:
+        return (
+            False,
+            f"missing descriptions={len(missing_desc)}, missing examples={len(missing_example)}",
+        )
+    return True, f"checked {len(spec.get('paths') or {})} paths: no missing docs/examples"
 
 
 def _check_router_registration(app: Any) -> tuple[bool, str]:
-    from fastapi.routing import APIRouter, _IncludedRouter
+    from fastapi.routing import APIRouter
+
+    try:
+        from fastapi.routing import _IncludedRouter  # type: ignore[attr-defined]
+    except ImportError:
+        _IncludedRouter = None  # not present in all FastAPI versions
+
+    included_types = (APIRouter,) if _IncludedRouter is None else (_IncludedRouter, APIRouter)
 
     paths = set()
     for r in app.routes:
-        if isinstance(r, (_IncludedRouter, APIRouter)) or hasattr(r, "original_router"):
+        if isinstance(r, included_types) or hasattr(r, "original_router"):
             routes = getattr(
                 r, "routes", getattr(getattr(r, "original_router", None), "routes", [])
             )

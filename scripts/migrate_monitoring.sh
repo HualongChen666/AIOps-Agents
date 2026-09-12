@@ -1,19 +1,19 @@
 #!/bin/bash
 # -*- coding: utf-8 -*-
-"""
-Monitoring Module Data Migration Script
-=======================================
-
-This script ensures zero data loss during the Monitoring module migration.
-It performs the following steps:
-1. Backup existing database
-2. Run Alembic migration for Monitoring models
-3. Verify migration success
-4. Validate data integrity
-
-Usage:
-    bash scripts/migrate_monitoring.sh
-"""
+#"""
+# Monitoring Module Data Migration Script
+# =======================================
+# 
+# This script ensures zero data loss during the Monitoring module migration.
+# It performs the following steps:
+# 1. Backup existing database
+# 2. Run Alembic migration for Monitoring models
+# 3. Verify migration success
+# 4. Validate data integrity
+# 
+# Usage:
+#     bash scripts/migrate_monitoring.sh
+#"""
 
 set -e  # Exit on error
 

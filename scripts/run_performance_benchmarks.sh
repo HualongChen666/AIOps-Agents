@@ -1,21 +1,21 @@
 #!/bin/bash
 # -*- coding: utf-8 -*-
-"""
-Performance Benchmark Execution Script
-======================================
-
-This script executes performance benchmarks, collects results, and generates reports.
-It handles environment setup, dependency installation, test execution, and reporting.
-
-Usage:
-    ./scripts/run_performance_benchmarks.sh [options]
-
-Options:
-    --skip-setup       Skip environment setup
-    --quick-run        Run quick benchmark subset
-    --full-run         Run full benchmark suite
-    --output-dir DIR   Specify output directory
-"""
+#"""
+# Performance Benchmark Execution Script
+# ======================================
+# 
+# This script executes performance benchmarks, collects results, and generates reports.
+# It handles environment setup, dependency installation, test execution, and reporting.
+# 
+# Usage:
+#     ./scripts/run_performance_benchmarks.sh [options]
+# 
+# Options:
+#     --skip-setup       Skip environment setup
+#     --quick-run        Run quick benchmark subset
+#     --full-run         Run full benchmark suite
+#     --output-dir DIR   Specify output directory
+#"""
 
 set -e  # Exit on error
 set -o pipefail  # Catch errors in pipes

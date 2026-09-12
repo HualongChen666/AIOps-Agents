@@ -16,7 +16,7 @@ from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from core.database import engine
+from core.database import SessionLocal, engine
 
 
 def rollback_migration():
