@@ -173,6 +173,24 @@ def _seed_team_users(count: int = 2) -> None:
         db.close()
 
 
+def _seed_notifications(user_id: int, count: int = 2) -> None:
+    """Seed real notification records into the persistent store for a user."""
+    now = datetime.now()
+    _user_notifications[user_id] = [
+        Notification(
+            id=f"notif-{user_id}-{i + 1}",
+            user_id=user_id,
+            type="info",
+            title=f"Notification {i + 1}",
+            message="seeded",
+            priority="normal",
+            read=False,
+            created_at=now - timedelta(minutes=i),
+        )
+        for i in range(count)
+    ]
+
+
 # ============ Profile Endpoints Tests ============
 
 
@@ -392,8 +410,9 @@ class TestUserSessionsEndpoints:
 class TestUserNotificationsEndpoints:
     """Test user notifications endpoints"""
 
-    def test_get_user_notifications_all(self, client, clear_data):
+    def test_get_user_notifications_all(self, client, mock_user, clear_data):
         """Test getting all user notifications"""
+        _seed_notifications(mock_user.id, 2)
         response = client.get("/api/v1/users/notifications")
 
         assert response.status_code != 404, response.text
@@ -402,8 +421,9 @@ class TestUserNotificationsEndpoints:
             assert isinstance(data, list)
             assert len(data) >= 2
 
-    def test_get_user_notifications_unread_only(self, client, clear_data):
+    def test_get_user_notifications_unread_only(self, client, mock_user, clear_data):
         """Test getting only unread notifications"""
+        _seed_notifications(mock_user.id, 2)
         response = client.get("/api/v1/users/notifications?unread_only=true")
 
         assert response.status_code != 404, response.text
@@ -412,8 +432,9 @@ class TestUserNotificationsEndpoints:
             assert isinstance(data, list)
             assert all(not n["read"] for n in data)
 
-    def test_get_user_notifications_with_limit(self, client, clear_data):
+    def test_get_user_notifications_with_limit(self, client, mock_user, clear_data):
         """Test getting notifications with limit"""
+        _seed_notifications(mock_user.id, 2)
         response = client.get("/api/v1/users/notifications?limit=1")
 
         assert response.status_code != 404, response.text
@@ -423,6 +444,7 @@ class TestUserNotificationsEndpoints:
 
     def test_update_notification_success(self, client, mock_user, clear_data):
         """Test successful notification update"""
+        _seed_notifications(mock_user.id, 2)
         notifications = _get_user_notifications(mock_user.id)
         notification_id = notifications[0].id
 
@@ -649,19 +671,18 @@ class TestHelperFunctions:
         pytest.skip("Skip due to parallel execution issues with global _activity_logs")
 
     def test_get_user_sessions_new_user(self, clear_data):
-        """Test _get_user_sessions creates default for new user"""
+        """Test _get_user_sessions returns empty (real) store for a new user"""
         result = _get_user_sessions(user_id=999)
 
         assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0].is_current == True
+        assert result == []
 
     def test_get_user_notifications_new_user(self, clear_data):
-        """Test _get_user_notifications creates default for new user"""
+        """Test _get_user_notifications returns empty (real) store for a new user"""
         result = _get_user_notifications(user_id=999)
 
         assert isinstance(result, list)
-        assert len(result) == 2
+        assert result == []
 
     def test_get_team_members(self, clear_data):
         """Test _get_team_members returns real users from the database"""
@@ -715,6 +736,7 @@ class TestIntegration:
 
     def test_notification_workflow(self, client, mock_user, clear_data):
         """Test complete notification workflow"""
+        _seed_notifications(mock_user.id, 2)
         # Get notifications
         response = client.get("/api/v1/users/notifications")
         assert response.status_code != 404, response.text

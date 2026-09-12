@@ -2947,8 +2947,13 @@ async def rollback_configuration(
         if not config:
             raise HTTPException(status_code=404, detail=f"Configuration {config_id} not found")
 
-        # In a real implementation, this would restore from version history
-        # For now, we'll just log the rollback
+        rollback = repo.rollback_mesh_configuration(config_id)
+        if rollback is None:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Configuration {config_id} has no previous version to roll back to",
+            )
+
         logger.info(f"Rolled back configuration: {config_id} by user: {current_user.username}")
 
         return {
@@ -2956,7 +2961,9 @@ async def rollback_configuration(
             "data": {
                 "id": config_id,
                 "message": "Configuration rolled back successfully",
-                "previous_version": config.updated_at.isoformat() if config.updated_at else None,
+                "previous_version": rollback["previous_version"],
+                "restored_version": rollback["restored_version"],
+                "remaining_versions": rollback["remaining_versions"],
             },
             "timestamp": datetime.utcnow().isoformat(),
         }
@@ -3055,8 +3062,19 @@ async def delete_service_instance(
         # Permission check
         require_permission("service_mesh", "delete")(current_user)
 
-        # In a real implementation, this would deregister the instance
-        logger.info(f"Deleted instance {instance_id} for service {service_name} by user: {current_user.username}")
+        from core.service_discovery_manager import get_service_discovery_manager
+
+        manager = get_service_discovery_manager()
+        deregistered = manager.deregister_service(service_name, instance_id)
+        if not deregistered:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Instance {instance_id} not found for service {service_name}",
+            )
+
+        logger.info(
+            f"Deleted instance {instance_id} for service {service_name} by user: {current_user.username}"
+        )
 
         return {
             "status": "success",

@@ -106,6 +106,18 @@ class ServiceMeshRepository:
         if not config:
             return None
 
+        # 记录更新前的快照到 version_history（供真实 rollback 使用）
+        snapshot = {
+            "name": config.name,
+            "namespace": config.namespace,
+            "profile": config.profile,
+            "auto_injection_enabled": config.auto_injection_enabled,
+            "mtls_enabled": config.mtls_enabled,
+            "resource_limits": config.resource_limits,
+            "config_metadata": config.config_metadata,
+            "updated_at": config.updated_at.isoformat() if config.updated_at else None,
+        }
+
         if name is not None:
             config.name = name
         if namespace is not None:
@@ -121,12 +133,69 @@ class ServiceMeshRepository:
         if config_metadata is not None:
             config.config_metadata = config_metadata
 
+        meta = dict(config.config_metadata or {})
+        history = list(meta.get("version_history") or [])
+        history.append(snapshot)
+        meta["version_history"] = history[-20:]
+        config.config_metadata = meta
+
         config.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         self.db.commit()
         self.db.refresh(config)
 
         logger.info(f"Updated mesh configuration: {config_id}")
         return config
+
+    def rollback_mesh_configuration(self, config_id: str) -> Optional[Dict[str, Any]]:
+        """
+        回滚配置到上一版本（真实还原 version_history 中最近一次快照）。
+
+        返回包含还原前后版本信息的字典；无可回滚版本时返回 ``None``。
+        """
+        config = self.get_mesh_configuration(config_id)
+        if not config:
+            return None
+
+        meta = dict(config.config_metadata or {})
+        history = list(meta.get("version_history") or [])
+        if not history:
+            return None
+
+        current_snapshot = {
+            "name": config.name,
+            "namespace": config.namespace,
+            "profile": config.profile,
+            "auto_injection_enabled": config.auto_injection_enabled,
+            "mtls_enabled": config.mtls_enabled,
+            "resource_limits": config.resource_limits,
+            "config_metadata": meta,
+            "updated_at": config.updated_at.isoformat() if config.updated_at else None,
+        }
+
+        previous = history.pop()
+        config.name = previous.get("name", config.name)
+        config.namespace = previous.get("namespace", config.namespace)
+        config.profile = previous.get("profile", config.profile)
+        config.auto_injection_enabled = previous.get(
+            "auto_injection_enabled", config.auto_injection_enabled
+        )
+        config.mtls_enabled = previous.get("mtls_enabled", config.mtls_enabled)
+        config.resource_limits = previous.get("resource_limits", config.resource_limits)
+
+        restored_meta = dict(previous.get("config_metadata") or {})
+        restored_meta["version_history"] = history
+        config.config_metadata = restored_meta
+        config.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+        self.db.commit()
+        self.db.refresh(config)
+
+        logger.info(f"Rolled back mesh configuration: {config_id}")
+        return {
+            "restored_version": previous.get("updated_at"),
+            "previous_version": current_snapshot.get("updated_at"),
+            "remaining_versions": len(history),
+        }
 
     def delete_mesh_configuration(self, config_id: str) -> bool:
         """Delete mesh configuration"""

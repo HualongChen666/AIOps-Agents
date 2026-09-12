@@ -263,8 +263,14 @@ def _add_activity_log(
     ip_address: Optional[str] = None,
 ) -> ActivityLog:
     """添加活动日志"""
+    next_seq = 1
+    if _activity_logs:
+        try:
+            next_seq = max(int(entry.id.split("-")[-1]) for entry in _activity_logs) + 1
+        except (ValueError, IndexError):
+            next_seq = len(_activity_logs) + 1
     log = ActivityLog(
-        id=f"act-{len(_activity_logs) + 1}",
+        id=f"act-{next_seq}",
         user_id=user_id,
         username=username,
         action=action,
@@ -282,54 +288,90 @@ def _add_activity_log(
 
 
 def _get_user_sessions(user_id: int) -> List[Session]:
-    """获取用户会话"""
+    """获取用户会话（仅返回真实记录的会话，不再伪造默认会话）。"""
     if user_id not in _user_sessions:
-        # 创建默认会话
-        _user_sessions[user_id] = [
-            Session(
-                id=f"session-{user_id}-1",
-                user_id=user_id,
-                username="current",
-                ip_address="127.0.0.1",
-                user_agent="Mozilla/5.0",
-                device_type="desktop",
-                browser="Chrome",
-                os="Windows",
-                is_current=True,
-                created_at=datetime.now() - timedelta(hours=2),
-                last_activity=datetime.now(),
-                expires_at=datetime.now() + timedelta(days=7),
-            )
-        ]
+        _user_sessions[user_id] = []
     return _user_sessions[user_id]
 
 
+def _describe_user_agent(user_agent: str) -> Dict[str, str]:
+    """从真实 User-Agent 解析浏览器/操作系统/设备类型。"""
+    ua = (user_agent or "").lower()
+    if "iphone" in ua or "android" in ua and "mobile" in ua:
+        device_type = "mobile"
+    elif "ipad" in ua or "tablet" in ua:
+        device_type = "tablet"
+    else:
+        device_type = "desktop"
+
+    if "edg" in ua:
+        browser = "Edge"
+    elif "chrome" in ua and "chromium" not in ua:
+        browser = "Chrome"
+    elif "firefox" in ua:
+        browser = "Firefox"
+    elif "safari" in ua:
+        browser = "Safari"
+    else:
+        browser = "Unknown"
+
+    if "windows" in ua:
+        os_name = "Windows"
+    elif "mac os" in ua or "macintosh" in ua:
+        os_name = "macOS"
+    elif "android" in ua:
+        os_name = "Android"
+    elif "iphone" in ua or "ipad" in ua or "ios" in ua:
+        os_name = "iOS"
+    elif "linux" in ua:
+        os_name = "Linux"
+    else:
+        os_name = "Unknown"
+
+    return {"device_type": device_type, "browser": browser, "os": os_name}
+
+
+def _record_current_session(user_id: int, username: str, request: Any) -> Session:
+    """记录/刷新当前请求的会话（真实来自请求的 IP 与 User-Agent）。"""
+    client_host = request.client.host if getattr(request, "client", None) else "unknown"
+    user_agent = request.headers.get("user-agent", "") if hasattr(request, "headers") else ""
+    info = _describe_user_agent(user_agent)
+
+    sessions = _get_user_sessions(user_id)
+    for session in sessions:
+        session.is_current = False
+
+    session_id = f"session-{user_id}-{client_host}-{info['browser']}"
+    existing = next((s for s in sessions if s.id == session_id), None)
+    now = datetime.now()
+    if existing is not None:
+        existing.last_activity = now
+        existing.is_current = True
+        return existing
+
+    session = Session(
+        id=session_id,
+        user_id=user_id,
+        username=username,
+        ip_address=client_host,
+        user_agent=user_agent,
+        device_type=info["device_type"],
+        browser=info["browser"],
+        os=info["os"],
+        is_current=True,
+        created_at=now,
+        last_activity=now,
+        expires_at=now + timedelta(days=7),
+    )
+    sessions.append(session)
+    _user_sessions[user_id] = sessions
+    return session
+
+
 def _get_user_notifications(user_id: int) -> List[Notification]:
-    """获取用户通知"""
+    """获取用户通知（仅返回真实记录的通知，不再伪造默认通知）。"""
     if user_id not in _user_notifications:
-        # 创建默认通知
-        _user_notifications[user_id] = [
-            Notification(
-                id=f"notif-{user_id}-1",
-                user_id=user_id,
-                type="info",
-                title="欢迎使用系统",
-                message="感谢您注册使用AIOps Agent系统",
-                priority="normal",
-                read=False,
-                created_at=datetime.now() - timedelta(days=1),
-            ),
-            Notification(
-                id=f"notif-{user_id}-2",
-                user_id=user_id,
-                type="alert",
-                title="系统更新通知",
-                message="系统已更新到最新版本，请查看更新日志",
-                priority="high",
-                read=False,
-                created_at=datetime.now() - timedelta(hours=6),
-            ),
-        ]
+        _user_notifications[user_id] = []
     return _user_notifications[user_id]
 
 
@@ -531,15 +573,13 @@ async def get_user_activity(
     },
 )
 async def get_user_sessions(
+    request: Request,
     current_user: UserInDB = Depends(get_current_user),
 ) -> List[Session]:
-    """获取当前用户的所有活跃会话"""
+    """获取当前用户的所有活跃会话（含本次请求的真实会话）"""
     user_id = current_user.id if current_user.id else 0
+    _record_current_session(user_id, current_user.username, request)
     sessions = _get_user_sessions(user_id)
-    # 标记当前会话
-    for session in sessions:
-        if session.is_current:
-            session.last_activity = datetime.now()
     return sessions
 
 
@@ -1041,7 +1081,7 @@ async def create_user_group(
         )
 
     new_group = UserGroup(
-        id=len(_user_groups) + 1,
+        id=max((group.id for group in _user_groups), default=0) + 1,
         name=group_create.name,
         description=group_create.description,
         member_count=0,
