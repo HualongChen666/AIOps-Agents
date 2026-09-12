@@ -18,7 +18,60 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
+try:  # optional runtime dependency
+    import os
+except ImportError:  # pragma: no cover
+    os = None  # type: ignore[assignment]
+
 # This module provides backend support for frontend enhancements
+
+
+def _collect_live_metrics() -> Dict[str, Any]:
+    """Collect live host metrics (single-point series) via psutil."""
+    try:
+        import psutil
+
+        return {
+            "cpu": [psutil.cpu_percent(interval=None)],
+            "memory": [psutil.virtual_memory().percent],
+            "disk": [psutil.disk_usage(os.path.abspath(os.sep)).percent if os else 0.0],
+        }
+    except Exception:  # noqa: BLE001 - unavailable -> empty (no fake data)
+        return {}
+
+
+def _collect_alert_counts() -> Dict[str, Any]:
+    """Collect real alert counts grouped by severity from the database."""
+    try:
+        from sqlalchemy import func
+
+        from core.database import SessionLocal
+        from core.models import Alert
+
+        db = SessionLocal()
+        try:
+            rows = db.query(Alert.severity, func.count()).group_by(Alert.severity).all()
+            counts = {str(sev): int(cnt) for sev, cnt in rows}
+            counts["total"] = sum(counts.values())
+            return counts
+        finally:
+            db.close()
+    except Exception:  # noqa: BLE001 - unavailable -> empty
+        return {}
+
+
+def _collect_topology_summary() -> Dict[str, Any]:
+    """Collect real topology node/edge counts from the topology engine."""
+    try:
+        from core.topology_engine import get_topology_status
+
+        status = get_topology_status("default")
+        return {
+            "nodes": status.get("node_count", 0),
+            "edges": len(status.get("active_flows", [])),
+        }
+    except Exception:  # noqa: BLE001 - unavailable -> empty
+        return {}
 
 
 class ThemeType(Enum):
@@ -417,28 +470,29 @@ class FrontendEnhancementManager:
             "data_sources": template.data_sources,
             "filters": applied_filters,
             "visualization_config": template.visualization_config,
-            "data": self._generate_sample_data(template.data_sources),
+            "data": self._generate_report_data(template.data_sources),
         }
 
         return report
 
-    def _generate_sample_data(self, data_sources: List[str]) -> Dict[str, Any]:
-        """Generate sample data for report"""
-        sample_data: Dict[str, Any] = {}
+    def _generate_report_data(self, data_sources: List[str]) -> Dict[str, Any]:
+        """Collect real data for the requested report data sources.
+
+        Historical issue (fixed): this previously returned hardcoded sample
+        series. It now queries live host metrics, alert counts and topology
+        state; unavailable sources yield an empty entry rather than fake data.
+        """
+        data: Dict[str, Any] = {}
 
         for source in data_sources:
             if source == "metrics":
-                sample_data[source] = {
-                    "cpu": [45, 52, 48, 61, 55],
-                    "memory": [60, 62, 58, 65, 63],
-                    "disk": [40, 41, 42, 43, 44],
-                }
+                data[source] = _collect_live_metrics()
             elif source == "alerts":
-                sample_data[source] = {"total": 15, "critical": 2, "warning": 8, "info": 5}
+                data[source] = _collect_alert_counts()
             elif source == "topology":
-                sample_data[source] = {"nodes": 12, "edges": 18, "components": 5}
+                data[source] = _collect_topology_summary()
 
-        return sample_data
+        return data
 
     def get_responsive_config(self, viewport_width: int) -> Dict[str, Any]:
         """
