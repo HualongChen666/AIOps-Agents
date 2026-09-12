@@ -3,7 +3,7 @@
 // 🔧 P1 Enhancement: UI/UX Improvements
 // Frontend enhancements for better user experience without modifying core architecture
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // ========================================
 // 🔧 P1 Enhancement: Loading States
@@ -115,11 +115,15 @@ export interface ToastMessage {
 export function useToast() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+  }, []);
+
   const addToast = useCallback(
     (type: ToastMessage['type'], message: string, duration = 3000) => {
       const id = Date.now().toString();
       const toast: ToastMessage = { id, type, message, duration };
-      
+
       setToasts((prev) => [...prev, toast]);
 
       if (duration > 0) {
@@ -128,12 +132,8 @@ export function useToast() {
         }, duration);
       }
     },
-    []
+    [removeToast]
   );
-
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
-  }, []);
 
   const success = useCallback((message: string, duration?: number) => {
     addToast('success', message, duration);
@@ -378,6 +378,12 @@ export function useInfiniteScroll(
 ) {
   const { threshold = 100, rootMargin = '0px' } = options;
   const [isFetching, setIsFetching] = useState(false);
+  const isFetchingRef = useRef(isFetching);
+
+  // Keep the ref in sync without re-binding the scroll listener.
+  useEffect(() => {
+    isFetchingRef.current = isFetching;
+  }, [isFetching]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -386,7 +392,7 @@ export function useInfiniteScroll(
       const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
       const isNearBottom = scrollTop + clientHeight >= scrollHeight - threshold;
 
-      if (isNearBottom && !isFetching) {
+      if (isNearBottom && !isFetchingRef.current) {
         setIsFetching(true);
         callback();
       }
@@ -394,7 +400,7 @@ export function useInfiniteScroll(
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [callback, threshold, isFetching]);
+  }, [callback, threshold, rootMargin]);
 
   return { isFetching, setIsFetching };
 }
