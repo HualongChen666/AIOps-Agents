@@ -29,7 +29,7 @@ def client(app):
 @pytest.mark.smoke
 def test_list_users_unauthorized(client):
     """测试未授权访问用户列表"""
-    response = client.get("/api/v1/users/")
+    response = client.get("/api/v1/users-unified/")
     assert response.status_code == 401
 
 
@@ -37,7 +37,7 @@ def test_list_users_unauthorized(client):
 def test_create_user_unauthorized(client):
     """测试未授权创建用户"""
     response = client.post(
-        "/api/v1/users/",
+        "/api/v1/users-unified/",
         json={
             "username": "newuser",
             "password": "NewPassword123!",
@@ -50,5 +50,5 @@ def test_create_user_unauthorized(client):
 @pytest.mark.smoke
 def test_get_current_user_unauthorized(client):
     """测试未授权获取当前用户信息"""
-    response = client.get("/api/v1/users/me")
+    response = client.get("/api/v1/users-unified/me")
     assert response.status_code == 401

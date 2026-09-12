@@ -3519,6 +3519,85 @@ async def import_integrations(
     }
 
 
+def _read_real_api_metrics() -> dict[str, Any]:
+    """Read real API request count / latency from the MetricsExporter registry.
+
+    Returns zeros when no metrics have been recorded (honest, never fabricated).
+    """
+    empty = {
+        "total_requests": 0,
+        "successful_requests": 0,
+        "failed_requests": 0,
+        "avg_response_time_ms": 0.0,
+        "p95_response_time_ms": 0.0,
+        "p99_response_time_ms": 0.0,
+    }
+    try:
+        from core.metrics_exporter import get_metrics_exporter
+
+        exporter = get_metrics_exporter()
+    except Exception:  # noqa: BLE001 - metrics exporter optional
+        return empty
+
+    total = success = failed = 0
+    for metric in exporter.api_requests_total.collect():
+        for sample in metric.samples:
+            if not sample.name.endswith("_total"):
+                continue
+            value = int(sample.value)
+            total += value
+            status = str(sample.labels.get("status", ""))
+            if status.startswith("2"):
+                success += value
+            else:
+                failed += value
+
+    count = 0.0
+    total_sum = 0.0
+    buckets: dict[float, float] = {}
+    for metric in exporter.api_request_duration_seconds.collect():
+        for sample in metric.samples:
+            if sample.name.endswith("_bucket"):
+                try:
+                    le = float(sample.labels.get("le", "inf"))
+                except ValueError:
+                    le = float("inf")
+                buckets[le] = buckets.get(le, 0.0) + sample.value
+            elif sample.name.endswith("_count"):
+                count += sample.value
+            elif sample.name.endswith("_sum"):
+                total_sum += sample.value
+
+    def _percentile(q: float) -> float:
+        if count <= 0 or not buckets:
+            return 0.0
+        target = q * count
+        prev_le = 0.0
+        prev_cum = 0.0
+        for le in sorted(buckets):
+            cum = buckets[le]
+            if cum >= target:
+                if le == float("inf"):
+                    return prev_le * 1000.0
+                bucket_width = le - prev_le
+                bucket_count = cum - prev_cum
+                if bucket_count <= 0:
+                    return le * 1000.0
+                frac = (target - prev_cum) / bucket_count
+                return (prev_le + frac * bucket_width) * 1000.0
+            prev_le, prev_cum = le, cum
+        return prev_le * 1000.0
+
+    return {
+        "total_requests": total,
+        "successful_requests": success,
+        "failed_requests": failed,
+        "avg_response_time_ms": (total_sum / count * 1000.0) if count else 0.0,
+        "p95_response_time_ms": _percentile(0.95),
+        "p99_response_time_ms": _percentile(0.99),
+    }
+
+
 @router.get(
     "/statistics",
     summary="获取集成统计信息",
@@ -3536,14 +3615,21 @@ async def get_integration_statistics(
 ) -> dict[str, Any]:
     """
     获取集成生态的详细统计信息
+
+    历史问题（已修复）：原实现中请求侧指标为**硬编码假数据**
+    （``total_requests_today=10000`` / ``successful_requests=9800`` /
+    ``failed_requests=200`` / ``avg=250`` / ``p95=500`` / ``p99=1000``）。现从真实的
+    ``MetricsExporter``（Prometheus 注册表）读取 API 请求计数与延迟直方图并计算
+    总计/成功/失败/均值/分位数；无数据时如实返回 0。
     """
     check_rate_limit(current_user.username, requests_per_minute=60)
-    
+
     if not INTEGRATION_AVAILABLE:
         raise HTTPException(status_code=503, detail="集成管理器不可用")
-    
+
     summary = integration_manager.get_integration_summary()
-    
+    api = _read_real_api_metrics()
+
     statistics = {
         "total_integrations": summary["total_integrations"],
         "active_integrations": summary["active_integrations"],
@@ -3554,14 +3640,14 @@ async def get_integration_statistics(
         "pending_notifications": summary["pending_notifications"],
         "webhook_events_processed": summary["webhook_events_processed"],
         "webhook_events_total": len(integration_manager.webhook_events),
-        "total_requests_today": 10000,
-        "successful_requests": 9800,
-        "failed_requests": 200,
-        "avg_response_time_ms": 250,
-        "p95_response_time_ms": 500,
-        "p99_response_time_ms": 1000,
+        "total_requests_today": api["total_requests"],
+        "successful_requests": api["successful_requests"],
+        "failed_requests": api["failed_requests"],
+        "avg_response_time_ms": api["avg_response_time_ms"],
+        "p95_response_time_ms": api["p95_response_time_ms"],
+        "p99_response_time_ms": api["p99_response_time_ms"],
     }
-    
+
     return {
         "status": "success",
         "statistics": statistics,

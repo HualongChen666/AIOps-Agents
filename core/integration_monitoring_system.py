@@ -416,32 +416,62 @@ class IntegrationMonitoringSystem:
         logger.info("Monitoring loop started")
 
     async def _collect_metrics(self) -> None:
-        """Collect metrics from all monitors"""
-        import secrets
+        """Collect real metrics from all monitors.
 
-        _random = secrets.SystemRandom()
-        # Simulate metric collection
+        历史问题（已修复）：原实现用 ``secrets.SystemRandom().uniform(...)`` 伪造各监控
+        指标（cpu 20–95 / memory 40–90 / disk 30–95 / latency 50–800 / health 随机），
+        ``start_monitoring`` 循环持续造假指标并可能触发假告警。现改为真实采集：系统类
+        指标取自 ``psutil``；应用/集成类指标取自真实 Prometheus 查询（monitor.metadata
+        的 ``prometheus_url``/``promql`` 或系统级 ``config['prometheus_url']``）。无真实
+        数据源的 monitor 直接跳过，绝不伪造。
+        """
+        import psutil
+
         for monitor in self.monitors.values():
             if not monitor.enabled:
                 continue
+            target = monitor.target
+            try:
+                if target == "system.cpu.usage":
+                    value = float(psutil.cpu_percent(interval=None))
+                elif target == "system.memory.usage":
+                    value = float(psutil.virtual_memory().percent)
+                elif target == "system.disk.usage":
+                    value = float(psutil.disk_usage("/").percent)
+                else:
+                    value = await self._collect_from_prometheus(target, monitor)
+                    if value is None:
+                        logger.debug(f"No real data source for monitor target {target}; skipping")
+                        continue
+                await self.record_metric(target, value)
+            except Exception as e:  # noqa: BLE001 - one monitor must not stop collection
+                logger.error(f"Metric collection failed for {target}: {e}")
 
-            # Simulate random values
-            if "cpu" in monitor.target:
-                value = _random.uniform(20.0, 95.0)
-            elif "memory" in monitor.target:
-                value = _random.uniform(40.0, 90.0)
-            elif "disk" in monitor.target:
-                value = _random.uniform(30.0, 95.0)
-            elif "latency" in monitor.target:
-                value = _random.uniform(50.0, 800.0)
-            elif "error_rate" in monitor.target:
-                value = _random.uniform(0.0, 10.0)
-            elif "health" in monitor.target:
-                value = 1.0 if _random.random() > 0.1 else 0.0
-            else:
-                value = _random.uniform(0.0, 100.0)
+    async def _collect_from_prometheus(
+        self, target: str, monitor: "Monitor"
+    ) -> Optional[float]:
+        """Query a real Prometheus endpoint for a monitor's value.
 
-            await self.record_metric(monitor.target, value)
+        Returns ``None`` when no endpoint/query is configured (caller must then skip,
+        never fabricate a value).
+        """
+        import httpx
+
+        url = monitor.metadata.get("prometheus_url") or self.config.get("prometheus_url")
+        query = monitor.metadata.get("promql") or self.config.get("promql", {}).get(target)
+        if not url or not query:
+            return None
+
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"{str(url).rstrip('/')}/api/v1/query", params={"query": query}
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        result = payload.get("data", {}).get("result", [])
+        if not result:
+            return None
+        return float(result[0]["value"][1])
 
     def get_metrics(
         self,

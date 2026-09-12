@@ -207,13 +207,36 @@ async def get_full_link_topology(topo_key: str | None = None) -> Dict[str, Any]:
 
 
 def get_node_timeline(node_id: str) -> Dict[str, Any]:
-    """获取单个节点的时间线信息（占位实现）。"""
-    return {"events": []}
+    """获取单个节点的时间线信息。"""
+    events = _node_timeline.get(node_id, [])
+    return {"node_id": node_id, "events": list(events)}
+
+
+# 节点健康状态（真实存储，供拓扑健康/指标端点读取）
+_node_health: Dict[str, str] = {}
+_node_timeline: Dict[str, List[Dict[str, Any]]] = {}
 
 
 def update_node_health(node_id: str, status: str) -> bool:
-    """Update node health status."""
+    """Update node health status (real, persisted in-process)."""
+    node_id = str(node_id).strip()
+    if not node_id:
+        return False
+    _node_health[node_id] = str(status)
+    _node_timeline.setdefault(node_id, []).append(
+        {"status": str(status), "timestamp": datetime.now(timezone.utc).isoformat()}
+    )
     return True
+
+
+def get_node_health(node_id: str) -> str:
+    """Return the last known health status for a node (``unknown`` if never set)."""
+    return _node_health.get(str(node_id), "unknown")
+
+
+def get_all_node_health() -> Dict[str, str]:
+    """Return a snapshot of all known node health statuses."""
+    return dict(_node_health)
 
 
 # ------------------------------------------------------------

@@ -1145,8 +1145,13 @@ CORE_ROUTERS = [
     cost_management_router,
     auth_router,
     settings_router,
-    user_router,
+    # NOTE: users_advanced_router must be registered BEFORE user_router.
+    # user_router exposes a one-segment catch-all ``GET /{username}`` which would
+    # otherwise swallow users_advanced_router's static paths (/profile, /sessions,
+    # /notifications, /preferences, ...). users_unified_router is a duplicate of
+    # user_router and is scoped to a distinct prefix (/api/v1/users-unified).
     users_advanced_router,
+    user_router,
     users_unified_router,
     assets_router,
     assets_advanced_router,

@@ -29,7 +29,7 @@ from core.user_service import user_service
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/users", tags=["users"])
+router = APIRouter(prefix="/api/v1/users-unified", tags=["users-unified"])
 
 
 # ============ Pydantic Models ============
