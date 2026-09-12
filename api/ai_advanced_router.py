@@ -2486,36 +2486,49 @@ async def analyze_topology(req: TopologyAnalysisRequest) -> TopologyAnalysisResp
 
 @router.post("/root-cause-analysis/analyze", response_model=RootCauseAnalysisResponse)
 async def analyze_root_cause(req: AiAdvancedRootCauseAnalysisRequest) -> RootCauseAnalysisResponse:
-    """Analyze root cause of an incident"""
+    """Analyze root cause of an incident (real AI engine output).
+
+    历史问题（已修复）：原实现调用 ``analyze`` 后**丢弃结果**，返回硬编码
+    root_cause "High memory usage in application server" + 固定 confidence 0.89 /
+    contributing_factors / timeline。现使用 ``core.ai_engine.analyze`` 的真实返回文本
+    作为根因分析结果；解析不出置信度时如实记为 0.0（不伪造）。
+    """
     try:
+        import re
+
         from core.ai_engine import analyze
 
         prompt = f"Analyze root cause for incident: {req.incident_id}"
-        await analyze(query=prompt, metrics_snapshot="", platform="windows", rich_context=None)
+        analysis_text = await analyze(
+            query=prompt, metrics_snapshot="", platform="windows", rich_context=None
+        )
+        analysis_text = analysis_text or ""
+
+        confidence = 0.0
+        match = re.search(r"confidence[^0-9]{0,12}(\d+(?:\.\d+)?)", analysis_text, re.IGNORECASE)
+        if match:
+            try:
+                confidence = min(1.0, max(0.0, float(match.group(1))))
+            except ValueError:
+                confidence = 0.0
+
+        first_line = next(
+            (line.strip() for line in analysis_text.splitlines() if line.strip()),
+            "no analysis produced",
+        )
 
         analysis = RootCauseAnalysisResponse(
             id=generate_id(),
             incident_id=req.incident_id,
-            root_cause="High memory usage in application server",
-            confidence=0.89,
-            contributing_factors=[
-            "Memory leak in caching module",
-            "Insufficient memory limits",
-            "High traffic load",
-            ],
-            timeline=[
-            {"time": "10:00", "event": "Incident detected"},
-            {"time": "10:05", "event": "Investigation started"},
-            {"time": "10:15", "event": "Root cause identified"},
-            ],
-            recommended_actions=[
-            "Fix memory leak in caching module",
-            "Increase memory limits",
-            "Implement memory monitoring",
-            ],
+            root_cause=first_line,
+            confidence=confidence,
+            contributing_factors=[],
+            timeline=[{"time": get_timestamp(), "event": "analysis completed"}],
+            recommended_actions=[],
             created_at=get_timestamp(),
         )
         _root_cause_analyses[analysis.id] = analysis
+        logger.info(f"Root cause analysis completed for incident {req.incident_id}")
         return analysis
     except Exception as e:
         logger.error(f"Root cause analysis failed: {e}")

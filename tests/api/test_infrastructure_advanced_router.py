@@ -556,16 +556,18 @@ class TestInfrastructureTopologyEndpoints:
     @patch("core.service_discovery_manager.get_service_discovery_manager")
     @patch("core.service_mesh_manager.get_service_mesh_manager")
     def test_get_topology_manager_error(self, mock_get_mesh, mock_get_discovery, client):
-        """Test GET /topology when managers raise an error"""
+        """Test GET /topology returns a valid real topology (may be empty) on manager error"""
         mock_get_discovery.side_effect = Exception("Discovery error")
         mock_get_mesh.side_effect = Exception("Mesh error")
 
         response = client.get("/api/v1/infrastructure/topology")
-        assert response.status_code != 404  # Should return default topology (not empty)
-        if response.status_code != 404:
-            data = response.json()
-        # The function returns default topology even on error
-            assert len(data["nodes"]) > 0  # Default nodes are returned
+        # The endpoint returns the real topology graph (built from configured hosts +
+        # alert edges); it is real data and may legitimately be empty. It must never
+        # fabricate placeholder nodes.
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data["nodes"], list)
+        assert isinstance(data["edges"], list)
 
 
 class TestInfrastructureHealthEndpoints:
@@ -593,16 +595,16 @@ class TestInfrastructureHealthEndpoints:
     @patch("core.monitoring_infrastructure.get_monitoring_infrastructure")
     @patch("core.service_monitoring_manager.get_service_monitoring_manager")
     def test_get_health_manager_error(self, mock_get_service, mock_get_monitoring, client):
-        """Test GET /health when managers raise an error"""
+        """Test GET /health returns real topology-derived health (managers not used)"""
         mock_get_monitoring.side_effect = Exception("Monitoring error")
         mock_get_service.side_effect = Exception("Service error")
 
         response = client.get("/api/v1/infrastructure/health")
-        assert response.status_code != 404  # Should return default health
-        if response.status_code != 404:
-            data = response.json()
-            assert data["overall_status"] == "unknown"
-            assert data["overall_health_score"] == 0.0
+        assert response.status_code == 200
+        data = response.json()
+        # Health is derived from real topology node statuses; never fabricated.
+        assert data["overall_status"] in ("healthy", "degraded", "unhealthy", "unknown")
+        assert 0.0 <= data["overall_health_score"] <= 100.0
 
 
 class TestInfrastructureCapacityEndpoints:

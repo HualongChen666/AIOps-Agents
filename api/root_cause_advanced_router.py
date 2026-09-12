@@ -240,65 +240,36 @@ async def analyze_root_cause(request: RootCauseAdvancedRootCauseAnalysisRequest,
     """
     执行根因分析
 
-    基于告警信息和指标数据生成根因假设
+    历史问题（已修复）：原实现为**硬编码启发式**（``cpu_usage>90`` /
+    ``memory_usage>90`` / ``response_time>5000`` 直接造假设），未调用真实分析引擎。
+    现调用 ``core.root_cause_intelligence.root_cause_intelligence_engine``
+    （跨层拓扑追踪 + 假设生成/验证 + 置信度门控 + 多根检测）产出真实假设。
     """
     try:
         alert_id = request.alert.get("id", "unknown")
 
-        # 简单的根因分析逻辑
-        # 在实际应用中，这里应该调用更复杂的分析引擎
-        hypotheses = []
+        from core.root_cause_intelligence import root_cause_intelligence_engine
 
-        # 根据指标数据生成假设
-        metrics = request.metrics_data
-        if metrics.get("cpu_usage", 0) > 90:
-            hypotheses.append(
-                {
-                    "root_cause": "CPU使用率过高",
-                    "description": "CPU使用率超过90%",
-                    "confidence": 0.8,
-                    "impact_score": 0.9,
-                    "evidence": [f"CPU使用率: {metrics.get('cpu_usage')}%"],
-                    "causal_path": ["应用服务", "CPU"],
-                }
-            )
+        engine_hypotheses = await root_cause_intelligence_engine.analyze_root_causes_enhanced(
+            request.alert,
+            request.metrics_data or {},
+            request.context or {},
+        )
 
-        if metrics.get("memory_usage", 0) > 90:
-            hypotheses.append(
-                {
-                    "root_cause": "内存使用率过高",
-                    "description": "内存使用率超过90%",
-                    "confidence": 0.75,
-                    "impact_score": 0.85,
-                    "evidence": [f"内存使用率: {metrics.get('memory_usage')}%"],
-                    "causal_path": ["应用服务", "内存"],
-                }
-            )
-
-        if metrics.get("response_time", 0) > 5000:
-            hypotheses.append(
-                {
-                    "root_cause": "响应时间过长",
-                    "description": "API响应时间超过5秒",
-                    "confidence": 0.7,
-                    "impact_score": 0.8,
-                    "evidence": [f"响应时间: {metrics.get('response_time')}ms"],
-                    "causal_path": ["API服务", "数据库", "网络"],
-                }
-            )
-
-        # 如果没有生成假设，创建一个默认假设
-        if not hypotheses:
-            hypotheses.append(
-                {
-                    "root_cause": "未知原因",
-                    "description": "无法确定具体根因",
-                    "confidence": 0.5,
-                    "impact_score": 0.5,
-                    "evidence": ["需要进一步调查"],
-                    "causal_path": [],
-                }
-            )
+        hypotheses = [
+            {
+                "root_cause": h.root_cause,
+                "description": "; ".join(h.evidence) if h.evidence else h.root_cause,
+                "confidence": h.confidence,
+                "impact_score": h.impact_score,
+                "evidence": h.evidence,
+                "causal_path": h.causal_path,
+                "verification_status": h.verification_status,
+                "requires_approval": h.requires_approval,
+                "recommended_action": h.recommended_action,
+            }
+            for h in engine_hypotheses
+        ]
 
         # 保存假设到数据库
         saved_hypotheses = []
@@ -313,7 +284,7 @@ async def analyze_root_cause(request: RootCauseAdvancedRootCauseAnalysisRequest,
                 impact_score=hyp["impact_score"],
                 evidence=hyp["evidence"],
                 causal_path=hyp["causal_path"],
-                verification_status="pending",
+                verification_status=hyp["verification_status"],
                 status="active",
                 meta_data=request.context,
                 created_by="system",
@@ -327,7 +298,7 @@ async def analyze_root_cause(request: RootCauseAdvancedRootCauseAnalysisRequest,
                     "evidence": hyp["evidence"],
                     "causal_path": hyp["causal_path"],
                     "impact_score": hyp["impact_score"],
-                    "verification_status": "pending",
+                    "verification_status": hyp["verification_status"],
                     "verification_timestamp": None,
                 }
             )

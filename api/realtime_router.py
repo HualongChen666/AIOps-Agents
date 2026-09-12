@@ -96,18 +96,62 @@ class RealtimeDataList(BaseModel):
 )
 async def realtime_sse_events(
     count: int = Query(default=0, ge=0, description="最大推送事件数,0 表示无限"),
+    db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    """推送 Server-Sent Events 实时事件"""
+    """推送 Server-Sent Events 实时事件。
+
+    历史问题（已修复）：原实现**仅推送 heartbeat**（``{"count","time"}``），无任何真实
+    事件（命名/文档暗示事件流，实为空转心跳）。现从真实的 ``realtime_events`` 表增量
+    拉取事件并按 SSE 推送；heartbeat 仅作为保活。数据库不可用/无新事件时如实只推
+    heartbeat（不伪造事件）。
+    """
 
     async def event_stream():
         emitted = 0
+        yielded = 0
+        seen_ids: set = set()
+        last_heartbeat = 0.0
         while True:
-            now = datetime.utcnow().isoformat()
-            yield f'event: heartbeat\ndata: {{"count": {emitted}, "time": "{now}"}}\n\n'
-            emitted += 1
-            if count > 0 and emitted >= count:
-                break
-            await asyncio.sleep(5)
+            produced = 0
+            try:
+                events = (
+                    db.query(RealtimeEvent)
+                    .order_by(RealtimeEvent.timestamp.desc())
+                    .limit(50)
+                    .all()
+                )
+                for ev in reversed(events):
+                    if ev.id in seen_ids:
+                        continue
+                    seen_ids.add(ev.id)
+                    payload = {
+                        "id": ev.id,
+                        "stream_id": ev.stream_id,
+                        "event_type": ev.event_type,
+                        "data": ev.event_data,
+                        "timestamp": ev.timestamp.isoformat() if ev.timestamp else None,
+                    }
+                    yield f"event: {ev.event_type}\ndata: {json.dumps(payload, default=str)}\n\n"
+                    emitted += 1
+                    yielded += 1
+                    produced += 1
+                    if count > 0 and yielded >= count:
+                        return
+            except Exception as exc:  # noqa: BLE001 - DB unavailable -> heartbeat only
+                logger.warning(f"Realtime SSE event poll failed: {exc}")
+
+            now_monotonic = asyncio.get_event_loop().time()
+            if produced == 0 or now_monotonic - last_heartbeat >= 15:
+                yield (
+                    f'event: heartbeat\ndata: {{"count": {emitted}, '
+                    f'"time": "{datetime.utcnow().isoformat()}"}}\n\n'
+                )
+                last_heartbeat = now_monotonic
+                yielded += 1
+
+            if count > 0 and yielded >= count:
+                return
+            await asyncio.sleep(2)
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 

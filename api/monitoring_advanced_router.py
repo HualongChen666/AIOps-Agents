@@ -1170,6 +1170,148 @@ async def get_observability_query(
 # ============================================================
 
 
+async def _probe_health_components() -> List[Dict[str, Any]]:
+    """Probe each dependency with a real check and return honest statuses."""
+    now = datetime.now().isoformat()
+    components: List[Dict[str, Any]] = []
+
+    # --- Database: real SELECT 1 ---
+    start = time.perf_counter()
+    try:
+        from sqlalchemy import create_engine, text
+
+        from config import DATABASE_URL
+
+        def _ping_db() -> None:
+            engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1"))
+
+        await asyncio.to_thread(_ping_db)
+        components.append(
+            {
+                "name": "Database",
+                "status": "healthy",
+                "response_time_ms": round((time.perf_counter() - start) * 1000, 2),
+                "last_check": now,
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        components.append(
+            {
+                "name": "Database",
+                "status": "unhealthy",
+                "response_time_ms": round((time.perf_counter() - start) * 1000, 2),
+                "last_check": now,
+                "error_message": str(e)[:200],
+            }
+        )
+
+    # --- Cache: real Redis PING ---
+    start = time.perf_counter()
+    try:
+        import redis.asyncio as aioredis
+
+        from config import REDIS_PASSWORD, REDIS_URL
+
+        client = aioredis.from_url(REDIS_URL, password=REDIS_PASSWORD or None)
+        try:
+            await client.ping()
+        finally:
+            await client.aclose()
+        components.append(
+            {
+                "name": "Cache",
+                "status": "healthy",
+                "response_time_ms": round((time.perf_counter() - start) * 1000, 2),
+                "last_check": now,
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        components.append(
+            {
+                "name": "Cache",
+                "status": "unhealthy",
+                "response_time_ms": round((time.perf_counter() - start) * 1000, 2),
+                "last_check": now,
+                "error_message": str(e)[:200],
+            }
+        )
+
+    # --- Message Queue: real Kafka consumer status ---
+    try:
+        from core.kafka_stream_processor import get_kafka_processor
+
+        consumer = getattr(get_kafka_processor(), "consumer", None)
+        if consumer is None:
+            components.append(
+                {
+                    "name": "Message Queue",
+                    "status": "unknown",
+                    "response_time_ms": None,
+                    "last_check": now,
+                    "error_message": "Kafka consumer not configured",
+                }
+            )
+        else:
+            components.append(
+                {
+                    "name": "Message Queue",
+                    "status": "healthy",
+                    "response_time_ms": None,
+                    "last_check": now,
+                }
+            )
+    except Exception as e:  # noqa: BLE001
+        components.append(
+            {
+                "name": "Message Queue",
+                "status": "unknown",
+                "response_time_ms": None,
+                "last_check": now,
+                "error_message": str(e)[:200],
+            }
+        )
+
+    # --- API Server: real latency statistics ---
+    try:
+        from core.metrics_exporter import get_metrics_exporter
+
+        exporter = get_metrics_exporter()
+        total = 0
+        latencies: List[float] = []
+        for metric in exporter.api_request_duration_seconds.collect():
+            for sample in metric.samples:
+                if sample.name.endswith("_sum"):
+                    latencies.append(sample.value)
+        for metric in exporter.api_requests_total.collect():
+            for sample in metric.samples:
+                if sample.name.endswith("_total"):
+                    total += int(sample.value)
+        avg_ms = (sum(latencies) / total * 1000) if total and latencies else None
+        components.append(
+            {
+                "name": "API Server",
+                "status": "healthy" if avg_ms is not None else "unknown",
+                "response_time_ms": round(avg_ms, 2) if avg_ms is not None else None,
+                "last_check": now,
+                "metrics": {"total_requests": total},
+            }
+        )
+    except Exception as e:  # noqa: BLE001
+        components.append(
+            {
+                "name": "API Server",
+                "status": "unknown",
+                "response_time_ms": None,
+                "last_check": now,
+                "error_message": str(e)[:200],
+            }
+        )
+
+    return components
+
+
 @router.get(
     "/detailed-health",
     summary="获取详细健康状态",
@@ -1182,53 +1324,37 @@ async def get_detailed_health() -> Dict[str, Any]:
     """
     获取系统详细健康状态，包括各组件健康度
 
-    Returns:
-        详细健康状态
+    历史问题（已修复）：原实现把 4 个组件（API Server/Database/Cache/Message Queue）
+    的状态与响应时间**硬编码**（23.4ms/5.6ms/Cache degraded 123.4ms/12.3ms）。现对每个
+    组件执行真实探测：Database（SELECT 1）、Cache（Redis PING）、Message Queue
+    （Kafka 消费者状态）、API Server（真实请求延迟统计）；不可用/未配置时如实标记
+    ``unknown``/``unhealthy``，绝不伪造。
     """
     logger.info("获取详细健康状态")
 
     try:
-        # 获取实际系统指标
         system_snapshot = await asyncio.to_thread(collect_all)
+        components = await _probe_health_components()
 
-        components = [
-            {
-                "name": "API Server",
-                "status": "healthy",
-                "response_time_ms": 23.4,
-                "last_check": datetime.now().isoformat(),
-            },
-            {
-                "name": "Database",
-                "status": "healthy",
-                "response_time_ms": 5.6,
-                "last_check": datetime.now().isoformat(),
-            },
-            {
-                "name": "Cache",
-                "status": "degraded",
-                "response_time_ms": 123.4,
-                "last_check": datetime.now().isoformat(),
-                "error_message": "High latency",
-            },
-            {
-                "name": "Message Queue",
-                "status": "healthy",
-                "response_time_ms": 12.3,
-                "last_check": datetime.now().isoformat(),
-            },
-        ]
+        healthy = [c for c in components if c["status"] == "healthy"]
+        degraded = [c for c in components if c["status"] == "degraded"]
+        unhealthy = [c for c in components if c["status"] == "unhealthy"]
 
-        overall_status = (
-            "healthy" if all(c["status"] == "healthy" for c in components) else "degraded"
-        )
+        if unhealthy:
+            overall_status = "unhealthy"
+        elif degraded:
+            overall_status = "degraded"
+        elif healthy and len(healthy) == len(components):
+            overall_status = "healthy"
+        else:
+            overall_status = "unknown"
 
         return {
             "overall_status": overall_status,
             "total_components": len(components),
-            "healthy_components": len([c for c in components if c["status"] == "healthy"]),
-            "degraded_components": len([c for c in components if c["status"] == "degraded"]),
-            "unhealthy_components": len([c for c in components if c["status"] == "unhealthy"]),
+            "healthy_components": len(healthy),
+            "degraded_components": len(degraded),
+            "unhealthy_components": len(unhealthy),
             "components": components,
             "system_metrics": {
                 "cpu_usage": system_snapshot.get("cpu", {}).get("usage_percent", 0),

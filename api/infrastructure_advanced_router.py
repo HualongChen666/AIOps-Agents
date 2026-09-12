@@ -5,6 +5,7 @@ Provides comprehensive API endpoints for infrastructure resources, topology, hea
 """
 
 from datetime import datetime
+import asyncio
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -251,88 +252,88 @@ def _seed_default_resources(db) -> None:
     db.commit()
 
 
-def _get_topology_data() -> Dict[str, Any]:
-    """Get real infrastructure topology data"""
+async def _get_topology_data() -> Dict[str, Any]:
+    """Get real infrastructure topology data from core.topology_engine.
+
+    历史问题（已修复）：原实现构造**硬编码 "sample" 拓扑**（固定 5 节点链
+    load_balancer→web_server→...）。现基于真实全链路拓扑图（配置主机 + 告警边）构建。
+    """
     try:
-        # Try to get real topology data
-        nodes = []
-        edges = []
+        from core.topology_engine import get_full_link_topology, get_node_health
 
-        # Create sample topology nodes
-        node_types = ["load_balancer", "web_server", "application_server", "database", "cache"]
-        for i, node_type in enumerate(node_types):
-            node = {
-                "node_id": f"node_{i}",
-                "name": f"{node_type}_{i}",
-                "node_type": node_type,
-                "parent_id": None if i == 0 else f"node_{i-1}",
-                "children": [f"node_{i+1}"] if i < len(node_types) - 1 else [],
-                "metadata": {"status": "running", "region": "us-east-1"},
+        graph = await get_full_link_topology()
+
+        nodes = [
+            {
+                "node_id": n.get("id"),
+                "name": n.get("label", n.get("id")),
+                "node_type": n.get("type", "service"),
+                "parent_id": None,
+                "children": [],
+                "metadata": {"status": get_node_health(n.get("id"))},
             }
-            nodes.append(node)
-
-        # Create edges
-        for i in range(len(nodes) - 1):
-            edge = {
+            for n in graph.get("nodes", [])
+        ]
+        edges = [
+            {
                 "edge_id": f"edge_{i}",
-                "source_id": nodes[i]["node_id"],
-                "target_id": nodes[i + 1]["node_id"],
-                "relationship_type": "connects_to",
-                "metadata": {"protocol": "tcp", "port": 8080},
+                "source_id": e.get("source"),
+                "target_id": e.get("target"),
+                "relationship_type": e.get("type", "connects_to"),
+                "metadata": {"weight": e.get("weight", 1)},
             }
-            edges.append(edge)
-
+            for i, e in enumerate(graph.get("edges", []))
+        ]
         return {"nodes": nodes, "edges": edges, "last_updated": datetime.utcnow().isoformat()}
     except Exception as e:
         logger.error(f"Error getting topology data: {e}")
         return {"nodes": [], "edges": [], "last_updated": datetime.utcnow().isoformat()}
 
 
-def _get_health_data() -> Dict[str, Any]:
-    """Get real infrastructure health data"""
+async def _get_health_data() -> Dict[str, Any]:
+    """Get real infrastructure health from topology node health.
+
+    历史问题（已修复）：原实现**硬编码** comp_1/2/3 health_score 98.5/95.2/92.8。现基于
+    真实拓扑节点与其真实健康状态聚合（健康比例 = 真实得分）。
+    """
     try:
-        from core.monitoring_infrastructure import get_monitoring_infrastructure
+        from core.topology_engine import get_full_link_topology, get_node_health
 
-        monitoring = get_monitoring_infrastructure()
-        status = monitoring.get_monitoring_status()  # noqa: F841 - Reserved for future use
+        graph = await get_full_link_topology()
+        now = datetime.utcnow().isoformat()
+        components = []
+        healthy = 0
+        for n in graph.get("nodes", []):
+            status = get_node_health(n.get("id"))
+            score = 100.0 if status in ("healthy", "up", "ok") else 0.0
+            healthy += 1 if score == 100.0 else 0
+            components.append(
+                {
+                    "component_id": n.get("id"),
+                    "component_name": n.get("label", n.get("id")),
+                    "status": status,
+                    "health_score": score,
+                    "last_check": now,
+                    "metrics": {},
+                }
+            )
 
-        components = [
-            {
-                "component_id": "comp_1",
-                "component_name": "Load Balancer",
-                "status": "healthy",
-                "health_score": 98.5,
-                "last_check": datetime.utcnow().isoformat(),
-                "metrics": {"connections": 1500, "throughput": "2.5 Gbps"},
-            },
-            {
-                "component_id": "comp_2",
-                "component_name": "Web Servers",
-                "status": "healthy",
-                "health_score": 95.2,
-                "last_check": datetime.utcnow().isoformat(),
-                "metrics": {"active_servers": 5, "avg_response_time": "45ms"},
-            },
-            {
-                "component_id": "comp_3",
-                "component_name": "Database",
-                "status": "healthy",
-                "health_score": 92.8,
-                "last_check": datetime.utcnow().isoformat(),
-                "metrics": {"connections": 200, "query_latency": "12ms"},
-            },
-        ]
-
-        avg_health = sum(c["health_score"] for c in components) / len(components)
-        overall_status = (
-            "healthy" if avg_health > 90 else "degraded" if avg_health > 70 else "unhealthy"
-        )
+        total = len(components)
+        overall_score = (healthy / total * 100.0) if total else 0.0
+        if not total:
+            overall_status = "unknown"
+        elif overall_score == 100.0:
+            overall_status = "healthy"
+        elif overall_score > 0:
+            overall_status = "degraded"
+        else:
+            overall_status = "unhealthy"
 
         return {
             "overall_status": overall_status,
-            "overall_health_score": avg_health,
+            "overall_health_score": overall_score,
             "components": components,
-            "last_updated": datetime.utcnow().isoformat(),
+            "last_updated": now,
         }
     except Exception as e:
         logger.error(f"Error getting health data: {e}")
@@ -344,42 +345,46 @@ def _get_health_data() -> Dict[str, Any]:
         }
 
 
-def _get_capacity_data() -> Dict[str, Any]:
-    """Get real infrastructure capacity data"""
+async def _get_capacity_data() -> Dict[str, Any]:
+    """Get real infrastructure capacity from the host (psutil).
+
+    历史问题（已修复）：原实现**硬编码** cpu/mem/disk + 伪造 forecasts。现取本机真实
+    CPU/内存/磁盘/网络指标；无历史数据时不伪造 forecast（留 None）。
+    """
     try:
+        import psutil
+
+        cpu = float(psutil.cpu_percent(interval=None))
+        mem = float(psutil.virtual_memory().percent)
+        disk = float(psutil.disk_usage("/").percent)
+
+        n1 = psutil.net_io_counters()
+        await asyncio.sleep(0.2)
+        n2 = psutil.net_io_counters()
+        delta_bytes = (n2.bytes_sent + n2.bytes_recv) - (n1.bytes_sent + n1.bytes_recv)
+        network_mbps = delta_bytes * 8 / 0.2 / 1_000_000
+
         metrics = [
             {
-                "resource_id": "res_1",
-                "resource_name": "Web Server Cluster",
-                "cpu_usage_percent": 65.5,
-                "memory_usage_percent": 72.3,
-                "disk_usage_percent": 45.8,
-                "network_usage_mbps": 125.5,
-                "forecast_cpu_usage": 75.2,
-                "forecast_memory_usage": 80.1,
-                "forecast_disk_usage": 52.3,
-            },
-            {
-                "resource_id": "res_2",
-                "resource_name": "Database Cluster",
-                "cpu_usage_percent": 78.2,
-                "memory_usage_percent": 85.6,
-                "disk_usage_percent": 62.4,
-                "network_usage_mbps": 250.8,
-                "forecast_cpu_usage": 85.5,
-                "forecast_memory_usage": 90.2,
-                "forecast_disk_usage": 70.1,
-            },
+                "resource_id": "local-host",
+                "resource_name": "Local Host",
+                "cpu_usage_percent": cpu,
+                "memory_usage_percent": mem,
+                "disk_usage_percent": disk,
+                "network_usage_mbps": network_mbps,
+                "forecast_cpu_usage": None,
+                "forecast_memory_usage": None,
+                "forecast_disk_usage": None,
+            }
         ]
 
         recommendations = []
-        for metric in metrics:
-            if metric["cpu_usage_percent"] > 80:
-                recommendations.append(f"Scale up {metric['resource_name']} CPU capacity")
-            if metric["memory_usage_percent"] > 80:
-                recommendations.append(f"Scale up {metric['resource_name']} memory capacity")
-            if metric["disk_usage_percent"] > 70:
-                recommendations.append(f"Expand {metric['resource_name']} disk storage")
+        if cpu > 80:
+            recommendations.append("Scale up Local Host CPU capacity")
+        if mem > 80:
+            recommendations.append("Scale up Local Host memory capacity")
+        if disk > 70:
+            recommendations.append("Expand Local Host disk storage")
 
         return {
             "total_resources": len(metrics),
@@ -658,7 +663,7 @@ async def get_topology():
         Infrastructure topology with nodes and edges
     """
     try:
-        topology_data = _get_topology_data()
+        topology_data = await _get_topology_data()
         return InfrastructureTopology(**topology_data)
     except Exception as e:
         logger.error(f"Error getting topology: {e}")
@@ -682,7 +687,7 @@ async def get_health():
         Infrastructure health information
     """
     try:
-        health_data = _get_health_data()
+        health_data = await _get_health_data()
         return InfrastructureHealth(**health_data)
     except Exception as e:
         logger.error(f"Error getting health: {e}")
@@ -706,7 +711,7 @@ async def get_capacity():
         Infrastructure capacity information
     """
     try:
-        capacity_data = _get_capacity_data()
+        capacity_data = await _get_capacity_data()
         return InfrastructureCapacity(**capacity_data)
     except Exception as e:
         logger.error(f"Error getting capacity: {e}")

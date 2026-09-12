@@ -147,7 +147,7 @@ async def get_full_link_topology(topo_key: str | None = None) -> Dict[str, Any]:
         # -----------------------------------------------------
         # 1️⃣ 收集告警生成的边（如果有的话）
         # -----------------------------------------------------
-        from core.db_engine import alert_repository
+        from core.db_engine import ALERT_REPOSITORY as alert_repository
 
         recent_alerts = await alert_repository.get_recent(limit=20)
         alerts_for_graph: List[Dict[str, Any]] = []
