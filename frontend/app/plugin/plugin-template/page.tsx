@@ -1,74 +1,105 @@
 'use client'
 
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import api from '@/lib/api';
+import { useQuery } from '@tanstack/react-query'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { KpiCard } from '@/components/ui/KpiCard'
+import api from '@/lib/api'
+import { RefreshCw, FileCode2, Boxes, Hammer } from 'lucide-react'
 
-interface DataItem {
-  id: string;
-  name: string;
-  status: string;
-  created_at: string;
+interface Template {
+  template_id: string
+  template_name: string
+  template_type: string
+  description: string
+}
+
+interface TemplatesResponse {
+  status: string
+  data: { templates: Template[]; count: number }
+  timestamp: string
+}
+
+interface SdkStatus {
+  available_templates: number
+  generated_plugins: number
+  template_types: string[]
+  generated_plugin_ids: string[]
 }
 
 export default function PluginTemplatePage() {
-  const [items, setItems] = useState<DataItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const templatesQuery = useQuery<TemplatesResponse>({
+    queryKey: ['plugin-sdk-templates'],
+    queryFn: async () => (await api.get('/api/plugin-sdk/templates')).data,
+  })
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  const statusQuery = useQuery<{ status: string; data: SdkStatus; timestamp: string }>({
+    queryKey: ['plugin-sdk-status'],
+    queryFn: async () => (await api.get('/api/plugin-sdk/status')).data,
+  })
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/api/plugin/plugin-template');
-      setItems(res.data.items || []);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || '加载数据失败');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="text-gray-500">加载中...</div></div>;
-  }
-
-  if (error) {
-    return <div className="bg-red-50 border border-red-200 rounded-lg p-4"><div className="text-red-800">{error}</div><Button onClick={fetchData} className="mt-2">重试</Button></div>;
-  }
+  const templates = templatesQuery.data?.data?.templates ?? []
+  const sdk = statusQuery.data?.data
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">开发模板</h1>
-        <Button onClick={fetchData}>刷新</Button>
+        <h1 className="text-3xl font-bold text-gray-900">插件模板</h1>
+        <Button variant="outline" onClick={() => { templatesQuery.refetch(); statusQuery.refetch() }}>
+          <RefreshCw className={`h-4 w-4 mr-2 ${templatesQuery.isFetching ? 'animate-spin' : ''}`} />
+          刷新
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+        <KpiCard title="可用模板" value={sdk?.available_templates ?? templates.length} icon={FileCode2} />
+        <KpiCard title="已生成插件" value={sdk?.generated_plugins ?? 0} icon={Hammer} />
+        <KpiCard title="模板类型" value={sdk?.template_types?.length ?? 0} icon={Boxes} />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>数据列表</CardTitle>
+          <CardTitle>模板列表 ({templates.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {items.map((item) => (
-              <div key={item.id} className="border rounded-lg p-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">{item.name}</h3>
-                  <div className="text-sm text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
+          {templatesQuery.isLoading ? (
+            <p className="py-6 text-center text-gray-500">加载中...</p>
+          ) : templatesQuery.isError ? (
+            <p className="py-6 text-center text-red-600">加载模板失败</p>
+          ) : templates.length === 0 ? (
+            <p className="py-6 text-center text-gray-500">暂无可用模板</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {templates.map((t) => (
+                <div key={t.template_id} className="rounded-lg border p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold">{t.template_name}</h3>
+                    <Badge variant="outline">{t.template_type}</Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-600">{t.description || '无描述'}</p>
+                  <p className="mt-2 text-xs text-gray-400">ID: {t.template_id}</p>
                 </div>
-                <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
-                  {item.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {sdk && sdk.generated_plugin_ids?.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>已生成插件 ID</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {sdk.generated_plugin_ids.map((id) => (
+              <Badge key={id} variant="secondary">
+                {id}
+              </Badge>
+            ))}
+          </CardContent>
+        </Card>
+      )}
     </div>
-  );
+  )
 }

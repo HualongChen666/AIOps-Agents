@@ -135,6 +135,34 @@ def create_plugin(
 
 
 @router.get(
+    "/stats",
+    summary="获取插件统计信息",
+    responses={
+        200: {"description": "插件统计信息"},
+        401: {"description": "未授权"},
+        403: {"description": "权限不足"},
+    },
+)
+def get_plugin_stats(
+    current_user: User = Depends(require_permission("plugin", "read")),
+    db: Session = Depends(get_db),
+    request: Request = None,
+) -> PluginStatsResponse:
+    """获取插件统计信息。需要plugin:read权限。"""
+    # Rate limiting
+    user_id = str(current_user.id)
+    check_rate_limit(user_id, requests_per_minute=60)
+    
+    # Log for security monitoring
+    client_ip = request.client.host if request else "unknown"
+    logger.info(f"Plugin stats requested by user {current_user.username} from {client_ip}")
+    
+    service = get_plugin_service(db)
+    stats = service.get_stats()
+    return stats
+
+
+@router.get(
     "/{plugin_id}",
     summary="获取插件详情",
     responses={
@@ -274,34 +302,6 @@ def run_plugin(
     except Exception as e:
         logger.error(f"Failed to run plugin '{name}': {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get(
-    "/stats",
-    summary="获取插件统计信息",
-    responses={
-        200: {"description": "插件统计信息"},
-        401: {"description": "未授权"},
-        403: {"description": "权限不足"},
-    },
-)
-def get_plugin_stats(
-    current_user: User = Depends(require_permission("plugin", "read")),
-    db: Session = Depends(get_db),
-    request: Request = None,
-) -> PluginStatsResponse:
-    """获取插件统计信息。需要plugin:read权限。"""
-    # Rate limiting
-    user_id = str(current_user.id)
-    check_rate_limit(user_id, requests_per_minute=60)
-    
-    # Log for security monitoring
-    client_ip = request.client.host if request else "unknown"
-    logger.info(f"Plugin stats requested by user {current_user.username} from {client_ip}")
-    
-    service = get_plugin_service(db)
-    stats = service.get_stats()
-    return stats
 
 
 @router.get(
