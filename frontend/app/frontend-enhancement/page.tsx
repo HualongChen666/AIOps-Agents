@@ -9,7 +9,7 @@ import { Select } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import api from '@/lib/api'
+import api, { getStoredUser } from '@/lib/api'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLoadingState, useToast } from '@/hooks/useEnhancements'
 import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI'
@@ -87,7 +87,11 @@ export default function FrontendEnhancementPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
   const [formData, setFormData] = useState<Record<string, any>>({})
-  const [currentUserId] = useState('user-123') // In production, get from auth context
+  // 从认证上下文（登录后写入 localStorage 的用户档案）派生当前用户 ID，避免写死
+  const [currentUserId] = useState<string>(() => {
+    const stored = getStoredUser();
+    return String(stored?.id ?? stored?.username ?? 'me');
+  })
 
   // 🔧 P1 Integration: Use enhanced loading state
   const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(false)
@@ -299,8 +303,20 @@ export default function FrontendEnhancementPage() {
 
   const handleDelete = async (id: string, type: string) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return
-    // Implement delete logic based on type
-    showSuccess('Item deleted successfully')
+    try {
+      if (type === 'widget') {
+        await api.delete(`/api/v1/frontend/dashboard/default/widget/${id}`)
+        await refetchDashboard()
+      } else if (type === 'template') {
+        await api.delete(`/api/v1/frontend/reports/templates/${id}`)
+        await refetchReports()
+      } else {
+        return
+      }
+      showSuccess('删除成功')
+    } catch (error: any) {
+      showError(`删除失败: ${error.response?.data?.detail || error.message}`)
+    }
   }
 
   const handleSubmit = async () => {

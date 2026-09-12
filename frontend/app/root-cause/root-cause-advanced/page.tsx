@@ -85,6 +85,38 @@ export default function RootCauseAdvancedPage() {
   const [predictionResult, setPredictionResult] = useState<PredictionResult | null>(null);
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
 
+  // 🔧 从真实告警服务拉取上下文（消除写死的样例请求体）
+  const loadAlertContext = async () => {
+    const resp = await api.get('/api/v1/alerts/', { params: { limit: 200 } });
+    const alerts: any[] = resp.data?.alerts || [];
+    const alertRecord =
+      alerts.find((a) => String(a.id ?? a.alert_id ?? a.alertId) === selectedAlert) || null;
+    return { alerts, alertRecord };
+  };
+
+  const buildAlertPayload = (a: any) => ({
+    id: String(a.id ?? a.alert_id ?? selectedAlert),
+    title: a.title,
+    description: a.desc ?? a.description ?? '',
+    severity: a.level ?? a.severity ?? 'unknown',
+    timestamp: a.timestamp ?? a.raw_time ?? new Date().toISOString(),
+    service: a.service ?? a.service_name ?? 'unknown',
+    source: a.source ?? 'unknown',
+    host: a.host ?? a.hostname ?? '',
+    affected_services: a.affected_services ?? [],
+    affected_components: a.affected_components ?? [],
+  });
+
+  const buildMetricsPayload = (a: any) => {
+    const value = Number(a?.value ?? 0) || 0;
+    const metric = String(a?.metric ?? '').toLowerCase();
+    return {
+      cpu_usage: metric === 'cpu' ? value : 0,
+      memory_usage: metric === 'memory' ? value : 0,
+      response_time: metric === 'latency' || metric === 'response_time' ? value : 0,
+    };
+  };
+
   // 获取统计信息
   const { data: statisticsData, refetch: refetchStatistics } = useQuery({
     queryKey: ['root-cause-statistics'],
@@ -102,62 +134,15 @@ export default function RootCauseAdvancedPage() {
 
     setIsAnalyzing(true);
     try {
-      const alertData = {
-        id: selectedAlert,
-        title: 'Sample Alert for Advanced Analysis',
-        description: 'Alert for enhanced root cause analysis',
-        severity: 'critical',
-        timestamp: new Date().toISOString(),
-        service: 'api-service',
-        source: 'api-gateway',
-        affected_services: ['user-service', 'order-service'],
-        affected_components: ['database', 'cache'],
-      };
-
-      const metricsData = {
-        cpu_usage_percent: 92,
-        memory_usage_percent: 88,
-        error_rate: 0.15,
-        latency_ms: 850,
-        dns_resolution_error_rate: 0.02,
-        dns_lookup_time_ms: 1200,
-        slow_query_rate: 0.08,
-        avg_query_duration_ms: 2500,
-        active_connections: 95,
-        hosts: [
-          { hostname: 'api-host-1', health: 'unhealthy', metrics: { cpu: 95, memory: 90 } },
-          { hostname: 'db-host-1', health: 'unhealthy', metrics: { cpu: 88, memory: 85 } },
-        ],
-        services: [
-          { name: 'api-service', health: 'unhealthy', port: 8080 },
-          { name: 'db-service', health: 'unhealthy', port: 5432 },
-        ],
-        database: 'postgres-primary',
-        pod_name: 'api-pod-1',
-        node_name: 'k8s-node-1',
-        namespace: 'production',
-      };
-
-      const context = {
-        max_steps: 5,
-        execution_confidence_threshold: 0.75,
-        escalation_confidence_threshold: 0.60,
-        correlated_alerts: [
-          { id: 'alert-2', service: 'user-service', severity: 'high' },
-          { id: 'alert-3', service: 'order-service', severity: 'high' },
-        ],
-        change_events: [
-          {
-            type: 'deploy',
-            target: 'api-service',
-            timestamp: new Date(Date.now() - 10 * 60000).toISOString(),
-          },
-        ],
-        verification_data: {
-          affected_components: ['api-service', 'db-service'],
-          active_components: ['api-service', 'db-service', 'cache'],
-        },
-      };
+      const { alertRecord } = await loadAlertContext();
+      if (!alertRecord) {
+        window.alert('未找到告警: ' + selectedAlert);
+        setIsAnalyzing(false);
+        return;
+      }
+      const alertData = buildAlertPayload(alertRecord);
+      const metricsData = buildMetricsPayload(alertRecord);
+      const context = { max_steps: 5 };
 
       const resp = await api.post('/api/v1/root-cause/analyze', {
         alert: alertData,
@@ -188,13 +173,12 @@ export default function RootCauseAdvancedPage() {
     }
 
     try {
-      const alertData = {
-        id: selectedAlert,
-        service: 'api-service',
-        source: 'api-gateway',
-        host: 'api-host-1',
-        affected_services: ['user-service', 'order-service'],
-      };
+      const { alertRecord } = await loadAlertContext();
+      if (!alertRecord) {
+        window.alert('未找到告警: ' + selectedAlert);
+        return;
+      }
+      const alertData = buildAlertPayload(alertRecord);
 
       const resp = await api.post('/api/v1/root-cause/cross-layer-track', alertData, {
         params: { max_depth: maxDepth },
@@ -209,16 +193,13 @@ export default function RootCauseAdvancedPage() {
 
   const handlePatternMatching = async () => {
     try {
+      const { alerts: recentAlerts } = await loadAlertContext();
       const symptoms = {
-        alerts: [
-          { alert_type: 'high_latency', host: 'api-host-1' },
-          { alert_type: 'error_spike', service: 'api-service' },
-        ],
-        metrics: {
-          cpu_usage_percent: 92,
-          memory_usage_percent: 88,
-          error_rate: 0.15,
-        },
+        alerts: recentAlerts.slice(0, 10).map((a) => ({
+          alert_type: a.metric ?? a.title ?? 'unknown',
+          host: a.host ?? a.source ?? '',
+        })),
+        metrics: buildMetricsPayload(recentAlerts[0] ?? {}),
       };
 
       const resp = await api.post('/api/v1/root-cause/patterns/match', {
@@ -236,15 +217,13 @@ export default function RootCauseAdvancedPage() {
   const handleRootCausePrediction = async () => {
     setIsPredicting(true);
     try {
+      const { alerts: recentAlerts } = await loadAlertContext();
       const currentState = {
-        cpu_usage_percent: 85,
-        memory_usage_percent: 78,
-        error_rate: 0.05,
-        latency_ms: 250,
-        services: [
-          { name: 'api-service', health: 'degraded' },
-          { name: 'db-service', health: 'healthy' },
-        ],
+        ...buildMetricsPayload(recentAlerts[0] ?? {}),
+        services: recentAlerts.slice(0, 10).map((a) => ({
+          name: a.service ?? a.service_name ?? 'unknown',
+          health: a.level ?? a.severity ?? 'unknown',
+        })),
       };
 
       const resp = await api.post('/api/v1/root-cause/predict', {
@@ -267,20 +246,13 @@ export default function RootCauseAdvancedPage() {
     }
 
     try {
+      const { alertRecord } = await loadAlertContext();
       const verificationData = {
-        affected_components: ['api-service', 'db-service'],
-        active_components: ['api-service', 'db-service', 'cache'],
-        observed_symptoms: ['high_latency', 'error_spike', 'memory_pressure'],
-        actual_impact: {
-          latency: 0.85,
-          error_rate: 0.78,
-          availability: 0.92,
-        },
-        dns_resolution_error_rate: 0.02,
-        dns_lookup_time_ms: 1200,
-        slow_query_rate: 0.08,
-        avg_query_duration_ms: 2500,
-        memory_usage_percent: 88,
+        affected_components: alertRecord?.affected_components ?? [],
+        observed_symptoms: alertRecord
+          ? [String(alertRecord.metric ?? alertRecord.title ?? 'alert')]
+          : [],
+        metrics: buildMetricsPayload(alertRecord ?? {}),
         last_state: { status: 'running' },
       };
 
@@ -299,23 +271,20 @@ export default function RootCauseAdvancedPage() {
 
   const handleLearnPattern = async () => {
     try {
+      const { alerts: recentAlerts } = await loadAlertContext();
       const symptoms = {
-        alerts: [
-          { alert_type: 'high_latency', host: 'api-host-1' },
-          { alert_type: 'error_spike', service: 'api-service' },
-        ],
-        metrics: {
-          cpu_usage_percent: 92,
-          memory_usage_percent: 88,
-          error_rate: 0.15,
-        },
+        alerts: recentAlerts.slice(0, 10).map((a) => ({
+          alert_type: a.metric ?? a.title ?? 'unknown',
+          host: a.host ?? a.source ?? '',
+        })),
+        metrics: buildMetricsPayload(recentAlerts[0] ?? {}),
       };
 
       const resp = await api.post('/api/v1/root-cause/patterns/learn', {
         symptoms: symptoms,
-        root_cause: 'database_connection_pool_exhaustion',
-        resolution_time: 15.5,
-        effectiveness: 0.85,
+        root_cause: selectedHypothesis?.root_cause ?? recentAlerts[0]?.title ?? 'unknown',
+        resolution_time: 0,
+        effectiveness: 0,
       });
 
       alert('模式学习成功: ' + resp.data.message);

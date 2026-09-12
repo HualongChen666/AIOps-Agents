@@ -176,7 +176,19 @@ export default function ChangeAdvancedPage() {
     success_rate: changeRequests.length > 0 
       ? (changeRequests.filter(cr => cr.status === 'implemented').length / changeRequests.length) * 100 
       : 0,
-    avg_duration: 0, // 需要从审计日志计算
+    avg_duration: (() => {
+      // 真实计算：以每条变更请求审计日志的首/末时间戳之差（分钟）求平均
+      const durations = changeRequests
+        .map((cr) => {
+          const ts = (cr.audit_log || [])
+            .map((a) => Date.parse(a.timestamp))
+            .filter((n) => !Number.isNaN(n));
+          if (ts.length < 2) return null;
+          return (Math.max(...ts) - Math.min(...ts)) / 60000;
+        })
+        .filter((d): d is number => d !== null && d > 0);
+      return durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
+    })(),
   };
 
   // 🔧 过滤变更请求
@@ -267,7 +279,7 @@ export default function ChangeAdvancedPage() {
       {activeTab === 'overview' && (
         <>
           {/* 统计卡片 */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm flex items-center gap-2">
@@ -311,6 +323,19 @@ export default function ChangeAdvancedPage() {
               <CardContent>
                 <p className="text-3xl font-bold text-yellow-600">
                   {(statistics.by_status.pending || 0) + (statistics.by_status.review || 0)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  平均处理时长
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-purple-600">
+                  {statistics.avg_duration > 0 ? `${statistics.avg_duration.toFixed(0)} 分` : '—'}
                 </p>
               </CardContent>
             </Card>

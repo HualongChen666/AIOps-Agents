@@ -544,6 +544,21 @@ async def get_report_templates() -> dict[str, Any]:
     return {"status": "success", "templates": templates}
 
 
+@router.delete(
+    "/reports/templates/{template_id}",
+    summary="删除报告模板",
+    responses={(200): {"description": "删除结果"}, (404): {"description": "模板不存在"}, (503): {"description": "前端增强管理器不可用"}},
+)
+async def delete_report_template(template_id: str) -> dict[str, Any]:
+    """删除指定报告模板。"""
+    if not FRONTEND_AVAILABLE:
+        raise HTTPException(status_code=503, detail="前端增强管理器不可用")
+    if template_id not in frontend_enhancement_manager.report_templates:
+        raise HTTPException(status_code=404, detail=f"报告模板 {template_id} 不存在")
+    del frontend_enhancement_manager.report_templates[template_id]
+    return {"status": "success", "data": {"template_id": template_id, "deleted": True}}
+
+
 @router.post(
     "/reports/generate",
     summary="生成报告",

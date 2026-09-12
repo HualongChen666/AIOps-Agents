@@ -11861,3 +11861,35 @@ terraform/storage.tf
 ## D) 待续
 
 - task #9（硬编码/桩：FE-633/641/628）。
+
+
+---
+
+# PART XLVII — 横切 #9：去除硬编码/桩数据（FE-633/641/628）
+
+> 任务：task #9。
+
+## A) 逐项修复
+
+| 项 | 缺陷（台账） | 修复 |
+|---|---|---|
+| **FE-633** `frontend-enhancement` | `const [currentUserId] = useState('user-123')` 写死；`handleDelete` 仅 `showSuccess` 空桩 | 用户 ID 改由 **`getStoredUser()`**（登录后写入的档案）派生（`id ?? username ?? 'me'`）；`handleDelete` 真实调用 `DELETE /api/v1/frontend/dashboard/default/widget/{id}`（widget）与 `DELETE /api/v1/frontend/reports/templates/{id}`（template），随后 refetch |
+| **FE-641** `root-cause-advanced` | 6 个 handler 发送写死样例请求体（`Sample Alert`、`cpu_usage_percent:92`、固定 host/affected_services…） | 新增 `loadAlertContext()`（`GET /api/v1/alerts/` 取真实告警）+ `buildAlertPayload()` / `buildMetricsPayload()`；enhanced-analysis/cross-layer-track/predict/verify/pattern-match/pattern-learn **全部改为由所选告警的真实字段派生**；找不到告警即中止（不再发送伪造体） |
+| **FE-628** `change-advanced` | `avg_duration: 0` 恒 0（"需要从审计日志计算"） | 由真实 `audit_log` 首/末 `timestamp` 之差（分钟）求平均；并新增「平均处理时长」KPI 卡片展示 |
+
+## B) 后端补强
+
+- `api/frontend_enhancement_router.py`：新增 `DELETE /api/v1/frontend/reports/templates/{template_id}`（真实删除 `frontend_enhancement_manager.report_templates`；不存在→404）。
+
+## C) 验证证据
+
+- `python -m py_compile api/frontend_enhancement_router.py` → OK。
+- 运行期实测：`DELETE .../reports/templates/nope` → **404**；openapi 确认该 path 存在。
+- 目标端点存在性（方法级）：`DELETE /frontend/reports/templates/{id}`、`GET /change-management/statistics`、`GET /alerts/` 均 True。
+- `npx tsc --noEmit`（frontend）→ **exit 0 / 0 error**。
+- 既有失效测试：`test_frontend_enhancement_router_coverage.py` + `test_root_cause_advanced_router.py` 计 **12 failed**，**stash 前后一致**（非本 PART 引入，并入 task #13）。
+
+## D) 备注
+
+- root-cause 的 `predict/pattern-learn` 等仍需后端 schema 常见字段；`resolution_time/effectiveness` 无真实来源，置 0（unknown）而非编造。
+- task #13 既有失效测试范围已扩充（plugin-marketplace/priority/service-monitoring 22 + root-cause ~12）。
