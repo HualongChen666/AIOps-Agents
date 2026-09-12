@@ -90,7 +90,18 @@ def test_smartctl():
     smart.register_smart_scripts()
 
 
-def test_ticket_integration():
+def test_ticket_integration(monkeypatch):
     ticket = _load_module("ticket_integration.py", "_test_low_ticket_integration")
-    assert ticket.create_ticket("jira", "summary", "description")["success"] is True
+
+    # 执行开关开启但未配置 JIRA_URL/TOKEN -> 真实路径如实失败（不再伪造 JIRA-12345）
+    result = ticket.create_ticket("jira", "summary", "description")
+    assert result["success"] is False
+    assert "configured" in result["error"]
+
+    # 执行开关关闭 -> 返回 dry-run 预览（simulated）
+    monkeypatch.setenv("HARDWARE_EXECUTE_ENABLED", "false")
+    preview = ticket.create_ticket("jira", "summary", "description")
+    assert preview["success"] is True
+    assert preview["simulated"] is True
+
     ticket.register_ticket_scripts()

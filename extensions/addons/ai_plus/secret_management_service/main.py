@@ -2,6 +2,7 @@
 """Main entry point for Secret Management Service."""
 
 import asyncio
+import hmac
 import logging
 import os
 import sys
@@ -9,7 +10,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import Depends, FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 try:
@@ -146,6 +147,11 @@ class InvokeResponse(BaseModel):
 
 
 # Helper functions
+def _actor(payload: Dict[str, Any]) -> str:
+    """Return the authenticated acting principal (never the caller-supplied one)."""
+    return payload.get("_auth_principal") or payload.get("principal") or ""
+
+
 def _create_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Create a new secret."""
     try:
@@ -155,14 +161,14 @@ def _create_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
             description=payload.get("description", ""),
             created_by=payload.get("created_by", ""),
             tags=payload.get("tags", {}),
-            principal=payload.get("principal", ""),
+            principal=_actor(payload),
         )
 
         # Log audit event
         audit_log.log(
             secret_id=secret.metadata.secret_id,
             action="create",
-            principal=payload.get("principal", "system"),
+            principal=_actor(payload) or "system",
             result="success",
             details=f"Created secret: {secret.metadata.name}",
         )
@@ -173,7 +179,7 @@ def _create_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload.get("name", "unknown"),
             action="create",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -190,14 +196,14 @@ def _get_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
             secret_id=payload["secret_id"],
             include_value=payload.get("include_value", False),
             version=payload.get("version", 0),
-            principal=payload.get("principal", ""),
+            principal=_actor(payload),
         )
 
         # Log audit event
         audit_log.log(
             secret_id=payload["secret_id"],
             action="read",
-            principal=payload.get("principal", "system"),
+            principal=_actor(payload) or "system",
             result="success",
         )
 
@@ -207,7 +213,7 @@ def _get_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="read",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -216,7 +222,7 @@ def _get_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="read",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -235,14 +241,14 @@ def _update_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
             description=payload.get("description"),
             tags=payload.get("tags"),
             updated_by=payload.get("updated_by", ""),
-            principal=payload.get("principal", ""),
+            principal=_actor(payload),
         )
 
         # Log audit event
         audit_log.log(
             secret_id=payload["secret_id"],
             action="update",
-            principal=payload.get("principal", "system"),
+            principal=_actor(payload) or "system",
             result="success",
         )
 
@@ -252,7 +258,7 @@ def _update_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="update",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -261,7 +267,7 @@ def _update_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="update",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -277,14 +283,14 @@ def _delete_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         success = secret_manager.delete_secret(
             secret_id=payload["secret_id"],
             permanent=payload.get("permanent", False),
-            principal=payload.get("principal", ""),
+            principal=_actor(payload),
         )
 
         # Log audit event
         audit_log.log(
             secret_id=payload["secret_id"],
             action="delete",
-            principal=payload.get("principal", "system"),
+            principal=_actor(payload) or "system",
             result="success",
             details=f"Permanent: {payload.get('permanent', False)}",
         )
@@ -295,7 +301,7 @@ def _delete_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="delete",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -304,7 +310,7 @@ def _delete_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="delete",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -322,7 +328,7 @@ def _list_secrets(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
             filter_tag=payload.get("filter_tag"),
             limit=payload.get("limit", 100),
             offset=payload.get("offset", 0),
-            principal=payload.get("principal", ""),
+            principal=_actor(payload),
         )
     except Exception as e:
         logger.error(f"Failed to list secrets: {e}")
@@ -337,14 +343,14 @@ def _rotate_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
             new_value=payload["new_value"],
             rotated_by=payload.get("rotated_by", ""),
             old_value_retention_hours=payload.get("old_value_retention_hours", 24),
-            principal=payload.get("principal", ""),
+            principal=_actor(payload),
         )
 
         # Log audit event
         audit_log.log(
             secret_id=payload["secret_id"],
             action="rotate",
-            principal=payload.get("principal", "system"),
+            principal=_actor(payload) or "system",
             result="success",
         )
 
@@ -354,7 +360,7 @@ def _rotate_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="rotate",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -363,7 +369,7 @@ def _rotate_secret(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="rotate",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -378,7 +384,7 @@ def _get_secret_versions(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     try:
         return secret_manager.get_secret_versions(
             secret_id=payload["secret_id"],
-            principal=payload.get("principal", ""),
+            principal=_actor(payload),
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -396,14 +402,14 @@ def _revert_secret_version(payload: Dict[str, Any]) -> Dict[str, Any]:
             secret_id=payload["secret_id"],
             target_version=payload["target_version"],
             reverted_by=payload.get("reverted_by", ""),
-            principal=payload.get("principal", ""),
+            principal=_actor(payload),
         )
 
         # Log audit event
         audit_log.log(
             secret_id=payload["secret_id"],
             action="revert_version",
-            principal=payload.get("principal", "system"),
+            principal=_actor(payload) or "system",
             result="success",
             details=f"Reverted to version {payload['target_version']}",
         )
@@ -414,7 +420,7 @@ def _revert_secret_version(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="revert_version",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -423,7 +429,7 @@ def _revert_secret_version(payload: Dict[str, Any]) -> Dict[str, Any]:
         audit_log.log(
             secret_id=payload["secret_id"],
             action="revert_version",
-            principal=payload.get("principal", "unknown"),
+            principal=_actor(payload) or "unknown",
             result="failure",
             details=str(e),
         )
@@ -556,6 +562,28 @@ async def health() -> HealthResponse:
     )
 
 
+def get_authenticated_principal(request: Request) -> str:
+    """
+    真实鉴权：校验服务令牌（``Config.AUTH_TOKEN_HEADER``）与
+    ``SECRET_MANAGEMENT_AUTH_TOKEN`` 是否一致，返回鉴权后的调用主体。
+
+    调用方**不能**通过请求体自报 principal —— 主体只能来自校验通过的请求头，
+    从而杜绝 ``principal="admin"`` 越权。
+    """
+    if not Config.REQUIRE_AUTHENTICATION:
+        return request.headers.get("X-Principal", "anonymous")
+
+    expected = os.getenv("SECRET_MANAGEMENT_AUTH_TOKEN", "")
+    if not expected:
+        raise HTTPException(status_code=500, detail="service auth token is not configured")
+
+    token = request.headers.get(Config.AUTH_TOKEN_HEADER, "")
+    if not token or not hmac.compare_digest(token, expected):
+        raise HTTPException(status_code=401, detail="invalid or missing authentication token")
+
+    return request.headers.get("X-Principal") or os.getenv("SECRET_MANAGEMENT_PRINCIPAL", "service")
+
+
 @app.get("/info", response_model=InfoResponse)
 async def info() -> InfoResponse:
     """Service info endpoint."""
@@ -563,14 +591,20 @@ async def info() -> InfoResponse:
 
 
 @app.post("/invoke", response_model=InvokeResponse)
-async def invoke(req: InvokeRequest) -> InvokeResponse:
-    """Generic invoke endpoint for all actions."""
+async def invoke(
+    req: InvokeRequest, principal: str = Depends(get_authenticated_principal)
+) -> InvokeResponse:
+    """Generic invoke endpoint for all actions (authenticated)."""
     handler = HANDLERS.get(req.action)
     if not handler:
         raise HTTPException(status_code=400, detail=f"Unknown action: {req.action}")
 
+    payload = dict(req.payload or {})
+    # 主体只能来自鉴权结果，覆盖任何自报的 principal 作为“执行主体”
+    payload["_auth_principal"] = principal
+
     try:
-        result = handler(req.payload)
+        result = handler(payload)
         return InvokeResponse(
             success=True, service=Config.SERVICE_NAME, action=req.action, result=result
         )
@@ -582,10 +616,16 @@ async def invoke(req: InvokeRequest) -> InvokeResponse:
 
 
 @app.post("/rpc/{method}")
-async def rpc_call(method: str, payload: Dict[str, Any] = None):
-    """RPC endpoint for inter-service communication."""
+async def rpc_call(
+    method: str,
+    payload: Dict[str, Any] = None,
+    principal: str = Depends(get_authenticated_principal),
+):
+    """RPC endpoint for inter-service communication (authenticated)."""
     try:
-        result = await rpc_server.call(method, payload or {})
+        body = dict(payload or {})
+        body["_auth_principal"] = principal
+        result = await rpc_server.call(method, body)
         return {"success": True, "result": result}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -623,18 +663,43 @@ async def shutdown_event():
 
 
 async def rotation_scheduler():
-    """Background task for scheduled secret rotations."""
+    """Background task for scheduled secret rotations (real rotation)."""
+    import secrets as _secrets
+
     while True:
         try:
-            # Check for due rotations
             schedule = secret_manager.get_rotation_schedule()
-            current_time = int(datetime.now().timestamp() * 1000)
 
             for item in schedule:
-                if item["is_due"]:
-                    logger.info(f"Rotation due for secret: {item['name']}")
-                    # In a real implementation, this would trigger rotation
-                    # For now, just log it
+                if not item["is_due"]:
+                    continue
+                secret_id = item["secret_id"]
+                try:
+                    new_value = _secrets.token_urlsafe(32)
+                    secret_manager.rotate_secret(
+                        secret_id=secret_id,
+                        new_value=new_value,
+                        rotated_by="rotation_scheduler",
+                        old_value_retention_hours=Config.OLD_VALUE_RETENTION_HOURS,
+                        principal=Config.DEFAULT_ADMIN_PRINCIPAL,
+                    )
+                    audit_log.log(
+                        secret_id=secret_id,
+                        action="rotate",
+                        principal="rotation_scheduler",
+                        result="success",
+                        details="Scheduled rotation executed",
+                    )
+                    logger.info(f"Scheduled rotation executed for secret: {item['name']}")
+                except Exception as rotation_error:  # noqa: BLE001 - keep scheduler alive
+                    audit_log.log(
+                        secret_id=secret_id,
+                        action="rotate",
+                        principal="rotation_scheduler",
+                        result="failure",
+                        details=str(rotation_error),
+                    )
+                    logger.error(f"Scheduled rotation failed for {item['name']}: {rotation_error}")
 
             # Check every minute
             await asyncio.sleep(60)

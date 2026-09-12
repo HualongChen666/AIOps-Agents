@@ -14,17 +14,98 @@ logger = logging.getLogger(__name__)
 
 
 def create_ticket(tool: str, summary: str, description: str) -> Dict[str, Any]:
-    """Simulate or perform ticket creation."""
-    os.getenv(f"{tool.upper()}_TOKEN", "")
-    base_url = os.getenv(f"{tool.upper()}_URL", f"https://{tool}.example.com")
+    """
+    Create a Jira / ServiceNow ticket.
+
+    When ``HARDWARE_EXECUTE_ENABLED`` is not set the function returns a *dry-run
+    preview* (``simulated: True``) without contacting any external system.  When
+    execution is enabled it performs a **real** REST call and only reports
+    ``success`` when the remote system actually created the ticket.
+    """
+    tool = (tool or "").lower()
+    if tool not in ("jira", "servicenow"):
+        return {"success": False, "error": f"unsupported ticket tool: {tool}"}
+
+    token = os.getenv(f"{tool.upper()}_TOKEN", "")
+    base_url = os.getenv(f"{tool.upper()}_URL", "")
+    username = os.getenv(f"{tool.upper()}_USER", "")
+
     if os.getenv("HARDWARE_EXECUTE_ENABLED", "false").lower() not in ("1", "true", "yes"):
         return {
             "success": True,
             "simulated": True,
-            "command": f"{tool}: create issue '{summary}' at {base_url}",
+            "command": (
+                f"{tool}: create issue '{summary}' at {base_url or f'https://{tool}.example.com'}"
+            ),
         }
-    logger.info("Creating %s ticket: %s", tool, summary)
-    return {"success": True, "ticket_id": f"{tool.upper()}-12345", "tool": tool}
+
+    if not base_url:
+        return {"success": False, "error": f"{tool.upper()}_URL is not configured"}
+    if not token:
+        return {"success": False, "error": f"{tool.upper()}_TOKEN is not configured"}
+
+    import httpx
+
+    try:
+        if tool == "jira":
+            project_key = os.getenv("JIRA_PROJECT", "")
+            if not project_key:
+                return {"success": False, "error": "JIRA_PROJECT is not configured"}
+            payload = {
+                "fields": {
+                    "project": {"key": project_key},
+                    "summary": summary,
+                    "description": description,
+                    "issuetype": {"name": os.getenv("JIRA_ISSUE_TYPE", "Bug")},
+                }
+            }
+            auth = (username, token) if username else None
+            response = httpx.post(
+                f"{base_url.rstrip('/')}/rest/api/2/issue",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                auth=auth,
+                timeout=30.0,
+            )
+            if response.status_code in (200, 201):
+                data = response.json()
+                return {
+                    "success": True,
+                    "ticket_id": data.get("key"),
+                    "tool": tool,
+                    "url": f"{base_url.rstrip('/')}/browse/{data.get('key')}",
+                }
+            return {
+                "success": False,
+                "tool": tool,
+                "error": f"Jira returned status {response.status_code}",
+                "body": response.text[:500],
+            }
+
+        # ServiceNow
+        payload = {"short_description": summary, "description": description}
+        response = httpx.post(
+            f"{base_url.rstrip('/')}/api/now/table/incident",
+            json=payload,
+            auth=(username, token) if username else None,
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            timeout=30.0,
+        )
+        if response.status_code in (200, 201):
+            data = response.json().get("result", {})
+            return {
+                "success": True,
+                "ticket_id": data.get("number") or data.get("sys_id"),
+                "tool": tool,
+            }
+        return {
+            "success": False,
+            "tool": tool,
+            "error": f"ServiceNow returned status {response.status_code}",
+            "body": response.text[:500],
+        }
+    except Exception as exc:  # noqa: BLE001 - surface the real transport error
+        return {"success": False, "tool": tool, "error": str(exc)}
 
 
 def register_ticket_scripts() -> None:
