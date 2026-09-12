@@ -142,52 +142,159 @@ class RepairVerifier:
     async def _verify_dns_resolution(
         self, task: RepairTask, result: Optional[RepairExecutionResult]
     ) -> Dict[str, Any]:
-        return {
-            "verified": True,
-            "confidence": 0.9,
-            "evidence": {"test": "dns"},
-            "recommendation": "",
-        }
+        """Real DNS resolution check."""
+        import asyncio
+        import socket
+
+        host = task.result.get("host") or task.result.get("hostname") or task.host
+        if not host:
+            return {
+                "verified": None,
+                "confidence": 0.0,
+                "evidence": {},
+                "recommendation": "no host specified for DNS verification",
+            }
+        try:
+            infos = await asyncio.to_thread(socket.getaddrinfo, host, None)
+            addresses = sorted({info[4][0] for info in infos})
+            return {
+                "verified": bool(infos),
+                "confidence": 0.9,
+                "evidence": {"host": host, "addresses": addresses},
+                "recommendation": "" if infos else "DNS resolution returned no records",
+            }
+        except Exception as e:  # noqa: BLE001
+            return {
+                "verified": False,
+                "confidence": 0.9,
+                "evidence": {"host": host, "error": str(e)},
+                "recommendation": "check DNS configuration",
+            }
 
     async def _verify_port_connectivity(
         self, task: RepairTask, result: Optional[RepairExecutionResult]
     ) -> Dict[str, Any]:
-        return {
-            "verified": True,
-            "confidence": 0.85,
-            "evidence": {"test": "port"},
-            "recommendation": "",
-        }
+        """Real TCP port connectivity check."""
+        import asyncio
+
+        host = task.result.get("host") or task.host
+        port = task.result.get("port")
+        if not host or not port:
+            return {
+                "verified": None,
+                "confidence": 0.0,
+                "evidence": {},
+                "recommendation": "host/port required for connectivity verification",
+            }
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, int(port)), timeout=self.timeout
+            )
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:  # noqa: BLE001
+                pass
+            return {
+                "verified": True,
+                "confidence": 0.9,
+                "evidence": {"host": host, "port": int(port)},
+                "recommendation": "",
+            }
+        except Exception as e:  # noqa: BLE001
+            return {
+                "verified": False,
+                "confidence": 0.85,
+                "evidence": {"host": host, "port": int(port), "error": str(e)},
+                "recommendation": "port not reachable",
+            }
 
     async def _verify_file_exists(
         self, task: RepairTask, result: Optional[RepairExecutionResult]
     ) -> Dict[str, Any]:
+        """Real file existence check."""
+        import os
+
+        path = task.result.get("path") or task.result.get("file")
+        if not path:
+            return {
+                "verified": None,
+                "confidence": 0.0,
+                "evidence": {},
+                "recommendation": "path required for file verification",
+            }
+        exists = os.path.exists(str(path))
         return {
-            "verified": True,
-            "confidence": 0.8,
-            "evidence": {"test": "file"},
-            "recommendation": "",
+            "verified": exists,
+            "confidence": 0.95,
+            "evidence": {"path": str(path), "exists": exists},
+            "recommendation": "" if exists else "file missing",
         }
 
     async def _verify_log_pattern(
         self, task: RepairTask, result: Optional[RepairExecutionResult]
     ) -> Dict[str, Any]:
-        return {
-            "verified": True,
-            "confidence": 0.7,
-            "evidence": {"test": "log"},
-            "recommendation": "",
-        }
+        """Real log-pattern search."""
+        import re
+
+        path = task.result.get("path") or task.result.get("log_file")
+        pattern = task.result.get("pattern")
+        if not path or not pattern:
+            return {
+                "verified": None,
+                "confidence": 0.0,
+                "evidence": {},
+                "recommendation": "path and pattern required for log verification",
+            }
+        try:
+            with open(str(path), "r", errors="replace") as fh:
+                content = fh.read(1_000_000)
+            matched = re.search(str(pattern), content) is not None
+            return {
+                "verified": matched,
+                "confidence": 0.8,
+                "evidence": {"path": str(path), "pattern": str(pattern), "matched": matched},
+                "recommendation": "" if matched else "log pattern not found",
+            }
+        except Exception as e:  # noqa: BLE001
+            return {
+                "verified": False,
+                "confidence": 0.7,
+                "evidence": {"path": str(path), "error": str(e)},
+                "recommendation": "cannot read log file",
+            }
 
     async def _verify_http_endpoint(
         self, task: RepairTask, result: Optional[RepairExecutionResult]
     ) -> Dict[str, Any]:
-        return {
-            "verified": True,
-            "confidence": 0.85,
-            "evidence": {"test": "http"},
-            "recommendation": "",
-        }
+        """Real HTTP endpoint check."""
+        import httpx
+
+        url = task.result.get("url") or task.result.get("endpoint")
+        if not url:
+            return {
+                "verified": None,
+                "confidence": 0.0,
+                "evidence": {},
+                "recommendation": "url required for HTTP verification",
+            }
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.get(str(url))
+            ok = 200 <= resp.status_code < 400
+            return {
+                "verified": ok,
+                "confidence": 0.85,
+                "evidence": {"url": str(url), "status_code": resp.status_code},
+                "recommendation": "" if ok else "endpoint returned error status",
+            }
+        except Exception as e:  # noqa: BLE001
+            return {
+                "verified": False,
+                "confidence": 0.85,
+                "evidence": {"url": str(url), "error": str(e)},
+                "recommendation": "endpoint unreachable",
+            }
 
     async def _verify_custom_command(
         self, task: RepairTask, result: Optional[RepairExecutionResult]
@@ -202,11 +309,12 @@ class RepairVerifier:
     async def _verify_noop(
         self, task: RepairTask, result: Optional[RepairExecutionResult]
     ) -> Dict[str, Any]:
+        """No verification strategy selected — nothing is actually verified."""
         return {
-            "verified": True,
-            "confidence": 0.5,
-            "evidence": {"test": "noop"},
-            "recommendation": "",
+            "verified": None,
+            "confidence": 0.0,
+            "evidence": {},
+            "recommendation": "no verification strategy applicable",
         }
 
     def list_strategies(self) -> List[str]:

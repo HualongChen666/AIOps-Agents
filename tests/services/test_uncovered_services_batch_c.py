@@ -602,10 +602,10 @@ async def test_repair_verifier_strategies(monkeypatch):
         ("service_restart", "service_status", {"service_name": "redis"}),
         ("cpu_kill", "process_check", {"pid": 42}),
         ("check_metric", "metric_threshold", {"before": 100.0, "after": 80.0}),
-        ("flush_dns", "dns_resolution", {}),
+        ("flush_dns", "dns_resolution", {"host": "localhost"}),
         ("network_check", "port_connectivity", {}),
-        ("log_file", "file_exists", {}),
-        ("check_log", "log_pattern", {}),
+        ("log_file", "file_exists", {"path": __file__}),
+        ("check_log", "log_pattern", {"path": __file__, "pattern": "def "}),
         ("check_http", "http_endpoint", {}),
         ("noop", "noop", {}),
     ]

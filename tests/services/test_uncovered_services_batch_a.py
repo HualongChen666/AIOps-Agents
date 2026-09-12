@@ -572,7 +572,8 @@ def test_health_check_timeout_and_exception(monkeypatch):
     result = _run(
         engine.check_service_status("nginx")
     )  # noqa: F841  # Variable for test verification
-    assert result["success"] is True  # fallback simulation
+    # Real contract: an execution exception is reported as failure (not masked as success).
+    assert result["success"] is False
     assert result["stderr"] == "boom"
 
 

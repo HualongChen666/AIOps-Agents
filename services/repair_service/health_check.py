@@ -71,6 +71,13 @@ class HealthCheckEngine:
             logger.warning(f"Health check timeout: {command}")
             return {"success": False, "stdout": "", "stderr": "timeout", "return_code": -1}
         except Exception as e:
+            # 历史问题（已修复）：原实现在命令不存在/执行异常时冒充成功
+            # （注释 "assume success for test stability"），导致验证结论失真。
+            # 现如实返回 success=False。
             logger.warning(f"Health check exception: {e}")
-            # Simulation fallback: assume success for test stability
-            return {"success": True, "stdout": default_stdout, "stderr": str(e), "return_code": 0}
+            return {
+                "success": False,
+                "stdout": default_stdout,
+                "stderr": str(e),
+                "return_code": -1,
+            }

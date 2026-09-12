@@ -154,7 +154,10 @@ class StrategyEngine:
 
     def __init__(self) -> None:
         self.manager = RepairStrategyManager()
-        self.executor = RunbookExecutor(dry_run=settings.use_in_memory)
+        # 历史问题（已修复）：原为 dry_run=settings.use_in_memory（默认 False → 默认
+        # 真实执行 runbook YAML 中的 shell 命令，安全风险）。现默认 dry-run，仅在显式
+        # 允许时才真实执行。
+        self.executor = RunbookExecutor(dry_run=not settings.allow_real_execution)
 
 
 strategy_engine: Optional[StrategyEngine] = None

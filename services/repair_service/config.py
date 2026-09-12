@@ -25,6 +25,9 @@ class RepairServiceSettings(BaseSettings):
     redis_url: str = "redis://localhost:6379/1"
     database_url: str = "postgresql+asyncpg://postgres@localhost:5432/aiops"  # noqa: E501 - no embedded password
     use_in_memory: bool = False
+    # 安全闸门：默认不执行真实 shell 命令（dry-run）。仅当显式开启时（环境变量
+    # REPAIR_SERVICE_ALLOW_REAL_EXECUTION=1）才真实执行 runbook 中的命令。
+    allow_real_execution: bool = False
 
     # Prometheus
     enable_prometheus: bool = True
