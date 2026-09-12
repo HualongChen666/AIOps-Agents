@@ -207,24 +207,6 @@ def _now() -> str:
     """获取当前时间戳"""
     return datetime.now(timezone.utc).isoformat()
 
-    try:
-        db_fault = ChaosFaultDB(
-            id=fault["id"],
-            fault_type=fault["fault_type"],
-            target=fault["target"],
-            parameters=fault.get("parameters"),
-            severity=fault.get("severity"),
-            status=fault.get("status"),
-            result=fault.get("result"),
-            created_at=datetime.fromisoformat(fault["created_at"].replace("Z", "+00:00")),
-            updated_at=datetime.fromisoformat(fault["updated_at"].replace("Z", "+00:00")),
-        )
-        db.merge(db_fault)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to save fault to database: {str(e)}")
-
 
 # Experiment endpoints
 @router.get(
@@ -311,6 +293,29 @@ async def get_experiments(
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取实验列表失败"
         )
+
+
+@router.get(
+    "/experiment-list",
+    summary="获取实验列表（数据库，独立于 /experiments 引擎历史）",
+    responses={
+        200: {"description": "实验列表"},
+        500: {"description": "服务器错误"},
+    },
+)
+async def get_experiment_list(
+    status: Optional[ExperimentStatusEnum] = Query(None, description="按状态筛选"),
+    severity: Optional[SeverityEnum] = Query(None, description="按严重程度筛选"),
+    limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+) -> Dict[str, Any]:
+    """数据库中的实验注册表（非遮蔽路径）。
+
+    ``GET /api/v1/chaos/experiments`` 在应用注册顺序下由 chaos_router 的
+    引擎历史端点提供服务；本别名在同一数据（持久化实验注册表）上提供一个
+    不被遮蔽的读取入口，使管理界面能够按真实数据库 id 执行 run/stop/delete。
+    """
+    return await get_experiments(status=status, severity=severity, limit=limit, offset=offset)
 
 
 @router.post(

@@ -1,46 +1,65 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 
-interface DataItem {
-  id: string;
-  name: string;
-  status: string;
-  created_at: string;
+interface HAConfig {
+  ha_enabled: boolean;
+  ha_mode: string;
+  nodes: number;
+  load_balancer: string;
+  health_check_interval_seconds: number;
+  failover_timeout_seconds: number;
+  auto_failover_enabled: boolean;
 }
 
 export default function HaConfigurationPage() {
-  const [items, setItems] = useState<DataItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [config, setConfig] = useState<HAConfig | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await api.get('/api/disaster/ha-configuration');
-      setItems(res.data.items || []);
+      setConfig(res.data.ha_configuration);
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || '加载数据失败');
+      setError(err.response?.data?.detail || err.message || '加载高可用配置失败');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="text-gray-500">加载中...</div></div>;
   }
 
-  if (error) {
-    return <div className="bg-red-50 border border-red-200 rounded-lg p-4"><div className="text-red-800">{error}</div><Button onClick={fetchData} className="mt-2">重试</Button></div>;
+  if (error || !config) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="text-red-800">{error || '无高可用配置'}</div>
+        <Button onClick={fetchData} className="mt-2">重试</Button>
+      </div>
+    );
   }
+
+  const rows: [string, React.ReactNode][] = [
+    ['高可用', <Badge key="e" variant={config.ha_enabled ? 'default' : 'secondary'}>{config.ha_enabled ? '已启用' : '已停用'}</Badge>],
+    ['模式', config.ha_mode],
+    ['节点数', config.nodes],
+    ['负载均衡器', config.load_balancer],
+    ['健康检查间隔', `${config.health_check_interval_seconds} 秒`],
+    ['故障转移超时', `${config.failover_timeout_seconds} 秒`],
+    ['自动故障转移', <Badge key="a" variant={config.auto_failover_enabled ? 'default' : 'secondary'}>{config.auto_failover_enabled ? '开启' : '关闭'}</Badge>],
+  ];
 
   return (
     <div className="space-y-6">
@@ -50,23 +69,18 @@ export default function HaConfigurationPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>数据列表</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>配置详情</CardTitle></CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {items.map((item) => (
-              <div key={item.id} className="border rounded-lg p-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">{item.name}</h3>
-                  <div className="text-sm text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
-                </div>
-                <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
-                  {item.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {rows.map(([k, v]) => (
+                <tr key={k} className="border-b">
+                  <td className="py-3 text-gray-600 w-1/3">{k}</td>
+                  <td className="py-3">{v as any}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </CardContent>
       </Card>
     </div>

@@ -33,13 +33,12 @@ interface ChaosExperiment {
 interface ChaosScenario {
   id: string;
   name: string;
-  description: string;
-  fault_types: string[];
-  target_services: string[];
-  duration: number;
-  rollback_plan: string;
-  status: 'active' | 'inactive' | 'archived';
-  created_at: string;
+  description: string | null;
+  experiments: string[];
+  enabled: boolean;
+  schedule: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 interface ChaosFault {
@@ -70,7 +69,6 @@ export default function ChaosAdvancedPage() {
   });
 
   const debouncedSearch = useDebounce(searchTerm, 300);
-  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(false);
   const toast = useToast();
   const showSuccess = toast.success;
   const showError = toast.error;
@@ -79,8 +77,8 @@ export default function ChaosAdvancedPage() {
   const { data: chaosExperiments, isLoading: experimentsLoading, error: experimentsError, refetch: refetchExperiments } = useQuery<ChaosExperiment[]>({
     queryKey: ['chaos-experiments'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/chaos/experiments');
-      return resp.data.experiments || resp.data || [];
+      const resp = await api.get('/api/v1/chaos/experiment-list');
+      return resp.data.data?.items || [];
     },
     refetchInterval: 30000,
   });
@@ -90,7 +88,7 @@ export default function ChaosAdvancedPage() {
     queryKey: ['chaos-scenarios'],
     queryFn: async () => {
       const resp = await api.get('/api/v1/chaos/scenarios');
-      return resp.data.scenarios || resp.data || [];
+      return resp.data.data?.items || [];
     },
     refetchInterval: 60000,
   });
@@ -100,10 +98,12 @@ export default function ChaosAdvancedPage() {
     queryKey: ['chaos-faults'],
     queryFn: async () => {
       const resp = await api.get('/api/v1/chaos/faults');
-      return resp.data.faults || resp.data || [];
+      return resp.data.data?.items || [];
     },
     refetchInterval: 120000,
   });
+
+  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(experimentsLoading || scenariosLoading || faultsLoading);
 
   // Create experiment mutation
   const createExperimentMutation = useMutation({
@@ -121,10 +121,12 @@ export default function ChaosAdvancedPage() {
     },
   });
 
-  // Start/Stop experiment mutation
+  // Start/Stop experiment mutation. The backend exposes ``/run`` and ``/stop``
+  // only (there is no ``/start`` or ``/abort`` route).
   const toggleExperimentMutation = useMutation({
-    mutationFn: async ({ experimentId, action }: { experimentId: string; action: 'start' | 'stop' | 'abort' }) => {
-      const resp = await api.post(`/api/v1/chaos/experiments/${experimentId}/${action}`);
+    mutationFn: async ({ experimentId, action }: { experimentId: string; action: 'start' | 'stop' }) => {
+      const endpoint = action === 'start' ? 'run' : 'stop';
+      const resp = await api.post(`/api/v1/chaos/experiments/${experimentId}/${endpoint}`);
       return resp.data;
     },
     onSuccess: () => {
@@ -222,18 +224,27 @@ export default function ChaosAdvancedPage() {
   };
 
   const handleToggleExperiment = (experimentId: string, currentStatus: string) => {
+    // ``running`` experiments are stopped; every other state (pending / failed /
+    // aborted / completed) is (re)started via the single ``/run`` endpoint.
     if (currentStatus === 'running') {
       toggleExperimentMutation.mutate({ experimentId, action: 'stop' });
-    } else if (currentStatus === 'pending') {
+    } else {
       toggleExperimentMutation.mutate({ experimentId, action: 'start' });
-    } else if (currentStatus === 'running') {
-      toggleExperimentMutation.mutate({ experimentId, action: 'abort' });
     }
   };
 
   const handleDeleteExperiment = (experimentId: string) => {
     if (!window.confirm('Are you sure you want to delete this experiment?')) return;
     deleteExperimentMutation.mutate(experimentId);
+  };
+
+  const handleRunScenario = async (scenarioId: string) => {
+    try {
+      await api.post(`/api/v1/chaos/scenarios/${scenarioId}/run`);
+      showSuccess('Scenario executed');
+    } catch (error: any) {
+      showError(`Failed to run scenario: ${error.response?.data?.detail || error.message}`);
+    }
   };
 
   if (pageLoading) {
@@ -458,9 +469,8 @@ export default function ChaosAdvancedPage() {
                       <TableHead>ID</TableHead>
                       <TableHead>名称</TableHead>
                       <TableHead>描述</TableHead>
-                      <TableHead>故障类型</TableHead>
-                      <TableHead>目标服务</TableHead>
-                      <TableHead>持续时间(秒)</TableHead>
+                      <TableHead>实验数</TableHead>
+                      <TableHead>调度</TableHead>
                       <TableHead>状态</TableHead>
                       <TableHead>创建时间</TableHead>
                       <TableHead>操作</TableHead>
@@ -472,39 +482,19 @@ export default function ChaosAdvancedPage() {
                         <TableCell className="font-mono text-sm">{scenario.id}</TableCell>
                         <TableCell className="font-medium">{scenario.name}</TableCell>
                         <TableCell>{scenario.description}</TableCell>
+                        <TableCell>{scenario.experiments?.length ?? 0}</TableCell>
+                        <TableCell className="font-mono text-sm">{scenario.schedule || '手动'}</TableCell>
                         <TableCell>
-                          <div className="flex gap-1 flex-wrap">
-                            {scenario.fault_types.map((fault) => (
-                              <Badge key={fault} variant="outline" className="text-xs">
-                                {fault}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 flex-wrap">
-                            {scenario.target_services.map((service) => (
-                              <Badge key={service} variant="outline" className="text-xs">
-                                {service}
-                              </Badge>
-                            ))}
-                          </div>
-                        </TableCell>
-                        <TableCell>{scenario.duration}</TableCell>
-                        <TableCell>
-                          <Badge className={scenario.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
-                            {scenario.status}
+                          <Badge className={scenario.enabled ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
+                            {scenario.enabled ? '启用' : '停用'}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-gray-500">
-                          {new Date(scenario.created_at).toLocaleString()}
+                          {scenario.created_at ? new Date(scenario.created_at).toLocaleString() : '—'}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
-                            <Button variant="ghost" size="sm">
-                              <Settings className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" onClick={() => handleRunScenario(scenario.id)}>
                               <Play className="h-4 w-4" />
                             </Button>
                           </div>

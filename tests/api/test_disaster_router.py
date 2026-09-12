@@ -752,7 +752,7 @@ class TestVerifyBackup:
 
                     resp = disaster_client.post(
                         "/api/disaster/verify-backup",
-                        json={"backup_file": "/tmp/backups/db_backup.sql"}
+                        json={"backup_file": "backups/db_backup.sql"}
                     )
                     assert resp.status_code == 200
                     data = resp.json()
@@ -767,7 +767,7 @@ class TestVerifyBackup:
 
             resp = disaster_client.post(
                 "/api/disaster/verify-backup",
-                json={"backup_file": "/tmp/backups/nonexistent.sql"}
+                json={"backup_file": "backups/nonexistent.sql"}
             )
             assert resp.status_code == 404
 
@@ -780,7 +780,7 @@ class TestVerifyBackup:
 
                 resp = disaster_client.post(
                     "/api/disaster/verify-backup",
-                    json={"backup_file": "/tmp/backups/empty.sql"}
+                    json={"backup_file": "backups/empty.sql"}
                 )
                 assert resp.status_code == 200
                 data = resp.json()
@@ -796,7 +796,7 @@ class TestVerifyBackup:
 
                 resp = disaster_client.post(
                     "/api/disaster/verify-backup",
-                    json={"backup_file": "/tmp/backups/redis_backup.rdb"}
+                    json={"backup_file": "backups/redis_backup.rdb"}
                 )
                 assert resp.status_code == 200
                 data = resp.json()

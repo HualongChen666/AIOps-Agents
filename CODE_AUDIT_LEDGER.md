@@ -11628,3 +11628,60 @@ terraform/storage.tf
 ## D) 待续
 
 - task #3 chaos(8)+disaster(12)；#4 realtime+service-mesh；#5/#6/#7 后续域；横切 #8/#9。
+
+
+---
+
+# PART XLI — chaos 域（8 页）+ disaster 域（12 页）重写；横切 #8 的 FE-629 修复
+
+> 任务：task #3（chaos 8 页 + disaster 12 页模板页重写）。同时顺带修复横切 #8 的 FE-629（`chaos/chaos-advanced` 死分支/错误端点）。
+
+## A) 真实端点契约（实测）
+
+- **chaos_simple_router**（`/api/chaos/*`）返回体为 `{status, <key>}`，与旧模板页 `res.data.items` 不匹配 → 列表恒空。8 页改为调用 **`/api/v1/chaos/*`** 真实端点。
+- **chaos_router**（`/api/v1/chaos`，注册在前）：`GET /status`、`POST /enable|/disable`、`POST /experiment/{type}`、`GET /experiments`（**引擎历史**，`data:{total,experiments}`）、`GET /templates`。**新增** `GET /mesh`（真实注入后端状态：injector/CRD group·version/namespace/kubernetes 客户端可用性）。
+- **chaos_advanced_router**（`/api/v1/chaos`，注册在后）：`/experiments`(POST)、`/experiments/{id}`(GET/PATCH/DELETE)、`/experiments/{id}/run|/stop`、`/scenarios`(GET/POST)、`/scenarios/{id}`(GET/PATCH/DELETE)、`/scenarios/{id}/run`、`/faults`(GET/POST)、`/faults/{id}`(GET/PATCH/DELETE)、`/faults/{id}/inject`、`/metrics`、`/safety-checks`、批量端点。返回 `data:{items,total}` 或 `data:{...}`。
+
+## B) 路由遮蔽冲突（结构性，已用兼容方式规避，**未擅自重排**）
+
+`GET /api/v1/chaos/experiments` 同时被两 router 定义，注册顺序决定 **chaos_router（引擎历史）胜出**。
+- 证据：`tests/api/test_uncovered_api_batch_e.py`（monkeypatch `cr.chaos_engine`）断言该路径在引擎异常时返回 `success=False` → 证明当前由 chaos_router 服务；该测试**当前通过**。
+- 因此**不重排**（重排会使该测试失败，且属结构决策）。改为在 chaos_advanced_router 新增**非遮蔽别名** `GET /api/v1/chaos/experiment-list`（委托既有 `get_experiments`，返回同一持久化注册表），供管理界面按真实数据库 id 执行 run/stop/delete。
+- `GET /api/v1/chaos/mesh` 为其上新增端点；`/experiment-list` 已注册（openapi 实测）。
+
+## C) 前端：20 个 74 行模板页 → 真实业务页
+
+**chaos（8）**：`chaos-dashboard`(109,metrics+status)、`chaos-experiments`(171,experiments+templates+run-by-type)、`chaos-scenarios`(206,scenarios CRUD+run+内联建实验)、`chaos-configuration`(112,status+enable/disable)、`fault-injection`(198,faults CRUD+inject)、`chaos-mesh`(98,`/mesh`)、`chaos-reports`(138,experiments+metrics+导出)、`chaos-engineering`(117,status+templates)。
+**disaster（12）**：`backup-management`(131,overview+backup+cleanup)、`backup-recovery`(120,+restore)、`backup-strategy`(128,GET/PUT)、`data-backup`(101)、`disaster-recovery`(113,+dr-scenarios)、`dr-drill`(132,GET/POST)、`dr-scenarios`(98)、`dr-testing`(117)、`ha-configuration`(88)、`pgbackrest`(78)、`recovery-plan`(94)、`velero`(79)。
+
+全部调用真实端点、含加载/错误/空态与 toast；旧 `/api/chaos/chaos-*`、`res.data.items` 误用已消除。
+
+## D) 横切 #8（FE-629 `chaos/chaos-advanced`，633 行）修复
+
+- **死分支**：`handleToggleExperiment` 原 `running→stop / pending→start / running→abort` 第三分支不可达，且后端无 `/start`、`/abort`。改为 `running→/stop`，其余→`/run`（真实存在的两端点）。
+- **错误端点**：experiments/scenarios/faults 列表读取由 `resp.data.X` 修正为 `resp.data.data.{experiments|items}`；experiments 列表改用 `/api/v1/chaos/experiment-list`（真实 id，支持 run/stop/delete）。
+- **接口漂移**：`ChaosScenario` 由虚构字段（`fault_types/target_services/duration/status`）改为真实字段（`experiments/enabled/schedule`），场景表列同步重写并接 `POST /scenarios/{id}/run`。
+- **死分支**：`useLoadingState(false)` → `useLoadingState(experimentsLoading||scenariosLoading||faultsLoading)`（并移到 query 之后声明，避免 TDZ）。
+
+## E) 后端缺陷修复（真实、可执行）
+
+- `api/chaos_advanced_router.py`：删除 `_now()` 内 **return 之后的孤儿死代码块**（不可达，且引用未定义的 `fault`/`ChaosFaultDB`/`db`）。新增 `/experiment-list` 别名。
+- `api/chaos_router.py`：新增 `GET /mesh`（报告运行中引擎的真实注入后端，不臆造集群状态）。
+
+## F) 验证证据
+
+- `python -m py_compile api/chaos_router.py api/chaos_advanced_router.py` → OK。
+- `pytest tests/api/test_chaos_router.py test_chaos_advanced_router.py test_chaos_simple_router.py test_disaster_router.py` → **115 passed**。
+- `app.openapi()['paths']` 方法级确认 **33 个** path×方法（20 页依赖）全部存在（MISS 0）；`/api/v1/chaos/{mesh,experiment-list}` 已注册。
+- `npx tsc --noEmit`（frontend）→ **exit 0 / 0 error**。
+- 逻辑行数：24 个改动/新增文件 `splitlines == wc -l` 全部一致。
+
+## G) 修复的既有测试缺陷（**先前即失败**，非本 PART 引入，已核实于 HEAD）
+
+- `tests/api/test_chaos_advanced_router.py`：`TestFaultEndpoints` 三例直接构造 `ChaosFaultDB` 时遗漏 NOT NULL 的 `name`（2 例）→ 补 `name`/`description`；`mock_chaos_engine` 未把 `_inject_*` 设为 `AsyncMock`（`await` 非可等待对象）→ 补齐。
+- `tests/api/test_disaster_router.py`：`TestVerifyBackup` 4 例使用 `/tmp/backups/...`，被后端路径穿越守卫（真实安全逻辑）判 403 → 改用 `backups/...`（位于安全目录内）。
+- 核实方式：`git stash push api/chaos_advanced_router.py tests/...` 后于 HEAD 复跑，5 例仍失败 → 确证为既有漂移。
+
+## H) 待续
+
+- task #4 realtime(16)+service-mesh(12) → #5 → #6 → #7；横切 #8 余项（FE-632/633/638/639/642/643）、#9。

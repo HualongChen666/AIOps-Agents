@@ -80,6 +80,12 @@ def mock_chaos_engine():
     )
     engine.is_enabled = Mock(return_value=True)
     engine.get_experiment_history = Mock(return_value=[])
+    # Fault-injection primitives are awaited by the router; a plain Mock is not
+    # awaitable, so they must be async mocks too.
+    engine._inject_latency = AsyncMock(return_value={"injected": "latency"})
+    engine._inject_fault = AsyncMock(return_value={"injected": "fault"})
+    engine._limit_resources = AsyncMock(return_value={"injected": "resources"})
+    engine._partition_network = AsyncMock(return_value={"injected": "partition"})
     return engine
 
 
@@ -699,7 +705,9 @@ class TestFaultEndpoints:
         # Create fault in database
         fault = ChaosFaultDB(
             id=sample_fault["id"],
+            name=sample_fault["name"],
             fault_type=sample_fault["fault_type"],
+            description=sample_fault.get("description"),
             target=sample_fault["target"],
             parameters=sample_fault["parameters"],
             severity=sample_fault["severity"],
@@ -727,7 +735,9 @@ class TestFaultEndpoints:
         # Create fault in database
         fault = ChaosFaultDB(
             id=sample_fault["id"],
+            name=sample_fault["name"],
             fault_type=sample_fault["fault_type"],
+            description=sample_fault.get("description"),
             target=sample_fault["target"],
             parameters=sample_fault["parameters"],
             severity=sample_fault["severity"],

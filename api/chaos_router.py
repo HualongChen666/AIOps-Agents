@@ -400,3 +400,58 @@ async def get_chaos_templates() -> Dict[str, Any]:
         return create_success_response({"templates": templates})
     except Exception as e:
         return create_error_response(error=str(e), error_code="TEMPLATES_ERROR")
+
+
+@router.get(
+    "/mesh",
+    summary="获取 Chaos Mesh 注入后端状态",
+    responses={
+        200: {
+            "description": "注入后端状态",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "success": True,
+                        "data": {
+                            "injector": "ChaosMeshInjector",
+                            "api_group": "chaos-mesh.org",
+                            "api_version": "v1alpha1",
+                            "namespace": "default",
+                            "kubernetes_client_available": True,
+                            "enabled": False,
+                        },
+                    }
+                }
+            },
+        },
+        500: {"description": "获取注入后端状态失败"},
+    },
+)
+async def get_chaos_mesh_status() -> Dict[str, Any]:
+    """报告当前混沌实验实际使用的注入后端（Chaos Mesh）的真实能力。
+
+    返回的信息全部来自运行中的引擎：注入器实现、CRD 的 ``apiGroup`` /
+    ``version``、目标命名空间，以及集群客户端（``kubernetes`` 包）是否可用。
+    不臆造集群状态。
+    """
+    try:
+        injector = chaos_engine.injector
+        try:
+            import kubernetes  # noqa: F401
+
+            kubernetes_client_available = True
+        except Exception:
+            kubernetes_client_available = False
+
+        return create_success_response(
+            {
+                "injector": type(injector).__name__,
+                "api_group": getattr(injector, "group", None),
+                "api_version": getattr(injector, "version", None),
+                "namespace": getattr(injector, "namespace", None),
+                "kubernetes_client_available": kubernetes_client_available,
+                "enabled": chaos_engine.is_enabled(),
+            }
+        )
+    except Exception as e:
+        return create_error_response(error=str(e), error_code="CHAOS_MESH_ERROR")

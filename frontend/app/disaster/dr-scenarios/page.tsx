@@ -1,36 +1,50 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
+import toast from 'react-hot-toast';
 
-interface DataItem {
-  id: string;
+interface Scenario {
   name: string;
-  status: string;
-  created_at: string;
+  description: string;
+  enabled: boolean;
 }
 
 export default function DrScenariosPage() {
-  const [items, setItems] = useState<DataItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [runningName, setRunningName] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.get('/api/disaster/dr-scenarios');
+      setScenarios(res.data.scenarios || []);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || '加载场景失败');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
-  const fetchData = async () => {
+  const runScenario = async (name: string) => {
     try {
-      setLoading(true);
-      const res = await api.get('/api/disaster/dr-scenarios');
-      setItems(res.data.items || []);
+      setRunningName(name);
+      const res = await api.post('/api/disaster/dr-drill', { scenario: name, parameters: {} });
+      toast.success(`${name} 演练完成：${res.data.drill_status}`);
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || '加载数据失败');
+      toast.error(err.response?.data?.detail || '演练失败');
     } finally {
-      setLoading(false);
+      setRunningName(null);
     }
   };
 
@@ -39,7 +53,12 @@ export default function DrScenariosPage() {
   }
 
   if (error) {
-    return <div className="bg-red-50 border border-red-200 rounded-lg p-4"><div className="text-red-800">{error}</div><Button onClick={fetchData} className="mt-2">重试</Button></div>;
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="text-red-800">{error}</div>
+        <Button onClick={fetchData} className="mt-2">重试</Button>
+      </div>
+    );
   }
 
   return (
@@ -50,23 +69,28 @@ export default function DrScenariosPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>数据列表</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>可用场景（{scenarios.length}）</CardTitle></CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {items.map((item) => (
-              <div key={item.id} className="border rounded-lg p-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">{item.name}</h3>
-                  <div className="text-sm text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
+          {scenarios.length === 0 ? (
+            <div className="text-gray-500 text-center py-8">暂无场景</div>
+          ) : (
+            <div className="space-y-3">
+              {scenarios.map((s) => (
+                <div key={s.name} className="border rounded-lg p-4 flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{s.name}</div>
+                    <div className="text-sm text-gray-500">{s.description}</div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={s.enabled ? 'default' : 'secondary'}>{s.enabled ? '启用' : '停用'}</Badge>
+                    <Button size="sm" onClick={() => runScenario(s.name)} disabled={runningName === s.name}>
+                      {runningName === s.name ? '执行中...' : '执行演练'}
+                    </Button>
+                  </div>
                 </div>
-                <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
-                  {item.status}
-                </Badge>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
