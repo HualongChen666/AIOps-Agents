@@ -215,13 +215,15 @@ class AuthenticationProvider:
             return None
 
     async def logout(self, token: str) -> bool:
-        """Logout a user (invalidate token)."""
+        """Logout a user by blacklisting the token's jti so it can no longer be used."""
         try:
-            # In a real implementation, this would add the token to a blacklist
-            # For now, we'll just log the logout
+            from core import config
+            from core.token_blacklist import blacklist_token
+
             payload = decode_token(token)
             username = payload.get("sub")
-            logger.info(f"User logged out: {username}")
+            blacklist_token(token, config.JWT_SECRET_KEY, config.JWT_ALGORITHM)
+            logger.info(f"User logged out and token revoked: {username}")
             return True
         except Exception as e:
             logger.error(f"Error during logout: {e}", exc_info=True)

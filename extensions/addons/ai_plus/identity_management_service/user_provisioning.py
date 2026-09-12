@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
 
 from identity_manager import IdentityManager
+from group_manager import group_manager
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,9 @@ class UserProvisioning:
                 return False
             
             # Remove from all groups
-            # (In a real implementation, we'd query all groups and remove the user)
+            groups = await group_manager.get_user_groups(username)
+            for group in groups:
+                await group_manager.remove_user_from_group(username, group["id"])
             
             logger.info(f"✅ User deprovisioned successfully: {username}")
             return True
@@ -127,21 +130,25 @@ class UserProvisioning:
             return {"success": 0, "failed": 0, "errors": [str(e)]}
 
     async def add_user_to_group(self, username: str, group_name: str) -> bool:
-        """Add a user to a group."""
+        """Add a user to a group (resolved by name)."""
         try:
-            # In a real implementation, this would use the group management
-            logger.info(f"Adding user {username} to group {group_name}")
-            return True
+            group = await group_manager.get_group_by_name(group_name)
+            if group is None:
+                logger.error(f"Cannot add {username}: group not found: {group_name}")
+                return False
+            return await group_manager.add_user_to_group(username, group["id"])
         except Exception as e:
             logger.error(f"Error adding user {username} to group {group_name}: {e}", exc_info=True)
             return False
 
     async def remove_user_from_group(self, username: str, group_name: str) -> bool:
-        """Remove a user from a group."""
+        """Remove a user from a group (resolved by name)."""
         try:
-            # In a real implementation, this would use the group management
-            logger.info(f"Removing user {username} from group {group_name}")
-            return True
+            group = await group_manager.get_group_by_name(group_name)
+            if group is None:
+                logger.error(f"Cannot remove {username}: group not found: {group_name}")
+                return False
+            return await group_manager.remove_user_from_group(username, group["id"])
         except Exception as e:
             logger.error(f"Error removing user {username} from group {group_name}: {e}", exc_info=True)
             return False

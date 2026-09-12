@@ -3,6 +3,8 @@
 
 import asyncio
 import logging
+import os
+import sys
 from typing import Any, Dict, List, Optional
 
 try:
@@ -10,11 +12,19 @@ try:
 except ImportError:
     from config import Config
 
+try:
+    from ...json_grpc_rpc import JsonRpcClient
+except ImportError:  # pragma: no cover - bare import fallback
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+    from json_grpc_rpc import JsonRpcClient
+
 logger = logging.getLogger(Config.SERVICE_NAME)
 
+SERVICE_FQN = "compliance.ComplianceMonitoringService"
 
-class ComplianceMonitoringRPCClient:
-    """RPC client for compliance monitoring service."""
+
+class ComplianceMonitoringRPCClient(JsonRpcClient):
+    """Real gRPC client for the compliance monitoring service."""
 
     def __init__(self, host: str = None, port: int = None) -> None:
         """Initialize the RPC client.
@@ -23,22 +33,24 @@ class ComplianceMonitoringRPCClient:
             host: Server host
             port: Server port
         """
-        self.host = host or Config.GRPC_HOST
-        self.port = port or Config.GRPC_PORT
-        self._connected = False
+        super().__init__(
+            SERVICE_FQN,
+            host or Config.GRPC_HOST,
+            port or Config.GRPC_PORT,
+        )
 
     async def connect(self) -> None:
-        """Connect to the RPC server."""
-        self._connected = True
+        """Connect to the RPC server (waits until the channel is ready)."""
+        await super().connect()
         logger.info(f"Connected to RPC server at {self.host}:{self.port}")
 
     async def disconnect(self) -> None:
         """Disconnect from the RPC server."""
-        self._connected = False
+        await super().disconnect()
         logger.info("Disconnected from RPC server")
 
     async def call(self, method: str, payload: Optional[Dict[str, Any]] = None) -> Any:
-        """Call an RPC method.
+        """Call an RPC method over real gRPC.
 
         Args:
             method: Name of the method to call
@@ -50,11 +62,7 @@ class ComplianceMonitoringRPCClient:
         Raises:
             ConnectionError: If not connected
         """
-        if not self._connected:
-            raise ConnectionError("Not connected to RPC server")
-
-        logger.debug(f"Called RPC method: {method}")
-        return {"status": "simulated", "method": method}
+        return await super().call(method, payload)
 
     async def run_compliance_check(
         self,

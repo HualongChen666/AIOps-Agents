@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from compliance_monitor import ComplianceMonitor, AlertSeverity
 from policy_checker import PolicyChecker, PolicyType
 from report_generator import ReportGenerator, ReportFormat, ReportType
-from grpc.server import serve as grpc_serve
+from grpc.server import rpc_server, serve as grpc_serve
 
 # Import compliance manager from core
 from core.compliance_manager import ComplianceFramework, ComplianceStatus, RiskLevel
@@ -674,6 +674,206 @@ async def run_monitoring_cycle():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+
+# RPC handler registry (method name -> real dispatcher), served over gRPC and HTTP /rpc.
+def _rpc_run_compliance_check(payload: Dict[str, Any]) -> Dict[str, Any]:
+    framework = ComplianceFramework(payload["framework"]) if payload.get("framework") else None
+    checks = compliance_monitor.compliance_manager.run_compliance_check(rule_id=payload.get("rule_id"), framework=framework)
+    return {
+        "success": True,
+        "checks": [
+            {
+                "check_id": c.check_id,
+                "rule_id": c.rule_id,
+                "status": c.status.value,
+                "checked_at": c.checked_at.isoformat(),
+                "findings": c.findings,
+                "recommendations": c.recommendations,
+                "evidence": c.evidence,
+                "metadata": c.metadata,
+            }
+            for c in checks
+        ],
+    }
+
+
+def _rpc_get_compliance_rules(payload: Dict[str, Any]) -> Dict[str, Any]:
+    framework = ComplianceFramework(payload["framework"]) if payload.get("framework") else None
+    rules = compliance_monitor.compliance_manager.get_compliance_rules(framework=framework)
+    if payload.get("enabled_only"):
+        rules = {k: v for k, v in rules.items() if v.get("enabled", True)}
+    return {"success": True, "rules": list(rules.values()), "total_count": len(rules)}
+
+
+def _rpc_register_compliance_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from core.compliance_manager import ComplianceRule
+
+    rule = ComplianceRule(
+        rule_id=payload["rule_id"],
+        rule_name=payload["rule_name"],
+        framework=ComplianceFramework(payload["framework"]),
+        description=payload["description"],
+        severity=RiskLevel(payload.get("severity", "medium")),
+        enabled=payload.get("enabled", True),
+        check_frequency=payload.get("check_frequency", 86400),
+        metadata=payload.get("metadata", {}),
+    )
+    compliance_monitor.compliance_manager.register_rule(rule)
+    return {"success": True, "rule": rule.to_dict()}
+
+
+def _rpc_update_compliance_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
+    rule_id = payload["rule_id"]
+    rules = compliance_monitor.compliance_manager.compliance_rules
+    if rule_id not in rules:
+        raise ValueError(f"Rule not found: {rule_id}")
+    from core.compliance_manager import ComplianceRule
+
+    existing = rules[rule_id]
+    updated = ComplianceRule(
+        rule_id=rule_id,
+        rule_name=payload.get("rule_name") or existing.rule_name,
+        framework=ComplianceFramework(payload.get("framework") or existing.framework.value),
+        description=payload.get("description") or existing.description,
+        severity=RiskLevel(payload.get("severity") or existing.severity.value),
+        enabled=existing.enabled if payload.get("enabled") is None else payload["enabled"],
+        check_frequency=payload.get("check_frequency") or existing.check_frequency,
+        metadata=payload.get("metadata") or existing.metadata,
+    )
+    compliance_monitor.compliance_manager.register_rule(updated)
+    return {"success": True, "rule": updated.to_dict()}
+
+
+def _rpc_delete_compliance_rule(payload: Dict[str, Any]) -> Dict[str, Any]:
+    rule_id = payload["rule_id"]
+    rules = compliance_monitor.compliance_manager.compliance_rules
+    if rule_id not in rules:
+        raise ValueError(f"Rule not found: {rule_id}")
+    del rules[rule_id]
+    return {"success": True, "message": f"Rule {rule_id} deleted successfully"}
+
+
+async def _rpc_generate_compliance_report(payload: Dict[str, Any]) -> Dict[str, Any]:
+    from report_generator import ReportConfig
+
+    framework = ComplianceFramework(payload["framework"])
+    config = ReportConfig(
+        report_type=ReportType("detailed"),
+        format=ReportFormat("json"),
+        include_recommendations=payload.get("metadata", {}).get("include_recommendations", True),
+        include_evidence=payload.get("metadata", {}).get("include_evidence", True),
+    )
+    period_start = datetime.fromtimestamp(int(payload["period_start"]), tz=timezone.utc)
+    period_end = datetime.fromtimestamp(int(payload["period_end"]), tz=timezone.utc)
+    checks = await compliance_monitor.compliance_manager.run_compliance_check(framework=framework)
+    report = await report_generator.generate_report(
+        framework=framework,
+        period_start=period_start,
+        period_end=period_end,
+        checks=checks,
+        report_config=config,
+    )
+    return {
+        "success": True,
+        "report": {
+            "report_id": report.report_id,
+            "framework": report.framework.value,
+            "format": report.format.value,
+            "file_path": report.file_path,
+            "generated_at": report.generated_at.isoformat(),
+        },
+    }
+
+
+def _rpc_get_compliance_report(payload: Dict[str, Any]) -> Dict[str, Any]:
+    report = report_generator.get_report(payload["report_id"])
+    if not report:
+        raise ValueError(f"Report not found: {payload['report_id']}")
+    return {"success": True, "report": {"report_id": report.report_id, "file_path": report.file_path}}
+
+
+def _rpc_list_compliance_reports(payload: Dict[str, Any]) -> Dict[str, Any]:
+    framework = ComplianceFramework(payload["framework"]) if payload.get("framework") else None
+    reports = report_generator.list_reports(framework=framework, limit=payload.get("limit", 100))
+    return {"success": True, "reports": reports, "total_count": len(reports)}
+
+
+def _rpc_get_check_history(payload: Dict[str, Any]) -> Dict[str, Any]:
+    history = compliance_monitor.compliance_manager.get_check_history(
+        rule_id=payload.get("rule_id"), limit=payload.get("limit", 100)
+    )
+    return {"success": True, "history": history, "total_count": len(history)}
+
+
+def _rpc_get_compliance_statistics(_payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "success": True,
+        "statistics": {
+            **compliance_monitor.compliance_manager.get_statistics(),
+            **compliance_monitor.get_statistics(),
+        },
+    }
+
+
+def _rpc_get_compliance_trend(payload: Dict[str, Any]) -> Dict[str, Any]:
+    framework = ComplianceFramework(payload["framework"]) if payload.get("framework") else None
+    trend = compliance_monitor.get_trend_analysis(framework=framework, days=payload.get("days", 30))
+    return {"success": True, "trend": trend}
+
+
+def _rpc_register_notification_handler(payload: Dict[str, Any]) -> Dict[str, Any]:
+    handler_type = payload["handler_type"]
+    handler_config = payload.get("handler_config", {})
+
+    async def _handler(alert: Any) -> None:
+        logger.info(f"[{handler_type}] compliance alert: {alert}")
+
+    compliance_monitor.register_notification_handler(_handler)
+    return {"success": True, "handler_type": handler_type, "config": handler_config}
+
+
+def _rpc_health_check(_payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {"status": "ok", "service": SERVICE_NAME, "success": True}
+
+
+RPC_HANDLERS = {
+    "run_compliance_check": _rpc_run_compliance_check,
+    "get_compliance_rules": _rpc_get_compliance_rules,
+    "register_compliance_rule": _rpc_register_compliance_rule,
+    "update_compliance_rule": _rpc_update_compliance_rule,
+    "delete_compliance_rule": _rpc_delete_compliance_rule,
+    "generate_compliance_report": _rpc_generate_compliance_report,
+    "get_compliance_report": _rpc_get_compliance_report,
+    "list_compliance_reports": _rpc_list_compliance_reports,
+    "get_check_history": _rpc_get_check_history,
+    "get_compliance_statistics": _rpc_get_compliance_statistics,
+    "get_compliance_trend": _rpc_get_compliance_trend,
+    "register_notification_handler": _rpc_register_notification_handler,
+    "health_check": _rpc_health_check,
+}
+
+for _name, _handler in RPC_HANDLERS.items():
+    rpc_server.register(_name, _handler)
+
+
+@app.post("/rpc/{method}")
+async def rpc_call(method: str, payload: Dict[str, Any] = None):
+    """RPC endpoint for inter-service communication."""
+    try:
+        result = await rpc_server.call(method, payload or {})
+        return {"success": True, "result": result}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"RPC call {method} failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/rpc")
+async def list_rpc_methods():
+    """List available RPC methods."""
+    return {"methods": rpc_server.list_methods()}
 
 
 if __name__ == "__main__":

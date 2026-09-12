@@ -2,17 +2,28 @@
 """gRPC client for Secret Management Service."""
 
 import asyncio
+import os
+import sys
 from typing import Any, Dict, Optional
 
 try:
     from ..config import Config
 except ImportError:
     from config import Config
+
+try:
+    from ...json_grpc_rpc import JsonRpcClient
+except ImportError:  # pragma: no cover - bare import fallback
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+    from json_grpc_rpc import JsonRpcClient
+
 from loguru import logger
 
+SERVICE_FQN = "secret.SecretManagementService"
 
-class SecretManagementRPCClient:
-    """Simple RPC client for secret management service."""
+
+class SecretManagementRPCClient(JsonRpcClient):
+    """Real gRPC client for the secret management service."""
 
     def __init__(self, host: str = None, port: int = None) -> None:
         """Initialize the RPC client.
@@ -21,23 +32,20 @@ class SecretManagementRPCClient:
             host: Server host
             port: Server port
         """
-        self.host = host or Config.GRPC_HOST
-        self.port = port or Config.GRPC_PORT
-        self._connected = False
+        super().__init__(SERVICE_FQN, host or Config.GRPC_HOST, port or Config.GRPC_PORT)
 
     async def connect(self) -> None:
-        """Connect to the RPC server."""
-        # In a real implementation, this would establish a gRPC connection
-        self._connected = True
+        """Connect to the RPC server (waits until the channel is ready)."""
+        await super().connect()
         logger.info(f"Connected to RPC server at {self.host}:{self.port}")
 
     async def disconnect(self) -> None:
         """Disconnect from the RPC server."""
-        self._connected = False
+        await super().disconnect()
         logger.info("Disconnected from RPC server")
 
     async def call(self, method: str, payload: Optional[Dict[str, Any]] = None) -> Any:
-        """Call an RPC method.
+        """Call an RPC method over real gRPC.
 
         Args:
             method: Name of the method to call
@@ -49,20 +57,7 @@ class SecretManagementRPCClient:
         Raises:
             ConnectionError: If not connected
         """
-        if not self._connected:
-            raise ConnectionError("Not connected to RPC server")
-
-        # In a real implementation, this would make an actual gRPC call
-        # For now, we simulate the call
-        logger.debug(f"Called RPC method: {method}")
-
-        # This would be replaced with actual gRPC call
-        # stub = secret_management_pb2_grpc.SecretManagementServiceStub(self.channel)
-        # request = self._create_request(method, payload)
-        # response = stub.Method(request)
-        # return self._parse_response(response)
-
-        return {"status": "simulated", "method": method}
+        return await super().call(method, payload)
 
     async def create_secret(
         self,

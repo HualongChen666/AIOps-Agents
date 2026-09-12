@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional
 # Add project root to path for imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from authentication_provider import authentication_provider
@@ -17,11 +18,58 @@ from group_manager import group_manager
 from identity_manager import identity_manager
 from user_provisioning import user_provisioning
 
+from core.auth_service import (
+    create_access_token,
+    get_current_user,
+    has_role,
+    is_internal_key,
+)
+
 SERVICE_NAME = "identity_management_service"
 PORT = int(os.getenv("PORT", "8000"))
 
 app = FastAPI(title=SERVICE_NAME.replace("_", " ").title())
 logger = logging.getLogger(SERVICE_NAME)
+
+# Endpoints reachable without authentication (health probe + login flows).
+PUBLIC_PATHS = {
+    "/health",
+    "/",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/docs/oauth2-redirect",
+    "/auth/login",
+    "/auth/mfa",
+    "/sso/login",
+}
+
+
+@app.middleware("http")
+async def require_auth(request: Request, call_next):
+    """Require either a valid internal key or an admin JWT for all protected paths."""
+    if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS:
+        return await call_next(request)
+
+    if is_internal_key(request):
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):]
+        try:
+            user = get_current_user(token=token, request=request)
+        except HTTPException:
+            user = None
+        if user is not None and has_role(user, "admin"):
+            return await call_next(request)
+
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": "Authentication required"},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
 
 # Configure logging
 logging.basicConfig(
@@ -441,16 +489,30 @@ async def sso_login(request: SSOLoginRequest) -> SSOLoginResponse:
     return SSOLoginResponse(
         success=True,
         user=UserResponse(**result),
-        token="jwt_token_placeholder",
+        token=create_access_token(
+            {"sub": result["username"], "role": result.get("role", "user")}
+        ),
         message="SSO login successful"
     )
 
 
 # Authentication Endpoints
+class LoginRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=1)
+
+
+class MFALoginRequest(BaseModel):
+    username: str = Field(..., min_length=1, max_length=50)
+    code: str = Field(..., min_length=6, max_length=8)
+
+
 @app.post("/auth/login")
-async def login(username: str, password: str):
+async def login(request: LoginRequest):
     """Authenticate a user."""
-    result = await authentication_provider.authenticate_user(username, password)
+    result = await authentication_provider.authenticate_user(
+        request.username, request.password
+    )
     if not result:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -460,9 +522,11 @@ async def login(username: str, password: str):
 
 
 @app.post("/auth/mfa")
-async def mfa_login(username: str, code: str):
+async def mfa_login(request: MFALoginRequest):
     """Authenticate with MFA."""
-    result = await authentication_provider.authenticate_with_mfa(username, code)
+    result = await authentication_provider.authenticate_with_mfa(
+        request.username, request.code
+    )
     if not result:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

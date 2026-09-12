@@ -114,6 +114,56 @@ class UserAssetPermission(Base):
     asset = relationship("Asset", back_populates="permissions")
 
 
+class UserAttribute(Base):
+    """Persistent custom key/value attributes attached to a user."""
+
+    __tablename__ = "user_attributes"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    key = Column(String(128), nullable=False)
+    value = Column(String(2048), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    user = relationship("User", backref="attributes")
+
+
+class Group(Base):
+    """Persistent user group."""
+
+    __tablename__ = "user_groups"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(128), unique=True, nullable=False, index=True)
+    description = Column(String(512), nullable=True)
+    attributes = Column(String, nullable=True)  # JSON-encoded dict
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+
+class GroupMembership(Base):
+    """Persistent many-to-many between users and groups."""
+
+    __tablename__ = "user_group_memberships"
+    id = Column(Integer, primary_key=True, index=True)
+    group_id = Column(
+        Integer, ForeignKey("user_groups.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 def get_session() -> Session:
     return SessionLocal()
 
