@@ -404,6 +404,112 @@ async def get_queries(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _introspect_db_indexes(table_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Introspect the *real* indexes that exist in the configured database.
+
+    Nothing is invented: the index names, columns, uniqueness and (where the
+    engine exposes it) on-disk size are read from the live catalog.  When the
+    database cannot be reached an empty list is returned so the caller reports
+    "no indexes" rather than a fabricated catalogue.
+    """
+    from sqlalchemy import text as _sql
+
+    from core.database import engine as _engine
+
+    results: List[Dict[str, Any]] = []
+    dialect = _engine.dialect.name
+    try:
+        with _engine.connect() as conn:
+            if dialect == "sqlite":
+                if table_name:
+                    table_rows = conn.execute(
+                        _sql(
+                            "SELECT name FROM sqlite_master WHERE type='table' "
+                            "AND name = :t AND name NOT LIKE 'sqlite_%'"
+                        ),
+                        {"t": table_name},
+                    ).fetchall()
+                else:
+                    table_rows = conn.execute(
+                        _sql(
+                            "SELECT name FROM sqlite_master WHERE type='table' "
+                            "AND name NOT LIKE 'sqlite_%' ORDER BY name"
+                        )
+                    ).fetchall()
+                for (tbl,) in table_rows:
+                    for row in conn.exec_driver_sql(f'PRAGMA index_list("{tbl}")').fetchall():
+                        # PRAGMA index_list → (seq, name, unique, origin, partial)
+                        index_name, unique = row[1], bool(row[2])
+                        cols = [
+                            r[2]
+                            for r in conn.exec_driver_sql(
+                                f'PRAGMA index_info("{index_name}")'
+                            ).fetchall()
+                            if r[2] is not None
+                        ]
+                        if not cols:
+                            continue
+                        results.append(
+                            {
+                                "index_id": f"{tbl}::{index_name}",
+                                "index_name": index_name,
+                                "table_name": tbl,
+                                "columns": cols,
+                                "index_type": "btree",
+                                "is_unique": unique,
+                                "size_bytes": 0,
+                                "created_at": datetime.utcnow().isoformat(),
+                            }
+                        )
+            else:
+                params: Dict[str, Any] = {}
+                where = "WHERE t.relkind = 'r'"
+                if table_name:
+                    where += " AND t.relname = :tbl"
+                    params["tbl"] = table_name
+                rows = conn.execute(
+                    _sql(
+                        f"""
+                        SELECT t.relname AS table_name,
+                               i.relname AS index_name,
+                               ix.indisunique AS is_unique,
+                               a.attname AS column_name,
+                               k.ordinality AS ord,
+                               COALESCE(pg_relation_size(ix.indexrelid), 0) AS size_bytes
+                        FROM pg_index ix
+                        JOIN pg_class i ON i.oid = ix.indexrelid
+                        JOIN pg_class t ON t.oid = ix.indrelid
+                        JOIN unnest(ix.indkey) WITH ORDINALITY AS k(attnum, ordinality) ON TRUE
+                        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = k.attnum
+                        {where}
+                        ORDER BY t.relname, i.relname, k.ordinality
+                        """
+                    ),
+                    params,
+                ).fetchall()
+                grouped: Dict[str, Dict[str, Any]] = {}
+                for tbl, index_name, is_unique, column_name, _ord, size_bytes in rows:
+                    entry = grouped.setdefault(
+                        f"{tbl}::{index_name}",
+                        {
+                            "index_id": f"{tbl}::{index_name}",
+                            "index_name": index_name,
+                            "table_name": tbl,
+                            "columns": [],
+                            "index_type": "btree",
+                            "is_unique": bool(is_unique),
+                            "size_bytes": int(size_bytes or 0),
+                            "created_at": datetime.utcnow().isoformat(),
+                        },
+                    )
+                    entry["columns"].append(column_name)
+                results = list(grouped.values())
+    except Exception as exc:  # pragma: no cover - surfaced as empty list
+        logger.error("Index introspection failed: %s", exc)
+        return []
+    return results
+
+
 @router.get(
     "/indexes",
     response_model=List[DatabaseIndex],
@@ -421,43 +527,26 @@ async def get_indexes(table_name: Optional[str] = Query(None, description="Filte
         table_name: Optional table name filter
 
     Returns:
-        List of database indexes
+        List of database indexes — merged from the operator-registered records
+        and the indexes actually present in the database catalog.
     """
     try:
-        indexes = list(_indexes.values())
+        # Operator-registered indexes (persisted via POST /indexes).
+        stored = list(_indexes.values())
+        # Real indexes read from the live database catalog.
+        discovered = _introspect_db_indexes(table_name)
 
-        if table_name:
-            indexes = [idx for idx in indexes if idx.get("table_name") == table_name]
+        by_name: Dict[str, Dict[str, Any]] = {}
+        for idx in stored:
+            if table_name and idx.get("table_name") != table_name:
+                continue
+            by_name[idx["index_name"]] = idx
+        for idx in discovered:
+            # A live catalog entry wins over a stale stored record with the
+            # same name, because the catalog is the source of truth.
+            by_name[idx["index_name"]] = idx
 
-        # Add some default indexes if empty
-        if not indexes:
-            default_indexes = [
-                {
-                    "index_id": str(uuid4()),
-                    "index_name": "idx_users_email",
-                    "table_name": "users",
-                    "columns": ["email"],
-                    "index_type": "btree",
-                    "is_unique": True,
-                    "size_bytes": 1024000,
-                    "created_at": datetime.utcnow().isoformat(),
-                },
-                {
-                    "index_id": str(uuid4()),
-                    "index_name": "idx_orders_created_at",
-                    "table_name": "orders",
-                    "columns": ["created_at"],
-                    "index_type": "btree",
-                    "is_unique": False,
-                    "size_bytes": 2048000,
-                    "created_at": datetime.utcnow().isoformat(),
-                },
-            ]
-            for idx in default_indexes:
-                _indexes[idx["index_id"]] = idx
-            indexes = default_indexes
-
-        return [DatabaseIndex(**idx) for idx in indexes]
+        return [DatabaseIndex(**idx) for idx in by_name.values()]
     except Exception as e:
         logger.error(f"Error getting indexes: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -529,6 +618,8 @@ async def get_backups(
         List of database backups
     """
     try:
+        # Only backups that were actually produced by the backup backend are
+        # returned; an empty list means "no backups exist", never synthetic rows.
         backups = list(_backups.values())
 
         if database_name:
@@ -536,32 +627,6 @@ async def get_backups(
 
         if status_filter:
             backups = [backup for backup in backups if backup.get("status") == status_filter]
-
-        # Add some default backups if empty
-        if not backups:
-            default_backups = [
-                {
-                    "backup_id": str(uuid4()),
-                    "database_name": "production",
-                    "backup_type": "full",
-                    "size_bytes": 1073741824,
-                    "status": "completed",
-                    "created_at": datetime.utcnow().isoformat(),
-                    "completed_at": datetime.utcnow().isoformat(),
-                },
-                {
-                    "backup_id": str(uuid4()),
-                    "database_name": "production",
-                    "backup_type": "incremental",
-                    "size_bytes": 536870912,
-                    "status": "completed",
-                    "created_at": datetime.utcnow().isoformat(),
-                    "completed_at": datetime.utcnow().isoformat(),
-                },
-            ]
-            for backup in default_backups:
-                _backups[backup["backup_id"]] = backup
-            backups = default_backups
 
         return [DatabaseBackup(**backup) for backup in backups]
     except Exception as e:
@@ -626,6 +691,62 @@ async def create_backup(request: DatabaseBackupCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _discover_migrations() -> List[Dict[str, Any]]:
+    """Read the real Alembic revision history from ``alembic/versions``.
+
+    Each ``.py`` revision file contributes one migration whose ``version`` is
+    the revision id and whose description comes from the module docstring.  The
+    status is ``applied`` when the revision id is recorded in the database's
+    ``alembic_version`` table, otherwise ``pending``.  If the revision history
+    or the database cannot be read, an empty list is returned — never a
+    fabricated migration plan.
+    """
+    import re
+    from pathlib import Path
+
+    versions_dir = Path(__file__).resolve().parent.parent / "alembic" / "versions"
+    if not versions_dir.is_dir():
+        return []
+
+    applied: set = set()
+    try:
+        from sqlalchemy import text as _sql
+
+        from core.database import engine as _engine
+
+        with _engine.connect() as conn:
+            rows = conn.execute(_sql("SELECT version_num FROM alembic_version")).fetchall()
+            applied = {str(r[0]) for r in rows}
+    except Exception:
+        applied = set()
+
+    discovered: List[Dict[str, Any]] = []
+    for script in sorted(versions_dir.glob("*.py")):
+        try:
+            text = script.read_text(encoding="utf-8", errors="ignore")
+        except Exception:
+            continue
+        match = re.search(r"^revision(?::\s*str)?\s*=\s*['\"]([^'\"]+)['\"]", text, re.M)
+        if not match:
+            continue
+        revision = match.group(1)
+        doc = re.match(r'\s*(?:#.*\n)*\s*(?:"""|\'\'\')(.*?)(?:"""|\'\'\')', text, re.S)
+        description = doc.group(1).strip().splitlines()[0] if doc else ""
+        is_applied = revision in applied
+        discovered.append(
+            {
+                "migration_id": revision,
+                "version": revision,
+                "name": description or script.stem,
+                "description": description,
+                "status": "applied" if is_applied else "pending",
+                "applied_at": None,
+                "rollback_script": None,
+            }
+        )
+    return discovered
+
+
 @router.get(
     "/migrations",
     response_model=List[DatabaseMigration],
@@ -648,47 +769,25 @@ async def get_migrations(
         List of database migrations
     """
     try:
-        migrations = list(_migrations.values())
+        migrations = _discover_migrations()
 
         if status_filter:
             migrations = [
                 migration for migration in migrations if migration.get("status") == status_filter
             ]
 
-        # Add some default migrations if empty
-        if not migrations:
-            default_migrations = [
-                {
-                    "migration_id": str(uuid4()),
-                    "version": "001",
-                    "name": "create_users_table",
-                    "description": "Initial users table creation",
-                    "status": "applied",
-                    "applied_at": datetime.utcnow().isoformat(),
-                    "rollback_script": "DROP TABLE users;",
-                },
-                {
-                    "migration_id": str(uuid4()),
-                    "version": "002",
-                    "name": "add_email_index",
-                    "description": "Add index on users.email",
-                    "status": "applied",
-                    "applied_at": datetime.utcnow().isoformat(),
-                    "rollback_script": "DROP INDEX idx_users_email;",
-                },
-                {
-                    "migration_id": str(uuid4()),
-                    "version": "003",
-                    "name": "add_preferences_table",
-                    "description": "Create user preferences table",
-                    "status": "pending",
-                    "applied_at": None,
-                    "rollback_script": "DROP TABLE user_preferences;",
-                },
-            ]
-            for migration in default_migrations:
-                _migrations[migration["migration_id"]] = migration
-            migrations = default_migrations
+        # Operator-registered migration records (persisted via POST /migrations)
+        # are merged in, but nothing is ever fabricated when the revision
+        # history is empty.
+        for stored in _migrations.values():
+            if not any(
+                m.get("version") == stored.get("version")
+                and m.get("name") == stored.get("name")
+                for m in migrations
+            ):
+                migrations.append(dict(stored))
+                if status_filter and stored.get("status") != status_filter:
+                    migrations.pop()
 
         return [DatabaseMigration(**migration) for migration in migrations]
     except Exception as e:

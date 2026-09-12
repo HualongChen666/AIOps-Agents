@@ -11582,3 +11582,49 @@ terraform/storage.tf
 
 - task #2 剩余 10 页（有真实后端）+ 本域 5 页已闭环。
 - 横切 #8/#9/#10 待处理；`database_advanced_router.get_indexes/get_backups` 硬编码示例种子待清理。
+
+
+---
+
+# PART XL — database 域（USER 10 页）重写 + 消除 `database_advanced_router` 硬编码种子
+
+> 任务：task #2（剩余 10 个有真实后端的 database 模板页）+ 清理 `database_advanced_router.get_indexes/get_backups` 硬编码示例种子。
+> 判定：10 页全部为【USER 用户端业务页】→ 必须满足前端页面/功能模块/路由调用完整业务逻辑。
+
+## A) 后端修复：清除硬编码种子，改为真实库内省
+
+`api/database_advanced_router.py`（836 行）：
+- `GET /api/v1/database/indexes`：删除 `default_indexes`（伪造 `idx_users_email` / `idx_orders_created_at`），新增 `_introspect_db_indexes()` —— 从**真实数据库目录**读取索引（SQLite `sqlite_master`+`PRAGMA index_list/index_info`；PostgreSQL `pg_index`/`pg_attribute`/`pg_relation_size`），与操作员通过 `POST /indexes` 登记的记录合并。实测返回 **1232** 条真实索引；`?table_name=users` → 2 条。
+- `GET /api/v1/database/backups`：删除 `default_backups`（伪造 `production` 全量/增量），仅返回备份后端真实产出并落盘的记录（空即 `[]`）。实测 **0** 条。
+- `GET /api/v1/database/migrations`：删除 `default_migrations`（伪造 001/002/003），新增 `_discover_migrations()` —— 从真实 `alembic/versions/*.py` 解析 revision，并按 `alembic_version` 表判定 `applied`/`pending`。实测 **31** 条真实迁移。
+
+## B) 前端：10 个 74 行模板页 → 真实业务页
+
+| 页面 | splitlines | 真实端点 |
+|---|---|---|
+| `optimization` | 265 | `/api/v1/database/optimization`(GET/POST) + `/performance` |
+| `optimization-manager` | 282 | `/api/v1/database-optimization/{optimization-tasks,optimization-tasks/{id}/execute,database-statistics,database-statistics/{t}/analyze,performance-summary}` |
+| `cache-optimization` | 161 | `optimization`(缓存开关) + `/performance` |
+| `connection-optimization` | 152 | `optimization`(连接开关) + `/performance` |
+| `query-cache` | 162 | `/database/queries` + `optimization`(缓存开关) |
+| `performance-tuning` | 225 | `/database/performance` + `database-optimization/{performance-summary,tuning-recommendations,tuning-recommendations/generate,analyze-query}` |
+| `slow-query` | 193 | `/database/queries?slow_only=true` + `database-optimization/{query-metrics,analyze-query}` |
+| `query-optimization` | 211 | `/database/queries` + `database-optimization/{query-metrics,analyze-query,tuning-recommendations}` |
+| `index-optimization` | 267 | `/database/indexes`(GET/POST) + `database-optimization/{index-recommendations,index-recommendations/generate}` |
+| `health-monitoring` | 166 | `/database-monitoring/{status,health,thresholds}` |
+
+10 页均含加载/错误/空态、真实 CRUD、toast 反馈；不含 mock/stub/占位。原模板页调用的 `/api/database/optimization`（缺 `v1` 前缀）等**不存在的路径已全部替换**（grep 残留 = 0）。
+
+## C) 验证证据
+
+- `python -m py_compile api/database_advanced_router.py` → OK。
+- 直接调用：`_introspect_db_indexes()`→1232；`_discover_migrations()`→31（真实文件）。
+- `TestClient`：`/api/v1/database/indexes`→200/1232；`?table_name=users`→200/2；`/backups`→200/0；`/migrations`→200/31。
+- `pytest tests/api/test_database_advanced_router.py` → **23 passed**。
+- `app.openapi()['paths']` 方法级确认 23 个 path×方法（10 页依赖）全部存在（MISS 0）。
+- `npx tsc --noEmit`（frontend）→ **exit 0 / 0 error**。
+- 逻辑行数：`splitlines == wc -l`（全部一致，见上表）。
+
+## D) 待续
+
+- task #3 chaos(8)+disaster(12)；#4 realtime+service-mesh；#5/#6/#7 后续域；横切 #8/#9。
