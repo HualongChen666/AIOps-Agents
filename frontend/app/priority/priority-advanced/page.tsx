@@ -87,21 +87,22 @@ export default function PriorityAdvancedPage() {
     }
   })
 
-  // 获取优先级分数
-  const { data: scoreResult, isLoading: scoreLoading, refetch: refetchScore } = useQuery({
-    queryKey: ['priority-score', scoreRequest.alert_id],
-    queryFn: async () => {
+  // 计算优先级分数（写操作 → 使用 mutation；后端入口为 POST /api/v1/priority/calculator）
+  const scoreMutation = useMutation({
+    mutationFn: async () => {
       const metrics = JSON.parse(scoreRequest.metrics)
       const context = scoreRequest.context ? JSON.parse(scoreRequest.context) : undefined
-      const resp = await api.post('/api/v1/priority/scores', {
+      const resp = await api.post('/api/v1/priority/calculator', {
         alert_id: scoreRequest.alert_id,
         metrics,
         context
       })
       return resp.data as PriorityScore
     },
-    enabled: false
   })
+  const scoreResult = scoreMutation.data
+  const scoreLoading = scoreMutation.isPending
+  const refetchScore = () => scoreMutation.mutate()
 
   // 获取优先级历史
   const { data: history, isLoading: historyLoading, refetch: refetchHistory } = useQuery({

@@ -79,9 +79,6 @@ export default function FrontendAdvancedPage() {
   const [dialogMode, setDialogMode] = useState<'create' | 'edit'>('create')
   const [formData, setFormData] = useState<Record<string, any>>({})
 
-  // 🔧 P1 Integration: Use enhanced loading state
-  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(false)
-
   // 🔧 P1 Integration: Use toast notifications
   const toast = useToast()
   const showSuccess = toast.success
@@ -126,6 +123,11 @@ export default function FrontendAdvancedPage() {
     },
     refetchInterval: 120000,
   })
+
+  // 🔧 P1 Integration: derive page loading from the underlying queries
+  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(
+    componentsLoading || themesLoading || layoutsLoading || localizationLoading
+  )
 
   // 🔧 Handle errors
   useEffect(() => {
@@ -218,7 +220,7 @@ export default function FrontendAdvancedPage() {
   // 🔧 Update Localization Mutation
   const updateLocalizationMutation = useMutation({
     mutationFn: async (data: LocalizationData) => {
-      const resp = await api.put('/api/v1/frontend/localization', data)
+      const resp = await api.patch('/api/v1/frontend/localization', data)
       return resp.data
     },
     onSuccess: () => {

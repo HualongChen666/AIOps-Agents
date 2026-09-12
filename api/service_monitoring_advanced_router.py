@@ -541,6 +541,68 @@ async def create_alert(alert: ServiceMonitoringAdvancedAlertCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.patch(
+    "/alerts/{alert_id}",
+    summary="Update an alert",
+    responses={
+        200: {"description": "Alert updated"},
+        404: {"description": "Alert not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def update_alert(alert_id: str, update: ServiceMonitoringAdvancedAlertUpdate):
+    """Update an existing alert rule."""
+    try:
+        if alert_id not in _alerts_db:
+            raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+
+        alert = _alerts_db[alert_id]
+        for field, value in update.model_dump(exclude_unset=True).items():
+            if value is not None:
+                alert[field] = value
+        alert["updated_at"] = datetime.utcnow().isoformat()
+
+        logger.info(f"Updated alert: {alert_id}")
+        return {
+            "status": "success",
+            "data": {"id": alert_id, **alert},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating alert: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/alerts/{alert_id}",
+    summary="Delete an alert",
+    responses={
+        200: {"description": "Alert deleted"},
+        404: {"description": "Alert not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def delete_alert(alert_id: str):
+    """Delete an alert rule."""
+    try:
+        if alert_id not in _alerts_db:
+            raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+        del _alerts_db[alert_id]
+        logger.info(f"Deleted alert: {alert_id}")
+        return {
+            "status": "success",
+            "data": {"id": alert_id, "deleted": True},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting alert: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get(
     "/dashboards",
     summary="List all dashboards",

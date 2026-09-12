@@ -11828,3 +11828,36 @@ terraform/storage.tf
 ## C) 待续
 
 - 横切 #8 余项（FE-632/633/638/639/642/643）、#9（硬编码/桩）。
+
+
+---
+
+# PART XLVI — 横切 #8：修复台账登记的真实页端点方法/命名空间错配
+
+> 任务：task #8。修复 FE-632/638/639/642/643（FE-629 已于 PART XLI 修复）。
+
+## A) 逐项修复
+
+| 项 | 缺陷（台账） | 修复 |
+|---|---|---|
+| **FE-632** `frontend-advanced` | `PUT /api/v1/frontend/localization`（后端仅 PATCH）→ 405；`useLoadingState(false)` 死分支 | 改 `api.patch`；loading 改为 `componentsLoading‖themesLoading‖layoutsLoading‖localizationLoading`（移至 query 之后） |
+| **FE-633** `frontend-enhancement` | 硬编码 `user-123`、`handleDelete` 空桩 | 见 task #9 |
+| **FE-638** `plugin-marketplace` | 全命名空间错（`/api/plugin-marketplace/*` 不存在）→ 整页 404 | **按真实契约重写页面**：`/api/v1/plugin-marketplace/{plugins,plugins/{id}/install,plugins/installed,plugins/installed/{id}}`；KPI 由真实 listings 派生；移除后端不存在的 approve/reject（改为真实 rating/review_count 展示）；发布体对齐 `PluginListingRequest`（含 `download_url`/`category`） |
+| **FE-639** `priority-advanced` | 分数用 `useQuery` 内 `POST /api/v1/priority/scores`（MISS） | 改为 `useMutation` → `POST /api/v1/priority/calculator`（真实计算入口）；`refetchScore=()=>scoreMutation.mutate()` |
+| **FE-642** `service-monitoring-advanced` | `PUT/DELETE /api/v1/service-monitoring/alerts/{id}` 404/405 | 后端**新增** `PATCH /alerts/{alert_id}`、`DELETE /alerts/{alert_id}`（真实操作 `_alerts_db`）；前端 PUT→PATCH |
+| **FE-643** `tenant-advanced` | `GET /tenant/config` 404；`PUT /tenant/{config,settings}` 405 | GET→`/api/v1/tenant/configurations`；PUT→`PATCH`（config/settings） |
+
+## B) 验证证据
+
+- `python -m py_compile api/service_monitoring_advanced_router.py` → OK。
+- 运行期实测新增告警端点：create 201 → patch 200（threshold=95.0）→ delete 200 → 未知 id patch **404**。
+- `app.openapi()['paths']` 方法级确认 12 个 path×方法存在（MISS 0）：含 `/alerts/{alert_id}` PATCH/DELETE、plugin-marketplace 全组、`/priority/calculator`、`/tenant/{config,settings}` PATCH、`/frontend/localization` PATCH。
+- `npx tsc --noEmit`（frontend）→ **exit 0 / 0 error**。
+
+## C) 既有失效测试（**非本 PART 引入**，已 `git stash` 复核）
+
+`tests/api/test_{plugin_marketplace,priority_advanced,service_monitoring_advanced}_router.py` 共 **22 例**在 HEAD 即失败（stash 前后均 22 failed）；与 task #12 同类（失效 mock 模式）。已登记 **task #13**。
+
+## D) 待续
+
+- task #9（硬编码/桩：FE-633/641/628）。

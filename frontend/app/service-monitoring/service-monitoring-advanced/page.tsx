@@ -120,7 +120,7 @@ export default function ServiceMonitoringAdvancedPage() {
   // 更新告警
   const updateAlertMutation = useMutation({
     mutationFn: async ({ alertId, data }: { alertId: string; data: any }) => {
-      const resp = await api.put(`/api/v1/service-monitoring/alerts/${alertId}`, data)
+      const resp = await api.patch(`/api/v1/service-monitoring/alerts/${alertId}`, data)
       return resp.data
     },
     onSuccess: () => {

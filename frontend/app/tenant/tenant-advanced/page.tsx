@@ -93,7 +93,7 @@ export default function TenantAdvancedPage() {
   const { data: tenantConfig, isLoading: configLoading, refetch: refetchConfig } = useQuery({
     queryKey: ['tenant-config'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/tenant/config')
+      const resp = await api.get('/api/v1/tenant/configurations')
       return resp.data as TenantConfig
     }
   })
@@ -137,7 +137,7 @@ export default function TenantAdvancedPage() {
   // 更新租户配置
   const updateConfigMutation = useMutation({
     mutationFn: async (config: any) => {
-      const resp = await api.put('/api/v1/tenant/config', config)
+      const resp = await api.patch('/api/v1/tenant/config', config)
       return resp.data
     },
     onSuccess: () => {
@@ -153,7 +153,7 @@ export default function TenantAdvancedPage() {
   // 更新租户设置
   const updateSettingsMutation = useMutation({
     mutationFn: async (settings: any) => {
-      const resp = await api.put('/api/v1/tenant/settings', settings)
+      const resp = await api.patch('/api/v1/tenant/settings', settings)
       return resp.data
     },
     onSuccess: () => {
