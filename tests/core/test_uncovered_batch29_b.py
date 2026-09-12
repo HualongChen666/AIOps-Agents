@@ -554,10 +554,10 @@ def test_rca_helpers():
     _run(a._load_historical_incidents())
     assert a._extract_features({"n1"}, None)["node_count"] == 1
     assert a._get_node_types({"n1"}) == ["service"]
-    assert a._extract_ml_features(set(), None) == []
+    assert len(a._extract_ml_features(set(), None)) == 6
     assert a._generate_analysis_key({"a", "b"}, None) != ""
 
-    assert _run(a._identify_critical_nodes()) == []
+    assert set(_run(a._identify_critical_nodes())) == {"n1", "n2"}
     assert _run(a._is_single_point_of_failure("x")) is False
     assert _run(a._analyze_dependency_chains({"x"})) == []
     assert _run(a._analyze_state_trends({})) == []

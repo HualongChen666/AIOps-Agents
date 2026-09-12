@@ -1544,6 +1544,7 @@ class ConnectorMarketplace:
         self.registry = ExtendedIntegrationRegistry()
         self.installed_connectors: Dict[str, Dict[str, Any]] = {}
         self.connector_ratings: Dict[str, List[float]] = {}
+        self.connector_downloads: Dict[str, int] = {}
 
     async def discover_connectors(
         self, category: Optional[str] = None, search_query: Optional[str] = None
@@ -1605,6 +1606,8 @@ class ConnectorMarketplace:
             "installed_at": datetime.now(timezone.utc).isoformat(),
             "version": "1.0.0",
         }
+        # Track a real installation/download counter.
+        self.connector_downloads[provider] = self.connector_downloads.get(provider, 0) + 1
 
         return {"success": True, "connector_id": provider}
 
@@ -1657,9 +1660,8 @@ class ConnectorMarketplace:
         return sum(ratings) / len(ratings)
 
     def _get_download_count(self, provider: str) -> int:
-        """Get download count for a connector (simulated)"""
-        # In production, this would come from a database
-        return hash(provider) % 10000 + 100
+        """Get the real installation count for a connector."""
+        return self.connector_downloads.get(provider, 0)
 
     async def get_connector_details(self, provider: str) -> Optional[Dict[str, Any]]:
         """

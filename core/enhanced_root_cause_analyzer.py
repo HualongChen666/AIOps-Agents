@@ -142,6 +142,8 @@ class EnhancedRootCauseAnalyzer:
         # 性能优化
         self.recent_analyses: deque = deque(maxlen=1000)
         self.analysis_cache: Dict[str, RootCauseHypothesis] = {}
+        # 状态快照（用于趋势分析/故障预测）
+        self._state_snapshots: deque = deque(maxlen=100)
 
     async def initialize(self):
         """初始化分析器"""
@@ -577,13 +579,32 @@ class EnhancedRootCauseAnalyzer:
         if not ML_AVAILABLE or not self.rca_classifier:
             return []
 
-        # 提取特征
-        # features = self._extract_ml_features(anomaly_nodes, context)
+        if not hasattr(self.rca_classifier, "classes_"):
+            # The classifier has not been trained on historical incidents yet.
+            logger.debug("RCA classifier not trained; skipping ML analysis")
+            return []
 
-        # 使用训练好的模型预测
-        # (这里需要模型训练逻辑)
+        features = self._extract_ml_features(anomaly_nodes, context)
+        try:
+            proba = self.rca_classifier.predict_proba([features])[0]
+            classes = list(self.rca_classifier.classes_)
+            best_index = max(range(len(proba)), key=lambda i: proba[i])
+            node_id = str(classes[best_index])
+            confidence = float(proba[best_index])
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.warning(f"ML analysis failed: {exc}")
+            return []
 
-        return []
+        return [
+            RootCauseHypothesis(
+                node_id=node_id,
+                confidence=confidence,
+                explanation=f"ML model predicted {node_id} as root cause",
+                evidence=[f"features={features}"],
+                impact_score=confidence,
+                severity=RCASeverity.HIGH if confidence >= 0.75 else RCASeverity.MEDIUM,
+            )
+        ]
 
     async def _combine_hypotheses(self, *hypothesis_lists) -> List[RootCauseHypothesis]:
         """综合多个来源的假设"""
@@ -783,26 +804,96 @@ class EnhancedRootCauseAnalyzer:
         return upstream
 
     async def _identify_critical_nodes(self) -> List[str]:
-        """识别关键节点"""
-        # 实现关键节点识别逻辑
-        # 可以使用度中心性、介数中心性等图算法
-        return []
+        """识别关键节点（基于因果图的度中心性）。"""
+        if not self.causal_graph:
+            return []
+
+        degree: Dict[str, int] = defaultdict(int)
+        for source, targets in self.causal_graph.items():
+            degree[source] += len(targets)
+            for target in targets:
+                degree[target] += 1
+
+        if not degree:
+            return []
+
+        values = list(degree.values())
+        mean = sum(values) / len(values)
+        variance = sum((v - mean) ** 2 for v in values) / len(values)
+        std = variance ** 0.5
+        threshold = mean + std if std > 0 else mean
+
+        critical = [node for node, deg in degree.items() if deg >= threshold and deg > 0]
+        critical.sort(key=lambda n: degree[n], reverse=True)
+        return critical
 
     async def _is_single_point_of_failure(self, node: str) -> bool:
-        """检查是否是单点故障"""
-        # 实现单点故障检查逻辑
+        """检查 node 是否为单点故障（存在仅能经其到达的下游节点）。"""
+        if node not in self.causal_graph and not any(
+            node in targets for targets in self.causal_graph.values()
+        ):
+            return False
+
+        # Predecessor map (incoming causal edges).
+        predecessors: Dict[str, Set[str]] = defaultdict(set)
+        for source, targets in self.causal_graph.items():
+            for target in targets:
+                predecessors[target].add(source)
+
+        successors = self.causal_graph.get(node, set())
+        for successor in successors:
+            # A successor is dependent solely on ``node`` when node is its only
+            # (causal) predecessor other than itself.
+            others = {p for p in predecessors.get(successor, set()) if p != node}
+            if not others:
+                return True
         return False
 
     async def _analyze_dependency_chains(self, anomaly_nodes: Set[str]) -> List[List[str]]:
-        """分析依赖链"""
+        """分析从异常节点出发的依赖链（因果图 DFS）。"""
         chains: List[List[str]] = []
-        # 实现依赖链分析逻辑
+        max_depth = 20
+
+        def dfs(current: str, path: List[str]) -> None:
+            successors = self.causal_graph.get(current, set())
+            extended = False
+            for successor in sorted(successors):
+                if successor in path or len(path) >= max_depth:
+                    continue
+                extended = True
+                dfs(successor, path + [successor])
+            if not extended and len(path) > 1:
+                chains.append(path)
+
+        for node in anomaly_nodes:
+            dfs(node, [node])
+
         return chains
 
-    def _extract_ml_features(self, anomaly_nodes: Set[str], context: Optional[Dict]) -> List[float]:
-        """提取ML特征"""
-        # 实现特征提取逻辑
-        return []
+    def _extract_ml_features(
+        self, anomaly_nodes: Set[str], context: Optional[Dict]
+    ) -> List[float]:
+        """提取ML特征（规模、类型分布、上下文数值）。"""
+        total_edges = sum(len(t) for t in self.causal_graph.values())
+        anomalous_types = self._get_node_types(anomaly_nodes)
+        type_diversity = len(set(anomalous_types))
+        critical_count = sum(
+            1 for n in anomaly_nodes if self.causal_graph.get(n)
+        )
+        context_numeric = [
+            float(v)
+            for v in (context or {}).values()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        ]
+        avg_context = sum(context_numeric) / len(context_numeric) if context_numeric else 0.0
+        return [
+            float(len(anomaly_nodes)),
+            float(len(self.nodes)),
+            float(total_edges),
+            float(type_diversity),
+            float(critical_count),
+            avg_context,
+        ]
 
     def _generate_analysis_key(self, anomaly_nodes: Set[str], context: Optional[Dict]) -> str:
         """生成分析键"""
@@ -819,16 +910,64 @@ class EnhancedRootCauseAnalyzer:
         return types
 
     async def _analyze_state_trends(self, current_state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """分析状态趋势"""
-        # 实现趋势分析逻辑
-        return []
+        """分析状态趋势（基于真实采集的状态快照序列）。"""
+        self._state_snapshots.append(
+            {"ts": datetime.now().isoformat(), "state": dict(current_state)}
+        )
+        if len(self._state_snapshots) < 2:
+            return []
+
+        first = self._state_snapshots[0]["state"]
+        last = self._state_snapshots[-1]["state"]
+        trends: List[Dict[str, Any]] = []
+        for key, last_value in last.items():
+            if not isinstance(last_value, (int, float)) or isinstance(last_value, bool):
+                continue
+            first_value = first.get(key)
+            if not isinstance(first_value, (int, float)) or isinstance(first_value, bool):
+                continue
+            delta = last_value - first_value
+            direction = "stable"
+            if delta > 0:
+                direction = "increasing"
+            elif delta < 0:
+                direction = "decreasing"
+            trends.append(
+                {
+                    "metric": key,
+                    "first": first_value,
+                    "last": last_value,
+                    "delta": delta,
+                    "direction": direction,
+                    "samples": len(self._state_snapshots),
+                }
+            )
+        return trends
 
     async def _predict_potential_failures(
         self, trends: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """预测潜在故障"""
-        # 实现故障预测逻辑
-        return []
+        """基于趋势预测潜在故障（数值持续上升且增幅显著时预警）。"""
+        predictions: List[Dict[str, Any]] = []
+        for trend in trends:
+            if trend.get("direction") != "increasing":
+                continue
+            first = trend.get("first")
+            delta = trend.get("delta", 0)
+            if not first:
+                continue
+            change_ratio = delta / abs(first)
+            if change_ratio >= 0.5:
+                predictions.append(
+                    {
+                        "metric": trend["metric"],
+                        "current": trend["last"],
+                        "predicted_direction": "increasing",
+                        "change_ratio": change_ratio,
+                        "severity": "high" if change_ratio >= 1.0 else "medium",
+                    }
+                )
+        return predictions
 
     async def get_analysis_statistics(self) -> Dict[str, Any]:
         """获取分析统计信息"""

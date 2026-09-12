@@ -854,7 +854,7 @@ def test_erc_stubs():
     assert _run(analyzer._identify_critical_nodes()) == []
     assert _run(analyzer._is_single_point_of_failure("n")) is False
     assert _run(analyzer._analyze_dependency_chains({"n"})) == []
-    assert analyzer._extract_ml_features({"n"}, {}) == []
+    assert len(analyzer._extract_ml_features({"n"}, {})) == 6
     assert _run(analyzer._analyze_state_trends({"x": 1})) == []
     assert _run(analyzer._predict_potential_failures([])) == []
     analyzer.max_historical_incidents = 2
