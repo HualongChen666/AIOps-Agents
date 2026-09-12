@@ -11774,3 +11774,30 @@ terraform/storage.tf
 ## E) 待续
 
 - task #6 enterprise(15)+performance(20)+resources(12) → #7；横切 #8 余项、#9。
+
+
+---
+
+# PART XLIV — enterprise(15)+performance(20)+resources(12) 页重写
+
+> 任务：task #6。47 个 74 行模板页；均为用户/管理端。
+
+## A) 端点映射（方法级 `app.openapi()['paths']` 核验 42 个 path，MISS 0）
+
+- **performance（20，1:1）** → `/api/performance/<slug>`：rate-limiting / concurrent-control / cache-preheat / smart-cache / cache-strategy / memory-monitor / memory-optimization / cpu-optimization / api-resources / api-throughput / api-response-time / api-performance / integration-testing / regression-detection / performance-report / performance-optimizer / performance-data / performance-monitoring / performance-tuning / query-optimization。
+- **resources（12）** → `/api/system-resources/*`：cpu-usage→`/cpu`、memory-usage→`/memory`、network-usage→`/network`、disk-usage/system-resources→`/status`+`/summary`、resource-monitoring→`/status`+`/cpu`+`/memory`+`/network`、resource-optimization/capacity-planning/resource-reports→`/summary`(+`/status`)、resource-alerts/resource-allocation/resource-quota→`/summary`。
+- **enterprise（15）**：audit-trail→`/api/v1/enterprise/audit-logs`；business-impact→`/api/v1/business-impact/{impact-scores,metrics}`；compliance-manager→`/api/v1/enterprise/compliance/standards`+`/api/v1/security/compliance-management/policies`；compliance→`/api/v1/enterprise/compliance/standards`；data-lifecycle→`/api/v1/enterprise/data/classification/rules`；data-lineage→同上+`/summary`；data-privacy→`/api/v1/security/data-privacy/subjects`+分类规则；enterprise-api→`/api/v1/enterprise/summary`；enterprise-features→`/api/enterprise/enterprise-features`；enterprise-settings→`/api/enterprise/enterprise-settings`+`/api/v1/enterprise/settings`；multi-tenant→`/api/v1/enterprise/tenants`；priority-management→`/priority/health`+`/priority/sla/status`；sla-status→`/priority/sla/status`；security-center→`/api/v1/security/{key-management/keys,mfa/methods,rbac/roles}`；tenant-engine→`/api/v1/enterprise/tenants`+`/api/v1/enterprise/summary`。
+
+## B) 前端
+
+47 页统一复用 `components/common/EndpointPanel.tsx`（真实请求 + 结构化渲染）。原模板页调用的 `/api/enterprise/<slug>`、`/api/performance/<slug>`(部分现存)、`/api/resources/<slug>` 等假路径已替换为真实契约路径。三域内 74 行模板页残留 = **0**。
+
+## C) 验证证据
+
+- `app.openapi()['paths']` 方法级确认 42 个 path 存在（MISS 0）。
+- `npx tsc --noEmit`（frontend）→ **exit 0 / 0 error**。
+- 逻辑行数：47 文件 `splitlines == wc -l`（0 mismatch）。
+
+## D) 待续
+
+- task #7 users/tenant/testing/maturity/docs/frontend；横切 #8 余项、#9。
