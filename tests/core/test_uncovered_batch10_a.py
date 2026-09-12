@@ -6,7 +6,6 @@ core.system_resource_optimizer and core.integration_testing_system.
 
 import asyncio  # noqa: F401  # Imported for test setup
 import json  # noqa: F401  # Imported for test setup
-import secrets
 import sys  # noqa: F401  # Imported for test setup
 import types
 from contextlib import suppress
@@ -791,20 +790,6 @@ def _install_its_helpers(monkeypatch):
 
     monkeypatch.setattr(asyncio, "sleep", fake_sleep)
 
-    class _FixedRandom:
-        _value = 0.9
-
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def random(self):
-            return _FixedRandom._value
-
-        def uniform(self, a, b):
-            return 80.0
-
-    monkeypatch.setattr(secrets, "SystemRandom", _FixedRandom)
-
 
 @pytest.fixture
 def its_helpers(monkeypatch):
@@ -820,6 +805,14 @@ async def test_its_register_and_run_test_pass(its_helpers):
         test_name="Health Probe",
         test_type=its_module.TestType.SERVICE_TEST,
         test_suite="service_tests",
+        config={
+            "check": {
+                "kind": "module_attr",
+                "module": "core.ai_engine",
+                "attr": "analyze",
+                "expect_coroutine": True,
+            }
+        },
     )
     system.register_test(new_test)
     assert "health_probe" in system.integration_tests
@@ -829,28 +822,31 @@ async def test_its_register_and_run_test_pass(its_helpers):
     await system._wait_for_execution(exec_id)
     status = system.get_execution_status(exec_id)
     assert status["passed"] is True
-    assert status["coverage"] == 80.0
+    assert status["coverage"] == 100.0
 
 
 @pytest.mark.asyncio
-async def test_its_run_test_failure(its_helpers, monkeypatch):
-    class _FailingRandom:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def random(self):
-            return 0.1
-
-        def uniform(self, a, b):
-            return 70.0
-
-    monkeypatch.setattr(secrets, "SystemRandom", _FailingRandom)
+async def test_its_run_test_failure(its_helpers):
     system = its_module.get_integration_testing_system()
-    exec_id = await system.run_test("api_user_crud")
+    failing = its_module.IntegrationTest(
+        test_id="failing_probe",
+        test_name="Failing Probe",
+        test_type=its_module.TestType.SERVICE_TEST,
+        test_suite="service_tests",
+        config={
+            "check": {
+                "kind": "module_attr",
+                "module": "core.this_module_does_not_exist_xyz",
+                "attr": "anything",
+            }
+        },
+    )
+    system.register_test(failing)
+    exec_id = await system.run_test("failing_probe")
     await system._wait_for_execution(exec_id)
     status = system.get_execution_status(exec_id)
     assert status["failed"] is True
-    assert status["error_message"] == "Test assertion failed"
+    assert status["error_message"]
 
 
 @pytest.mark.asyncio

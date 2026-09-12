@@ -12,9 +12,11 @@ Comprehensive integration ecosystem for AIOps Agent with support for:
 - Standardized Webhook and API integration interfaces
 """
 
+import base64
 import hashlib
 import hmac
 import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -60,15 +62,6 @@ try:
 except ImportError:
     BOTO3_AVAILABLE = False
     logger.warning("boto3 not available, CloudWatch integration will be disabled")
-
-# Try to import WebSocket libraries
-try:
-    pass
-
-    WEBSOCKET_AVAILABLE = True
-except ImportError:
-    WEBSOCKET_AVAILABLE = False
-    logger.warning("WebSocket library not available")
 
 
 class IntegrationType(Enum):
@@ -302,6 +295,7 @@ class IntegrationManager:
                     "url": {"type": "string", "required": True},
                     "username": {"type": "string", "required": True},
                     "api_token": {"type": "string", "required": True},
+                    "project_key": {"type": "string", "required": True},
                 },
             },
             # Notification channels
@@ -519,7 +513,6 @@ class IntegrationManager:
                 integration_db = integration_repo.get_by_id(integration_id)
                 if integration_db:
                     # Convert to IntegrationConfig
-                    from core.integration_manager import IntegrationStatus
                     integration = IntegrationConfig(
                         integration_id=integration_db.id,
                         integration_type=IntegrationType(integration_db.integration_type),
@@ -550,7 +543,10 @@ class IntegrationManager:
             elif integration.integration_type == IntegrationType.NOTIFICATION:
                 result = await self._test_notification_integration(integration)
             else:
-                result = {"success": True, "message": "Integration type not testable"}
+                result = {
+                    "success": False,
+                    "error": f"{integration.integration_type.value} integration is not testable",
+                }
 
             return result
 
@@ -585,18 +581,193 @@ class IntegrationManager:
             except Exception as e:
                 return {"success": False, "error": f"Prometheus connection failed: {e}"}
 
-        # Similar logic for other monitoring tools
-        return {"success": True, "message": f"{integration.name} integration test passed"}
+        # 其他监控工具：对配置的 url 做真实连通性探测（无 url 则如实报错）
+        url = config.get("url") or config.get("endpoint")
+        if not url:
+            return {
+                "success": False,
+                "error": f"{integration.name}: monitoring url not configured",
+            }
+        if self.http_client is None:
+            return {"success": False, "error": "HTTP client not initialized"}
+        try:
+            response = await self.http_client.get(
+                url, headers=self._basic_auth_header(config), timeout=10.0
+            )
+            if response.status_code < 400:
+                return {
+                    "success": True,
+                    "message": f"{integration.name} reachable (HTTP {response.status_code})",
+                }
+            return {
+                "success": False,
+                "error": f"{integration.name} returned status {response.status_code}",
+            }
+        except Exception as e:
+            return {"success": False, "error": f"{integration.name} connection failed: {e}"}
+
+    @staticmethod
+    def _basic_auth_header(config: Dict[str, Any]) -> Dict[str, str]:
+        """根据配置构造 HTTP Basic 认证头（username/api_token 或 username/password）。"""
+        username = config.get("username")
+        secret = config.get("api_token") or config.get("password")
+        if not username or not secret:
+            return {}
+        token = base64.b64encode(f"{username}:{secret}".encode("utf-8")).decode("ascii")
+        return {"Authorization": f"Basic {token}"}
 
     async def _test_cloud_integration(self, integration: IntegrationConfig) -> Dict[str, Any]:
-        """Test cloud platform integration"""
-        # Simplified cloud integration test
-        return {"success": True, "message": f"{integration.name} integration test passed"}
+        """
+        测试云平台集成（真实凭证/端点探测）。
+
+        - AWS：使用 boto3 STS ``get_caller_identity`` 验证凭证。
+        - GCP：使用 bearer token 访问 Cloud Resource Manager API。
+        - Azure：使用 bearer token 访问 ARM API。
+        - 其他：对配置的 url/endpoint 做真实 HTTP 连通性探测。
+        凭证/端点缺失或探测失败时如实返回失败，绝不伪造成功。
+        """
+        config = integration.config or {}
+        provider = (config.get("provider") or integration.name or "").lower()
+
+        try:
+            if provider in ("aws", "amazon", "amazon web services"):
+                if not BOTO3_AVAILABLE:
+                    return {
+                        "success": False,
+                        "error": "boto3 not installed; cannot test AWS integration",
+                    }
+                session = boto3.session.Session(
+                    aws_access_key_id=config.get("access_key_id"),
+                    aws_secret_access_key=config.get("secret_access_key"),
+                    region_name=config.get("region"),
+                )
+                identity = session.client("sts").get_caller_identity()
+                return {
+                    "success": True,
+                    "message": f"AWS credentials valid (account {identity.get('Account')})",
+                    "account": identity.get("Account"),
+                    "arn": identity.get("Arn"),
+                }
+
+            if provider in ("gcp", "google", "google cloud"):
+                token = config.get("access_token") or os.getenv("GOOGLE_ACCESS_TOKEN")
+                if not token:
+                    return {"success": False, "error": "GCP access_token not configured"}
+                url = config.get("url") or "https://cloudresourcemanager.googleapis.com/v1/projects"
+                return await self._probe_cloud_endpoint(
+                    integration.name, url, {"Authorization": f"Bearer {token}"}
+                )
+
+            if provider in ("azure", "microsoft", "microsoft azure"):
+                token = config.get("access_token") or os.getenv("AZURE_ACCESS_TOKEN")
+                if not token:
+                    return {"success": False, "error": "Azure access_token not configured"}
+                url = (
+                    config.get("url")
+                    or "https://management.azure.com/subscriptions?api-version=2020-01-01"
+                )
+                return await self._probe_cloud_endpoint(
+                    integration.name, url, {"Authorization": f"Bearer {token}"}
+                )
+
+            url = config.get("url") or config.get("endpoint")
+            if not url:
+                return {
+                    "success": False,
+                    "error": f"{integration.name}: no provider/url configured for cloud test",
+                }
+            return await self._probe_cloud_endpoint(
+                integration.name, url, self._basic_auth_header(config)
+            )
+
+        except Exception as e:
+            return {"success": False, "error": f"{integration.name} cloud test failed: {e}"}
+
+    async def _probe_cloud_endpoint(
+        self, name: str, url: str, headers: Dict[str, str]
+    ) -> Dict[str, Any]:
+        """对云端点做真实 HTTP 探测。"""
+        if not HTTP_AVAILABLE or self.http_client is None:
+            return {"success": False, "error": "HTTP client not available"}
+        try:
+            response = await self.http_client.get(url, headers=headers, timeout=15.0)
+            if response.status_code < 400:
+                return {"success": True, "message": f"{name} endpoint reachable ({response.status_code})"}
+            return {
+                "success": False,
+                "error": f"{name} endpoint returned status {response.status_code}",
+            }
+        except Exception as e:
+            return {"success": False, "error": f"{name} endpoint unreachable: {e}"}
 
     async def _test_cicd_integration(self, integration: IntegrationConfig) -> Dict[str, Any]:
-        """Test CI/CD integration"""
-        # Simplified CI/CD integration test
-        return {"success": True, "message": f"{integration.name} integration test passed"}
+        """
+        测试 CI/CD 集成（真实 API 探测）。
+
+        - Jenkins：GET ``{url}/api/json``（Basic 认证）。
+        - GitLab：GET ``{url}/api/v4/version``（PRIVATE-TOKEN）。
+        - GitHub Actions：GET ``https://api.github.com/repos/{owner}/{name}``（token）。
+        - 其他：对配置的 url 做真实连通性探测。
+        """
+        if not HTTP_AVAILABLE or self.http_client is None:
+            return {"success": False, "error": "HTTP client not available"}
+
+        config = integration.config or {}
+        name = integration.name.lower()
+
+        try:
+            if name == "jenkins":
+                url = config.get("url")
+                if not url:
+                    return {"success": False, "error": "Jenkins URL not configured"}
+                response = await self.http_client.get(
+                    f"{url.rstrip('/')}/api/json",
+                    headers=self._basic_auth_header(config),
+                    timeout=15.0,
+                )
+            elif name in ("gitlab ci", "gitlab"):
+                url = config.get("url")
+                token = config.get("private_token")
+                if not url or not token:
+                    return {"success": False, "error": "GitLab url/private_token not configured"}
+                response = await self.http_client.get(
+                    f"{url.rstrip('/')}/api/v4/version",
+                    headers={"PRIVATE-TOKEN": token},
+                    timeout=15.0,
+                )
+            elif name in ("github actions", "github"):
+                owner = config.get("repo_owner")
+                repo = config.get("repo_name")
+                token = config.get("personal_access_token")
+                if not owner or not repo or not token:
+                    return {"success": False, "error": "GitHub repo_owner/repo_name/token not configured"}
+                response = await self.http_client.get(
+                    f"https://api.github.com/repos/{owner}/{repo}",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                    },
+                    timeout=15.0,
+                )
+            else:
+                url = config.get("url") or config.get("endpoint")
+                if not url:
+                    return {"success": False, "error": f"{integration.name}: url not configured"}
+                response = await self.http_client.get(
+                    url, headers=self._basic_auth_header(config), timeout=15.0
+                )
+
+            if response.status_code < 400:
+                return {
+                    "success": True,
+                    "message": f"{integration.name} reachable ({response.status_code})",
+                }
+            return {
+                "success": False,
+                "error": f"{integration.name} returned status {response.status_code}",
+            }
+        except Exception as e:
+            return {"success": False, "error": f"{integration.name} connection failed: {e}"}
 
     async def _test_notification_integration(
         self, integration: IntegrationConfig
@@ -1071,11 +1242,40 @@ class IntegrationManager:
         if integration.name.lower() != "jenkins":
             return {"error": "Not a Jenkins integration"}
 
-        # Jenkins job trigger logic
+        config = integration.config or {}
+        url = config.get("url")
+        if not url:
+            return {"error": "Jenkins URL not configured"}
+        if not HTTP_AVAILABLE or self.http_client is None:
+            return {"error": "HTTP client not available"}
+
+        headers = self._basic_auth_header(config)
+        endpoint = f"{url.rstrip('/')}/job/{job_name.strip('/')}"
+        try:
+            if parameters:
+                response = await self.http_client.post(
+                    f"{endpoint}/buildWithParameters",
+                    params=parameters,
+                    headers=headers,
+                    timeout=30.0,
+                )
+            else:
+                response = await self.http_client.post(
+                    f"{endpoint}/build", headers=headers, timeout=30.0
+                )
+        except Exception as e:
+            return {"error": f"Jenkins job trigger failed: {e}"}
+
+        if response.status_code in (200, 201, 202):
+            return {
+                "success": True,
+                "message": f"Job {job_name} triggered successfully",
+                "job_name": job_name,
+                "queue_location": response.headers.get("Location"),
+            }
         return {
-            "success": True,
-            "message": f"Job {job_name} triggered successfully",
-            "job_name": job_name,
+            "error": f"Jenkins returned status {response.status_code}",
+            "body": response.text,
         }
 
     async def create_jira_issue(
@@ -1106,11 +1306,50 @@ class IntegrationManager:
         if integration.name.lower() != "jira":
             return {"error": "Not a Jira integration"}
 
-        # Jira issue creation logic
+        config = integration.config or {}
+        url = config.get("url")
+        if not url:
+            return {"error": "Jira URL not configured"}
+        if not HTTP_AVAILABLE or self.http_client is None:
+            return {"error": "HTTP client not available"}
+
+        project_key = config.get("project_key")
+        if not project_key:
+            return {"error": "Jira project_key not configured"}
+
+        payload = {
+            "fields": {
+                "project": {"key": project_key},
+                "summary": summary,
+                "description": description,
+                "issuetype": {"name": issue_type},
+                "priority": {"name": priority},
+            }
+        }
+        try:
+            response = await self.http_client.post(
+                f"{url.rstrip('/')}/rest/api/2/issue",
+                json=payload,
+                headers={
+                    **self._basic_auth_header(config),
+                    "Content-Type": "application/json",
+                },
+                timeout=30.0,
+            )
+        except Exception as e:
+            return {"error": f"Jira issue creation failed: {e}"}
+
+        if response.status_code in (200, 201):
+            data = response.json()
+            return {
+                "success": True,
+                "message": "Jira issue created successfully",
+                "issue_key": data.get("key"),
+                "issue_id": data.get("id"),
+            }
         return {
-            "success": True,
-            "message": "Jira issue created successfully",
-            "issue_key": f'AIO-{datetime.now().strftime("%Y%m%d%H%M%S")}',
+            "error": f"Jira returned status {response.status_code}",
+            "body": response.text,
         }
 
     def get_integration_summary(self) -> Dict[str, Any]:

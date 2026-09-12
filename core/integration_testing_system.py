@@ -206,6 +206,50 @@ class IntegrationTestingSystem:
             dependencies=["api_user_crud", "service_l2_analysis"],
         )
 
+        # 真实可执行检查定义：每个默认测试绑定一个真实、确定性的集成检查。
+        # （无 check 定义的自定义测试会被如实标记为 skipped，而非伪造结果。）
+        self.integration_tests["api_user_crud"].config = {
+            "check": {"kind": "module_attr", "module": "api.user_router", "attr": "router"}
+        }
+        self.integration_tests["api_authentication"].config = {
+            "check": {"kind": "password_roundtrip"}
+        }
+        self.integration_tests["db_connection"].config = {
+            "check": {"kind": "db", "sql": "SELECT 1"}
+        }
+        self.integration_tests["db_transaction"].config = {"check": {"kind": "db_tx"}}
+        self.integration_tests["service_l2_analysis"].config = {
+            "check": {
+                "kind": "module_attr",
+                "module": "core.ai_engine",
+                "attr": "analyze",
+                "expect_coroutine": True,
+            }
+        }
+        self.integration_tests["service_l6_execution"].config = {
+            "check": {
+                "kind": "module_attr",
+                "module": "core.repair_engine",
+                "attr": "execute_repair",
+                "expect_coroutine": True,
+            }
+        }
+        self.integration_tests["e2e_user_workflow"].config = {
+            "check": {
+                "kind": "multi",
+                "checks": [
+                    {"kind": "module_attr", "module": "api.user_router", "attr": "router"},
+                    {
+                        "kind": "module_attr",
+                        "module": "core.ai_engine",
+                        "attr": "analyze",
+                        "expect_coroutine": True,
+                    },
+                    {"kind": "db", "sql": "SELECT 1"},
+                ],
+            }
+        }
+
         logger.info(f"Initialized {len(self.integration_tests)} default integration tests")
 
     def _initialize_default_suites(self):
@@ -305,7 +349,11 @@ class IntegrationTestingSystem:
 
     async def _execute_test(self, execution_id: str) -> None:
         """
-        Execute integration test
+        执行集成测试
+
+        按测试绑定的 ``config["check"]`` 真实执行对应检查（模块导入/口令哈希往返/
+        数据库连通与事务/HTTP/命令/组合检查）。未绑定检查定义的测试如实标记为
+        ``SKIPPED``；检查失败则标记 ``FAILED``；异常标记 ``ERROR``。绝不伪造通过/覆盖率。
 
         Args:
             execution_id: Execution ID
@@ -314,50 +362,59 @@ class IntegrationTestingSystem:
             return
 
         execution = self.test_executions[execution_id]
-        self.integration_tests[execution.test_id]
+        test = self.integration_tests.get(execution.test_id)
 
         try:
-            # Update status to running
             execution.status = TestStatus.RUNNING
             execution.started_at = datetime.now(timezone.utc)
 
-            # Simulate test execution
-            # In real implementation, would execute actual integration test
-            await asyncio.sleep(2)  # Simulate test execution
-
-            # Simulate test result (random for demonstration)
-            import secrets
-
-            _random = secrets.SystemRandom()
-            is_passed = _random.random() > 0.2  # 80% chance of passing
-
-            # Update execution
-            execution.status = TestStatus.PASSED if is_passed else TestStatus.FAILED
-            execution.completed_at = datetime.now(timezone.utc)
-            execution.duration = (execution.completed_at - execution.started_at).total_seconds()
-            execution.passed = is_passed
-            execution.failed = not is_passed
-            execution.coverage = _random.uniform(70.0, 95.0)
-            execution.output = f"Test {'passed' if is_passed else 'failed'}"
-
-            if is_passed:
-                self.passed_tests += 1
+            check = (test.config or {}).get("check") if test else None
+            if not check:
+                execution.status = TestStatus.SKIPPED
+                execution.output = "No runnable check defined for this test"
             else:
+                outcome = await asyncio.wait_for(
+                    self._run_real_check(check), timeout=test.timeout if test else 300
+                )
+                execution.output = outcome["output"]
+                execution.coverage = outcome["coverage"]
+                execution.metadata["metrics"] = outcome.get("metrics", {})
+                if outcome["passed"]:
+                    execution.status = TestStatus.PASSED
+                    execution.passed = True
+                else:
+                    execution.status = TestStatus.FAILED
+                    execution.failed = True
+                    execution.error_message = outcome.get("error") or "Test assertion failed"
+
+        except asyncio.TimeoutError:
+            execution.status = TestStatus.ERROR
+            execution.error_message = "Test timed out"
+        except Exception as e:
+            execution.status = TestStatus.ERROR
+            execution.error_message = str(e)
+        finally:
+            execution.completed_at = datetime.now(timezone.utc)
+            if execution.started_at:
+                execution.duration = (execution.completed_at - execution.started_at).total_seconds()
+
+            if execution.status == TestStatus.PASSED:
+                self.passed_tests += 1
+            elif execution.status in (TestStatus.FAILED, TestStatus.ERROR):
                 self.failed_tests += 1
-                execution.error_message = "Test assertion failed"
 
             logger.info(
                 f"Test execution completed: {execution_id}, status: {execution.status.value}"
             )
 
-        except Exception as e:
-            execution.status = TestStatus.ERROR
-            execution.error_message = str(e)
-            execution.completed_at = datetime.now(timezone.utc)
-            if execution.started_at:
-                execution.duration = (execution.completed_at - execution.started_at).total_seconds()
-            self.failed_tests += 1
-            logger.error(f"Test execution failed: {execution_id}, error: {e}")
+    async def _run_real_check(self, check: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        委托 ``core.integration_checks.run_check`` 执行真实检查（模块导入/口令哈希往返/
+        数据库连通与事务/HTTP/命令/文件清单/延迟/吞吐/可靠性/组合）。
+        """
+        from core.integration_checks import run_check
+
+        return await run_check(check)
 
     async def run_suite(self, suite_id: str) -> List[str]:
         """
@@ -408,12 +465,7 @@ class IntegrationTestingSystem:
 
             execution = self.test_executions[execution_id]
 
-            if execution.status in (
-                TestStatus.PASSED,
-                TestStatus.FAILED,
-                TestStatus.ERROR,
-                TestStatus.SKIPPED,
-            ):
+            if execution.completed_at is not None:
                 break
 
             await asyncio.sleep(0.5)

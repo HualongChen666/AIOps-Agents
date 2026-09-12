@@ -260,24 +260,73 @@ class CustomHPAController:
                 direction.value,
             )
 
+    @staticmethod
+    def _parse_cpu_quantity(value: Optional[str]) -> float:
+        """把 K8s CPU 资源量字符串解析为核数（"100m" -> 0.1，"2" -> 2.0）。"""
+        if not value:
+            return 0.0
+        value = str(value).strip()
+        try:
+            if value.endswith("m"):
+                return float(value[:-1]) / 1000.0
+            if value.endswith("n"):
+                return float(value[:-1]) / 1_000_000_000.0
+            if value.endswith("u"):
+                return float(value[:-1]) / 1_000_000.0
+            return float(value)
+        except ValueError:
+            return 0.0
+
+    @staticmethod
+    def _parse_memory_quantity(value: Optional[str]) -> float:
+        """把 K8s 内存资源量字符串解析为字节数（"128Mi" -> 134217728）。"""
+        if not value:
+            return 0.0
+        value = str(value).strip()
+        suffixes = {
+            "Ki": 1024,
+            "Mi": 1024**2,
+            "Gi": 1024**3,
+            "Ti": 1024**4,
+            "Pi": 1024**5,
+            "K": 1000,
+            "M": 1000**2,
+            "G": 1000**3,
+            "T": 1000**4,
+            "k": 1000,
+        }
+        for suffix, factor in suffixes.items():
+            if value.endswith(suffix):
+                try:
+                    return float(value[: -len(suffix)]) * factor
+                except ValueError:
+                    return 0.0
+        try:
+            return float(value)
+        except ValueError:
+            return 0.0
+
     async def _get_deployment_metrics(self, deployment_name: str) -> Optional[Dict[str, Any]]:
         """
         获取Deployment指标
+
+        从 K8s API 读取 Deployment 当前副本数、Pod 资源 requests，
+        并通过 metrics-server（``metrics.k8s.io/v1beta1``）读取**真实** Pod 使用量，
+        据此计算 CPU/内存利用率。无 metrics-server 或客户端未初始化时返回 ``None``
+        （诚实失败，绝不返回占位常量）。
 
         参数:
             deployment_name: Deployment名称
 
         返回:
-            指标字典
+            指标字典；无法获取时返回 None
         """
         if not self._is_initialized or self._k8s_client is None:
-            # 模拟模式
-            return {
-                "current_replicas": 3,
-                "cpu_utilization": 65.0,
-                "memory_utilization": 70.0,
-                "custom_metric": 100.0,
-            }
+            logger.error(
+                "K8s client not initialized; cannot read metrics for deployment %s",
+                deployment_name,
+            )
+            return None
 
         try:
             # 获取Deployment
@@ -285,7 +334,7 @@ class CustomHPAController:
 
             current_replicas = deploy.spec.replicas or 0
 
-            # 获取Pod指标
+            # 获取Pod
             pods = self._k8s_client.list_namespaced_pod(
                 self.namespace, label_selector=f"app={deployment_name}"
             )
@@ -297,30 +346,55 @@ class CustomHPAController:
                     "memory_utilization": 0.0,
                 }
 
-            # 计算平均CPU和内存利用率
-            total_cpu = 0.0
-            total_memory = 0.0
-            pod_count = 0
-
+            # 汇总每个容器的资源 requests 作为利用率分母
+            requested_cpu = 0.0
+            requested_memory = 0.0
+            running_pods = 0
             for pod in pods.items:
-                if pod.status.phase == "Running":
-                    # 这里应该从metrics-server获取实际指标
-                    # 简化实现，使用占位值
-                    total_cpu += 50.0  # 占位
-                    total_memory += 60.0  # 占位
-                    pod_count += 1
+                if pod.status.phase != "Running":
+                    continue
+                running_pods += 1
+                for container in pod.spec.containers or []:
+                    requests = getattr(container.resources, "requests", None) or {}
+                    requested_cpu += self._parse_cpu_quantity(requests.get("cpu"))
+                    requested_memory += self._parse_memory_quantity(requests.get("memory"))
 
-            if pod_count == 0:
+            if running_pods == 0:
                 return {
                     "current_replicas": current_replicas,
                     "cpu_utilization": 0.0,
                     "memory_utilization": 0.0,
                 }
 
+            # 从 metrics-server 读取真实使用量
+            custom_api = client.CustomObjectsApi()
+            metrics_obj = custom_api.list_namespaced_custom_object(
+                group="metrics.k8s.io",
+                version="v1beta1",
+                namespace=self.namespace,
+                plural="pods",
+                label_selector=f"app={deployment_name}",
+            )
+
+            used_cpu = 0.0
+            used_memory = 0.0
+            for item in metrics_obj.get("items", []):
+                for container in item.get("containers", []):
+                    usage = container.get("usage", {}) or {}
+                    used_cpu += self._parse_cpu_quantity(usage.get("cpu"))
+                    used_memory += self._parse_memory_quantity(usage.get("memory"))
+
+            cpu_utilization = (used_cpu / requested_cpu * 100.0) if requested_cpu > 0 else 0.0
+            memory_utilization = (
+                (used_memory / requested_memory * 100.0) if requested_memory > 0 else 0.0
+            )
+
             return {
                 "current_replicas": current_replicas,
-                "cpu_utilization": total_cpu / pod_count,
-                "memory_utilization": total_memory / pod_count,
+                "cpu_utilization": round(cpu_utilization, 2),
+                "memory_utilization": round(memory_utilization, 2),
+                "used_cpu_cores": round(used_cpu, 4),
+                "used_memory_bytes": int(used_memory),
             }
 
         except ApiException as e:
@@ -403,13 +477,21 @@ class CustomHPAController:
         返回:
             是否成功
         """
-        if not self._is_initialized or self._k8s_client is None:
-            logger.warning(
-                "K8s client not initialized, simulating scale %s to %d replicas",
+        if self.dry_run:
+            logger.info(
+                "Dry-run: would scale deployment %s to %d replicas",
                 deployment_name,
                 target_replicas,
             )
             return True
+
+        if not self._is_initialized or self._k8s_client is None:
+            logger.error(
+                "K8s client not initialized; cannot scale deployment %s to %d replicas",
+                deployment_name,
+                target_replicas,
+            )
+            return False
 
         try:
             self._k8s_client.patch_namespaced_deployment_scale(

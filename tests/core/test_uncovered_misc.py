@@ -311,7 +311,7 @@ async def test_integration_manager_jira_and_jenkins(monkeypatch):
     jira = await manager.register_integration(
         IntegrationType.ITSM,
         "jira",
-        {"url": "http://jira", "username": "u", "api_token": "t"},
+        {"url": "http://jira", "username": "u", "api_token": "t", "project_key": "AIO"},
     )
     result = await manager.create_jira_issue(
         jira.integration_id, "bug", "desc"

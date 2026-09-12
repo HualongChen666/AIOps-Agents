@@ -27,11 +27,8 @@ pytestmark = [pytest.mark.core]
 # core.integration_test_validator
 # ---------------------------------------------------------------------------
 @pytest.fixture
-def validator(tmp_path, monkeypatch):
-    """Fresh IntegrationTestValidator with mocked random."""
-    fake_random = MagicMock(random=MagicMock(return_value=0.9))
-    monkeypatch.setattr("secrets.SystemRandom", lambda: fake_random)
-
+def validator(tmp_path):
+    """Fresh IntegrationTestValidator（真实检查，无需 mock）。"""
     return itv.IntegrationTestValidator(config={"reports_dir": str(tmp_path)})
 
 
@@ -130,10 +127,12 @@ async def test_execute_validation_not_found(validator):
 
 @pytest.mark.asyncio
 async def test_execute_validation_exception(validator, monkeypatch):
-    async def _fake_sleep_raise(delay):
+    import core.integration_checks as checks
+
+    async def _boom(check):
         raise RuntimeError("boom")
 
-    monkeypatch.setattr(itv.asyncio, "sleep", _fake_sleep_raise)
+    monkeypatch.setattr(checks, "run_check", _boom)
 
     exec_id = "exec_manual_1"
     validator.validation_executions[exec_id] = itv.ValidationExecution(

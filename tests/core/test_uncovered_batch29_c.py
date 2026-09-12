@@ -942,6 +942,15 @@ async def test_query_pagerduty_jenkins_jira(monkeypatch):
         name="jenkins",
         config={},
     )
+    # 未配置 url -> 如实报错
+    res = await mgr.trigger_jenkins_job("jen-1", "job")
+    assert "URL not configured" in res["error"]
+    # 配置 url + 真实形态的 201 响应 -> 成功
+    post_response = MagicMock()
+    post_response.status_code = 201
+    post_response.headers = {"Location": "http://jenkins/queue/item/1/"}
+    mgr.integrations["jen-1"].config = {"url": "http://jenkins"}
+    mgr.http_client.post = AsyncMock(return_value=post_response)
     res = await mgr.trigger_jenkins_job("jen-1", "job")
     assert res["success"]
 
@@ -953,8 +962,21 @@ async def test_query_pagerduty_jenkins_jira(monkeypatch):
         name="jira",
         config={},
     )
+    # 未配置 url -> 如实报错
+    res = await mgr.create_jira_issue("jira-1", "s", "d")
+    assert "URL not configured" in res["error"]
+    # 配置 url + project_key + 201 响应 -> 成功并返回真实 issue_key
+    jira_response = MagicMock()
+    jira_response.status_code = 201
+    jira_response.json = MagicMock(return_value={"id": "1", "key": "PROJ-1"})
+    mgr.integrations["jira-1"].config = {
+        "url": "http://jira",
+        "project_key": "PROJ",
+    }
+    mgr.http_client.post = AsyncMock(return_value=jira_response)
     res = await mgr.create_jira_issue("jira-1", "s", "d")
     assert res["success"]
+    assert res["issue_key"] == "PROJ-1"
 
 
 @pytest.mark.asyncio

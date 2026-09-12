@@ -952,11 +952,30 @@ def test_anomaly_detection_workflow(monkeypatch):
     assert failure["status"] == "no_anomaly"
 
 
-def test_auto_scaling_and_backup_workflows():
-    result1 = asyncio.run(temporal_worker.AutoScalingWorkflow().run({"target": 10}))
-    assert result1["status"] == "completed"
+def test_auto_scaling_and_backup_workflows(monkeypatch):
+    async def _exec(activity, input_data, **kwargs):
+        if activity is temporal_worker.auto_scaling_activity:
+            return {
+                "status": "success",
+                "result": {"deployment_name": "web", "scaled": True, "direction": "scale_up"},
+            }
+        if activity is temporal_worker.backup_activity:
+            return {"status": "success", "result": {"success": True, "backups": ["b1"]}}
+        return {"status": "success", "result": {}}
+
+    fake_workflow = SimpleNamespace(
+        execute_activity=_exec,
+        defn=temporal_worker.workflow.defn,
+        run=temporal_worker.workflow.run,
+    )
+    monkeypatch.setattr(temporal_worker, "workflow", fake_workflow)
+
+    result1 = asyncio.run(temporal_worker.AutoScalingWorkflow().run({"deployment_name": "web"}))
+    assert result1["status"] == "success"
+    assert result1["scaling"]["scaled"] is True
     result2 = asyncio.run(temporal_worker.BackupWorkflow().run({"source": "db"}))
-    assert result2["status"] == "completed"
+    assert result2["status"] == "success"
+    assert result2["backup"]["success"] is True
 
 
 async def _fake_execute_workflow(*args, **kwargs):
@@ -1266,52 +1285,80 @@ def test_causal_graph_builder_other_builds():
 
 
 def test_temporal_activities(monkeypatch):
-    # core fakes
+    # core fakes matching the real activity contracts
     core_pkg = types.ModuleType("core")
     core_pkg.__path__ = []
     monkeypatch.setitem(sys.modules, "core", core_pkg)
 
-    class AnomalyDetector:
-        async def detect(self, input_data):
-            return {"anomaly_detected": True}
+    class _Prediction:
+        confidence = 0.9
+        model_used = "statistical_z_score"
+        metadata = {"anomalies": [{"metric": "cpu", "z_score": 5.0}]}
 
-    class AutoHealEngine:
-        async def heal(self, input_data):
-            return {"success": True}
+    class AdvancedAICapabilities:
+        async def predict_anomalies(self, current_data, historical_baseline, threshold_std=2.0):
+            return _Prediction()
 
-    class RunbookGeneratorCore:
-        async def generate(self, input_data):
-            return {"runbook": {}}
+    async def try_auto_heal(alert):
+        return {"success": True}
 
-    class NotificationEngine:
-        async def send(self, input_data):
-            return {"sent": True}
+    async def generate_repair_runbook(alert, rich_context=None):
+        return {"success": True, "runbook": {}}
+
+    async def send_alert_notification(alert):
+        return {"sent": True}
 
     monkeypatch.setitem(
-        sys.modules, "core.anomaly_detection", SimpleNamespace(AnomalyDetector=AnomalyDetector)
+        sys.modules,
+        "core.advanced_ai_capabilities",
+        SimpleNamespace(AdvancedAICapabilities=AdvancedAICapabilities),
     )
-    monkeypatch.setitem(
-        sys.modules, "core.auto_heal", SimpleNamespace(AutoHealEngine=AutoHealEngine)
-    )
+    monkeypatch.setitem(sys.modules, "core.auto_heal", SimpleNamespace(try_auto_heal=try_auto_heal))
     monkeypatch.setitem(
         sys.modules,
         "core.runbook_generator",
-        SimpleNamespace(RunbookGenerator=RunbookGeneratorCore),
+        SimpleNamespace(generate_repair_runbook=generate_repair_runbook),
     )
     monkeypatch.setitem(
-        sys.modules, "core.notify_engine", SimpleNamespace(NotificationEngine=NotificationEngine)
+        sys.modules,
+        "core.notify_engine",
+        SimpleNamespace(send_alert_notification=send_alert_notification),
     )
 
-    async def _analyze(self, input_data):
-        return {"root": "cpu"}
+    def _build_graph(self, alerts, services, metrics, dependencies):
+        return None
 
-    monkeypatch.setattr(RootCauseInference, "analyze", _analyze, raising=False)
+    def _infer(self, alert_id, hops=3):
+        return {"alert_id": alert_id, "root_cause": {"id": "n1"}, "confidence": 0.5}
 
-    assert asyncio.run(temporal_worker.detect_anomaly_activity({}))["status"] == "success"
-    assert asyncio.run(temporal_worker.root_cause_analysis_activity({}))["status"] == "success"
-    assert asyncio.run(temporal_worker.auto_heal_activity({}))["status"] == "success"
-    assert asyncio.run(temporal_worker.runbook_generation_activity({}))["status"] == "success"
-    assert asyncio.run(temporal_worker.notify_activity({}))["status"] == "success"
+    monkeypatch.setattr(RootCauseInference, "build_graph_from_alerts", _build_graph, raising=False)
+    monkeypatch.setattr(RootCauseInference, "infer_root_cause", _infer, raising=False)
+
+    detect = asyncio.run(
+        temporal_worker.detect_anomaly_activity(
+            {"current_data": {"cpu": 50.0}, "historical_baseline": {"cpu": [1, 2, 3]}}
+        )
+    )
+    assert detect["status"] == "success"
+    assert detect["result"]["anomaly_detected"] is True
+
+    assert (
+        asyncio.run(temporal_worker.root_cause_analysis_activity({"alerts": [{"id": "a1"}]}))[
+            "status"
+        ]
+        == "success"
+    )
+    assert (
+        asyncio.run(temporal_worker.auto_heal_activity({"alert": {"id": "a1"}}))["status"]
+        == "success"
+    )
+    assert (
+        asyncio.run(temporal_worker.runbook_generation_activity({"alert": {"id": "a1"}}))["status"]
+        == "success"
+    )
+    assert (
+        asyncio.run(temporal_worker.notify_activity({"alert": {"id": "a1"}}))["status"] == "success"
+    )
 
 
 def test_anomaly_detection_workflow_failure(monkeypatch):

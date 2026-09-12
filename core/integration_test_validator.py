@@ -185,6 +185,42 @@ class IntegrationTestValidator:
             enabled=True,
         )
 
+        # 真实可执行检查定义（供 core.integration_checks.run_check 使用）
+        self.validation_tests["functional_api"].config = {
+            "check": {"kind": "module_attr", "module": "api.user_router", "attr": "router"}
+        }
+        self.validation_tests["functional_database"].config = {
+            "check": {"kind": "db", "sql": "SELECT 1"}
+        }
+        self.validation_tests["performance_response_time"].config = {
+            "check": {
+                "kind": "latency",
+                "module": "core.authentication",
+                "attr": "hash_password",
+                "args": ["probe"],
+                "max_seconds": 2.0,
+            }
+        }
+        self.validation_tests["performance_throughput"].config = {
+            "check": {"kind": "db_throughput", "ops": 20, "min_ops_per_sec": 1.0}
+        }
+        self.validation_tests["security_authentication"].config = {
+            "check": {"kind": "password_roundtrip"}
+        }
+        self.validation_tests["security_authorization"].config = {
+            "check": {"kind": "jwt_roundtrip"}
+        }
+        self.validation_tests["compatibility_browser"].config = {
+            "check": {
+                "kind": "file_manifest",
+                "path": "frontend/package.json",
+                "expect_keys": ["scripts.build", "dependencies"],
+            }
+        }
+        self.validation_tests["reliability_uptime"].config = {
+            "check": {"kind": "db_reliability", "attempts": 5}
+        }
+
         logger.info(f"Initialized {len(self.validation_tests)} default validation tests")
 
     def _initialize_default_suites(self):
@@ -272,7 +308,10 @@ class IntegrationTestValidator:
 
     async def _execute_validation(self, execution_id: str) -> None:
         """
-        Execute validation test
+        执行校验测试
+
+        按测试绑定的 ``config["check"]`` 真实执行对应检查；未绑定定义的测试如实标记
+        为 ``SKIPPED``，检查失败标记 ``FAILED``，异常标记 ``ERROR``。绝不随机伪造结果。
 
         Args:
             execution_id: Execution ID
@@ -281,46 +320,55 @@ class IntegrationTestValidator:
             return
 
         execution = self.validation_executions[execution_id]
+        test = self.validation_tests.get(execution.test_id)
+
+        if test is None:
+            # 引用了不存在的校验定义 —— 配置错误，如实报 ERROR
+            execution.started_at = datetime.now(timezone.utc)
+            execution.completed_at = execution.started_at
+            execution.result = ValidationResult.ERROR
+            execution.error_message = f"Validation test not found: {execution.test_id}"
+            self.total_failed += 1
+            logger.error(f"Validation execution failed: {execution_id}, error: {execution.error_message}")
+            return
 
         try:
-            # Update status
             execution.result = ValidationResult.SKIPPED
             execution.started_at = datetime.now(timezone.utc)
-            self.validation_tests[execution.test_id]
 
-            # Simulate validation execution
-            await asyncio.sleep(2)  # Simulate validation
-
-            # Simulate validation result (random for demonstration)
-            import secrets
-
-            _random = secrets.SystemRandom()
-            is_passed = _random.random() > 0.15  # 85% chance of passing
-
-            # Update execution
-            execution.result = ValidationResult.PASSED if is_passed else ValidationResult.FAILED
-            execution.completed_at = datetime.now(timezone.utc)
-            execution.duration = (execution.completed_at - execution.started_at).total_seconds()
-            execution.output = f"Validation {'passed' if is_passed else 'failed'}"
-
-            if is_passed:
-                self.total_passed += 1
+            check = (test.config or {}).get("check")
+            if not check:
+                execution.result = ValidationResult.SKIPPED
+                execution.output = "No runnable check defined for this validation"
             else:
-                self.total_failed += 1
-                execution.error_message = "Validation assertion failed"
+                from core.integration_checks import run_check
 
-            logger.info(
-                f"Validation execution completed: {execution_id}, result: {execution.result.value}"
-            )
+                outcome = await asyncio.wait_for(run_check(check), timeout=test.timeout)
+                execution.output = outcome["output"]
+                execution.metrics = outcome.get("metrics", {})
+                if outcome["passed"]:
+                    execution.result = ValidationResult.PASSED
+                    self.total_passed += 1
+                else:
+                    execution.result = ValidationResult.FAILED
+                    execution.error_message = outcome.get("error") or "Validation assertion failed"
+                    self.total_failed += 1
 
+        except asyncio.TimeoutError:
+            execution.result = ValidationResult.ERROR
+            execution.error_message = "Validation timed out"
+            self.total_failed += 1
         except Exception as e:
             execution.result = ValidationResult.ERROR
             execution.error_message = str(e)
+            self.total_failed += 1
+        finally:
             execution.completed_at = datetime.now(timezone.utc)
             if execution.started_at:
                 execution.duration = (execution.completed_at - execution.started_at).total_seconds()
-            self.total_failed += 1
-            logger.error(f"Validation execution failed: {execution_id}, error: {e}")
+            logger.info(
+                f"Validation execution completed: {execution_id}, result: {execution.result.value}"
+            )
 
     async def run_suite(self, suite_id: str) -> List[str]:
         """
@@ -371,11 +419,7 @@ class IntegrationTestValidator:
 
             execution = self.validation_executions[execution_id]
 
-            if execution.result in (
-                ValidationResult.PASSED,
-                ValidationResult.FAILED,
-                ValidationResult.ERROR,
-            ):
+            if execution.completed_at is not None:
                 break
 
             await asyncio.sleep(0.5)

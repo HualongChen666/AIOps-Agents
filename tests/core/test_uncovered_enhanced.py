@@ -8,7 +8,7 @@ and AsyncMock so the suite runs offline.
 """
 
 from datetime import datetime
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest  # noqa: F401  # Imported for test setup
 
@@ -335,10 +335,18 @@ async def test_enhanced_rca_record_and_stats(rca_analyzer):
 
 @pytest.fixture
 def integration_manager(monkeypatch):
-    """Provide an IntegrationManager with HTTP/boto3 disabled."""
-    monkeypatch.setattr(im, "HTTP_AVAILABLE", False)
-    monkeypatch.setattr(im, "BOTO3_AVAILABLE", False)
-    return im.IntegrationManager({})
+    """Provide an IntegrationManager with a mocked HTTP client (real httpx call shapes)."""
+    manager = im.IntegrationManager({})
+    fake_client = AsyncMock()
+    response = MagicMock()
+    response.status_code = 200
+    response.text = "ok"
+    response.json.return_value = {"key": "PROJ-1", "id": "1"}
+    response.headers = {"Location": "http://jenkins/queue/item/1/"}
+    fake_client.get = AsyncMock(return_value=response)
+    fake_client.post = AsyncMock(return_value=response)
+    manager.http_client = fake_client
+    return manager
 
 
 @pytest.mark.asyncio

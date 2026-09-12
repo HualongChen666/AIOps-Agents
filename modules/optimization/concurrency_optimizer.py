@@ -48,7 +48,7 @@ class Task:
     """任务定义"""
 
     id: str
-    func: Callable
+    func: Optional[Callable] = None
     args: tuple = ()
     kwargs: dict = field(default_factory=dict)
     status: TaskStatus = TaskStatus.PENDING
@@ -133,6 +133,9 @@ class ThreadPoolManager:
         )
         self.statistics = ConcurrencyStatistics()
         self.lock = threading.Lock()
+        self._futures: set = set()
+        self._execution_time_total = 0.0
+        self._execution_count = 0
 
     def submit(
         self,
@@ -162,9 +165,17 @@ class ThreadPoolManager:
         """
         task = Task(id=task_id, func=func, args=args, kwargs=kwargs)
 
-        self.executor.submit(self._run_task, task)
+        future = self.executor.submit(self._run_task, task)
+        with self.lock:
+            self._futures.add(future)
+        future.add_done_callback(self._discard_future)
 
         return task
+
+    def _discard_future(self, future) -> None:
+        """任务结束后从待等待集合移除。"""
+        with self.lock:
+            self._futures.discard(future)
 
     def _run_task(self, task: Task) -> Any:
         """运行任务"""
@@ -200,13 +211,14 @@ class ThreadPoolManager:
                 self.statistics.current_running -= 1
                 self.statistics.total_tasks += 1
 
-                # 更新平均执行时间
+                # 更新平均执行时间（对全部已结束任务求平均，避免除零）
                 if task.started_at and task.completed_at:
                     execution_time = (task.completed_at - task.started_at).total_seconds()
-                    total_completed = self.statistics.completed_tasks
+                    self._execution_time_total += execution_time
+                    self._execution_count += 1
                     self.statistics.avg_execution_time = (
-                        self.statistics.avg_execution_time * (total_completed - 1) + execution_time
-                    ) / total_completed
+                        self._execution_time_total / self._execution_count
+                    )
 
     def submit_batch(
         self,
@@ -238,16 +250,28 @@ class ThreadPoolManager:
 
         return submitted_tasks
 
-    def wait_for_completion(self, timeout: Optional[float] = None):
+    def wait_for_completion(self, timeout: Optional[float] = None) -> bool:
         """
-        等待所有任务完成
+        等待所有已提交任务完成（不关闭线程池）
 
         Parameters
         ----------
         timeout : float, optional
-            超时时间（秒）
+            超时时间（秒）；None 表示无限等待
+
+        Returns
+        -------
+        bool
+            是否在超时前全部完成
         """
-        self.executor.shutdown(wait=True)
+        from concurrent.futures import wait as _wait
+
+        with self.lock:
+            pending = {f for f in self._futures if not f.done()}
+        if not pending:
+            return True
+        done, not_done = _wait(pending, timeout=timeout)
+        return not not_done
 
     def get_statistics(self) -> ConcurrencyStatistics:
         """获取统计信息"""
@@ -278,6 +302,8 @@ class AsyncTaskScheduler:
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.statistics = ConcurrencyStatistics()
         self.lock = asyncio.Lock()
+        self._execution_time_total = 0.0
+        self._execution_count = 0
 
     async def submit(
         self,
@@ -299,7 +325,7 @@ class AsyncTaskScheduler:
         Task
             任务对象
         """
-        task = Task(id=task_id, func=lambda: None)  # func 占位
+        task = Task(id=task_id)
 
         async with self.semaphore:
             async with self.lock:
@@ -336,11 +362,11 @@ class AsyncTaskScheduler:
 
                     if task.started_at and task.completed_at:
                         execution_time = (task.completed_at - task.started_at).total_seconds()
-                        total_completed = self.statistics.completed_tasks
+                        self._execution_time_total += execution_time
+                        self._execution_count += 1
                         self.statistics.avg_execution_time = (
-                            self.statistics.avg_execution_time * (total_completed - 1)
-                            + execution_time
-                        ) / total_completed
+                            self._execution_time_total / self._execution_count
+                        )
 
     async def submit_batch(
         self,
@@ -359,17 +385,15 @@ class AsyncTaskScheduler:
         List[Task]
             任务对象列表
         """
-        submitted_tasks: List[Task] = []
-
         coroutines = []
         for task_info in tasks:
             task_id = task_info[0]
             coro = task_info[1]
             coroutines.append(self.submit(task_id, coro))
 
-        await asyncio.gather(*coroutines, return_exceptions=True)
+        results = await asyncio.gather(*coroutines, return_exceptions=True)
 
-        return submitted_tasks
+        return [r for r in results if isinstance(r, Task)]
 
     def get_statistics(self) -> ConcurrencyStatistics:
         """获取统计信息"""

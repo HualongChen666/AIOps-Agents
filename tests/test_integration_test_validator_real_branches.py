@@ -142,13 +142,36 @@ async def _run_many_direct(validator, test_id, n):
 
 def test_validation_pass_and_fail(tmp_path):
     v = _default_validator(tmp_path)
-    statuses = _run(_run_many_direct(v, "functional_api", 80))
-    results = [s["result"] for s in statuses]
 
-    assert ValidationResult.PASSED.value in results
-    assert ValidationResult.FAILED.value in results
-    assert v.total_passed > 0
-    assert v.total_failed > 0
+    # 真实通过的检查（functional_api -> 导入 api.user_router.router）应全部 PASSED
+    statuses = _run(_run_many_direct(v, "functional_api", 5))
+    assert all(s["result"] == ValidationResult.PASSED.value for s in statuses)
+    assert v.total_passed == 5
+
+    # 注册一个真实失败的检查（导入不存在的模块）应 FAILED
+    v.register_test(
+        ValidationTest(
+            test_id="always_fail",
+            test_name="Always Fail",
+            category=ValidationCategory.FUNCTIONAL,
+            description="d",
+            config={
+                "check": {
+                    "kind": "module_attr",
+                    "module": "core.no_such_module_xyz",
+                    "attr": "x",
+                }
+            },
+        )
+    )
+    fail_id = "fail_1"
+    v.validation_executions[fail_id] = ValidationExecution(
+        execution_id=fail_id, test_id="always_fail"
+    )
+    _run(v._execute_validation(fail_id))
+    failed_status = v.get_execution_status(fail_id)
+    assert failed_status["result"] == ValidationResult.FAILED.value
+    assert v.total_failed == 1
 
     for s in statuses:
         assert s["started_at"] is not None
@@ -185,32 +208,34 @@ def test_execute_validation_missing_and_error(tmp_path):
     _run(_execution_missing_and_error(v))
 
 
-async def _execution_started_at_none(validator):
+async def _execution_started_at_none(validator, monkeypatch):
+    import core.integration_checks as checks
+
     exec_id = "exec_none_started"
     validator.validation_executions[exec_id] = ValidationExecution(
         execution_id=exec_id, test_id="functional_api"
     )
 
-    async def tamper():
-        await asyncio.sleep(0.1)
+    async def _tamper(check):
+        # 在检查运行期间清空 started_at，触发 finally 中 started_at 为 None 的分支
         validator.validation_executions[exec_id].started_at = None
+        return {"passed": True, "output": "ok", "coverage": 100.0, "error": None, "metrics": {}}
 
-    # tamper with started_at so the duration calculation raises;
-    # the exception fallback must keep duration at 0.0 because started_at is None
-    await asyncio.gather(validator._execute_validation(exec_id), tamper())
+    monkeypatch.setattr(checks, "run_check", _tamper)
+
+    await validator._execute_validation(exec_id)
     execution = validator.validation_executions[exec_id]
     assert (
-        execution.result == ValidationResult.ERROR
+        execution.result == ValidationResult.PASSED
     )  # noqa: F841  # Variable for test verification
     assert execution.started_at is None
     assert execution.completed_at is not None
     assert execution.duration == 0.0
-    assert validator.total_failed == 1
 
 
-def test_execute_validation_started_at_none(tmp_path):
+def test_execute_validation_started_at_none(tmp_path, monkeypatch):
     v = _default_validator(tmp_path)
-    _run(_execution_started_at_none(v))
+    _run(_execution_started_at_none(v, monkeypatch))
 
 
 # ---------------------------------------------------------------------------

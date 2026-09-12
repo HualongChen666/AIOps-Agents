@@ -5,7 +5,6 @@ import asyncio  # noqa: F401  # Imported for test setup
 import importlib
 import json  # noqa: F401  # Imported for test setup
 import os  # noqa: F401  # Imported for test setup
-import secrets
 import sys  # noqa: F401  # Imported for test setup
 import types
 from datetime import datetime, timedelta, timezone
@@ -18,7 +17,6 @@ import pytest  # noqa: F401  # Imported for test setup
 
 import core.disaster_recovery_drill as dr_module
 import core.execution.l6.optimized_executor as executor_module
-import core.performance_integration_tester as perf_module
 import core.plugin_system as plugin_module
 from core.ai.rag.vectorizer import (
     ChunkingStrategy,
@@ -66,17 +64,6 @@ pytestmark = [pytest.mark.core]
 # ---------------------------------------------------------------------------
 # Helpers / fake implementations
 # ---------------------------------------------------------------------------
-
-
-def _make_fake_random(value):
-    class _FakeRandom:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def uniform(self, a, b):
-            return value
-
-    return _FakeRandom
 
 
 class _FakeSentenceTransformer:
@@ -311,42 +298,77 @@ def test_performance_register_and_status_missing(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_performance_run_pass(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        perf_module,
-        "asyncio",
-        SimpleNamespace(sleep=AsyncMock(), create_task=asyncio.create_task),
+async def test_performance_run_pass(tmp_path):
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get("/health")
+    async def _health():
+        return {"ok": True}
+
+    tester = PerformanceIntegrationTester(
+        {
+            "reports_dir": str(tmp_path / "r"),
+            "app": app,
+            "requests_per_test": 5,
+            "concurrency": 2,
+        }
     )
-    monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(0.0))
-    tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
-    exec_id = await tester.run_performance_test("load_test_api")
-    pending = [
-        t for t in asyncio.all_tasks() if t is not asyncio.current_task()
-    ]  # noqa: F841  # Variable for test verification
+    tester.register_test(
+        PerformanceTest(
+            test_id="health_load",
+            test_name="Health Load",
+            test_type=PerformanceTestType.LOAD_TEST,
+            target_endpoint="/health",
+            thresholds={"response_time_p95": 5000.0, "error_rate": 1.0},
+        )
+    )
+    exec_id = await tester.run_performance_test("health_load")
+    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     await asyncio.gather(*pending, return_exceptions=True)
     status = tester.get_execution_status(exec_id)
     assert status["status"] == "completed"
     assert status["passed"] is True
+    assert status["results"]["requests"] == 5
+    assert status["results"]["errors"] == 0
 
 
 @pytest.mark.asyncio
-async def test_performance_run_fail(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        perf_module,
-        "asyncio",
-        SimpleNamespace(sleep=AsyncMock(), create_task=asyncio.create_task),
+async def test_performance_run_fail(tmp_path):
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get("/health")
+    async def _health():
+        return {"ok": True}
+
+    tester = PerformanceIntegrationTester(
+        {
+            "reports_dir": str(tmp_path / "r"),
+            "app": app,
+            "requests_per_test": 5,
+            "concurrency": 2,
+        }
     )
-    monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(100.0))
-    tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
-    exec_id = await tester.run_performance_test("load_test_api")
-    pending = [
-        t for t in asyncio.all_tasks() if t is not asyncio.current_task()
-    ]  # noqa: F841  # Variable for test verification
+    # 目标路径不存在 -> 404 -> error_rate 100% > 阈值 0% -> FAILED
+    tester.register_test(
+        PerformanceTest(
+            test_id="missing_target",
+            test_name="Missing Target",
+            test_type=PerformanceTestType.LOAD_TEST,
+            target_endpoint="/does-not-exist",
+            thresholds={"error_rate": 0.0},
+        )
+    )
+    exec_id = await tester.run_performance_test("missing_target")
+    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     await asyncio.gather(*pending, return_exceptions=True)
     status = tester.get_execution_status(exec_id)
     assert status["status"] == "completed"
     assert status["passed"] is False
-    assert "thresholds" in (status["error_message"] or "").lower() or True
+    assert "threshold" in (status["error_message"] or "").lower()
 
 
 @pytest.mark.asyncio
@@ -360,15 +382,8 @@ async def test_performance_run_not_found_and_disabled(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_performance_execute_error(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        perf_module,
-        "asyncio",
-        SimpleNamespace(
-            sleep=AsyncMock(side_effect=Exception("sleep boom")),
-            create_task=asyncio.create_task,
-        ),
-    )
+async def test_performance_execute_error(tmp_path):
+    # 未配置任何目标（无 app / base_url）-> 真实报错
     tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
     execution_id = "exec_test"
     tester.test_executions[execution_id] = PerformanceTestExecution(
@@ -377,29 +392,45 @@ async def test_performance_execute_error(tmp_path, monkeypatch):
     await tester._execute_performance_test(execution_id)
     status = tester.get_execution_status(execution_id)
     assert status["status"] == "error"
-    assert "sleep boom" in (status["error_message"] or "")
+    assert "no performance target configured" in (status["error_message"] or "")
 
 
 @pytest.mark.asyncio
-async def test_performance_report_and_stats(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        perf_module,
-        "asyncio",
-        SimpleNamespace(sleep=AsyncMock(), create_task=asyncio.create_task),
+async def test_performance_report_and_stats(tmp_path):
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get("/health")
+    async def _health():
+        return {"ok": True}
+
+    tester = PerformanceIntegrationTester(
+        {
+            "reports_dir": str(tmp_path / "r"),
+            "app": app,
+            "requests_per_test": 4,
+            "concurrency": 2,
+        }
     )
-    monkeypatch.setattr(secrets, "SystemRandom", _make_fake_random(0.0))
-    tester = PerformanceIntegrationTester({"reports_dir": str(tmp_path / "r")})
-    exec_id = await tester.run_performance_test("load_test_api")
-    pending = [
-        t for t in asyncio.all_tasks() if t is not asyncio.current_task()
-    ]  # noqa: F841  # Variable for test verification
+    tester.register_test(
+        PerformanceTest(
+            test_id="health_load",
+            test_name="Health Load",
+            test_type=PerformanceTestType.LOAD_TEST,
+            target_endpoint="/health",
+            thresholds={"response_time_p95": 5000.0},
+        )
+    )
+    exec_id = await tester.run_performance_test("health_load")
+    pending = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     await asyncio.gather(*pending, return_exceptions=True)
 
     report = await tester.generate_performance_report()
     assert report["summary"]["total"] == 1
     assert "report_" in report["report_id"]
 
-    filtered = await tester.generate_performance_report(test_id="load_test_api")
+    filtered = await tester.generate_performance_report(test_id="health_load")
     assert filtered["summary"]["total"] == 1
 
     missing = await tester.generate_performance_report(test_id="missing")
@@ -691,8 +722,15 @@ async def test_drill_all_scenarios(dr_mocked_asyncio):
     for scenario in DrillScenario:
         result = await drill.run_drill(scenario)  # noqa: F841  # Variable for test verification
         assert result.status == DrillStatus.COMPLETED
-        assert result.success is True
         assert result.end_time is not None
+        # 真实语义：success 与详情一致；未配置复制/服务探测时如实为 False（不伪造成功）
+        assert result.success == result.details.get("success", False)
+    # 复制未启用时，数据库故障转移演练必须如实报告未成功
+    from core import db_replication
+
+    if not db_replication.is_replication_enabled():
+        failover = await drill.run_drill(DrillScenario.DATABASE_FAILOVER)
+        assert failover.success is False
 
 
 @pytest.mark.asyncio

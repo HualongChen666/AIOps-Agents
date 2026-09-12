@@ -230,6 +230,10 @@ class PerformanceIntegrationTester:
         """
         Execute performance test
 
+        对 ``test.target_endpoint`` 发起**真实**负载（httpx，支持网络 base_url 或
+        进程内 ASGI app），测量真实响应时间分位/吞吐/错误率，并按阈值判定通过与否。
+        目标未配置或请求异常时如实报 error，绝不伪造指标。
+
         Args:
             execution_id: Execution ID
         """
@@ -237,93 +241,185 @@ class PerformanceIntegrationTester:
             return
 
         execution = self.test_executions[execution_id]
-        test = self.performance_tests[execution.test_id]
+        test = self.performance_tests.get(execution.test_id)
+
+        if test is None:
+            execution.status = "error"
+            execution.error_message = f"Performance test not found: {execution.test_id}"
+            execution.completed_at = datetime.now(timezone.utc)
+            self.failed_tests += 1
+            return
 
         try:
-            # Update status
             execution.status = "running"
             execution.started_at = datetime.now(timezone.utc)
 
-            # Simulate performance test execution
-            await asyncio.sleep(3)  # Simulate ramp-up
+            outcome = await self._run_load(test)
 
-            # Simulate metrics collection
-            import secrets
-
-            _random = secrets.SystemRandom()
-            response_times = []
-            throughputs = []
-            error_rates = []
-
-            for _ in range(test.duration):
-                response_time = _random.uniform(100.0, 800.0)
-                throughput = _random.uniform(50.0, 200.0)
-                error_rate = _random.uniform(0.0, 5.0)
-
-                response_times.append(response_time)
-                throughputs.append(throughput)
-                error_rates.append(error_rate)
-
-                await asyncio.sleep(0.1)  # Simulate time passing
-
-            # Calculate statistics
-            response_times.sort()
-            p50 = response_times[len(response_times) // 2]
-            p95 = response_times[int(len(response_times) * 0.95)]
-            p99 = response_times[int(len(response_times) * 0.99)]
-            avg_response_time = sum(response_times) / len(response_times)
-            avg_throughput = sum(throughputs) / len(throughputs)
-            avg_error_rate = sum(error_rates) / len(error_rates)
-
-            # Check thresholds
-            passed = True
-
-            if "response_time_p95" in test.thresholds:
-                if p95 > test.thresholds["response_time_p95"]:
-                    passed = False
-
-            if "error_rate" in test.thresholds:
-                if avg_error_rate > test.thresholds["error_rate"]:
-                    passed = False
-
-            # Update execution
+            execution.metrics = outcome["metrics"]
+            execution.results = outcome["results"]
+            execution.passed = outcome["passed"]
             execution.status = "completed"
-            execution.completed_at = datetime.now(timezone.utc)
-            if execution.started_at is not None:
-                execution.duration = (execution.completed_at - execution.started_at).total_seconds()
-            execution.passed = passed
-            execution.metrics = {
-                "response_time": response_times,
-                "throughput": throughputs,
-                "error_rate": error_rates,
-            }
-            execution.results = {
-                "response_time_p50": p50,
-                "response_time_p95": p95,
-                "response_time_p99": p99,
-                "avg_response_time": avg_response_time,
-                "avg_throughput": avg_throughput,
-                "avg_error_rate": avg_error_rate,
-                "target_users": test.target_users,
-                "actual_users": test.target_users,
-            }
 
-            if passed:
+            if outcome["passed"]:
                 self.passed_tests += 1
             else:
                 self.failed_tests += 1
                 execution.error_message = "Performance thresholds not met"
 
-            logger.info(f"Performance test completed: {execution_id}, passed: {passed}")
+            logger.info(
+                f"Performance test completed: {execution_id}, passed: {outcome['passed']}"
+            )
 
         except Exception as e:
             execution.status = "error"
             execution.error_message = str(e)
+            self.failed_tests += 1
+            logger.error(f"Performance test failed: {execution_id}, error: {e}")
+        finally:
             execution.completed_at = datetime.now(timezone.utc)
             if execution.started_at is not None:
                 execution.duration = (execution.completed_at - execution.started_at).total_seconds()
-            self.failed_tests += 1
-            logger.error(f"Performance test failed: {execution_id}, error: {e}")
+
+    @staticmethod
+    def _percentile(sorted_values: List[float], pct: float) -> float:
+        """线性插值百分位。"""
+        if not sorted_values:
+            return 0.0
+        k = (len(sorted_values) - 1) * pct
+        floor_idx = int(k)
+        ceil_idx = min(floor_idx + 1, len(sorted_values) - 1)
+        if floor_idx == ceil_idx:
+            return sorted_values[floor_idx]
+        return sorted_values[floor_idx] + (sorted_values[ceil_idx] - sorted_values[floor_idx]) * (
+            k - floor_idx
+        )
+
+    def _build_load_client(self):
+        """构造真实 httpx 客户端：优先进程内 ASGI app，其次网络 base_url。"""
+        import httpx
+
+        app = self.config.get("app")
+        if app is None and self.config.get("asgi_app"):
+            module_name, _, attr = str(self.config["asgi_app"]).partition(":")
+            module = __import__(module_name, fromlist=[attr or "app"])
+            app = getattr(module, attr or "app")
+
+        if app is not None:
+            return httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=app),
+                base_url=self.config.get("base_url", "http://testserver"),
+                timeout=self.config.get("timeout", 30.0),
+            )
+
+        base_url = self.config.get("base_url") or self.config.get("target_base_url")
+        if not base_url:
+            raise RuntimeError(
+                "no performance target configured; set config['base_url'] or config['app']"
+            )
+        return httpx.AsyncClient(base_url=base_url, timeout=self.config.get("timeout", 30.0))
+
+    async def _run_load(self, test: PerformanceTest) -> Dict[str, Any]:
+        """对目标发起真实负载并返回真实统计与阈值判定。"""
+        import time
+
+        import httpx
+
+        requests_count = int(
+            test.metadata.get("requests", self.config.get("requests_per_test", 40))
+        )
+        concurrency = int(
+            test.metadata.get("concurrency", self.config.get("concurrency", 10))
+        )
+        method = str(test.metadata.get("method", "GET")).upper()
+        concurrency = max(1, min(concurrency, requests_count))
+
+        latencies: List[float] = []
+        errors = 0
+        semaphore = asyncio.Semaphore(concurrency)
+
+        # 真实资源占用采样（如指标含 CPU/内存）
+        cpu_samples: List[float] = []
+        mem_samples: List[float] = []
+        try:
+            import psutil
+
+            proc = psutil.Process()
+            psutil_available = True
+        except Exception:  # noqa: BLE001 - psutil 缺失时跳过资源采样
+            psutil_available = False
+
+        start = time.perf_counter()
+        async with self._build_load_client() as client:
+
+            async def _one() -> None:
+                nonlocal errors
+                async with semaphore:
+                    req_start = time.perf_counter()
+                    try:
+                        response = await client.request(method, test.target_endpoint)
+                        latency_ms = (time.perf_counter() - req_start) * 1000.0
+                        latencies.append(latency_ms)
+                        if response.status_code >= 400:
+                            errors += 1
+                    except httpx.HTTPError:
+                        errors += 1
+                        latencies.append((time.perf_counter() - req_start) * 1000.0)
+                    if psutil_available:
+                        cpu_samples.append(proc.cpu_percent(interval=None))
+                        mem_samples.append(proc.memory_info().rss / (1024 * 1024))
+
+            await asyncio.gather(*(_one() for _ in range(requests_count)))
+
+        elapsed = max(time.perf_counter() - start, 1e-9)
+        latencies.sort()
+        p50 = self._percentile(latencies, 0.50)
+        p95 = self._percentile(latencies, 0.95)
+        p99 = self._percentile(latencies, 0.99)
+        avg = sum(latencies) / len(latencies) if latencies else 0.0
+        throughput = requests_count / elapsed
+        error_rate = (errors / requests_count * 100.0) if requests_count else 0.0
+
+        results: Dict[str, Any] = {
+            "response_time_p50": round(p50, 3),
+            "response_time_p95": round(p95, 3),
+            "response_time_p99": round(p99, 3),
+            "avg_response_time": round(avg, 3),
+            "avg_throughput": round(throughput, 2),
+            "avg_error_rate": round(error_rate, 3),
+            "target_users": test.target_users,
+            "actual_users": requests_count,
+            "requests": requests_count,
+            "errors": errors,
+            "elapsed_seconds": round(elapsed, 3),
+        }
+
+        metrics: Dict[str, List[float]] = {
+            "response_time": latencies,
+            "throughput": [round(throughput, 2)],
+            "error_rate": [round(error_rate, 3)],
+        }
+        if psutil_available and cpu_samples:
+            results["avg_cpu_usage"] = round(sum(cpu_samples) / len(cpu_samples), 2)
+            results["avg_memory_usage"] = round(sum(mem_samples) / len(mem_samples), 2)
+            metrics["cpu_usage"] = cpu_samples
+            metrics["memory_usage"] = mem_samples
+
+        passed = True
+        thresholds = test.thresholds or {}
+        if "response_time_p95" in thresholds and p95 > thresholds["response_time_p95"]:
+            passed = False
+        if "response_time_p99" in thresholds and p99 > thresholds["response_time_p99"]:
+            passed = False
+        if "error_rate" in thresholds and error_rate > thresholds["error_rate"]:
+            passed = False
+        if "throughput_per_user" in thresholds:
+            per_user = throughput / test.target_users if test.target_users else 0.0
+            if per_user < thresholds["throughput_per_user"]:
+                passed = False
+
+        return {"passed": passed, "results": results, "metrics": metrics}
+
 
     def get_execution_status(self, execution_id: str) -> Optional[Dict[str, Any]]:
         """
