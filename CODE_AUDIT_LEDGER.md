@@ -11516,3 +11516,69 @@ terraform/storage.tf
 - 映射：**10/15** 页可直连真实端点（cache-optimization / connection-optimization / query-cache / optimization / optimization-manager / performance-tuning / slow-query / query-optimization / index-optimization / health-monitoring）。
 - **无后端：5/15** 页（failover / postgresql-shard / read-write-routing / replication / sharding）——全库 openapi 无任何 shard/replication/failover/read-write-routing 端点（`grep -i routing` 仅命中 `alerts/routing`）。属基础设施高可用/分片拓扑，**需新建后端域**才真实 → 结构性/产品决策，记 **task #11**，不伪造。
 - 后端已发现缺陷（待修，属本域）：`database_advanced_router.get_indexes/get_backups` 在无数据时**回填硬编码示例**（`idx_users_email`、`production/full` 等）并写入 PersistentStore —— 属「伪种子数据」，违反无硬编码要求。
+
+---
+
+# PART XXXIX — 域 2 数据库：分片后端能力新建（task #11 决策 A）
+
+> 用户决策（2026-09-12）：5 个基础设施页（failover / replication / read-write-routing / sharding / postgresql-shard）
+> 属【开发/运维端后端功能，用户不需要前端业务页】→ **以后端功能满足调用为准**。
+> 其中 sharding / postgresql-shard 无任何后端能力，用户拍板 **(A) 新建真实分片后端能力**。
+
+## 交付物（全部落盘，逻辑行数 = `splitlines` 与 `wc -l` 一致）
+
+| 文件 | splitlines | wc -l |
+|---|---|---|
+| `core/db_sharding.py`（真实分片引擎 + PostgreSQL 声明式分区规划） | 1023 | 1023 |
+| `api/database_sharding_router.py`（分片/分区 REST） | 379 | 379 |
+| `api/database_ha_router.py`（复制/故障转移/读写分离 REST） | 295 | 295 |
+| `tests/core/test_db_sharding.py` | 209 | 209 |
+| `tests/api/test_database_sharding_ha_api.py` | 222 | 222 |
+
+前端 5 页（74 行模板页 → 真实运维控制台）：sharding(366) / postgresql-shard(251) / replication(180) / failover(193) / read-write-routing(250)。
+
+## 1) 真实分片引擎（core/db_sharding.py）
+
+- **一致性哈希环**（`ConsistentHashRing`）：`blake2b` 64 位散列 + 虚拟节点；`blake2b` 而非 `hash()` 以保证跨进程/跨 `PYTHONHASHSEED` 确定性。
+- 四策略路由：`hash`（环）、`modulo`（稳定排序取模）、`range`（`bisect` 区间查找 + 上下界校验）、`list`（值→分片映射，重叠即报错）。
+- 拓扑经 `PersistentStore("db_sharding","topology::<ns>")` **落盘**，进程重启后拓扑存续（测试 `test_add_and_remove_shard_persist` 验证重载）。
+- **未配置即报错**：任何路由在无拓扑时抛 `ShardingNotConfigured`（HTTP 409），绝不凭空造分片。
+- `route_batch` / `scatter_plan`：分布计数、fan-out 分组均来自**实际提交的键**（非模拟）。
+- `rebalance`：重建哈希环（幂等真实动作），对提交键统计**真实迁移键数**、环点迁移数、各分片占比偏差与是否均衡。
+- `health`：对每个分片节点发起**真实 TCP 连接**（`asyncio.open_connection`）返回 up/down 与延迟。
+- **PostgreSQL 声明式分区规划**（`PostgresPartitionManager`）：管理 `MODULUS/REMAINDER`（HASH）、`FOR VALUES FROM/TO`（RANGE）、`FOR VALUES IN`（LIST）定义并校验（重复 remainder、区间重叠、值重复均拒绝），渲染**可执行** `CREATE TABLE … PARTITION BY …` DDL（标识符白名单防注入）。
+
+## 2) REST 端点（openapi `app.openapi()['paths']` 实测，方法级）
+
+- `/api/v1/database/sharding`：`GET /status`、`GET/POST /shards`、`DELETE /shards/{shard_id}`、`POST /configure`、`POST /route`、`POST /route/batch`、`POST /scatter-plan`、`POST /rebalance`、`GET /health`、`DELETE /sharding`。
+- `/api/v1/database/postgresql-shard`：`GET/POST/DELETE /plan`、`GET/POST /partitions`、`DELETE /partitions/{name}`、`GET /ddl`、`POST /apply`（非 PostgreSQL 方言 → 返回规范 `requires-backend` 503 标记，不伪造执行）。
+- `/api/v1/database/replication`：`GET /status`、`POST /configure`、`GET /health`（真实 TCP 探测）。
+- `/api/v1/database/failover`：`GET /status`、`POST /execute`、`POST /promote`、`GET /history`（**仅记录真实执行**的事件，含失败尝试）。
+- `/api/v1/database/read-write-routing`：`GET /stats`、`POST /configure`、`POST /route`（真实分类+路由）、`POST /splitting`、`POST /replicas/{replica_id}`。
+
+注册：两 router 加入 `main.py` 的 `CORE_ROUTERS`（**始终挂载**，不受 addon 开关影响），import 位于 `api.vulnerability_router` 之后。
+
+## 3) 验证证据
+
+- `python -m py_compile core/db_sharding.py api/database_sharding_router.py api/database_ha_router.py main.py` → OK。
+- `pytest tests/core/test_db_sharding.py tests/api/test_database_sharding_ha_api.py` → **39 passed**；并入 `tests/api/test_database_advanced_router.py` 共 **62 passed**。
+- 路由平衡实测：1000 键 / 4 分片 → 分布 `{shard-0:243, shard-1:249, shard-2:285, shard-3:223}`（无硬编码，逐键计数）。
+- `npx tsc --noEmit`（frontend）→ **exit 0，0 error**。
+- `app.openapi()['paths']` 逐条确认 30 个新 path×方法存在（见上）。
+- 全 `main.app` 冒烟：新端点与既有 `/api/v1/database/performance` 等一致返回 **401**（全局鉴权中间件），行为对齐平台其余端点。
+
+## 4) 真实能力来源（非新建/非伪造）
+
+- `failover` / `replication` → 复用 `core/db_replication.py`（`configure_replication` / `check_all_replicas_health` / `perform_failover` / `promote_replica_to_primary`）。
+- `read-write-routing` → 复用 `core/db_read_write_router.py`（`ReadWriteRouter` / `get_read_write_router`）。
+- `sharding` / `postgresql-shard` → **本 PART 新建** `core/db_sharding.py`（决策 A）。
+
+## 5) 备注
+
+- `core/db_sharding.py` 的 PostgreSQL 分区规划与 app 级分片共享哈希/持久化工具但**语义独立**：前者由数据库自身分区（PARTITION BY），后者由应用层路由。
+- 端点鉴权沿用平台全局中间件（RBAC + 租户），与既有数据库端点一致。
+
+## 待续
+
+- task #2 剩余 10 页（有真实后端）+ 本域 5 页已闭环。
+- 横切 #8/#9/#10 待处理；`database_advanced_router.get_indexes/get_backups` 硬编码示例种子待清理。

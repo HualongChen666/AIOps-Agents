@@ -497,6 +497,8 @@ from api.users_advanced_router import router as users_advanced_router
 from api.users_unified_router import router as users_unified_router
 from api.vulnerability_router import router as vulnerability_router
 from api.websocket_router import router as websocket_router
+from api.database_ha_router import router as database_ha_router
+from api.database_sharding_router import router as database_sharding_router
 from api.windows_repair_router import router as windows_repair_router
 from config import (
     DOC_GENERATION_ENABLED,
@@ -1130,6 +1132,8 @@ CORE_ROUTERS = [
     monitoring_config_router,
     monitoring_advanced_router,
     database_monitoring_router,
+    database_sharding_router,
+    database_ha_router,
     performance_optimization_router,
     performance_router,
     health_router,
