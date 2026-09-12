@@ -103,7 +103,7 @@ def _fake_psycopg_module(mock_conn: MagicMock) -> types.ModuleType:
 def _fake_httpx_module() -> types.ModuleType:
     mod = types.ModuleType("httpx")
 
-    def _client():
+    def _client(*args, **kwargs):
         resp = MagicMock()
         resp.content = b"{}"
         resp.json.return_value = {"result": []}

@@ -12,10 +12,13 @@ keeping Redis and raw Qdrant HTTP where no equivalent module exists.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import urllib.parse
 from typing import Any, Dict, Iterable, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class StorageDriver:

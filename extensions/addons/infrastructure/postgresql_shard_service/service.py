@@ -1,33 +1,23 @@
 # -*- coding: utf-8 -*-
-"""Thin wrapper around StorageDriver for the PostgreSQL shard service."""
+"""postgres shard cluster service — real consistent-hash cluster on the shared engine."""
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import List
 
-from extensions.addons.engines.storage_driver import StorageDriver
+from extensions.addons.engines.shard_cluster import ShardClusterServiceBase
 
 OPERATIONS: List[str] = ["sql", "get_stats"]
 
 
-class Service:
-    """PostgreSQL shard service wrapper dispatching to StorageDriver."""
+class Service(ShardClusterServiceBase):
+    """postgres shard cluster service (consistent-hash routing, replication, HA)."""
 
-    def __init__(self, dry_run: bool = True, **kwargs: Any) -> None:
-        self.driver = StorageDriver(dry_run=dry_run, **kwargs)
-
-    def execute_operation(self, name: str, params: Optional[Dict[str, Any]] = None) -> Any:
-        if params is None:
-            params = {}
-        if hasattr(params, "model_dump"):
-            params = params.model_dump()
-        if name not in OPERATIONS:
-            raise ValueError(f"Unknown operation: {name}")
-        method = getattr(self.driver, name)
-        return method(**params)
+    backend = "postgres"
+    SCHEMAS_MODULE = "extensions.addons.infrastructure.postgresql_shard_service.schemas"
+    OPERATIONS = OPERATIONS
 
 
 Service.OPERATIONS = OPERATIONS
-
 
 ShardClusterService = Service
