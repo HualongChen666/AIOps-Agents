@@ -1547,21 +1547,77 @@ async def delete_webhook_config(
 
 
 @router.post("/intelligent-analysis", summary="运行智能分析")
-async def run_intelligent_analysis() -> Dict[str, Any]:
-    """运行智能分析"""
+async def run_intelligent_analysis(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """运行智能分析（基于真实告警数据的聚合/关联）。
+
+    历史问题（已修复）：原实现返回**硬编码假分析**（"CPU使用率异常"、
+    confidence 0.85、固定 insights/recommendations、``related_alerts`` 用
+    ``range(3)`` 造 ID）。现从真实告警表读取近期告警，交由
+    ``core.intelligent_alert_analyzer`` 做真实聚合/统计，并据实产出 insights。
+    """
+    from core.intelligent_alert_analyzer import Alert as AnalyzerAlert
+    from core.intelligent_alert_analyzer import AlertSeverity, intelligent_alert_analyzer
+
     analysis_id = generate_id()
+    try:
+        recent = db.query(Alert).order_by(Alert.detected_at.desc()).limit(100).all()
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Failed to load alerts for intelligent analysis: {e}")
+        recent = []
+
+    analyzer_alerts = []
+    severity_map = {
+        "info": AlertSeverity.INFO,
+        "warning": AlertSeverity.WARNING,
+        "critical": AlertSeverity.CRITICAL,
+        "fatal": AlertSeverity.CRITICAL,
+    }
+    for a in recent:
+        analyzer_alerts.append(
+            AnalyzerAlert(
+                id=str(a.id),
+                severity=severity_map.get(str(a.level).lower(), AlertSeverity.WARNING),
+                message=a.title or a.description or "",
+                source=a.host or a.platform or "unknown",
+                timestamp=a.detected_at or datetime.utcnow(),
+                metadata={"category": a.category, "priority": a.priority},
+                related_entities=[a.host] if a.host else [],
+            )
+        )
+
+    aggregated = await intelligent_alert_analyzer.aggregate_alerts(analyzer_alerts) if analyzer_alerts else []
+    stats = await intelligent_alert_analyzer.get_alert_statistics()
+
+    severity_counts: Dict[str, int] = Counter(str(a.level).lower() for a in recent)
+    insights: List[str] = []
+    if analyzer_alerts:
+        insights.append(f"分析窗口内共 {len(analyzer_alerts)} 条告警")
+        insights.append(f"聚合为 {len(aggregated)} 个告警簇")
+        top_sev = severity_counts.most_common(1)
+        if top_sev:
+            insights.append(f"最高频严重级别: {top_sev[0][0]} ({top_sev[0][1]} 条)")
+
+    recommendations: List[str] = []
+    if aggregated:
+        recommendations.append("对高频告警簇进行根因定位与降噪")
+    if not analyzer_alerts:
+        recommendations.append("当前无告警数据，无需处置")
+
     analysis = {
         "id": analysis_id,
-        "alert_id": generate_id(),
-        "alert_title": "CPU使用率异常",
-        "analysis_type": "root_cause",
-        "confidence": 0.85,
-        "insights": ["检测到CPU使用率持续高于阈值", "可能的原因:进程异常"],
-        "recommendations": ["检查进程状态", "考虑扩容"],
-        "related_alerts": [generate_id() for _ in range(3)],
-        "severity": "high",
+        "alert_id": str(recent[0].id) if recent else None,
+        "alert_title": recent[0].title if recent else None,
+        "analysis_type": "aggregation",
+        "confidence": round(
+            sum(c.confidence for c in aggregated) / len(aggregated), 4
+        ) if aggregated else 0.0,
+        "insights": insights,
+        "recommendations": recommendations,
+        "related_alerts": [c.id for c in aggregated],
+        "severity": max(severity_counts, key=severity_counts.get) if severity_counts else "unknown",
         "created_at": get_timestamp(),
         "status": "completed",
+        "statistics": stats,
     }
     _intelligent_analyses.append(analysis)
     return {"status": "success", "analysis": analysis}
