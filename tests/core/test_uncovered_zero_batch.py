@@ -275,8 +275,17 @@ async def test_enterprise_features(monkeypatch):
 
     compliance = await ef.assess_compliance(ComplianceStandard.SOC2)
     assert compliance["standard"] == "soc2"
-    assert compliance["overall_status"] == "compliant"
+    # No automated checks registered yet -> requirements are 'pending' (never
+    # fabricated as compliant), so the overall status is 'partial'.
+    assert compliance["overall_status"] == "partial"
     assert len(compliance["requirements"]) == 4
+    assert all(r.status == "pending" for r in compliance["requirements"])
+
+    # Registering real automated checks drives the assessment to compliant.
+    for _req_id in ef.compliance_frameworks[ComplianceStandard.SOC2]["requirements"]:
+        ef.register_requirement_check(_req_id, lambda _s, _r: (True, {"evidence": "ok"}))
+    compliance_checked = await ef.assess_compliance(ComplianceStandard.SOC2)
+    assert compliance_checked["overall_status"] == "compliant"
 
     if enterprise_features.CRYPTO_AVAILABLE:
         from cryptography.fernet import Fernet

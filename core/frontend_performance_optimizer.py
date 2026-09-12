@@ -208,29 +208,28 @@ class FrontendPerformanceOptimizer:
             config={"cdn_provider": "cloudflare", "cache_control": "public, max-age=31536000"},
         )
 
-    async def analyze_performance(self, url: str) -> PerformanceReport:
+    async def analyze_performance(
+        self, url: str, metrics: Optional[Dict[str, float]] = None
+    ) -> PerformanceReport:
         """
-        Analyze frontend performance
+        Analyze frontend performance using real measurements.
+
+        ``metrics`` may be supplied directly (e.g. from a cache or a caller that
+        already ran Lighthouse).  Otherwise the metrics are collected with
+        Lighthouse; if Lighthouse is unavailable an explicit error is raised
+        rather than returning fabricated numbers.
 
         Args:
             url: URL to analyze
+            metrics: Optional pre-collected metrics
 
         Returns:
             Performance report
         """
         report_id = f"perf_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
-        # Simulate performance analysis
-        # In real implementation, would use Lighthouse or similar tools
-        metrics = {
-            PerformanceMetric.FIRST_CONTENTFUL_PAINT.value: 1.2,
-            PerformanceMetric.LARGEST_CONTENTFUL_PAINT.value: 2.5,
-            PerformanceMetric.FIRST_INPUT_DELAY.value: 0.05,
-            PerformanceMetric.CUMULATIVE_LAYOUT_SHIFT.value: 0.1,
-            PerformanceMetric.TIME_TO_INTERACTIVE.value: 3.8,
-            PerformanceMetric.TOTAL_BLOCKING_TIME.value: 150,
-            PerformanceMetric.SPEED_INDEX.value: 3.2,
-        }
+        if metrics is None:
+            metrics = await self._collect_metrics(url)
 
         # Calculate overall score
         score = self._calculate_performance_score(metrics)
@@ -252,6 +251,65 @@ class FrontendPerformanceOptimizer:
         logger.info(f"Performance analysis completed for {url}, score: {score}")
 
         return report
+
+    async def _collect_metrics(self, url: str) -> Dict[str, float]:
+        """Collect real frontend metrics via Lighthouse."""
+        import json as _json
+        import os
+        import shutil
+
+        lighthouse_bin = os.getenv("LIGHTHOUSE_BIN") or shutil.which("lighthouse")
+        npx_bin = shutil.which("npx")
+
+        if not lighthouse_bin and not npx_bin:
+            raise RuntimeError(
+                "Lighthouse is not available (install it or set LIGHTHOUSE_BIN); "
+                "cannot measure frontend performance metrics"
+            )
+
+        command = (
+            [lighthouse_bin]
+            if lighthouse_bin
+            else [npx_bin, "--yes", "lighthouse"]
+        )
+        command += [
+            url,
+            "--output=json",
+            "--output-path=stdout",
+            "--quiet",
+            "--chrome-flags=--headless --no-sandbox",
+        ]
+
+        import asyncio
+
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"Lighthouse failed for {url}: {stderr.decode(errors='replace')[-1000:]}"
+            )
+
+        payload = _json.loads(stdout.decode())
+        audits = payload.get("audits", {})
+
+        def _numeric(audit_id: str, default: float = 0.0) -> float:
+            audit = audits.get(audit_id) or {}
+            value = audit.get("numericValue")
+            return float(value) if value is not None else default
+
+        return {
+            PerformanceMetric.FIRST_CONTENTFUL_PAINT.value: _numeric("first-contentful-paint") / 1000.0,
+            PerformanceMetric.LARGEST_CONTENTFUL_PAINT.value: _numeric("largest-contentful-paint") / 1000.0,
+            PerformanceMetric.FIRST_INPUT_DELAY.value: _numeric("max-potential-fid") / 1000.0,
+            PerformanceMetric.CUMULATIVE_LAYOUT_SHIFT.value: _numeric("cumulative-layout-shift"),
+            PerformanceMetric.TIME_TO_INTERACTIVE.value: _numeric("interactive") / 1000.0,
+            PerformanceMetric.TOTAL_BLOCKING_TIME.value: _numeric("total-blocking-time"),
+            PerformanceMetric.SPEED_INDEX.value: _numeric("speed-index") / 1000.0,
+        }
 
     def _calculate_performance_score(self, metrics: Dict[str, float]) -> float:
         """Calculate overall performance score"""
@@ -341,14 +399,89 @@ class FrontendPerformanceOptimizer:
     async def _execute_optimization(
         self, optimization_type: OptimizationType, config: Dict[str, Any]
     ) -> OptimizationResult:
-        """Execute optimization"""
-        # Simulate optimization execution
-        # In real implementation, would use actual optimization tools
+        """Execute a real optimization against the configured source artifacts.
 
-        original_size = 1000000  # Simulated original size
-        optimized_size = int(original_size * 0.7)  # 30% reduction
+        ``config['source_path']`` (a file or directory) is processed:
+          * ``bundle_compression``/``minification`` -> gzip the concatenated content
+          * ``image_optimization`` -> compress images with Pillow when available
+        Produces ``target_path`` and returns the *real* before/after sizes.
+        """
+        import gzip
+        import os
+        import time
 
-        compression_ratio = (original_size - optimized_size) / original_size
+        config_only = {
+            OptimizationType.CODE_SPLITTING,
+            OptimizationType.LAZY_LOADING,
+            OptimizationType.TREE_SHAKING,
+            OptimizationType.CACHING_STRATEGY,
+            OptimizationType.CDN_INTEGRATION,
+        }
+
+        if optimization_type in config_only:
+            # These optimizations configure delivery (loaders/CDN/caching) rather
+            # than transforming artifacts on disk.
+            return OptimizationResult(
+                optimization_type=optimization_type,
+                success=True,
+                compression_ratio=0.0,
+                metadata={**config, "note": "configuration-only optimization"},
+            )
+
+        source_path = config.get("source_path")
+        if not source_path or not os.path.exists(source_path):
+            return OptimizationResult(
+                optimization_type=optimization_type,
+                success=False,
+                metadata={
+                    "error": "No valid 'source_path' configured for optimization",
+                    "config": config,
+                },
+            )
+
+        target_path = config.get("target_path") or f"{source_path}.optimized"
+        started = time.perf_counter()
+
+        if optimization_type in (
+            OptimizationType.BUNDLE_COMPRESSION,
+            OptimizationType.MINIFICATION,
+        ):
+            original_size = os.path.getsize(source_path)
+            with open(source_path, "rb") as src:
+                data = src.read()
+            if optimization_type == OptimizationType.MINIFICATION:
+                # Strip redundant whitespace as a concrete minification step.
+                text = data.decode("utf-8", errors="ignore")
+                data = "\n".join(line.strip() for line in text.splitlines()).encode("utf-8")
+            with gzip.open(target_path, "wb") as dst:
+                dst.write(data)
+            optimized_size = os.path.getsize(target_path)
+
+        elif optimization_type == OptimizationType.IMAGE_OPTIMIZATION:
+            try:
+                from PIL import Image
+            except ImportError:
+                return OptimizationResult(
+                    optimization_type=optimization_type,
+                    success=False,
+                    metadata={"error": "Pillow is required for image optimization"},
+                )
+            original_size = os.path.getsize(source_path)
+            with Image.open(source_path) as img:
+                img.save(target_path, optimize=True)
+            optimized_size = os.path.getsize(target_path)
+
+        else:
+            return OptimizationResult(
+                optimization_type=optimization_type,
+                success=True,
+                compression_ratio=0.0,
+                metadata={**config, "note": "no artifact transformation for this type"},
+            )
+
+        compression_ratio = (
+            (original_size - optimized_size) / original_size if original_size else 0.0
+        )
 
         return OptimizationResult(
             optimization_type=optimization_type,
@@ -356,8 +489,8 @@ class FrontendPerformanceOptimizer:
             original_size=original_size,
             optimized_size=optimized_size,
             compression_ratio=compression_ratio,
-            time_saved=0.5,  # Simulated time saved
-            metadata=config,
+            time_saved=time.perf_counter() - started,
+            metadata={**config, "target_path": target_path},
         )
 
     async def auto_optimize(self, url: str) -> Dict[str, Any]:

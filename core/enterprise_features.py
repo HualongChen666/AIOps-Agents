@@ -18,7 +18,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Set, Tuple
 
 from loguru import logger
 
@@ -35,12 +35,20 @@ except ImportError:
     logger.warning("Cryptography library not available")
 
 try:
-    pass
+    import signxml  # noqa: F401
 
     SAML_AVAILABLE = True
 except ImportError:
-    SAML_AVAILABLE = False
-    logger.warning("SAML library not available")
+    try:
+        from onelogin.saml2.response import OneLogin_Saml2_Response  # noqa: F401
+
+        SAML_AVAILABLE = True
+    except ImportError:
+        SAML_AVAILABLE = False
+        logger.warning(
+            "No SAML signature verification library available "
+            "(install 'signxml' or 'python3-saml'); SAML authentication will fail closed"
+        )
 
 
 class TenantStatus(Enum):
@@ -167,6 +175,11 @@ class EnterpriseFeatures:
         # 合规管理
         self.compliance_records: Dict[str, ComplianceRecord] = {}
         self.compliance_frameworks: Dict[ComplianceStandard, Dict[str, Any]] = {}
+        # Registered automated compliance requirement checks:
+        # requirement_id -> callable(standard, requirement_id) -> (passed, evidence)
+        self.requirement_checks: Dict[
+            str, Callable[[ComplianceStandard, str], Any]
+        ] = {}
 
         # 加密管理
         self.encryption_keys: Dict[str, bytes] = {}
@@ -516,13 +529,90 @@ class EnterpriseFeatures:
     async def _authenticate_saml(
         self, provider: SSOProvider, sso_response: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
-        """SAML认证"""
+        """SAML认证：校验 SAMLResponse 的签名与条件（fail-closed）。"""
         if not SAML_AVAILABLE:
-            logger.error("SAML library not available")
+            logger.error(
+                "SAML signature verification library not available "
+                "(install 'signxml' or 'python3-saml'); refusing unverified SAML login"
+            )
             return None
 
-        # 实现SAML认证逻辑
-        return None
+        saml_response = sso_response.get("SAMLResponse")
+        if not saml_response:
+            logger.error("SAML response missing SAMLResponse assertion")
+            return None
+
+        idp_cert = (provider.configuration or {}).get("idp_cert") or provider.metadata.get(
+            "idp_cert"
+        )
+        if not idp_cert:
+            logger.error("SAML provider %s has no idp_cert configured", provider.id)
+            return None
+
+        try:
+            import base64
+
+            xml_bytes = base64.b64decode(saml_response)
+
+            # Verify the XML signature against the IdP certificate.
+            import signxml
+
+            verified = signxml.XMLVerifier().verify(xml_bytes, x509_cert=idp_cert).signed_xml
+            assertion = verified if verified is not None else xml_bytes
+
+            # Parse and validate conditions / audience / NameID.
+            from lxml import etree
+
+            root = etree.fromstring(assertion)
+            ns = {
+                "saml": "urn:oasis:names:tc:SAML:2.0:assertion",
+                "samlp": "urn:oasis:names:tc:SAML:2.0:protocol",
+            }
+
+            name_id_el = root.find(".//saml:NameID", ns)
+            name_id = name_id_el.text if name_id_el is not None else None
+            if not name_id:
+                logger.error("SAML assertion has no NameID")
+                return None
+
+            now = datetime.utcnow()
+            for cond in root.findall(".//saml:Conditions", ns):
+                not_on_or_after = cond.get("NotOnOrAfter")
+                not_before = cond.get("NotBefore")
+                if not_on_or_after and datetime.strptime(
+                    not_on_or_after, "%Y-%m-%dT%H:%M:%SZ"
+                ) < now:
+                    logger.error("SAML assertion expired")
+                    return None
+                if not_before and datetime.strptime(not_before, "%Y-%m-%dT%H:%M:%SZ") > now:
+                    logger.error("SAML assertion not yet valid")
+                    return None
+                expected_audience = (provider.configuration or {}).get("audience")
+                if expected_audience:
+                    audiences = [
+                        a.text for a in cond.findall(".//saml:Audience", ns) if a.text
+                    ]
+                    if expected_audience not in audiences:
+                        logger.error("SAML audience mismatch")
+                        return None
+
+            userinfo = {
+                "provider_id": provider.id,
+                "provider": provider.provider_type,
+                "name_id": name_id,
+            }
+            session_id = uuid.uuid4().hex
+            logger.info("SAML authentication succeeded for %s", name_id)
+            return {
+                "authenticated": True,
+                "user_id": name_id,
+                "session_id": session_id,
+                "userinfo": userinfo,
+                "provider": provider.provider_type,
+            }
+        except Exception as exc:
+            logger.error("SAML authentication failed: %s", exc)
+            return None
 
     async def _authenticate_oauth(
         self, provider: SSOProvider, oauth_response: Dict[str, Any]
@@ -634,19 +724,51 @@ class EnterpriseFeatures:
             "assessed_at": datetime.now().isoformat(),
         }
 
+    def register_requirement_check(
+        self,
+        requirement_id: str,
+        checker: Callable[[ComplianceStandard, str], Any],
+    ) -> None:
+        """Register an automated compliance check for a requirement.
+
+        ``checker`` returns either ``(passed: bool, evidence: dict)`` or such a
+        tuple wrapped in an awaitable.
+        """
+        self.requirement_checks[requirement_id] = checker
+
     async def _assess_requirement(
         self, standard: ComplianceStandard, requirement_id: str
     ) -> ComplianceRecord:
-        """评估单个合规要求"""
-        # 实现要求评估逻辑
+        """评估单个合规要求（基于已注册的自动化检查，不再恒为 compliant）。"""
+        import inspect
+
+        checker = self.requirement_checks.get(requirement_id)
+        if checker is None:
+            status = "pending"
+            evidence: Dict[str, Any] = {}
+            notes = f"No automated check registered for requirement {requirement_id}"
+        else:
+            try:
+                result = checker(standard, requirement_id)
+                if inspect.isawaitable(result):
+                    result = await result
+                passed, evidence = result
+                status = "compliant" if passed else "non_compliant"
+                notes = ""
+            except Exception as exc:
+                status = "pending"
+                evidence = {"error": str(exc)}
+                notes = str(exc)
+
         record = ComplianceRecord(
             id=f"{standard.value}_{requirement_id}_{uuid.uuid4().hex[:8]}",
             standard=standard,
             requirement_id=requirement_id,
-            status="compliant",  # 实际需要评估
-            evidence={},
+            status=status,
+            evidence=evidence,
             last_assessed=datetime.now(),
             next_assessment=datetime.now() + timedelta(days=30),
+            notes=notes,
         )
 
         self.compliance_records[record.id] = record

@@ -310,18 +310,58 @@ class Subscription:
     """GraphQL subscription root"""
 
     @strawberry.subscription
-    async def alert_stream(self) -> AsyncGenerator[Alert, None]:
-        """Stream new alerts"""
-        # Real-time alert streaming requires a persistent alert bus; yield nothing when unavailable.
-        if False:
-            yield
-        return
+    async def alert_stream(
+        self, poll_interval: float = 1.0
+    ) -> AsyncGenerator[Alert, None]:
+        """Stream new alerts from the real alert history as they arrive."""
+        import asyncio
+
+        from core.alert_engine import alert_history
+
+        seen_ids: set[str] = {a.get("id") for a in list(alert_history)}
+        while True:
+            await asyncio.sleep(poll_interval)
+            # ``alert_history`` is a deque with newest entries at the left.
+            for alert_data in list(alert_history):
+                alert_id = alert_data.get("id")
+                if alert_id in seen_ids:
+                    continue
+                seen_ids.add(alert_id)
+                try:
+                    yield Alert(
+                        id=alert_id,
+                        level=AlertLevel(alert_data.get("level", "info")),
+                        title=alert_data.get("title", ""),
+                        description=alert_data.get("description", ""),
+                        platform=Platform(alert_data.get("platform", "linux")),
+                        timestamp=datetime.fromisoformat(alert_data["timestamp"]),
+                        resolved=bool(alert_data.get("resolved", False)),
+                    )
+                except (KeyError, ValueError):
+                    continue
 
     @strawberry.subscription
-    async def metrics_stream(self) -> AsyncGenerator[SystemMetrics, None]:
-        """Stream system metrics updates"""
-        # Real-time metrics streaming requires a persistent metrics bus; yield
-        # nothing when unavailable.
-        if False:
-            yield
-        return
+    async def metrics_stream(
+        self, poll_interval: float = 2.0
+    ) -> AsyncGenerator[SystemMetrics, None]:
+        """Stream live system metrics sampled from the host via psutil."""
+        import asyncio
+
+        import psutil
+
+        previous = psutil.net_io_counters()
+        while True:
+            cpu = psutil.cpu_percent(interval=None)
+            memory = psutil.virtual_memory().percent
+            disk = psutil.disk_usage("/").percent
+            counters = psutil.net_io_counters()
+            yield SystemMetrics(
+                cpu_usage=cpu,
+                memory_usage=memory,
+                disk_usage=disk,
+                network_rx=counters.bytes_recv - previous.bytes_recv,
+                network_tx=counters.bytes_sent - previous.bytes_sent,
+                timestamp=datetime.now(),
+            )
+            previous = counters
+            await asyncio.sleep(poll_interval)

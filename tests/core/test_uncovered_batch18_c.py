@@ -63,8 +63,19 @@ pytestmark = [pytest.mark.core]
 
 class TestFrontendPerformanceOptimizer:
     @pytest.mark.asyncio
-    async def test_analyze_and_report(self):
+    async def test_analyze_and_report(self, monkeypatch):
         opt = FrontendPerformanceOptimizer()
+
+        async def _fake_metrics(url):
+            return {
+                PerformanceMetric.FIRST_CONTENTFUL_PAINT.value: 1.2,
+                PerformanceMetric.LARGEST_CONTENTFUL_PAINT.value: 2.5,
+                PerformanceMetric.FIRST_INPUT_DELAY.value: 0.05,
+                PerformanceMetric.CUMULATIVE_LAYOUT_SHIFT.value: 0.1,
+                PerformanceMetric.TIME_TO_INTERACTIVE.value: 3.8,
+            }
+
+        monkeypatch.setattr(opt, "_collect_metrics", _fake_metrics)
         report = await opt.analyze_performance("https://example.com")
 
         assert report.url == "https://example.com"
@@ -80,15 +91,28 @@ class TestFrontendPerformanceOptimizer:
         assert stats["active_rules"] == len(opt.optimization_rules)
 
     @pytest.mark.asyncio
-    async def test_apply_optimization_all_paths(self, monkeypatch):
+    async def test_analyze_requires_lighthouse(self, monkeypatch):
         opt = FrontendPerformanceOptimizer()
 
-        # Successful optimization
+        async def _boom(url):
+            raise RuntimeError("Lighthouse is not available")
+
+        monkeypatch.setattr(opt, "_collect_metrics", _boom)
+        with pytest.raises(RuntimeError):
+            await opt.analyze_performance("https://example.com")
+
+    @pytest.mark.asyncio
+    async def test_apply_optimization_all_paths(self, monkeypatch, tmp_path):
+        opt = FrontendPerformanceOptimizer()
+
+        # Successful optimization requires a real source artifact.
+        src = tmp_path / "bundle.js"
+        src.write_text("console.log('hello');\n" * 2000)
         result = await opt.apply_optimization(
-            OptimizationType.BUNDLE_COMPRESSION
-        )  # noqa: F841  # Variable for test verification
+            OptimizationType.BUNDLE_COMPRESSION, {"source_path": str(src)}
+        )
         assert result.success is True
-        assert result.compression_ratio == 0.3
+        assert result.compression_ratio > 0
 
         # Disabled rule path
         opt.optimization_rules["bundle_compression"].enabled = False
@@ -137,8 +161,24 @@ class TestFrontendPerformanceOptimizer:
         assert "Apply comprehensive optimization strategy" in recommendations
 
     @pytest.mark.asyncio
-    async def test_auto_optimize(self):
+    async def test_auto_optimize(self, monkeypatch, tmp_path):
         opt = FrontendPerformanceOptimizer({"performance_threshold": 95.0})
+
+        async def _slow_metrics(url):
+            return {
+                PerformanceMetric.FIRST_CONTENTFUL_PAINT.value: 5.0,
+                PerformanceMetric.LARGEST_CONTENTFUL_PAINT.value: 6.0,
+                PerformanceMetric.FIRST_INPUT_DELAY.value: 0.5,
+                PerformanceMetric.CUMULATIVE_LAYOUT_SHIFT.value: 0.5,
+                PerformanceMetric.TIME_TO_INTERACTIVE.value: 9.0,
+            }
+
+        monkeypatch.setattr(opt, "_collect_metrics", _slow_metrics)
+        # Provide a real artifact so a transformation optimization can succeed.
+        src = tmp_path / "bundle.js"
+        src.write_text("x" * 5000)
+        opt.optimization_rules["bundle_compression"].config = {"source_path": str(src)}
+
         summary = await opt.auto_optimize("https://example.com")
 
         assert summary["status"] == "optimized"
@@ -149,6 +189,17 @@ class TestFrontendPerformanceOptimizer:
         assert disabled["status"] == "disabled"
 
         opt_no_need = FrontendPerformanceOptimizer({"performance_threshold": 50.0})
+
+        async def _fast_metrics(url):
+            return {
+                PerformanceMetric.FIRST_CONTENTFUL_PAINT.value: 0.1,
+                PerformanceMetric.LARGEST_CONTENTFUL_PAINT.value: 0.1,
+                PerformanceMetric.FIRST_INPUT_DELAY.value: 0.0,
+                PerformanceMetric.CUMULATIVE_LAYOUT_SHIFT.value: 0.0,
+                PerformanceMetric.TIME_TO_INTERACTIVE.value: 0.1,
+            }
+
+        monkeypatch.setattr(opt_no_need, "_collect_metrics", _fast_metrics)
         no_need = await opt_no_need.auto_optimize("https://example.com")
         assert no_need["status"] == "no_optimization_needed"
 

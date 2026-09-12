@@ -5,6 +5,8 @@ Enterprise-grade CI/CD integration with deployment automation
 """
 
 import asyncio
+import os
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -250,45 +252,117 @@ class CICDIntegrationManager:
         Returns:
             Stage result
         """
-        self.executions[execution_id]
+        execution = self.executions[execution_id]
+        integration = self.integrations[execution.integration_id]
+        started = time.monotonic()
 
         try:
             logger.info(f"Executing stage: {stage.value}")
 
-            # Simulate stage execution
-            # In real implementation, would execute actual integration tasks
-            await asyncio.sleep(2)  # Simulate execution time
+            stage_commands = (integration.metadata or {}).get("stage_commands", {}).get(
+                stage.value, []
+            )
+            base_env = os.environ.copy()
+            base_env.update({k: str(v) for k, v in (integration.environment or {}).items()})
+
+            outputs: List[Dict[str, Any]] = []
+            for command in stage_commands:
+                proc = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=base_env,
+                )
+                try:
+                    stdout, stderr = await asyncio.wait_for(
+                        proc.communicate(), timeout=self.default_timeout
+                    )
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    raise TimeoutError(
+                        f"Stage {stage.value} command timed out: {command}"
+                    )
+                outputs.append(
+                    {
+                        "command": command,
+                        "returncode": proc.returncode,
+                        "stdout": stdout.decode(errors="replace")[-4000:],
+                        "stderr": stderr.decode(errors="replace")[-4000:],
+                    }
+                )
+                if proc.returncode != 0:
+                    return {
+                        "success": False,
+                        "stage": stage.value,
+                        "duration": time.monotonic() - started,
+                        "error": f"Command failed with exit code {proc.returncode}: {command}",
+                        "outputs": outputs,
+                    }
 
             return {
                 "success": True,
                 "stage": stage.value,
-                "duration": 2.0,
-                "output": f"Stage {stage.value} completed successfully",
+                "duration": time.monotonic() - started,
+                "outputs": outputs,
             }
 
         except Exception as e:
             logger.error(f"Stage execution failed: {stage.value}, error: {e}")
-            return {"success": False, "stage": stage.value, "error": str(e)}
+            return {
+                "success": False,
+                "stage": stage.value,
+                "duration": time.monotonic() - started,
+                "error": str(e),
+            }
 
     async def _rollback_integration(self, execution_id: str) -> None:
         """
-        Rollback integration
+        Rollback integration by running the configured rollback commands.
+
+        Rollback commands come from ``rollback_configurations[integration_id]``
+        (``{"commands": [...]}``) or ``integration.metadata['rollback_commands']``.
+        A failing rollback command is reported as a failed rollback.
 
         Args:
             execution_id: Execution ID
         """
         execution = self.executions[execution_id]
+        integration = self.integrations[execution.integration_id]
 
         execution.status = IntegrationStatus.ROLLBACK
         logger.info(f"Rolling back integration: {execution_id}")
 
-        # In real implementation, would execute actual rollback
-        await asyncio.sleep(3)  # Simulate rollback
+        rollback_spec = self.rollback_configurations.get(integration.integration_id, {})
+        commands = rollback_spec.get("commands") or (integration.metadata or {}).get(
+            "rollback_commands", []
+        )
+        base_env = os.environ.copy()
+        base_env.update({k: str(v) for k, v in (integration.environment or {}).items()})
+
+        succeeded = True
+        for command in commands:
+            proc = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=base_env,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                succeeded = False
+                logger.error(
+                    f"Rollback command failed ({proc.returncode}): {command} :: "
+                    f"{stderr.decode(errors='replace')[-1000:]}"
+                )
 
         execution.status = IntegrationStatus.FAILED
         self.rollback_executions += 1
 
-        logger.info(f"Rollback completed for integration: {execution_id}")
+        logger.info(
+            f"Rollback {'completed' if succeeded else 'encountered errors'} "
+            f"for integration: {execution_id}"
+        )
 
     async def cancel_execution(self, execution_id: str) -> bool:
         """

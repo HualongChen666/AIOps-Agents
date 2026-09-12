@@ -5,6 +5,10 @@ Enterprise-grade CI/CD pipeline management system
 """
 
 import asyncio
+import glob as globmod
+import os
+import shutil
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -239,23 +243,66 @@ class CICDPipelineManager:
             Stage result
         """
         execution = self.executions[execution_id]
+        started = time.monotonic()
 
         try:
             logger.info(f"Executing stage: {stage_config.stage_name}")
 
-            # Simulate stage execution
-            # In real implementation, would execute actual commands
-            await asyncio.sleep(2)  # Simulate execution time
+            outputs: List[Dict[str, Any]] = []
+            base_env = os.environ.copy()
+            base_env.update({k: str(v) for k, v in (stage_config.environment or {}).items()})
+            workdir = (
+                stage_config.metadata.get("working_dir")
+                or self.config.get("working_dir")
+                or os.getcwd()
+            )
 
-            # Collect artifacts
+            for command in stage_config.commands:
+                logger.info(f"Stage {stage_config.stage_name}: running {command!r}")
+                proc = await asyncio.create_subprocess_shell(
+                    command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=base_env,
+                    cwd=workdir,
+                )
+                try:
+                    stdout, stderr = await asyncio.wait_for(
+                        proc.communicate(), timeout=stage_config.timeout
+                    )
+                except asyncio.TimeoutError:
+                    proc.kill()
+                    await proc.wait()
+                    raise TimeoutError(
+                        f"Command timed out after {stage_config.timeout}s: {command}"
+                    )
+
+                outputs.append(
+                    {
+                        "command": command,
+                        "returncode": proc.returncode,
+                        "stdout": stdout.decode(errors="replace")[-4000:],
+                        "stderr": stderr.decode(errors="replace")[-4000:],
+                    }
+                )
+                if proc.returncode != 0:
+                    return {
+                        "success": False,
+                        "stage_name": stage_config.stage_name,
+                        "duration": time.monotonic() - started,
+                        "error": f"Command failed with exit code {proc.returncode}: {command}",
+                        "outputs": outputs,
+                    }
+
+            # Collect artifacts produced by the stage (real files, if configured)
             if stage_config.stage_type == PipelineStage.BUILD:
-                await self._collect_build_artifacts(execution_id)
+                await self._collect_build_artifacts(execution_id, stage_config)
 
             return {
                 "success": True,
                 "stage_name": stage_config.stage_name,
-                "duration": 2.0,
-                "output": "Stage completed successfully",
+                "duration": time.monotonic() - started,
+                "outputs": outputs,
             }
 
         except Exception as e:
@@ -266,23 +313,40 @@ class CICDPipelineManager:
                 execution.metadata["retry_count"] = execution.metadata.get("retry_count", 0) + 1
                 return await self._execute_stage(execution_id, stage_config)
 
-            return {"success": False, "stage_name": stage_config.stage_name, "error": str(e)}
+            return {
+                "success": False,
+                "stage_name": stage_config.stage_name,
+                "duration": time.monotonic() - started,
+                "error": str(e),
+            }
 
-    async def _collect_build_artifacts(self, execution_id: str) -> None:
+    async def _collect_build_artifacts(
+        self, execution_id: str, stage_config: Optional[PipelineStageConfig] = None
+    ) -> None:
         """
-        Collect build artifacts
+        Collect real build artifacts produced by a stage.
 
-        Args:
-            execution_id: Execution ID
+        Artifact locations are declared via ``stage.metadata['artifact_paths']``
+        (a list of glob patterns). Matching files are copied into the per-execution
+        artifact directory.
         """
-        # In real implementation, would collect actual build artifacts
         artifact_path = self.artifacts_dir / execution_id
         artifact_path.mkdir(parents=True, exist_ok=True)
 
         execution = self.executions[execution_id]
-        execution.artifacts.append(str(artifact_path))
+        patterns = (stage_config.metadata.get("artifact_paths", []) if stage_config else [])
+        collected: List[str] = []
+        for pattern in patterns:
+            for match in globmod.glob(pattern, recursive=True):
+                if os.path.isfile(match):
+                    dest = artifact_path / os.path.basename(match)
+                    shutil.copy2(match, dest)
+                    collected.append(str(dest))
 
-        logger.info(f"Artifacts collected for execution: {execution_id}")
+        execution.artifacts.extend(collected)
+        logger.info(
+            f"Artifacts collected for execution {execution_id}: {len(collected)} file(s)"
+        )
 
     async def cancel_execution(self, execution_id: str) -> bool:
         """

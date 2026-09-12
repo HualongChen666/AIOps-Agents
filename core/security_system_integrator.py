@@ -141,16 +141,47 @@ class SecuritySystemIntegrator:
 
         logger.info(f"Registered security component: {integration.component.value}")
 
+    async def _probe_endpoint(self, config: Dict[str, Any]) -> None:
+        """Probe a component endpoint (HTTP url or host/port TCP). Raises on failure."""
+        url = config.get("url")
+        host = config.get("host")
+        port = config.get("port")
+
+        if url:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+            return
+
+        if host and port:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, int(port)), timeout=5.0
+            )
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception:  # pragma: no cover - best-effort close
+                pass
+            return
+
+        raise RuntimeError("No endpoint (url or host/port) configured for component")
+
     async def _connect_component(self, integration: SecurityIntegration) -> None:
         """
-        Connect to security component
+        Connect to security component.
+
+        Components with a configured endpoint (``url`` or ``host``+``port``) are
+        probed for real; in-process components are registered by reference.
 
         Args:
             integration: Security integration
         """
         try:
-            # Simulate connection
-            await asyncio.sleep(1)
+            config = integration.config or {}
+            if config.get("url") or (config.get("host") and config.get("port")):
+                await self._probe_endpoint(config)
 
             integration.status = IntegrationStatus.CONNECTED
             integration.connected_at = datetime.now(timezone.utc)
@@ -302,10 +333,7 @@ class SecuritySystemIntegrator:
             Component scan results
         """
         try:
-            # Simulate component scan
-            await asyncio.sleep(1)
-
-            # Get component-specific scan results
+            # Get component-specific scan results from the real component reference.
             component_ref = self.component_refs.get(integration.component)
 
             if component_ref:
@@ -368,12 +396,13 @@ class SecuritySystemIntegrator:
             Component health status
         """
         try:
-            # Simulate health check
-            await asyncio.sleep(0.5)
-
             integration.last_health_check = datetime.now(timezone.utc)
 
             if integration.status == IntegrationStatus.CONNECTED:
+                config = integration.config or {}
+                # Probe the real endpoint when one is configured.
+                if config.get("url") or (config.get("host") and config.get("port")):
+                    await self._probe_endpoint(config)
                 return {
                     "component": integration.component.value,
                     "status": "healthy",
@@ -387,6 +416,7 @@ class SecuritySystemIntegrator:
                 }
 
         except Exception as e:
+            integration.status = IntegrationStatus.ERROR
             return {"component": integration.component.value, "status": "error", "error": str(e)}
 
     async def start_auto_health_check(self) -> None:

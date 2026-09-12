@@ -326,8 +326,7 @@ class DataIntegrationManager:
         Returns:
             Masked content
         """
-        # Simulate data masking
-        # In real implementation, would apply actual masking rules
+        # Mask sensitive string fields by keeping the leading/trailing characters.
         masked_content = content.copy()
 
         if sensitivity in (
@@ -536,7 +535,14 @@ class DataIntegrationManager:
 
     async def _sync_from_source(self, source: DataSource) -> Dict[str, Any]:
         """
-        Sync from specific source
+        Sync from a specific source by actually pulling its data.
+
+        Supported ``source_type`` values:
+          * ``rest``/``http``/``https``/``api`` -> GET the endpoint and ingest JSON records
+          * ``file``/``filesystem``/``json``/``jsonl``/``csv`` -> read files from disk
+
+        Unsupported source types (or unreachable sources) are reported as errors
+        rather than fabricated data.
 
         Args:
             source: Data source
@@ -545,29 +551,82 @@ class DataIntegrationManager:
             Source sync results
         """
         try:
-            # Simulate sync from source
-            # In real implementation, would connect to actual data source
-            await asyncio.sleep(1)
+            source_type = (source.source_type or "").lower()
+            records: List[Dict[str, Any]] = []
 
-            # Simulate some records
-            import secrets
+            if source_type in ("rest", "http", "https", "api"):
+                import httpx
 
-            _random = secrets.SystemRandom()
-            num_records = _random.randint(0, 20)
+                auth = source.authentication or {}
+                headers = dict(auth.get("headers", {}))
+                if auth.get("token"):
+                    headers["Authorization"] = f"Bearer {auth['token']}"
 
-            for i in range(num_records):
-                await self.ingest_data(
-                    source.source_id,
-                    {
-                        "data": f"sample_data_{i}",
-                        "value": _random.randint(1, 100),
-                    },
-                )
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.get(source.endpoint, headers=headers)
+                    response.raise_for_status()
+                    payload = response.json()
+
+                if isinstance(payload, list):
+                    records = [r if isinstance(r, dict) else {"value": r} for r in payload]
+                elif isinstance(payload, dict):
+                    data = payload.get("data", payload.get("records", payload.get("items")))
+                    if isinstance(data, list):
+                        records = [r if isinstance(r, dict) else {"value": r} for r in data]
+                    else:
+                        records = [payload]
+                else:
+                    records = [{"value": payload}]
+
+            elif source_type in ("file", "filesystem", "json", "jsonl", "csv"):
+                endpoint = source.endpoint
+                if endpoint.startswith("file://"):
+                    endpoint = endpoint[len("file://"):]
+                path = Path(endpoint)
+                if not path.exists():
+                    return {
+                        "source_id": source.source_id,
+                        "status": "error",
+                        "error": f"File not found: {path}",
+                        "records_synced": 0,
+                    }
+
+                suffix = path.suffix.lower()
+                if suffix == ".csv":
+                    import csv as _csv
+
+                    with open(path, newline="", encoding="utf-8") as handle:
+                        records = [dict(row) for row in _csv.DictReader(handle)]
+                elif suffix == ".jsonl":
+                    records = [
+                        json.loads(line)
+                        for line in path.read_text(encoding="utf-8").splitlines()
+                        if line.strip()
+                    ]
+                elif suffix == ".json":
+                    payload = json.loads(path.read_text(encoding="utf-8"))
+                    records = payload if isinstance(payload, list) else [payload]
+                else:
+                    records = [
+                        {"line": line}
+                        for line in path.read_text(encoding="utf-8").splitlines()
+                        if line.strip()
+                    ]
+            else:
+                return {
+                    "source_id": source.source_id,
+                    "status": "error",
+                    "error": f"Unsupported source_type: {source.source_type}",
+                    "records_synced": 0,
+                }
+
+            for record in records:
+                await self.ingest_data(source.source_id, record)
 
             return {
                 "source_id": source.source_id,
                 "status": "success",
-                "records_synced": num_records,
+                "records_synced": len(records),
             }
 
         except Exception as e:

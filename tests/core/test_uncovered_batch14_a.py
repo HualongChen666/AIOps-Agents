@@ -106,9 +106,13 @@ async def test_register_and_disconnect_component(fresh_integrator, no_sleep):
 
 
 @pytest.mark.asyncio
-async def test_register_component_connection_failure(fresh_integrator, monkeypatch):
-    monkeypatch.setattr(ssi.asyncio, "sleep", AsyncMock(side_effect=RuntimeError("boom")))
-    integration = _make_integration("enc1", ssi.SecurityComponent.ENCRYPTION)
+async def test_register_component_connection_failure(fresh_integrator):
+    integration = ssi.SecurityIntegration(
+        integration_id="enc1",
+        component=ssi.SecurityComponent.ENCRYPTION,
+        config={"host": "127.0.0.1", "port": 1},  # nothing listening -> connection refused
+        enabled=True,
+    )
     await fresh_integrator.register_component(integration)
     assert fresh_integrator.security_integrations["enc1"].status == ssi.IntegrationStatus.ERROR
 
@@ -226,15 +230,14 @@ async def test_health_check_and_degraded(fresh_integrator, no_sleep):
 
 
 @pytest.mark.asyncio
-async def test_health_check_component_error(fresh_integrator, monkeypatch):
-    monkeypatch.setattr(ssi.asyncio, "sleep", AsyncMock(side_effect=RuntimeError("boom")))
+async def test_health_check_component_error(fresh_integrator):
     integ = _make_integration("boom1", ssi.SecurityComponent.COMPLIANCE_MANAGER)
+    integ.config = {"host": "127.0.0.1", "port": 1}  # unreachable -> probe error
+    integ.status = ssi.IntegrationStatus.CONNECTED
     fresh_integrator.security_integrations["boom1"] = integ
-    result = await fresh_integrator._check_component_health(
-        integ
-    )  # noqa: F841  # Variable for test verification
+    result = await fresh_integrator._check_component_health(integ)
     assert result["status"] == "error"
-    assert "boom" in result["error"]
+    assert "error" in result
 
 
 def test_get_statistics_and_factory(fresh_integrator):
