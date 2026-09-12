@@ -1,72 +1,62 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import api from '@/lib/api';
-
-interface DataItem {
-  id: string;
-  name: string;
-  status: string;
-  created_at: string;
-}
+import toast from 'react-hot-toast';
 
 export default function VectorRetrievalPage() {
-  const [items, setItems] = useState<DataItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [collection, setCollection] = useState('');
+  const [id, setId] = useState('');
+  const [result, setResult] = useState<unknown>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const retrieve = async () => {
+    if (!collection.trim() || !id.trim()) {
+      toast.error('请填写集合与点 ID');
+      return;
+    }
     try {
       setLoading(true);
-      const res = await api.get('/api/vector/vector-retrieval');
-      setItems(res.data.items || []);
+      setError(null);
+      const res = await api.post('/api/vector/points/get', { collection, id: Number.isNaN(Number(id)) ? id : Number(id) });
+      setResult(res.data);
+      toast.success('检索完成');
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || '加载数据失败');
+      setError(err.response?.data?.detail || err.message || '检索失败');
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="text-gray-500">加载中...</div></div>;
-  }
-
-  if (error) {
-    return <div className="bg-red-50 border border-red-200 rounded-lg p-4"><div className="text-red-800">{error}</div><Button onClick={fetchData} className="mt-2">重试</Button></div>;
-  }
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">向量检索</h1>
-        <Button onClick={fetchData}>刷新</Button>
-      </div>
+      <h1 className="text-3xl font-bold text-gray-900">向量检索</h1>
 
       <Card>
-        <CardHeader>
-          <CardTitle>数据列表</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {items.map((item) => (
-              <div key={item.id} className="border rounded-lg p-4 flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold">{item.name}</h3>
-                  <div className="text-sm text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
-                </div>
-                <Badge variant={item.status === 'active' ? 'default' : 'secondary'}>
-                  {item.status}
-                </Badge>
-              </div>
-            ))}
+        <CardHeader><CardTitle>按 ID 检索向量点</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><Label htmlFor="vr-col">集合</Label><Input id="vr-col" value={collection} onChange={(e) => setCollection(e.target.value)} className="mt-1" /></div>
+            <div><Label htmlFor="vr-id">点 ID</Label><Input id="vr-id" value={id} onChange={(e) => setId(e.target.value)} className="mt-1" /></div>
           </div>
+          <Button onClick={retrieve} disabled={loading}>{loading ? '检索中...' : '检索'}</Button>
+          {error && <div className="text-sm text-red-600">{error}</div>}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>结果</CardTitle></CardHeader>
+        <CardContent>
+          {result === null ? (
+            <div className="text-gray-500 text-center py-8">尚未检索</div>
+          ) : (
+            <pre className="text-xs bg-gray-50 p-3 rounded overflow-auto">{JSON.stringify(result, null, 2)}</pre>
+          )}
         </CardContent>
       </Card>
     </div>

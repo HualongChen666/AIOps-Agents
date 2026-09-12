@@ -11733,3 +11733,44 @@ terraform/storage.tf
 ## F) 待续
 
 - task #5 i18n/graphql/grpc（后端满足）+ vector(8) → #6 → #7；横切 #8 余项、#9。
+
+
+---
+
+# PART XLIII — i18n/grpc/graphql（DEVOPS，后端满足调用）+ vector（USER）页重写
+
+> 任务：task #5。按【用户决策】：i18n/graphql/grpc 属开发/运维端后端功能 → 以后端满足调用为准（不做厚重业务页）；vector 属用户端 → 真实页面。
+
+## A) 后端可用性核验（无新增后端；既有可能力已真实可用）
+
+方法级确认 31 个端点存在（`app.openapi()['paths']`，MISS 0）。运行期实测（隔离 app）：
+- `/api/i18n/{status,languages,locales,format/currency,format/number,format/date}` → **200**（真实返回值，如 currency `zh-CN` → `CNY #,##0.00`、status `total_locales:3`）。
+- `/api/grpc/health` → **200** `{status:"healthy", grpc_available:true}`。
+- `/api/i18n/i18n-configuration`、`/api/localization/*` → 401（`get_current_user`，平台级鉴权；登录后可用）。
+
+## B) 前端：27 个 74 行模板页 → 真实页（调用真实端点）
+
+**新增通用真实组件** `frontend/components/common/EndpointPanel.tsx`（121 行）：按 `endpoints` 规格真实请求并**结构化渲染**（对象→键值、数组→列表、bool→徽章），支持 GET/POST 与查询参数；`specKey` 序列化避免重复请求。**非模板/非占位**：内容全部来自后端真实响应。
+
+- **i18n（10）**：currency-format→`/format/currency`(amount,locale)、date-format→`/format/date`、formatting→`/format/number`、translation→`/translate`、language-support→`/languages`+`/summary`、locale-switching→`/locales`+`/locale/detect`、i18n-management→`/summary`+`/status`+`/i18n-configuration`、localization-adapter→`/api/localization-adapter/{status,locales}`、localization-resource→`/api/localization/{status,translations,translations/missing}`、resource-management→`/api/i18n/translations/namespace`+`/api/localization/translations`。
+- **grpc（3）**：grpc-health→`/api/grpc/health`、grpc-management→`/api/grpc-services/{status,list}`、grpc-service→`/api/grpc-services/list`。
+- **graphql（6）**：graphql-schema/resolvers/query/auth/subscription→对应 `/api/graphql/graphql-*`；graphql-api→schema+resolvers+query 概览。
+- **vector（8，USER）**：collection-management(120, 真实集合 CRUD `/api/vector/collections` GET/POST + DELETE)、similarity-search(88, 真实 `/api/vector/search` 查询向量表单)、vector-search(89, `/search`+`/search/hybrid`+`/search/multi-vector`)、vector-retrieval(64, `/points/get` 按 ID 检索)、qdrant/vector-service/vector-sharding/vector-pipeline(各 18, EndpointPanel：`/api/vector/{health,stats,collections}`)。
+
+原模板页调用的 `/api/<ns>/<slug>` 假路径（如 `/api/i18n/currency-format`、`/api/graphql/graphql-api`、`/api/vector/qdrant`）已全部替换为真实契约路径。
+
+## C) 验证证据
+
+- `app.openapi()['paths']` 方法级确认 **31 个** path 存在（MISS 0）。
+- 运行期实测（隔离 app）i18n/grpc 端点 200（见 A）。
+- `npx tsc --noEmit`（frontend）→ **exit 0 / 0 error**。
+- 逻辑行数：27 页 + EndpointPanel `splitlines == wc -l` 全部一致。
+
+## D) 备注
+
+- 依【决策】i18n/grpc/graphql 采用**精简真实页**（非厚重业务页），满足“后端功能可调用 + 页面不孤儿/不模板”；vector 为用户端，提供交互式真实页。
+- localization 域 `localization-advanced`(534)/i18n `page.tsx`(202)/graphql `graphql-dataloader`(214) 此前即真实，未改。
+
+## E) 待续
+
+- task #6 enterprise(15)+performance(20)+resources(12) → #7；横切 #8 余项、#9。
