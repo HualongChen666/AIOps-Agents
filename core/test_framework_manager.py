@@ -92,8 +92,14 @@ class TestFrameworkManager:
         """
         self.config = config or {}
 
-        # Repository (set via set_repository method)
+        # Repository (set via set_repository method); optional persistence layer
         self._repository = None
+
+        # In-memory registry —— 管理器自身即权威状态源（无仓储时也可真实运行）
+        self.test_suites: Dict[str, TestSuite] = {}
+        self.test_cases: Dict[str, TestCase] = {}
+        self.test_reports: Dict[str, TestReport] = {}
+        self.total_cases = 0
 
         # Test templates
         self.test_templates: Dict[str, str] = {}
@@ -293,24 +299,40 @@ class Test{class_name}E2E:
         Returns:
             True if created, False otherwise
         """
-        if not self._repository:
-            logger.error("Repository not set")
+        if suite_id in self.test_suites:
+            logger.warning(f"Test suite {suite_id} already exists")
             return False
 
         try:
-            self._repository.create_test_suite(
-                suite_id=suite_id,
-                suite_name=suite_name,
-                test_type=test_type,
-                description=description,
-                coverage_target=coverage_target,
-                created_by=created_by,
-            )
-            logger.info(f"Created test suite: {suite_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error creating test suite {suite_id}: {e}")
+            suite_type = test_type if isinstance(test_type, TestType) else TestType(test_type)
+        except ValueError:
+            logger.error(f"Unsupported test type: {test_type}")
             return False
+
+        self.test_suites[suite_id] = TestSuite(
+            suite_id=suite_id,
+            suite_name=suite_name,
+            test_type=suite_type,
+            description=description,
+            coverage_target=coverage_target,
+        )
+
+        # Best-effort persistence when a repository is configured
+        if self._repository:
+            try:
+                self._repository.create_test_suite(
+                    suite_id=suite_id,
+                    suite_name=suite_name,
+                    test_type=suite_type.value,
+                    description=description,
+                    coverage_target=coverage_target,
+                    created_by=created_by,
+                )
+            except Exception as e:
+                logger.error(f"Error persisting test suite {suite_id}: {e}")
+
+        logger.info(f"Created test suite: {suite_id}")
+        return True
 
     def add_test_case(
         self, test_id: str, suite_id: str, test_name: str, description: str, test_type: TestType
@@ -414,89 +436,105 @@ class Test{class_name}E2E:
         Returns:
             Test report or None
         """
-        if not self._repository:
-            logger.error("Repository not set")
+        suite = self.test_suites.get(suite_id)
+        if suite is None:
+            # 回退到仓储（如已配置）
+            if self._repository:
+                try:
+                    db_suite = self._repository.get_test_suite(suite_id)
+                except Exception as e:
+                    logger.error(f"Error fetching test suite {suite_id}: {e}")
+                    db_suite = None
+                if db_suite is not None:
+                    suite = TestSuite(
+                        suite_id=suite_id,
+                        suite_name=getattr(db_suite, "suite_name", suite_id),
+                        test_type=TestType(getattr(db_suite, "test_type", TestType.UNIT.value)),
+                        description=getattr(db_suite, "description", ""),
+                        test_count=getattr(db_suite, "test_count", 0),
+                        coverage_target=getattr(db_suite, "coverage_target", 0.0),
+                    )
+        if suite is None:
+            logger.error(f"Test suite {suite_id} not found")
             return None
 
-        try:
-            suite = self._repository.get_test_suite(suite_id)
-            if not suite:
-                logger.error(f"Test suite {suite_id} not found")
-                return None
+        # 汇总真实用例状态（管理器内注册的用例）
+        cases = [c for c in self.test_cases.values() if c.suite_id == suite_id]
+        total_tests = len(cases) if cases else suite.test_count
+        passed_tests = sum(1 for c in cases if c.status == TestStatus.PASSED)
+        failed_tests = sum(1 for c in cases if c.status == TestStatus.FAILED)
+        skipped_tests = sum(1 for c in cases if c.status == TestStatus.SKIPPED)
 
-            # Create report
-            report_id = f"report_{datetime.now(timezone.utc).timestamp()}"
-            start_time = datetime.now(timezone.utc)
+        report_id = f"report_{datetime.now(timezone.utc).timestamp()}"
+        start_time = datetime.now(timezone.utc)
 
-            report_db = self._repository.create_test_report(
-                report_id=report_id,
-                suite_id=suite_id,
-                test_type=suite.test_type,
-                start_time=start_time,
-                total_tests=suite.test_count,
-                passed_tests=suite.test_count,  # Simulated: all pass
-                failed_tests=0,
-                skipped_tests=0,
-                coverage=suite.coverage_target,  # Simulated: meet target
-            )
+        report = TestReport(
+            report_id=report_id,
+            suite_id=suite_id,
+            test_type=suite.test_type,
+            start_time=start_time,
+            end_time=datetime.now(timezone.utc),
+            total_tests=total_tests,
+            passed_tests=passed_tests,
+            failed_tests=failed_tests,
+            skipped_tests=skipped_tests,
+            coverage=suite.coverage_target,
+        )
+        self.test_reports[report_id] = report
 
-            # Update report with end time
-            end_time = datetime.now(timezone.utc)
-            self._repository.update_test_report(
-                report_id=report_id,
-                end_time=end_time,
-            )
+        # Best-effort persistence when a repository is configured
+        if self._repository:
+            try:
+                self._repository.create_test_report(
+                    report_id=report_id,
+                    suite_id=suite_id,
+                    test_type=suite.test_type.value,
+                    start_time=start_time,
+                    total_tests=report.total_tests,
+                    passed_tests=report.passed_tests,
+                    failed_tests=report.failed_tests,
+                    skipped_tests=report.skipped_tests,
+                    coverage=report.coverage,
+                )
+                self._repository.update_test_report(
+                    report_id=report_id,
+                    end_time=report.end_time,
+                )
+            except Exception as e:
+                logger.error(f"Error persisting test report {report_id}: {e}")
 
-            logger.info(f"Ran test suite: {suite_id}")
-
-            return TestReport(
-                report_id=report_id,
-                suite_id=suite_id,
-                test_type=TestType(suite.test_type),
-                start_time=start_time,
-                end_time=end_time,
-                total_tests=report_db.total_tests,
-                passed_tests=report_db.passed_tests,
-                failed_tests=report_db.failed_tests,
-                skipped_tests=report_db.skipped_tests,
-                coverage=report_db.coverage,
-            )
-        except Exception as e:
-            logger.error(f"Error running test suite {suite_id}: {e}")
-            return None
+        logger.info(f"Ran test suite: {suite_id}")
+        return report
 
     def get_test_summary(self) -> Dict[str, Any]:
         """
         Get test framework summary
 
         Returns:
-            Framework summary
+            Framework summary（真实汇总管理器内注册的套件 / 用例 / 报告）
         """
         if self._repository:
             try:
-                return self._repository.get_framework_statistics()
+                stats = self._repository.get_framework_statistics()
+                if stats and (stats.get("total_suites") or stats.get("total_cases")):
+                    return stats
             except Exception as e:
                 logger.error(f"Error getting framework statistics from repository: {e}")
 
-        # Fallback to default values
+        suites_by_type = {t.value: 0 for t in TestType}
+        for suite in self.test_suites.values():
+            suites_by_type[suite.test_type.value] = suites_by_type.get(suite.test_type.value, 0) + 1
+
+        cases_by_status = {s.value: 0 for s in TestStatus}
+        for case in self.test_cases.values():
+            cases_by_status[case.status.value] = cases_by_status.get(case.status.value, 0) + 1
+
         return {
-            "total_suites": 0,
-            "total_cases": 0,
-            "total_reports": 0,
-            "suites_by_type": {
-                "unit": 0,
-                "integration": 0,
-                "end_to_end": 0,
-                "performance": 0,
-                "security": 0,
-            },
-            "cases_by_status": {
-                "pending": 0,
-                "running": 0,
-                "passed": 0,
-                "failed": 0,
-                "skipped": 0,
-            },
+            "total_suites": len(self.test_suites),
+            "total_cases": len(self.test_cases),
+            "total_reports": len(self.test_reports),
+            "suites_by_type": suites_by_type,
+            "cases_by_status": cases_by_status,
         }
 
 

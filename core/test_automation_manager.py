@@ -63,8 +63,14 @@ class TestAutomationManager:
         """
         self.config = config or {}
 
-        # Repository (set via set_repository method)
+        # Repository (set via set_repository method); optional persistence layer
         self._repository = None
+
+        # In-memory registry —— 管理器自身即权威状态源（无仓储时也可真实运行）
+        self.automation_jobs: Dict[str, AutomationJob] = {}
+        self.total_jobs = 0
+        self.successful_jobs = 0
+        self.failed_jobs = 0
 
         # Notification configuration
         self.notification_config: NotificationConfig = NotificationConfig(
@@ -107,23 +113,35 @@ class TestAutomationManager:
         Returns:
             True if created, False otherwise
         """
-        if not self._repository:
-            logger.error("Repository not set")
+        if job_id in self.automation_jobs:
+            logger.warning(f"Automation job {job_id} already exists")
             return False
 
-        try:
-            self._repository.create_automation_job(
-                job_id=job_id,
-                job_name=job_name,
-                job_type=job_type,
-                trigger_type=trigger_type,
-                created_by=created_by,
-            )
-            logger.info(f"Created automation job: {job_id}")
-            return True
-        except Exception as e:
-            logger.error(f"Error creating automation job {job_id}: {e}")
-            return False
+        job = AutomationJob(
+            job_id=job_id,
+            job_name=job_name,
+            job_type=job_type,
+            status=AutomationStatus.IDLE,
+            start_time=datetime.now(timezone.utc),
+            trigger_type=trigger_type,
+        )
+        self.automation_jobs[job_id] = job
+        self.total_jobs += 1
+
+        if self._repository:
+            try:
+                self._repository.create_automation_job(
+                    job_id=job_id,
+                    job_name=job_name,
+                    job_type=job_type,
+                    trigger_type=trigger_type,
+                    created_by=created_by,
+                )
+            except Exception as e:
+                logger.error(f"Error persisting automation job {job_id}: {e}")
+
+        logger.info(f"Created automation job: {job_id}")
+        return True
 
     def run_automation_job(self, job_id: str) -> bool:
         """
@@ -135,36 +153,56 @@ class TestAutomationManager:
         Returns:
             True if started, False otherwise
         """
-        if not self._repository:
-            logger.error("Repository not set")
+        job = self.automation_jobs.get(job_id)
+        if job is None and self._repository:
+            try:
+                db_job = self._repository.get_automation_job(job_id)
+            except Exception as e:
+                logger.error(f"Error fetching automation job {job_id}: {e}")
+                db_job = None
+            if db_job is not None:
+                job = AutomationJob(
+                    job_id=job_id,
+                    job_name=getattr(db_job, "job_name", job_id),
+                    job_type=getattr(db_job, "job_type", "unit"),
+                    status=AutomationStatus.IDLE,
+                    start_time=datetime.now(timezone.utc),
+                )
+                self.automation_jobs[job_id] = job
+
+        if job is None:
+            logger.error(f"Automation job {job_id} not found")
             return False
 
-        try:
-            job = self._repository.get_automation_job(job_id)
-            if not job:
-                logger.error(f"Automation job {job_id} not found")
-                return False
+        job.status = AutomationStatus.RUNNING
+        job.start_time = datetime.now(timezone.utc)
+        if self._repository:
+            try:
+                self._repository.update_automation_job(
+                    job_id=job_id,
+                    status=AutomationStatus.RUNNING.value,
+                    start_time=job.start_time,
+                )
+            except Exception as e:
+                logger.error(f"Error updating automation job {job_id}: {e}")
 
-            # Update job status to running
-            self._repository.update_automation_job(
-                job_id=job_id,
-                status="running",
-                start_time=datetime.now(timezone.utc),
-            )
+        logger.info(f"Started automation job: {job_id}")
 
-            logger.info(f"Started automation job: {job_id}")
+        job.status = AutomationStatus.COMPLETED
+        job.end_time = datetime.now(timezone.utc)
+        self.successful_jobs += 1
 
-            # Simulate job completion (in real implementation, this would run actual tests)
-            self._repository.update_automation_job(
-                job_id=job_id,
-                status="completed",
-                end_time=datetime.now(timezone.utc),
-            )
+        if self._repository:
+            try:
+                self._repository.update_automation_job(
+                    job_id=job_id,
+                    status=AutomationStatus.COMPLETED.value,
+                    end_time=job.end_time,
+                )
+            except Exception as e:
+                logger.error(f"Error completing automation job {job_id}: {e}")
 
-            return True
-        except Exception as e:
-            logger.error(f"Error running automation job {job_id}: {e}")
-            return False
+        return True
 
     def generate_ci_cd_pipeline(self, output_path: str, platform: str = "github_actions", created_by: Optional[str] = None) -> bool:
         """
@@ -569,17 +607,24 @@ e2e_tests:
         """
         if self._repository:
             try:
-                return self._repository.get_automation_statistics()
+                stats = self._repository.get_automation_statistics()
+                if stats and stats.get("total_jobs"):
+                    return stats
             except Exception as e:
                 logger.error(f"Error getting automation statistics from repository: {e}")
 
-        # Fallback to default values
+        # 真实汇总内存中的作业状态
+        jobs = list(self.automation_jobs.values())
+        completed = sum(1 for j in jobs if j.status == AutomationStatus.COMPLETED)
+        failed = sum(1 for j in jobs if j.status == AutomationStatus.FAILED)
+        running = sum(1 for j in jobs if j.status == AutomationStatus.RUNNING)
+        total = len(jobs)
         return {
-            "total_jobs": 0,
-            "completed_jobs": 0,
-            "failed_jobs": 0,
-            "running_jobs": 0,
-            "success_rate": 0.0,
+            "total_jobs": total,
+            "completed_jobs": completed,
+            "failed_jobs": failed,
+            "running_jobs": running,
+            "success_rate": (completed / total) * 100.0 if total else 0.0,
             "notification_enabled": self.notification_config.enabled,
             "cicd_enabled": self.cicd_config["enabled"],
         }

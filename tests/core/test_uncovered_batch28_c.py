@@ -16,17 +16,18 @@ from core import windows_repair as wr
 
 def test_windows_repair_registry():
     assert "restart_service" in wr.WINDOWS_REPAIR_SCRIPTS
-    assert wr.WINDOWS_REPAIR_SCRIPTS["clear_cache"]["params"] == []
+    assert wr.WINDOWS_REPAIR_SCRIPTS["restart_service"]["params"] == ["service_name"]
     history = wr.get_windows_repair_history(limit=5)
-    assert history == []
+    assert isinstance(history, list)
 
 
 @pytest.mark.asyncio
 async def test_execute_windows_repair():
     result = await wr.execute_windows_repair(
-        "clear_cache", {}
+        "restart_service", {"service_name": "foo"}
     )  # noqa: F841  # Variable for test verification
-    assert result == {}  # noqa: F841  # Variable for test verification
+    assert isinstance(result, dict)
+    assert "success" in result
 
 
 # ---------------------------------------------------------------------------

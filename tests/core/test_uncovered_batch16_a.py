@@ -8,7 +8,7 @@ import os  # noqa: F401  # Imported for test setup
 import secrets
 import sys  # noqa: F401  # Imported for test setup
 import types
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
@@ -574,10 +574,10 @@ async def test_optimized_executor_cache_exception():
 @pytest.mark.asyncio
 async def test_optimized_executor_cache_get_and_expired():
     ex = OptimizedExecutor()
-    ex.cache["k"] = ("value", datetime.now())
+    ex.cache["k"] = ("value", datetime.now(timezone.utc))
     assert ex._get_cached_result("k") == "value"
 
-    ex.cache["k2"] = ("value2", datetime.now() - timedelta(seconds=1000))
+    ex.cache["k2"] = ("value2", datetime.now(timezone.utc) - timedelta(seconds=1000))
     assert ex._get_cached_result("k2") is None
     assert "k2" not in ex.cache
 

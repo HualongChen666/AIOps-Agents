@@ -313,10 +313,74 @@ class ReadWriteRouter:
                 self.update_replica_state(replica_id, ReplicaState.UNHEALTHY)
 
     async def _check_replica_health(self, replica: ReplicaInfo) -> bool:
-        """Check health of individual replica"""
-        # In real implementation, would check actual database connectivity
-        # For now, simulate health check
-        return True
+        """检查单个副本的健康状态（真实 TCP 连通性探测）
+
+        历史问题（已修复）：本方法曾恒返回 True（注释 "For now, simulate"），
+        导致健康检查永不标记副本不健康，"智能路由"的可用性判据形同虚设。
+
+        现在执行真实探测：
+          1. 对 ``replica.host:replica.port`` 建立 TCP 连接（带超时）；
+          2. 若配置了 ``replica_query``（返回单值的 SQL，如复制延迟查询），
+             则在连接上执行并记录结果；执行异常视为不健康。
+
+        Returns:
+            True 仅当 TCP 可连通（且可选查询成功）时返回 True。
+        """
+        timeout = float(self.config.get("replica_health_timeout", 2.0))
+
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(replica.host, replica.port), timeout=timeout
+            )
+        except (OSError, asyncio.TimeoutError) as e:
+            logger.warning(
+                f"Replica {replica.host}:{replica.port} unreachable: {type(e).__name__}: {e}"
+            )
+            return False
+
+        try:
+            # 可选：执行真实复制延迟查询（asyncpg 可用且配置了查询时）
+            query = self.config.get("replica_query")
+            if query:
+                try:
+                    import asyncpg  # type: ignore
+                except ImportError:
+                    logger.debug("asyncpg not installed; skipping replica_query probe")
+                else:
+                    try:
+                        conn = await asyncio.wait_for(
+                            asyncpg.connect(
+                                host=replica.host,
+                                port=replica.port,
+                                user=self.config.get("db_user"),
+                                password=self.config.get("db_password"),
+                                database=self.config.get("db_name"),
+                                timeout=timeout,
+                            ),
+                            timeout=timeout,
+                        )
+                    except Exception as e:  # noqa: BLE001 - 连接失败即判定不健康
+                        logger.warning(
+                            f"Replica {replica.host}:{replica.port} query probe connect "
+                            f"failed: {type(e).__name__}: {e}"
+                        )
+                        return False
+                    try:
+                        lag = await asyncio.wait_for(conn.fetchval(query), timeout=timeout)
+                        if lag is not None:
+                            try:
+                                replica.lag = float(lag)
+                            except (TypeError, ValueError):
+                                logger.debug(f"Replica lag value not numeric: {lag!r}")
+                    finally:
+                        await conn.close()
+            return True
+        finally:
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception as e:  # noqa: BLE001 - 关闭异常不影响健康判定
+                logger.debug(f"Error closing replica probe connection: {e}")
 
     def get_routing_stats(self) -> Dict[str, Any]:
         """Get routing statistics"""

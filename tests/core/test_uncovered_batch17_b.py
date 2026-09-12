@@ -191,8 +191,8 @@ def test_flink_stream_job_process_and_record_methods():
     for jt in flink_processor.FlinkJobType:
         config = flink_processor.FlinkJobConfig(job_name=f"job-{jt.value}", job_type=jt)
         job = flink_processor.FlinkStreamJob(config)
-        assert job.process_stream([{"x": 1}]) == []
-        result = job._stub_process(
+        assert job.process_stream([]) == []
+        result = job.process_stream(
             [{"value": 1200, "label": "x"}]
         )  # noqa: F841  # Variable for test verification
         assert len(result) == 1
@@ -211,7 +211,7 @@ def test_flink_stream_job_clean_data_digit():
         job_name="clean", job_type=flink_processor.FlinkJobType.DATA_CLEANING
     )
     job = flink_processor.FlinkStreamJob(config)
-    out = job._stub_process([{"a": "123", "b": None}])
+    out = job.process_stream([{"a": "123", "b": None}])
     assert out[0]["a"] == 123
     assert out[0]["b"] is None
     assert out[0]["cleaned"] is True
@@ -236,11 +236,16 @@ def test_flink_job_manager_and_global_instance():
     )
     job = manager.create_job(config)
     assert manager.get_job("managed") is job
-    assert manager.start_job("managed") is True
-    assert manager.stop_job("managed") is True
+    started = manager.start_job("managed")
+    assert started is flink_processor.FLINK_AVAILABLE
+    if started:
+        assert manager.stop_job("managed") is True
     assert manager.start_job("missing") is False
     assert manager.stop_job("missing") is False
-    assert manager.get_job_status("managed") == {}
+    status = manager.get_job_status("managed")
+    assert status["job_name"] == "managed"
+    assert "state" in status
+    assert manager.get_job_status("missing")["exists"] is False
 
 
 # ---------------------------------------------------------------------------

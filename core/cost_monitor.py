@@ -9,9 +9,78 @@ for cloud resources and infrastructure.
 import logging
 import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
+
+
+def _fit_linear_trend(values: List[float]) -> Tuple[float, float]:
+    """最小二乘拟合 ``y = intercept + slope * x``（x 为序号）。
+
+    Returns:
+        (intercept, slope)；数据不足时退化为均值 / 0 斜率。
+    """
+    n = len(values)
+    if n == 0:
+        return 0.0, 0.0
+    if n == 1:
+        return values[0], 0.0
+    xs = list(range(n))
+    mean_x = sum(xs) / n
+    mean_y = sum(values) / n
+    denom = sum((x - mean_x) ** 2 for x in xs)
+    if denom == 0:
+        return mean_y, 0.0
+    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, values)) / denom
+    intercept = mean_y - slope * mean_x
+    return intercept, slope
+
+
+def _forecast_daily_growth_rate() -> float:
+    """日均增长率（样本不足时用于外推），来自配置项，可按部署覆盖。"""
+    try:
+        import config
+
+        return float(getattr(config, "DEFAULT_COST_FORECAST_DAILY_GROWTH", 0.01))
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"Forecast growth-rate lookup from config failed: {e}")
+        return 0.01
+
+
+def _resolve_monthly_budget() -> Optional[float]:
+    """从持久化预算 / 配置解析当月预算总额。
+
+    优先级：
+      1. ``cost_budgets`` 表中 period=monthly 的预算之和（运营真实配置）；
+      2. 配置项 ``DEFAULT_MONTHLY_BUDGET``（可按部署通过环境变量覆盖）。
+
+    Returns:
+        预算金额；均未配置时返回 ``None``（由调用方按“未配置预算”处理）。
+    """
+    try:
+        from core.database import SessionLocal
+        from core.models import CostBudgetDB
+
+        db = SessionLocal()
+        try:
+            rows = db.query(CostBudgetDB).filter(CostBudgetDB.period == "monthly").all()
+            total = sum(float(row.amount or 0) for row in rows)
+            if total > 0:
+                return total
+        finally:
+            db.close()
+    except Exception as e:  # noqa: BLE001 - 预算表不可用则回退配置
+        logger.debug(f"Monthly budget lookup from database failed: {e}")
+
+    try:
+        import config
+
+        value = getattr(config, "DEFAULT_MONTHLY_BUDGET", None)
+        if value:
+            return float(value)
+    except Exception as e:  # noqa: BLE001
+        logger.debug(f"Monthly budget lookup from config failed: {e}")
+    return None
 
 
 def _budget_row_to_dict(row: Any) -> Dict[str, Any]:
@@ -113,15 +182,32 @@ def forecast_costs(days: int = 30) -> List[Dict[str, Any]]:
         if not historical_costs:
             return []
 
-        # Simple linear regression forecast
-        # In production, use more sophisticated forecasting models
-        avg_daily_cost = sum(record["cost"] for record in historical_costs) / len(historical_costs)
+        # 按时间排序；样本充足时用最小二乘拟合真实趋势，样本过少时用（可配置的）
+        # 日均增长率外推 —— 增长率来自 config，而非写死常量。
+        ordered = sorted(historical_costs, key=lambda r: str(r.get("timestamp", "")))
+        series = [float(record["cost"]) for record in ordered]
+        n = len(series)
+        avg_daily_cost = sum(series) / n
+
+        if n >= 3:
+            intercept, slope = _fit_linear_trend(series)
+            last_x = n - 1
+            confidence = "high" if n >= 30 else "medium" if n >= 7 else "low"
+
+            def _predict(i: int) -> float:
+                return max(0.0, intercept + slope * (last_x + i))
+        else:
+            growth = _forecast_daily_growth_rate()
+            confidence = "medium"
+
+            def _predict(i: int, _avg: float = avg_daily_cost, _g: float = growth) -> float:
+                return max(0.0, _avg * (1 + _g * i))
 
         forecast_data = [
             {
                 "timestamp": (current_time + timedelta(days=i)).isoformat(),
-                "forecasted_cost": avg_daily_cost * (1 + (i * 0.01)),  # 1% daily growth assumption
-                "confidence": "medium",
+                "forecasted_cost": _predict(i),
+                "confidence": confidence,
                 "currency": "USD",
             }
             for i in range(1, days + 1)
@@ -159,12 +245,32 @@ def budget_status(detailed: bool = False) -> Dict[str, Any]:
 
         total_spend = sum(record["cost"] for record in current_month_costs)
 
-        # Budget configuration (in production, load from config/database)
-        monthly_budget = 5000.0  # $5000 monthly budget
+        # Budget configuration: resolved from persisted budgets / config per deployment
+        monthly_budget = _resolve_monthly_budget()
         warning_threshold = 0.8  # 80% warning threshold
         critical_threshold = 0.9  # 90% critical threshold
 
-        budget_utilization = total_spend / monthly_budget if monthly_budget > 0 else 0
+        if not monthly_budget or monthly_budget <= 0:
+            # 未配置预算时如实上报，而非用恒定常量伪造利用率
+            return {
+                "status": "unconfigured",
+                "alert_level": "low",
+                "message": "No monthly budget configured; set a budget via /api/v1/cost/budgets",
+                "budget": {
+                    "monthly_budget": None,
+                    "current_spend": total_spend,
+                    "utilization_percent": None,
+                    "remaining_budget": None,
+                },
+                "period": {
+                    "start": current_month.isoformat(),
+                    "end": (current_month + timedelta(days=32)).replace(day=1) - timedelta(days=1),
+                },
+                "recommendations": [],
+                "last_updated": current_time.isoformat(),
+            }
+
+        budget_utilization = total_spend / monthly_budget
 
         # Determine status
         if budget_utilization >= critical_threshold:
@@ -250,31 +356,48 @@ def get_optimization_suggestions() -> List[Dict[str, Any]]:
         
         # Identify top cost contributors
         sorted_services = sorted(service_costs.items(), key=lambda x: x[1], reverse=True)
-        
+
+        total_cost = sum(service_costs.values())
+        mean_service_cost = total_cost / len(service_costs) if service_costs else 0.0
+
         for service, cost in sorted_services[:5]:
-            if cost > 100:  # Threshold for significant costs
-                suggestions.append({
-                    "id": len(suggestions) + 1,
-                    "type": "resize",
-                    "resource": service,
-                    "current_cost": cost,
-                    "potential_savings": cost * 0.2,  # Assume 20% savings potential
-                    "priority": "high" if cost > 500 else "medium",
-                    "action": f"Review {service} instance sizes and consider right-sizing"
-                })
-        
-        # Check for idle resources
-        if len(cost_data) > 0:
-            avg_cost = sum(r["cost"] for r in cost_data) / len(cost_data)
+            if mean_service_cost <= 0:
+                continue
+            if cost > mean_service_cost:
+                # 高于均值的部分视为可右移/缩容空间（数据驱动，非固定比例）
+                potential_savings = (cost - mean_service_cost) * 0.5
+                priority = "high" if cost > 2 * mean_service_cost else "medium"
+            else:
+                potential_savings = cost * 0.05
+                priority = "low"
+            if potential_savings <= 0:
+                continue
             suggestions.append({
                 "id": len(suggestions) + 1,
-                "type": "idle_resources",
-                "resource": "various",
-                "current_cost": avg_cost * 0.1,
-                "potential_savings": avg_cost * 0.1,
-                "priority": "medium",
-                "action": "Identify and remove idle or underutilized resources"
+                "type": "resize",
+                "resource": service,
+                "current_cost": cost,
+                "potential_savings": potential_savings,
+                "priority": priority,
+                "action": f"Review {service} instance sizes and consider right-sizing",
             })
+
+        # Idle-resource 建议：以显著低于均值的服务作为闲置信号（真实数据驱动）
+        if cost_data and service_costs and mean_service_cost > 0:
+            idle_candidates = [
+                s for s, c in service_costs.items() if c < mean_service_cost * 0.25
+            ]
+            if idle_candidates:
+                idle_cost = sum(service_costs[s] for s in idle_candidates)
+                suggestions.append({
+                    "id": len(suggestions) + 1,
+                    "type": "idle_resources",
+                    "resource": ", ".join(idle_candidates[:5]),
+                    "current_cost": idle_cost,
+                    "potential_savings": idle_cost,
+                    "priority": "medium",
+                    "action": "Identify and remove idle or underutilized resources",
+                })
         
         logger.info(f"Generated {len(suggestions)} cost optimization suggestions")
         return suggestions

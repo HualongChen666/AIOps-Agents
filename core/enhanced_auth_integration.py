@@ -5,7 +5,6 @@ Comprehensive authentication and authorization system with role-based access con
 """
 
 import asyncio
-import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -305,12 +304,36 @@ class EnhancedAuthIntegration:
             return None
 
     def _verify_password(self, user: User, password: str) -> bool:
-        """Verify user password (simplified)"""
-        # In real implementation, would use bcrypt or similar
-        # For now, use simple hash comparison
-        password_hash = hashlib.sha256(f"{user.username}:{password}".encode()).hexdigest()
+        """Verify user password using bcrypt (via core.authentication).
+
+        历史问题（已修复）：曾用无盐 SHA256(username:password) 比对，属弱口令哈希。
+        现在复用项目统一的 bcrypt 校验实现；对非 bcrypt 的历史哈希一律拒绝。
+        """
         stored_hash = str(user.metadata.get("password_hash", ""))
-        return bool(password_hash == stored_hash)
+        if not password or not stored_hash:
+            return False
+
+        try:
+            from core.authentication import verify_password as _bcrypt_verify
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Password verifier unavailable: {e}")
+            return False
+
+        if stored_hash.startswith(("$2a$", "$2b$", "$2y$")):
+            return bool(_bcrypt_verify(password, stored_hash))
+
+        logger.warning(
+            f"Rejecting non-bcrypt password hash for user {user.username}; "
+            "please re-hash credentials with bcrypt"
+        )
+        return False
+
+    @staticmethod
+    def hash_password(password: str) -> str:
+        """Hash a password with bcrypt (for consistent user provisioning)."""
+        from core.authentication import hash_password as _bcrypt_hash
+
+        return _bcrypt_hash(password)
 
     def _generate_jwt_token(self, user: User) -> AuthToken:
         """Generate JWT token for user"""

@@ -243,7 +243,7 @@ class LangGraphAnalysisEngine:
         except Exception as e:
             logger.warning(f"L2: topology collection failed: {e}")
 
-    def _analyze_step(self, state: AnalysisState) -> AnalysisState:
+    async def _analyze_step(self, state: AnalysisState) -> AnalysisState:
         """Perform analysis using AI engine"""
         logger.info("Performing analysis...")
         state["current_step"] = AnalysisStep.ANALYZE.value
@@ -255,7 +255,9 @@ class LangGraphAnalysisEngine:
             # Prepare analysis prompt with context (sanitized and token-bounded)
             prompt = self._build_analysis_prompt(state["input"], state["context"])
 
-            result = analyze(prompt)
+            # core.ai_engine.analyze 是 async 协程；必须 await，否则拿到的是
+            # coroutine 对象而非分析结果（历史缺陷：主流程因此不可用）。
+            result = await analyze(prompt)
             state["analysis_result"] = result
 
             logger.info("Analysis completed successfully")
@@ -537,7 +539,7 @@ class LangGraphAnalysisEngine:
 
             # Sanitize context before passing to the fallback engine if possible
             safe_context = prepare_for_llm(context or {}, max_tokens=12000)
-            result = analyze(input, rich_context=safe_context)
+            result = await analyze(input, rich_context=safe_context)
             return result  # type: ignore[no-any-return]
         except Exception as e:
             logger.error(f"Fallback analysis failed: {e}")

@@ -5,8 +5,7 @@ Enhanced execution engine with performance optimizations and layer integration
 """
 
 import asyncio
-from datetime import datetime
-from functools import lru_cache
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
@@ -91,15 +90,19 @@ class OptimizedExecutor:
         self._is_initialized = True
         logger.info("Optimized Executor initialized for L6 Layer")
 
-    @lru_cache(maxsize=128)
     def _get_cached_result(self, cache_key: str) -> Optional[Any]:
-        """Get cached result with LRU cache"""
+        """Get cached result, honouring the configured TTL.
+
+        历史问题（已修复）：该方法曾被 ``@lru_cache`` 装饰，lru 会直接缓存返回值，
+        从而绕过 ``self.cache`` 的 TTL 过期判断，缓存失效形同虚设。现改为纯 TTL 查询，
+        且使用带时区的时间戳，避免 naive/aware 混用。
+        """
         if not self.cache_enabled:
             return None
 
         if cache_key in self.cache:
             value, timestamp = self.cache[cache_key]
-            age = (datetime.now() - timestamp).total_seconds()
+            age = (datetime.now(timezone.utc) - timestamp).total_seconds()
 
             if age < self.cache_ttl:
                 self.metrics.record_cache_hit()
@@ -116,7 +119,7 @@ class OptimizedExecutor:
         if not self.cache_enabled:
             return
 
-        self.cache[cache_key] = (value, datetime.now())
+        self.cache[cache_key] = (value, datetime.now(timezone.utc))
 
     async def execute_with_cache(
         self, operation: str, params: Dict[str, Any], handler: Callable[..., Any]

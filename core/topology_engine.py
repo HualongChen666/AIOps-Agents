@@ -95,7 +95,7 @@ def graph_to_dict(G: nx.DiGraph) -> Dict[str, List[Dict[str, Any]]]:
 
 
 # ------------------------------------------------------------
-# API 所需的占位实现（后续可接入真实业务逻辑）
+# 拓扑状态查询（真实反映已构建拓扑 / 活动节点-边图）
 # ------------------------------------------------------------
 
 # 示例拓扑类型映射，可在实际实现中扩展
@@ -107,7 +107,31 @@ TOPOLOGY_TYPES: Dict[str, str] = {
 
 
 def get_topology_status(topo_key: str) -> Dict[str, Any]:
-    return {"node_count": len(_nodes), "active_flows": _edges.copy()}
+    """返回指定拓扑键的状态。
+
+    - ``topo_key`` 命中已构建的拓扑缓存时，如实汇报该拓扑的节点/边；
+    - 否则汇报由节点-边 CRUD 接口（``add_node``/``add_edge`` 等）维护的
+      实时图。两处状态此前互不相通，导致状态查询与真实拓扑脱节。
+    """
+    cached = _topology_cache.get(topo_key)
+    if cached is not None:
+        nodes = cached.get("nodes", [])
+        edges = cached.get("edges", [])
+        return {
+            "topology_id": topo_key,
+            "node_count": len(nodes),
+            "active_flows": list(edges),
+            "nodes": [n.get("id") for n in nodes if isinstance(n, dict)],
+            "source": "topology_cache",
+        }
+
+    return {
+        "topology_id": topo_key,
+        "node_count": len(_nodes),
+        "active_flows": _edges.copy(),
+        "nodes": list(_nodes.keys()),
+        "source": "live_graph",
+    }
 
 
 async def get_full_link_topology(topo_key: str | None = None) -> Dict[str, Any]:

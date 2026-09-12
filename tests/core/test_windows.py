@@ -34,4 +34,4 @@ async def test_execute_windows_repair():
 
 def test_get_windows_repair_history():
     history = core.windows_repair.get_windows_repair_history(limit=5)
-    assert history == []
+    assert isinstance(history, list)

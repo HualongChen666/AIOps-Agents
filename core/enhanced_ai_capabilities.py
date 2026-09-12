@@ -104,6 +104,13 @@ async def _fit_model(
                     model.fit(X_vec)
         else:
             logger.warning(f"Model {type(model).__name__} does not support fit/partial_fit")
+
+        # 记录本次训练用的特征/标签，供真实性能评估复用（避免评估退化为常量）
+        try:
+            setattr(model, "_aiops_fit_X", X_vec)
+            setattr(model, "_aiops_fit_y", y_enc)
+        except Exception as e:  # noqa: BLE001 - 某些模型禁止属性赋值
+            logger.debug(f"Could not cache fit data on model: {e}")
     except Exception as exc:
         logger.error(f"Model training failed: {exc}")
         if knowledge_accumulator is not None:
@@ -537,10 +544,29 @@ class EnhancedAICapabilities:
         )
 
     async def _evaluate_model_performance(self, model_id: str) -> float:
-        """评估模型性能"""
-        # 实现性能评估逻辑
-        # 返回准确度或其他性能指标
-        return 0.8  # 默认值
+        """评估模型性能（基于真实拟合数据的打分，而非固定常量）。
+
+        使用模型自身的 ``score`` 在已拟合的特征/标签上计算指标（分类为
+        accuracy、回归为 R²）。无法评估时返回 0.0 并记录，避免用伪造的
+        0.8 掩盖真实学习效果。
+        """
+        model = self.prediction_models.get(model_id)
+        if model is None:
+            logger.warning(f"Cannot evaluate unknown model {model_id}")
+            return 0.0
+
+        X = getattr(model, "_aiops_fit_X", None)
+        y = getattr(model, "_aiops_fit_y", None)
+        if X is None or y is None or len(X) == 0:
+            logger.debug(f"No fitted data available to evaluate model {model_id}")
+            return 0.0
+
+        try:
+            score = model.score(X, y)
+            return float(score)
+        except Exception as e:  # noqa: BLE001 - 模型无 score / 打分失败
+            logger.debug(f"Model evaluation failed for {model_id}: {e}")
+            return 0.0
 
     async def parse_natural_language(self, query: str) -> Optional[NLParseResult]:
         """自然语言解析

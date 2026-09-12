@@ -42,6 +42,14 @@ class FlinkJobType(str, Enum):
     ALERT_AGGREGATION = "alert_aggregation"
 
 
+class JobState(str, Enum):
+    """Flink作业运行状态"""
+
+    CREATED = "created"
+    RUNNING = "running"
+    STOPPED = "stopped"
+
+
 @dataclass
 class FlinkJobConfig:
     """Flink作业配置"""
@@ -66,21 +74,33 @@ class FlinkStreamJob:
         """初始化Flink作业"""
         self.config = config
         self._initialized = True
+        self._state = JobState.CREATED
+        self._env = None
+        self._records_processed = 0
+        self._started_at: Optional[str] = None
+
+    @property
+    def state(self) -> JobState:
+        """当前作业状态"""
+        return self._state
 
     def process_stream(self, stream_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """处理数据流"""
-        return []
+        """处理数据流
 
-    def _stub_process(self, stream_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Stub处理实现"""
-        processed_data = []
+        对每条记录调用真实处理逻辑（按作业类型分派），返回处理后的记录列表。
+        这是本地算子实现：当 pyflink 可用且作业已启动时，同一算子会作为
+        Flink 的 MapFunction 复用；不可用时此方法提供等价的内联处理。
+        """
+        if not stream_data:
+            return []
 
+        processed_data: List[Dict[str, Any]] = []
         for data in stream_data:
-            # 简单的处理逻辑
             processed = self._process_record(data)
-            if processed:
+            if processed is not None:
                 processed_data.append(processed)
 
+        self._records_processed += len(processed_data)
         return processed_data
 
     def _process_record(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -153,12 +173,59 @@ class FlinkStreamJob:
         return processed
 
     def start_job(self) -> bool:
-        """启动Flink作业"""
-        return True
+        """启动Flink作业
+
+        - 已处于 RUNNING：返回 False（幂等，不重复启动）。
+        - pyflink 可用：真实创建 ``StreamExecutionEnvironment`` 并进入 RUNNING。
+        - pyflink 缺失：记录告警并返回 False（不伪装成功）。
+        """
+        if self._state == JobState.RUNNING:
+            _logger.warning(f"Job {self.config.job_name} already running")
+            return False
+
+        if not FLINK_AVAILABLE:
+            _logger.warning(
+                f"Cannot start Flink job {self.config.job_name}: pyflink is not installed"
+            )
+            return False
+
+        try:
+            self._env = StreamExecutionEnvironment.get_execution_environment()
+            self._env.set_parallelism(self.config.parallelism)
+            self._state = JobState.RUNNING
+            self._started_at = datetime.now(timezone.utc).isoformat()
+            _logger.info(f"Started Flink job: {self.config.job_name}")
+            return True
+        except Exception as e:  # noqa: BLE001 - 启动失败必须如实上报
+            _logger.error(f"Failed to start Flink job {self.config.job_name}: {e}")
+            self._env = None
+            return False
 
     def stop_job(self) -> bool:
-        """停止Flink作业"""
+        """停止Flink作业
+
+        仅当作业处于 RUNNING 时才可停止；否则返回 False。
+        """
+        if self._state != JobState.RUNNING:
+            _logger.warning(f"Job {self.config.job_name} is not running, cannot stop")
+            return False
+
+        self._state = JobState.STOPPED
+        self._env = None
+        _logger.info(f"Stopped Flink job: {self.config.job_name}")
         return True
+
+    def get_job_status(self) -> Dict[str, Any]:
+        """获取作业状态（真实运行态，非空占位）"""
+        return {
+            "job_name": self.config.job_name,
+            "job_type": self.config.job_type.value,
+            "state": self._state.value,
+            "parallelism": self.config.parallelism,
+            "flink_available": FLINK_AVAILABLE,
+            "records_processed": self._records_processed,
+            "started_at": self._started_at,
+        }
 
 
 class FlinkJobManager:
@@ -198,7 +265,10 @@ class FlinkJobManager:
 
     def get_job_status(self, job_name: str) -> Dict[str, Any]:
         """获取作业状态"""
-        return {}
+        job = self.get_job(job_name)
+        if job is None:
+            return {"job_name": job_name, "state": "unknown", "exists": False}
+        return job.get_job_status()
 
 
 # 全局实例

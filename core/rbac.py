@@ -7,7 +7,7 @@ RBAC (Role-Based Access Control)
 """
 
 from enum import Enum
-from typing import List, Dict, Set, Optional
+from typing import Any, List, Dict, Set, Optional
 from functools import wraps
 from fastapi import HTTPException, Depends
 
@@ -106,9 +106,24 @@ ROLE_PERMISSIONS: Dict[Role, Set[Permission]] = {
 }
 
 
+_ROLE_ALIASES: Dict[str, "Role"] = {
+    "admin": Role.ADMIN,
+    "administrator": Role.ADMIN,
+    "operator": Role.OPERATOR,
+    "ops": Role.OPERATOR,
+    "sre": Role.OPERATOR,
+    "developer": Role.DEVELOPER,
+    "dev": Role.DEVELOPER,
+    "viewer": Role.VIEWER,
+    "readonly": Role.VIEWER,
+    "read-only": Role.VIEWER,
+    "guest": Role.GUEST,
+    "anonymous": Role.GUEST,
+}
+
+
 class RBACManager:
     """RBAC管理器"""
-    
     @staticmethod
     def has_permission(user_role: Role, required_permission: Permission) -> bool:
         """检查用户是否具有指定权限"""
@@ -133,59 +148,115 @@ class RBACManager:
         return ROLE_PERMISSIONS.get(user_role, set()).copy()
 
 
+def _role_from_value(raw: Any) -> Role:
+    """将原始角色值（字符串/枚举/列表）归一化为 :class:`Role`。"""
+    if raw is None:
+        return Role.GUEST
+    if isinstance(raw, Role):
+        return raw
+    if isinstance(raw, (list, tuple, set)):
+        for item in raw:
+            candidate = _role_from_value(item)
+            if candidate != Role.GUEST:
+                return candidate
+        return Role.GUEST
+    return _ROLE_ALIASES.get(str(raw).strip().lower(), Role.VIEWER)
+
+
+def _resolve_current_user(args: tuple, kwargs: Dict[str, Any]) -> Any:
+    """从 FastAPI 注入的实参中解析当前用户。
+
+    被装饰的端点通常会声明 ``current_user = Depends(get_current_active_user)``，
+    FastAPI 会以关键字实参传入，因此优先从此处取；其次扫描位置实参与其余
+    关键字实参，兼容 ``request.state.user`` 风格的调用。
+    """
+    for key in ("current_user", "user", "_current_user"):
+        candidate = kwargs.get(key)
+        if candidate is not None:
+            return candidate
+
+    for candidate in (*args, *kwargs.values()):
+        if candidate is None:
+            continue
+        if hasattr(candidate, "role") or hasattr(candidate, "roles"):
+            return candidate
+        if isinstance(candidate, dict) and ("role" in candidate or "roles" in candidate):
+            return candidate
+        # Request-like object carrying an authenticated user on .state
+        state = getattr(candidate, "state", None)
+        if state is not None:
+            state_user = getattr(state, "user", None)
+            if state_user:
+                return state_user
+    return None
+
+
+def _current_role(args: tuple, kwargs: Dict[str, Any]) -> Role:
+    """解析当前请求的用户角色（真实的认证上下文，而非硬编码 VIEWER）。"""
+    user = _resolve_current_user(args, kwargs)
+    if isinstance(user, dict):
+        return _role_from_value(user.get("role", user.get("roles")))
+    return _role_from_value(getattr(user, "role", None) if user is not None else None)
+
+
 def require_permission(required_permission: Permission):
-    """权限检查装饰器"""
+    """权限检查装饰器
+
+    从真实认证上下文解析当前用户角色后校验权限；不再恒按 ``Role.VIEWER`` 判定。
+    """
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # 这里应该从请求上下文中获取用户角色
-            # 简化实现，实际应该从JWT token或session中获取
-            user_role = Role.VIEWER  # 默认角色
-            
+            user_role = _current_role(args, kwargs)
+
             if not RBACManager.has_permission(user_role, required_permission):
                 raise HTTPException(
                     status_code=403,
-                    detail=f"Permission denied: {required_permission.value} required"
+                    detail=(
+                        f"Permission denied: {required_permission.value} required "
+                        f"(role={user_role.value})"
+                    ),
                 )
-            
+
             return await func(*args, **kwargs)
         return wrapper
     return decorator
 
 
 def require_role(required_role: Role):
-    """角色检查装饰器"""
+    """角色检查装饰器（基于真实认证上下文）"""
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # 这里应该从请求上下文中获取用户角色
-            user_role = Role.VIEWER  # 默认角色
-            
+            user_role = _current_role(args, kwargs)
+
             if user_role != required_role and user_role != Role.ADMIN:
                 raise HTTPException(
                     status_code=403,
-                    detail=f"Role denied: {required_role.value} required"
+                    detail=f"Role denied: {required_role.value} required (role={user_role.value})",
                 )
-            
+
             return await func(*args, **kwargs)
         return wrapper
     return decorator
 
 
 def require_any_role(*required_roles: Role):
-    """多角色检查装饰器"""
+    """多角色检查装饰器（基于真实认证上下文）"""
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # 这里应该从请求上下文中获取用户角色
-            user_role = Role.VIEWER  # 默认角色
-            
+            user_role = _current_role(args, kwargs)
+
             if user_role not in required_roles and user_role != Role.ADMIN:
                 raise HTTPException(
                     status_code=403,
-                    detail=f"Role denied: one of {[role.value for role in required_roles]} required"
+                    detail=(
+                        "Role denied: one of "
+                        f"{[role.value for role in required_roles]} required (role={user_role.value})"
+                    ),
                 )
-            
+
             return await func(*args, **kwargs)
         return wrapper
     return decorator

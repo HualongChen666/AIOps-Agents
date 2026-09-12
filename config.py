@@ -446,6 +446,13 @@ OIDC_REDIRECT_URI: str = os.getenv(
 DEFAULT_LOG_HOST: str = os.getenv("DEFAULT_LOG_HOST", "localhost").strip()
 DEFAULT_HOST: str = os.getenv("DEFAULT_HOST", "localhost").strip()
 
+# Cost budget default (per-deployment, overridable via env; persisted budgets take precedence)
+DEFAULT_MONTHLY_BUDGET: float = float(os.getenv("DEFAULT_MONTHLY_BUDGET", "5000"))
+# Daily growth rate used for short-horizon cost forecasts (overridable via env)
+DEFAULT_COST_FORECAST_DAILY_GROWTH: float = float(
+    os.getenv("DEFAULT_COST_FORECAST_DAILY_GROWTH", "0.01")
+)
+
 # ============================================================
 # AI Engine Configuration (MiniMax / OpenAI Compatible)
 # ============================================================
