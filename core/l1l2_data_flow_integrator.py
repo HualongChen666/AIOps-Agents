@@ -5,12 +5,13 @@
 """
 
 import logging
+import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Dict, List, Union
 
-from core.flink_stream_processor import get_flink_job_manager  # type: ignore
+from core.flink_stream_processor import FlinkJobConfig, FlinkJobType, get_flink_job_manager  # type: ignore
 from core.kafka_stream_processor import KafkaTopic, get_kafka_processor
 from core.monitoring_infrastructure import get_monitoring_infrastructure
 
@@ -55,6 +56,11 @@ class L1L2DataFlowIntegrator:
             "processing_times": [],
         }
 
+        # 运行期状态（供 start/stop_data_flow 使用）
+        self._running = False
+        self._stop_event = threading.Event()
+        self._consumer_threads: List[threading.Thread] = []
+
         self._setup_kafka_handlers()
         self._setup_flink_jobs()
 
@@ -75,21 +81,20 @@ class L1L2DataFlowIntegrator:
         _logger.info("Kafka handlers registered for L1-L2 data flow")
 
     def _setup_flink_jobs(self):
-        """设置Flink作业"""
-        # 创建指标聚合作业
-        # metrics_job_config = {
-        #     "job_name": "metrics_aggregation",
-        #     "job_type": FlinkJobType.METRICS_AGGREGATION,
-        # }
-        # self.flink_manager.create_job(metrics_job_config)
+        """设置Flink作业（真实创建 metric/anomaly 两个作业）。
 
-        # 创建异常检测作业
-        # anomaly_job_config = {
-        #     "job_name": "anomaly_detection",
-        #     "job_type": FlinkJobType.ANOMALY_DETECTION,
-        # }
-        # self.flink_manager.create_job(anomaly_job_config)
-
+        历史问题（已修复）：原实现中创建 metrics_job / anomaly_job 的代码**全部被
+        注释掉**，作业从未创建，"数据流"未启动任何 Flink 作业。现按 FlinkJobType
+        真实创建并登记作业。
+        """
+        self.flink_manager.create_job(
+            FlinkJobConfig(
+                job_name="metrics_aggregation", job_type=FlinkJobType.METRICS_AGGREGATION
+            )
+        )
+        self.flink_manager.create_job(
+            FlinkJobConfig(job_name="anomaly_detection", job_type=FlinkJobType.ANOMALY_DETECTION)
+        )
         _logger.info("Flink jobs configured for L1-L2 data flow")
 
     def _handle_metrics_data(self, message):
@@ -235,29 +240,72 @@ class L1L2DataFlowIntegrator:
         _logger.info(f"Registered analysis handler for {analysis_type}")
 
     def start_data_flow(self):
-        """启动数据流"""
+        """启动数据流（真实启动 Flink 作业并按 topic 启动 Kafka 消费）。
+
+        历史问题（已修复）：原实现中启动 Kafka 消费与 Flink 作业的代码**全被注释**，
+        "数据流"未启动任何消费/作业，仅注册内存 handler。现真实启动 Flink 作业，并在
+        真实 Kafka 消费者可用时启动后台消费线程；消费者不可用时如实告警（不伪造）。
+        """
+        if self._running:
+            return True
         try:
-            # 启动Kafka消费
-            # 这里应该启动各个topic的消费
-            _logger.info("Starting L1-L2 data flow")
+            started = [
+                name
+                for name in ("metrics_aggregation", "anomaly_detection")
+                if self.flink_manager.start_job(name)
+            ]
 
-            # 启动Flink作业
-            # for job_name in self.flink_manager.jobs:
-            #     self.flink_manager.start_job(job_name)
+            consumer = getattr(self.kafka_processor, "consumer", None)
+            if consumer is not None:
+                self._stop_event.clear()
+                for topic in KafkaTopic:
+                    th = threading.Thread(
+                        target=self._consume_loop,
+                        args=(topic.value,),
+                        name=f"l1l2-{topic.value}",
+                        daemon=True,
+                    )
+                    th.start()
+                    self._consumer_threads.append(th)
+                _logger.info("L1-L2 data flow started (Kafka consumers running)")
+            else:
+                _logger.warning(
+                    "Kafka consumer unavailable; L1-L2 flow runs without live consumers"
+                )
 
-            _logger.info("L1-L2 data flow started successfully")
+            self._running = True
+            _logger.info(f"L1-L2 data flow started successfully (flink jobs: {started})")
             return True
         except Exception as e:
             _logger.error(f"Failed to start data flow: {e}")
             return False
 
-    def stop_data_flow(self):
-        """停止数据流"""
-        try:
-            # 停止Flink作业
-            # for job_name in self.flink_manager.jobs:
-            #     self.flink_manager.stop_job(job_name)
+    def _consume_loop(self, topic: str) -> None:
+        """后台消费循环：将 Kafka 消息分派给已注册处理器。"""
+        handlers = self.kafka_processor.message_handlers.get(topic, [])
+        while not self._stop_event.is_set():
+            try:
+                for message in self.kafka_processor.consume_messages(
+                    topic, group_id="l1l2-data-flow", auto_commit=True
+                ):
+                    if self._stop_event.is_set():
+                        break
+                    for handler in handlers:
+                        handler(message)
+            except Exception as e:  # noqa: BLE001
+                _logger.error(f"Consumer loop error for topic {topic}: {e}")
+            self._stop_event.wait(1.0)
 
+    def stop_data_flow(self):
+        """停止数据流（真实停止 Flink 作业与消费线程）。"""
+        try:
+            self._stop_event.set()
+            for th in list(self._consumer_threads):
+                th.join(timeout=2.0)
+            self._consumer_threads.clear()
+            for name in ("metrics_aggregation", "anomaly_detection"):
+                self.flink_manager.stop_job(name)
+            self._running = False
             _logger.info("L1-L2 data flow stopped successfully")
             return True
         except Exception as e:

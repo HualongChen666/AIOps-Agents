@@ -225,22 +225,31 @@ def test_enhanced_metrics_collector():
     c.increment_counter("hits")
     c.set_gauge("temp", 22.5)
     c.record_timing("op", 12.3)
-    assert c.get_stub_metrics() == {}
-
+    metrics = c.get_metrics()
+    assert {"m", "hits", "temp", "op_duration"} <= set(metrics)
+    # 计数器真实累加
+    c.increment_counter("hits")
+    assert c.get_series()["hits"][()] == 2.0
+    assert b"temp 22.5" in c.render()
+    assert set(c.get_stub_metrics()) == set(metrics)  # 兼容名返回真实数据
 
 def test_enhanced_log_collector():
     c = mi.EnhancedLogCollector()
     c.info("msg", "svc")
     c.warning("msg", "svc", {"x": "1"})
     c.error("msg", "svc")
-    assert c.get_stub_logs() == []
+    logs = c.get_logs()
+    assert len(logs) == 3
+    assert [entry.level for entry in logs] == ["INFO", "WARNING", "ERROR"]
+    assert c.get_stub_logs() == logs
 
 
 def test_enhanced_trace_collector():
     c = mi.EnhancedTraceCollector()
     span = c.start_span("op")
-    assert span == ""
-    c.end_span(span)
+    assert isinstance(span, str) and span != ""
+    duration = c.end_span(span)
+    assert duration is not None and duration >= 0
     c.record_trace(
         mi.TraceData(
             trace_id="t",
@@ -252,7 +261,9 @@ def test_enhanced_trace_collector():
             status="ok",
         )
     )
-    assert c.get_stub_traces() == {}
+    traces = c.get_traces()
+    assert span in traces and "s" in traces
+    assert c.get_stub_traces() == traces
 
 
 def test_monitoring_infrastructure_record_methods():
@@ -261,7 +272,10 @@ def test_monitoring_infrastructure_record_methods():
     infra.record_database_metric("read", "users", 12.0, True)
     infra.record_cache_metric("get", True)
     infra.record_system_metric(10.0, 50.0, 70.0)
-    assert infra.get_monitoring_status() == {}
+    status = infra.get_monitoring_status()
+    assert status["metrics_recorded"] >= 4
+    assert status["metric_series"] >= 1
+    assert b"system_cpu_percent" in infra.render_prometheus_metrics()
     assert infra.prometheus_config["enabled"] is True
     assert isinstance(mi.get_monitoring_infrastructure(), mi.MonitoringInfrastructure)
 

@@ -287,6 +287,14 @@ def test_kubernetes_deployment_lifecycle(tmp_path, monkeypatch):
     deployments = manager.list_deployments()
     assert len(deployments) == 1
 
+    # 真实行为：注入假的 kubectl（外部工具边界）以验证成功路径
+    from subprocess import CompletedProcess
+
+    async def _fake_kubectl(args, timeout=300):
+        return CompletedProcess(args=["kubectl", *args], returncode=0, stdout=b"", stderr=b"")
+
+    monkeypatch.setattr(manager, "_kubectl", _fake_kubectl)
+
     assert asyncio.run(manager.scale_deployment("dep-1", 5)) is True
     assert manager.deployments["dep-1"].replicas == 5
     scaled = manager.get_deployment_status("dep-1")
@@ -294,6 +302,13 @@ def test_kubernetes_deployment_lifecycle(tmp_path, monkeypatch):
 
     assert asyncio.run(manager.rollback_deployment("dep-1")) is True
     assert manager.deployment_states["dep-1"].status == DeploymentStatus.RUNNING
+
+    # 缺少 kubectl 时如实返回 False（不伪造成功）
+    async def _missing_kubectl(args, timeout=300):
+        raise RuntimeError("kubectl not found on PATH")
+
+    monkeypatch.setattr(manager, "_kubectl", _missing_kubectl)
+    assert asyncio.run(manager.scale_deployment("dep-1", 6)) is False
 
     assert asyncio.run(manager.delete_deployment("dep-1")) is True
     assert "dep-1" not in manager.deployments

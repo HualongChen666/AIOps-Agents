@@ -309,7 +309,12 @@ class L2L3WorkflowIntegrator:
     async def _execute_workflow_step(
         self, config: Dict[str, Any], execution: WorkflowExecution
     ) -> Dict[str, Any]:
-        """Execute workflow step"""
+        """Execute workflow step via the real L3 workflow engine.
+
+        历史问题（已修复）：原实现仅返回 ``{"status": "completed", ...}`` 占位，从未
+        调用 L3 工作流引擎。现真实调用 ``WorkflowEngine.execute_workflow`` 并如实返回
+        引擎状态（找不到工作流即失败，不伪报完成）。
+        """
         if not self.workflow_engine:
             return {"status": "skipped", "reason": "workflow_engine_not_available"}
 
@@ -317,12 +322,17 @@ class L2L3WorkflowIntegrator:
             workflow_name = config.get("workflow_name")
             workflow_params = config.get("params", {})
 
-            # Execute workflow through L3 engine
-            # This would integrate with the actual workflow engine
+            if not workflow_name:
+                return {"status": "failed", "error": "workflow_name is required"}
+
+            engine_result = await self.workflow_engine.execute_workflow(
+                workflow_name, workflow_params
+            )
+            state = engine_result.get("state")
             return {
-                "status": "completed",
+                "status": "completed" if state == "completed" else "failed",
                 "workflow_name": workflow_name,
-                "params": workflow_params,
+                "engine_result": engine_result,
             }
 
         except Exception as e:
@@ -332,17 +342,37 @@ class L2L3WorkflowIntegrator:
     async def _execute_data_processing_step(
         self, config: Dict[str, Any], execution: WorkflowExecution
     ) -> Dict[str, Any]:
-        """Execute data processing step"""
+        """Execute data processing step against the real L4 storage layer.
+
+        历史问题（已修复）：原实现仅返回 ``{"status": "completed", ...}`` 占位。现通过
+        ``L3L4StorageIntegrator`` 将处理结果真实写入 L4 存储并按后端真实结果如实返回。
+        """
         try:
             processing_type = config.get("processing_type")
             data = config.get("data", {})
 
-            # Perform data processing
-            # This would integrate with L4 storage layer
+            from core.l3l4_storage_integrator import (
+                DataType,
+                StorageRequest,
+                get_l3l4_storage_integrator,
+            )
+
+            integrator = self._get_storage_integrator()
+            data_type = self._map_processing_to_data_type(processing_type)
+            request = StorageRequest(
+                data_type=data_type,
+                data=data,
+                metadata={"id": config.get("id", execution.execution_id)},
+            )
+            store_result = await integrator.store_data(request)
+
             return {
-                "status": "completed",
+                "status": "completed" if store_result.success else "failed",
                 "processing_type": processing_type,
-                "processed_count": len(data) if isinstance(data, (list, dict)) else 0,
+                "stored": store_result.success,
+                "data_id": store_result.data_id,
+                "backend": store_result.backend.value,
+                "error": str(store_result.error) if store_result.error else None,
             }
 
         except Exception as e:
@@ -352,23 +382,73 @@ class L2L3WorkflowIntegrator:
     async def _execute_notification_step(
         self, config: Dict[str, Any], execution: WorkflowExecution
     ) -> Dict[str, Any]:
-        """Execute notification step"""
+        """Execute notification step through the real notify engine.
+
+        历史问题（已修复）：原实现仅返回 ``{"status": "completed", ...}`` 占位。现调用
+        ``core.notify_engine.send_notification`` 真实投递并返回各渠道真实结果。
+        """
         try:
             notification_type = config.get("notification_type")
             recipients = config.get("recipients", [])
-            config.get("message", {})
+            message = config.get("message", {})
 
-            # Send notification
-            # This would integrate with L7 integration layer
+            from core.notify_engine import send_notification
+
+            text = (
+                message
+                if isinstance(message, str)
+                else message.get("text")
+                or message.get("message")
+                or "workflow notification"
+            )
+            alert = {
+                "type": notification_type or "workflow",
+                "message": text,
+                "severity": config.get("severity", "info"),
+                "to": recipients[0] if recipients else config.get("to"),
+            }
+            channels = config.get("channels")
+            result = await send_notification(alert, channels)
+
             return {
-                "status": "completed",
+                "status": "completed" if result.get("success") else "failed",
                 "notification_type": notification_type,
                 "recipients_count": len(recipients),
+                "delivery": result,
             }
 
         except Exception as e:
             logger.error(f"Notification step failed: {e}")
             return {"status": "failed", "error": str(e)}
+
+    def _get_storage_integrator(self):
+        """Lazily create a shared L3-L4 storage integrator."""
+        if getattr(self, "_storage_integrator", None) is None:
+            from core.l3l4_storage_integrator import get_l3l4_storage_integrator
+
+            self._storage_integrator = get_l3l4_storage_integrator(
+                self.config.get("storage_config")
+            )
+        return self._storage_integrator
+
+    @staticmethod
+    def _map_processing_to_data_type(processing_type: Optional[str]):
+        """Map a configured processing type to an L4 data type."""
+        from core.l3l4_storage_integrator import DataType
+
+        mapping = {
+            "metrics": DataType.METRICS,
+            "metric": DataType.METRICS,
+            "logs": DataType.LOGS,
+            "log": DataType.LOGS,
+            "traces": DataType.TRACES,
+            "trace": DataType.TRACES,
+            "analysis": DataType.ANALYSIS_RESULTS,
+            "analysis_results": DataType.ANALYSIS_RESULTS,
+            "workflow_state": DataType.WORKFLOW_STATE,
+            "configuration": DataType.CONFIGURATION,
+        }
+        return mapping.get(str(processing_type).lower(), DataType.ANALYSIS_RESULTS)
 
     async def handle_causal_analysis_trigger(self, analysis_result: Dict[str, Any]) -> List[str]:
         """

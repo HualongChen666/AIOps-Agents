@@ -265,53 +265,160 @@ class L4L5DataIntegrator:
     async def _execute_transformation(
         self, transformation: DataTransformation, data: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """
-        Execute single transformation
+        """Execute a single transformation rule (real logic).
 
-        Args:
-            transformation: Transformation rule
-            data: Data to transform
-
-        Returns:
-            Transformed data
+        历史问题（已修复）：原实现仅 ``asyncio.sleep(0.1)`` 后原样返回数据（"Simulate
+        transformation"），任何规则都不产生效果。现按 ``transformation_type`` 真实执行
+        过滤/投影/重命名/去重/聚合/富化等算子。
         """
-        # In real implementation, would execute actual transformation logic
-        # For now, return data as-is
-        await asyncio.sleep(0.1)  # Simulate transformation
-        return data
+        t_type = (transformation.transformation_type or "").lower()
+        cfg = transformation.config or {}
+
+        if t_type in ("identity", "none", ""):
+            return list(data)
+
+        if t_type == "filter":
+            field_name = cfg.get("field")
+            expected = cfg.get("value")
+            op = cfg.get("op", "eq")
+            if field_name is None:
+                raise ValueError("filter transformation requires 'field'")
+            if op == "eq":
+                return [r for r in data if r.get(field_name) == expected]
+            if op == "ne":
+                return [r for r in data if r.get(field_name) != expected]
+            if op == "gt":
+                return [r for r in data if r.get(field_name, 0) > expected]
+            if op == "lt":
+                return [r for r in data if r.get(field_name, 0) < expected]
+            if op == "in":
+                return [r for r in data if r.get(field_name) in (expected or [])]
+            raise ValueError(f"unsupported filter op: {op}")
+
+        if t_type in ("project", "map_fields"):
+            fields = cfg.get("fields", [])
+            return [{k: r.get(k) for k in fields} for r in data]
+
+        if t_type in ("rename", "rename_fields"):
+            mapping = cfg.get("mapping", {})
+            out = []
+            for r in data:
+                new_r = dict(r)
+                for old, new in mapping.items():
+                    if old in new_r:
+                        new_r[new] = new_r.pop(old)
+                out.append(new_r)
+            return out
+
+        if t_type in ("deduplicate", "dedupe", "distinct"):
+            key = cfg.get("key")
+            seen = set()
+            out = []
+            for r in data:
+                k = r.get(key) if key else tuple(sorted(r.items(), key=lambda kv: kv[0]))
+                if k in seen:
+                    continue
+                seen.add(k)
+                out.append(r)
+            return out
+
+        if t_type == "aggregate":
+            group_by = cfg.get("group_by")
+            agg_field = cfg.get("agg_field")
+            func = cfg.get("func", "sum")
+            if not group_by or not agg_field:
+                raise ValueError("aggregate transformation requires 'group_by' and 'agg_field'")
+            groups: Dict[Any, List[float]] = defaultdict(list)
+            for r in data:
+                groups[r.get(group_by)].append(float(r.get(agg_field, 0) or 0))
+            out = []
+            for g, values in groups.items():
+                if func == "sum":
+                    val = sum(values)
+                elif func == "avg":
+                    val = sum(values) / len(values) if values else 0.0
+                elif func == "count":
+                    val = len(values)
+                elif func == "max":
+                    val = max(values) if values else 0.0
+                elif func == "min":
+                    val = min(values) if values else 0.0
+                else:
+                    raise ValueError(f"unsupported aggregate func: {func}")
+                out.append({"group": g, f"{func}_{agg_field}": val, "count": len(values)})
+            return out
+
+        if t_type in ("enrich", "add_fields"):
+            extra = cfg.get("add", {})
+            return [{**r, **extra} for r in data]
+
+        raise ValueError(f"unknown transformation type: {transformation.transformation_type}")
 
     async def _store_to_knowledge_layer(self, stream_id: str, data: List[Dict[str, Any]]) -> None:
-        """
-        Store data to L5 Knowledge Layer
+        """Store data to L5 Knowledge Layer through real storage backends.
 
-        Args:
-            stream_id: Stream ID
-            data: Data to store
+        历史问题（已修复）：原实现仅 ``asyncio.sleep(0.2)``（"would store to knowledge
+        graph or vector database"），数据从未落地。现通过 ``L3L4StorageIntegrator`` 将
+        批次数据真实写入 L4/L5 存储后端；写入失败时抛错由上层计入 failed_records。
         """
-        # In real implementation, would store to knowledge graph or vector database
-        await asyncio.sleep(0.2)  # Simulate storage
-        logger.debug(f"Stored {len(data)} records to knowledge layer from stream: {stream_id}")
+        if not data:
+            return
+
+        from core.l3l4_storage_integrator import (
+            DataType as StorageDataType,
+            StorageBackend,
+            StorageRequest,
+            get_l3l4_storage_integrator,
+        )
+
+        integrator = self._get_storage_integrator()
+        request = StorageRequest(
+            data_type=StorageDataType.ANALYSIS_RESULTS,
+            data=data,
+            metadata={"id": f"stream:{stream_id}", "stream_id": stream_id},
+        )
+        result = await integrator.store_data(request)
+        if not result.success:
+            raise RuntimeError(
+                f"knowledge-layer store failed for stream {stream_id}: {result.error}"
+            )
+        logger.debug(
+            f"Stored {len(data)} records to knowledge layer from stream {stream_id} "
+            f"(backend={result.backend.value})"
+        )
+        self._last_knowledge_backend: StorageBackend = result.backend
 
     async def query_data(
         self, stream_id: str, query: Dict[str, Any], time_range: Optional[tuple] = None
     ) -> List[Dict[str, Any]]:
-        """
-        Query integrated data
+        """Query integrated data from the real knowledge layer.
 
-        Args:
-            stream_id: Stream ID
-            query: Query parameters
-            time_range: Optional time range filter
-
-        Returns:
-            Query results
+        历史问题（已修复）：原实现恒 ``return []``。现查询 L4/L5 存储后端并返回真实结果。
         """
         if stream_id not in self.data_streams:
             return []
 
-        # In real implementation, would query from knowledge layer
-        # For now, return empty list
-        return []
+        from core.l3l4_storage_integrator import (
+            DataType as StorageDataType,
+            get_l3l4_storage_integrator,
+        )
+
+        integrator = self._get_storage_integrator()
+        backend = getattr(self, "_last_knowledge_backend", None)
+        results = await integrator.query_data(
+            query or {"stream_id": stream_id}, StorageDataType.ANALYSIS_RESULTS, backend=backend
+        )
+        return list(results)
+
+    def _get_storage_integrator(self):
+        """Lazily create a shared L3-L4 storage integrator."""
+        if getattr(self, "_storage_integrator", None) is None:
+            from core.l3l4_storage_integrator import get_l3l4_storage_integrator
+
+            self._storage_integrator = get_l3l4_storage_integrator(
+                self.config.get("storage_config")
+            )
+        return self._storage_integrator
 
     async def start_realtime_processing(self) -> None:
         """Start real-time data processing"""

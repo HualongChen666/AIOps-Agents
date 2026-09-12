@@ -99,6 +99,9 @@ class L5L6ExecutionIntegrator:
         # Knowledge-based actions
         self.actions: Dict[str, KnowledgeBasedAction] = {}
 
+        # Real execution handlers keyed by action_id (dependency-injected)
+        self._action_handlers: Dict[str, Any] = {}
+
         # Execution queue
         self.execution_queue: Dict[ExecutionPriority, asyncio.Queue] = {
             ExecutionPriority.CRITICAL: asyncio.Queue(maxsize=100),
@@ -249,37 +252,84 @@ class L5L6ExecutionIntegrator:
     def _check_conditions(
         self, action: KnowledgeBasedAction, knowledge_data: Dict[str, Any]
     ) -> bool:
-        """
-        Check if execution conditions are met
+        """Evaluate the action's conditions against real knowledge data.
 
-        Args:
-            action: Action configuration
-            knowledge_data: Knowledge data
-
-        Returns:
-            True if conditions are met
+        历史问题（已修复）：原实现恒 ``return True``（"In real implementation, would
+        check actual conditions"），任何条件都不判断、动作恒被触发。现按 conditions 中的
+        比较算子对 knowledge_data 真实求值。
         """
-        # In real implementation, would check actual conditions
+        conditions = action.conditions or {}
+        if not conditions:
+            return True
+
+        for field_name, spec in conditions.items():
+            value = knowledge_data.get(field_name)
+            if isinstance(spec, dict):
+                if "eq" in spec and value != spec["eq"]:
+                    return False
+                if "ne" in spec and value == spec["ne"]:
+                    return False
+                if "gt" in spec and not (isinstance(value, (int, float)) and value > spec["gt"]):
+                    return False
+                if "gte" in spec and not (isinstance(value, (int, float)) and value >= spec["gte"]):
+                    return False
+                if "lt" in spec and not (isinstance(value, (int, float)) and value < spec["lt"]):
+                    return False
+                if "lte" in spec and not (isinstance(value, (int, float)) and value <= spec["lte"]):
+                    return False
+                if "in" in spec and value not in spec["in"]:
+                    return False
+                if "exists" in spec and bool(spec["exists"]) != (field_name in knowledge_data):
+                    return False
+            else:
+                # Scalar shorthand: equality
+                if value != spec:
+                    return False
         return True
 
+    def register_action_handler(self, action_id: str, handler: Any) -> None:
+        """Register a real execution handler for a knowledge-based action."""
+        self._action_handlers[action_id] = handler
+
     async def _execute_action(self, action: KnowledgeBasedAction, request: ExecutionRequest) -> Any:
-        """
-        Execute action
+        """Execute a registered handler through the real L6 execution layer.
 
-        Args:
-            action: Action configuration
-            request: Execution request
-
-        Returns:
-            Execution result
+        历史问题（已修复）：原实现仅 ``asyncio.sleep(1)`` 后返回 ``{"status":"success"}``
+        占位（"would execute actual action using L6 Execution Layer"），不执行任何操作。
+        现通过 ``OptimizedExecutor.execute_with_cache`` 真实调用该动作注册的处理函数；未
+        注册处理函数时如实返回错误，绝不伪造成功。
         """
-        # In real implementation, would execute actual action using L6 Execution Layer
-        await asyncio.sleep(1)  # Simulate execution
+        handler = self._action_handlers.get(action.action_id)
+        if handler is None:
+            raise RuntimeError(
+                f"no execution handler registered for action '{action.action_id}' "
+                f"({action.action_name})"
+            )
+
+        from core.execution.l6.optimized_executor import get_optimized_executor
+
+        executor = get_optimized_executor()
+        params = {
+            "knowledge_data": request.knowledge_data,
+            "context": request.context,
+            "action": action,
+        }
+
+        if executor is not None:
+            outcome = await executor.execute_with_cache(
+                f"l5l6:{action.action_id}", params, handler
+            )
+        else:
+            outcome = {"success": True, "result": await handler(params)}
+
+        if not outcome.get("success"):
+            raise RuntimeError(outcome.get("error", "action execution failed"))
 
         return {
             "action_id": action.action_id,
-            "knowledge_data": request.knowledge_data,
             "status": "success",
+            "result": outcome.get("result"),
+            "cached": outcome.get("cached", False),
         }
 
     async def get_execution_status(self, request_id: str) -> Optional[Dict[str, Any]]:

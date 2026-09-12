@@ -217,6 +217,11 @@ class TestL5L6ExecutionIntegrator:
         )
         integrator.register_action(action)
 
+        async def _handler(params):
+            return {"ok": True}
+
+        integrator.register_action_handler(action.action_id, _handler)
+
         request = ExecutionRequest(
             request_id="req_1",
             action_id="action_1",
@@ -480,6 +485,20 @@ class TestL4L5DataIntegrator:
         integrator.register_data_stream(stream)
 
         batch = [{"data": 1, "metadata": {}, "timestamp": 1}]
+
+        # 注入真实存储边界（成功路径）：模拟可达的知识层后端
+        from core.l3l4_storage_integrator import StorageBackend, StorageResult
+
+        class _FakeStorageIntegrator:
+            async def store_data(self, request):
+                return StorageResult(
+                    success=True, backend=StorageBackend.POSTGRESQL, data_id="stored"
+                )
+
+            async def query_data(self, query, data_type, backend=None):
+                return [{"stored": True}]
+
+        integrator._get_storage_integrator = lambda: _FakeStorageIntegrator()
 
         # Successful batch processing
         await integrator._process_batch("events_1", batch)

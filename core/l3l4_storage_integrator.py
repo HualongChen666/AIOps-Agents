@@ -5,6 +5,9 @@ Integration between L3 Processing Layer and L4 Storage Layer for optimized data 
 """
 
 import asyncio
+import json
+import time
+import uuid
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -93,6 +96,369 @@ class StorageBackendAdapter(ABC):
         """Query data"""
 
 
+class _L4BackendAdapter(StorageBackendAdapter):
+    """Adapter wrapping a real ``core.storage.l4`` backend (VictoriaMetrics/Loki/Tempo).
+
+    The wrapped object implements :class:`core.base.storage.BaseStorage`
+    (``store``/``retrieve``/``delete``/``query``).  This adapter maps the
+    integrator's :class:`StorageRequest` onto that real interface; every call
+    performs an actual network operation against the configured endpoint and
+    reports the true outcome (no simulated success).
+    """
+
+    def __init__(self, backend: StorageBackend, storage: Any):
+        self.backend = backend
+        self._storage = storage
+
+    @staticmethod
+    def _key(request: StorageRequest) -> Optional[str]:
+        meta = request.metadata or {}
+        return meta.get("key") or meta.get("id")
+
+    async def store(self, request: StorageRequest) -> StorageResult:
+        key = self._key(request)
+        if not key:
+            return StorageResult(
+                success=False,
+                backend=self.backend,
+                error=Exception("StorageRequest.metadata requires 'key' or 'id'"),
+            )
+        try:
+            ok = await self._storage.store(key, request.data, request.metadata)
+            return StorageResult(
+                success=bool(ok),
+                backend=self.backend,
+                data_id=key if ok else None,
+                error=None if ok else Exception(f"{self.backend.value} rejected write"),
+            )
+        except Exception as e:  # noqa: BLE001 - surface real failure
+            logger.error(f"{self.backend.value} store failed: {e}")
+            return StorageResult(success=False, backend=self.backend, error=e)
+
+    async def retrieve(self, data_id: str, data_type: DataType) -> Optional[Any]:
+        try:
+            return await self._storage.retrieve(data_id)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"{self.backend.value} retrieve failed: {e}")
+            return None
+
+    async def delete(self, data_id: str, data_type: DataType) -> bool:
+        try:
+            return bool(await self._storage.delete(data_id))
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"{self.backend.value} delete failed: {e}")
+            return False
+
+    async def query(self, query: Dict[str, Any], data_type: DataType) -> List[Any]:
+        try:
+            return await self._storage.query(query)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"{self.backend.value} query failed: {e}")
+            return []
+
+
+class _RedisAdapter(StorageBackendAdapter):
+    """Real Redis-backed adapter using ``redis.asyncio``."""
+
+    def __init__(self, client: Any, ttl_seconds: int = 300):
+        self.backend = StorageBackend.REDIS
+        self._client = client
+        self._ttl = ttl_seconds
+
+    @staticmethod
+    def _key(data_id: str, data_type: DataType) -> str:
+        return f"l3l4:{data_type.value}:{data_id}"
+
+    async def store(self, request: StorageRequest) -> StorageResult:
+        meta = request.metadata or {}
+        data_id = meta.get("id") or meta.get("key") or str(uuid.uuid4())
+        payload = json.dumps({"data": request.data, "metadata": meta}, default=str)
+        try:
+            await self._client.set(self._key(data_id, request.data_type), payload, ex=self._ttl)
+            return StorageResult(success=True, backend=self.backend, data_id=data_id)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Redis store failed: {e}")
+            return StorageResult(success=False, backend=self.backend, error=e)
+
+    async def retrieve(self, data_id: str, data_type: DataType) -> Optional[Any]:
+        try:
+            raw = await self._client.get(self._key(data_id, data_type))
+            if raw is None:
+                return None
+            return json.loads(raw)["data"]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Redis retrieve failed: {e}")
+            return None
+
+    async def delete(self, data_id: str, data_type: DataType) -> bool:
+        try:
+            return bool(await self._client.delete(self._key(data_id, data_type)))
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Redis delete failed: {e}")
+            return False
+
+    async def query(self, query: Dict[str, Any], data_type: DataType) -> List[Any]:
+        pattern = self._key(query.get("id", "*"), data_type)
+        try:
+            keys = await self._client.keys(pattern)
+            out = []
+            for k in keys:
+                raw = await self._client.get(k)
+                if raw is not None:
+                    out.append(json.loads(raw)["data"])
+            return out
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Redis query failed: {e}")
+            return []
+
+
+class _PostgresAdapter(StorageBackendAdapter):
+    """Real PostgreSQL adapter using SQLAlchemy over a JSONB key/value table."""
+
+    DDL = (
+        "CREATE TABLE IF NOT EXISTS l3l4_storage ("
+        "data_type VARCHAR(64) NOT NULL, data_id VARCHAR(255) NOT NULL, "
+        "payload JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+        "PRIMARY KEY (data_type, data_id))"
+    )
+
+    def __init__(self, engine: Any):
+        self.backend = StorageBackend.POSTGRESQL
+        self._engine = engine
+        self._ensure_table()
+
+    def _ensure_table(self) -> None:
+        from sqlalchemy import text
+
+        with self._engine.begin() as conn:
+            conn.execute(text(self.DDL))
+
+    async def _run(self, fn):
+        return await asyncio.to_thread(fn)
+
+    async def store(self, request: StorageRequest) -> StorageResult:
+        from sqlalchemy import text
+
+        meta = request.metadata or {}
+        data_id = meta.get("id") or meta.get("key") or str(uuid.uuid4())
+        payload = json.dumps(request.data, default=str)
+
+        def _write():
+            with self._engine.begin() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO l3l4_storage (data_type, data_id, payload) "
+                        "VALUES (:t, :i, CAST(:p AS JSONB)) "
+                        "ON CONFLICT (data_type, data_id) DO UPDATE SET payload = EXCLUDED.payload"
+                    ),
+                    {"t": request.data_type.value, "i": data_id, "p": payload},
+                )
+            return data_id
+
+        try:
+            data_id = await self._run(_write)
+            return StorageResult(success=True, backend=self.backend, data_id=data_id)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"PostgreSQL store failed: {e}")
+            return StorageResult(success=False, backend=self.backend, error=e)
+
+    async def retrieve(self, data_id: str, data_type: DataType) -> Optional[Any]:
+        from sqlalchemy import text
+
+        def _read():
+            with self._engine.connect() as conn:
+                row = conn.execute(
+                    text(
+                        "SELECT payload FROM l3l4_storage WHERE data_type = :t AND data_id = :i"
+                    ),
+                    {"t": data_type.value, "i": data_id},
+                ).fetchone()
+                return row[0] if row else None
+
+        try:
+            payload = await self._run(_read)
+            return json.loads(payload) if isinstance(payload, str) else payload
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"PostgreSQL retrieve failed: {e}")
+            return None
+
+    async def delete(self, data_id: str, data_type: DataType) -> bool:
+        from sqlalchemy import text
+
+        def _del():
+            with self._engine.begin() as conn:
+                res = conn.execute(
+                    text("DELETE FROM l3l4_storage WHERE data_type = :t AND data_id = :i"),
+                    {"t": data_type.value, "i": data_id},
+                )
+                return res.rowcount > 0
+
+        try:
+            return bool(await self._run(_del))
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"PostgreSQL delete failed: {e}")
+            return False
+
+    async def query(self, query: Dict[str, Any], data_type: DataType) -> List[Any]:
+        from sqlalchemy import text
+
+        def _q():
+            with self._engine.connect() as conn:
+                rows = conn.execute(
+                    text("SELECT payload FROM l3l4_storage WHERE data_type = :t"),
+                    {"t": data_type.value},
+                ).fetchall()
+                return [r[0] for r in rows]
+
+        try:
+            rows = await self._run(_q)
+            return [json.loads(r) if isinstance(r, str) else r for r in rows]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"PostgreSQL query failed: {e}")
+            return []
+
+
+class _ElasticsearchAdapter(StorageBackendAdapter):
+    """Real Elasticsearch adapter.
+
+    Uses the synchronous ``Elasticsearch`` client executed in a worker thread so
+    the adapter has no dependency on the async transport (``aiohttp``), which is
+    not always installed.
+    """
+
+    def __init__(self, client: Any):
+        self.backend = StorageBackend.ELASTICSEARCH
+        self._client = client
+
+    @staticmethod
+    def _index(data_type: DataType) -> str:
+        return f"aiops-{data_type.value}".lower()
+
+    async def store(self, request: StorageRequest) -> StorageResult:
+        meta = request.metadata or {}
+        data_id = meta.get("id") or meta.get("key") or str(uuid.uuid4())
+        doc = request.data if isinstance(request.data, dict) else {"value": request.data}
+        try:
+            await asyncio.to_thread(
+                self._client.index, index=self._index(request.data_type), id=data_id, document=doc
+            )
+            return StorageResult(success=True, backend=self.backend, data_id=data_id)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Elasticsearch store failed: {e}")
+            return StorageResult(success=False, backend=self.backend, error=e)
+
+    async def retrieve(self, data_id: str, data_type: DataType) -> Optional[Any]:
+        try:
+            res = await asyncio.to_thread(
+                self._client.get, index=self._index(data_type), id=data_id
+            )
+            return res.get("_source")
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"Elasticsearch retrieve missed: {e}")
+            return None
+
+    async def delete(self, data_id: str, data_type: DataType) -> bool:
+        try:
+            await asyncio.to_thread(self._client.delete, index=self._index(data_type), id=data_id)
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Elasticsearch delete failed: {e}")
+            return False
+
+    async def query(self, query: Dict[str, Any], data_type: DataType) -> List[Any]:
+        try:
+            body = {"query": query.get("query", {"match_all": {}})}
+            res = await asyncio.to_thread(
+                self._client.search, index=self._index(data_type), body=body
+            )
+            return [h["_source"] for h in res["hits"]["hits"]]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Elasticsearch query failed: {e}")
+            return []
+
+
+class _QdrantAdapter(StorageBackendAdapter):
+    """Real Qdrant vector adapter (requires ``qdrant-client``)."""
+
+    def __init__(self, client: Any):
+        self.backend = StorageBackend.QDRANT
+        self._client = client
+        self._collection = "aiops_l3l4"
+
+    def _ensure_collection(self) -> None:
+        from qdrant_client.models import Distance, VectorParams
+
+        existing = {c.name for c in self._client.get_collections().collections}
+        if self._collection not in existing:
+            self._client.create_collection(
+                collection_name=self._collection,
+                vectors_config=VectorParams(size=768, distance=Distance.COSINE),
+            )
+
+    async def store(self, request: StorageRequest) -> StorageResult:
+        from qdrant_client.models import PointStruct
+
+        meta = request.metadata or {}
+        data_id = meta.get("id") or meta.get("key") or str(uuid.uuid4())
+        vector = meta.get("vector")
+        if not isinstance(vector, list):
+            return StorageResult(
+                success=False,
+                backend=self.backend,
+                error=Exception("Qdrant requires metadata['vector'] (list[float])"),
+            )
+        try:
+            await asyncio.to_thread(self._ensure_collection)
+            payload = {"data": request.data, "data_type": request.data_type.value}
+            await asyncio.to_thread(
+                self._client.upsert,
+                collection_name=self._collection,
+                points=[PointStruct(id=data_id, vector=vector, payload=payload)],
+            )
+            return StorageResult(success=True, backend=self.backend, data_id=data_id)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Qdrant store failed: {e}")
+            return StorageResult(success=False, backend=self.backend, error=e)
+
+    async def retrieve(self, data_id: str, data_type: DataType) -> Optional[Any]:
+        try:
+            pts = await asyncio.to_thread(
+                self._client.retrieve, collection_name=self._collection, ids=[data_id]
+            )
+            if not pts:
+                return None
+            return pts[0].payload.get("data")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Qdrant retrieve failed: {e}")
+            return None
+
+    async def delete(self, data_id: str, data_type: DataType) -> bool:
+        try:
+            await asyncio.to_thread(
+                self._client.delete, collection_name=self._collection, points_selector=[data_id]
+            )
+            return True
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Qdrant delete failed: {e}")
+            return False
+
+    async def query(self, query: Dict[str, Any], data_type: DataType) -> List[Any]:
+        vector = query.get("vector")
+        if not isinstance(vector, list):
+            return []
+        try:
+            hits = await asyncio.to_thread(
+                self._client.search,
+                collection_name=self._collection,
+                query_vector=vector,
+                limit=int(query.get("limit", 10)),
+            )
+            return [h.payload.get("data") for h in hits]
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"Qdrant query failed: {e}")
+            return []
+
+
 class L3L4StorageIntegrator:
     """Integration between L3 Processing Layer and L4 Storage Layer"""
 
@@ -109,16 +475,19 @@ class L3L4StorageIntegrator:
         self.storage_policies: Dict[DataType, StoragePolicy] = {}
         self._initialize_storage_policies()
 
+        # Caching layer (configured before adapters so the Redis adapter can read TTL)
+        self.cache_enabled = self.config.get("cache_enabled", True)
+        self.cache_ttl = self.config.get("cache_ttl", 300)
+        self.cache_max_entries = self.config.get("cache_max_entries", 4096)
+        # key=(data_type, data_id) -> (value, expires_at_monotonic)
+        self._cache: Dict[Any, Any] = {}
+
         # Backend adapters
         self.backend_adapters: Dict[StorageBackend, StorageBackendAdapter] = {}
         self._initialize_backend_adapters()
 
         # Data routing
         self.data_router_enabled = self.config.get("data_router_enabled", True)
-
-        # Caching layer
-        self.cache_enabled = self.config.get("cache_enabled", True)
-        self.cache_ttl = self.config.get("cache_ttl", 300)
 
         # Statistics
         self.storage_stats: Dict[str, Dict[str, Any]] = defaultdict(
@@ -200,23 +569,104 @@ class L3L4StorageIntegrator:
         )
 
     def _initialize_backend_adapters(self):
-        """Initialize storage backend adapters"""
-        try:
-            # Initialize adapters for each backend
-            # In a real implementation, these would be actual adapter classes
-            for backend in StorageBackend:
+        """Initialize storage backend adapters (real clients, honest failures)."""
+        for backend in StorageBackend:
+            try:
                 adapter = self._create_backend_adapter(backend)
-                if adapter:
-                    self.backend_adapters[backend] = adapter
-                    logger.info(f"Initialized backend adapter: {backend.value}")
-        except Exception as e:
-            logger.error(f"Failed to initialize backend adapters: {e}")
+            except Exception as e:  # noqa: BLE001 - one backend must not break init
+                logger.warning(f"Backend adapter init failed for {backend.value}: {e}")
+                adapter = None
+            if adapter:
+                self.backend_adapters[backend] = adapter
+                logger.info(f"Initialized backend adapter: {backend.value}")
 
     def _create_backend_adapter(self, backend: StorageBackend) -> Optional[StorageBackendAdapter]:
-        """Create backend adapter for specific storage type"""
-        import logging
+        """Create a *real* backend adapter for the given storage type.
 
-        logging.getLogger(__name__).info(f"{__name__}._create_backend_adapter invoked")
+        历史问题（已修复）：原实现无条件 ``return None``，导致 ``backend_adapters``
+        恒空，store/retrieve/delete/query 对所有后端均返回 "Backend adapter not
+        available"/空 —— L3-L4 存储层完全无落地。现按后端类型构造真实客户端适配器
+        （VictoriaMetrics/Loki/Tempo 复用 ``core.storage.l4``；Redis 走
+        ``redis.asyncio``；PostgreSQL 走 SQLAlchemy JSONB 表；Elasticsearch 走
+        ``AsyncElasticsearch``）。后端不可用时返回 ``None``（跳过注册），由上层
+        如实报告不可用，绝不伪造成功。
+        """
+        cfg = self.config.get("backends", {})
+
+        try:
+            return self._build_backend_adapter(backend, cfg)
+        except ImportError as e:
+            logger.warning(f"Backend {backend.value} client unavailable: {e}")
+            return None
+        except ModuleNotFoundError as e:
+            logger.warning(f"Backend {backend.value} driver missing: {e}")
+            return None
+        except Exception as e:  # noqa: BLE001 - unavailable backend must not abort init
+            logger.warning(f"Backend {backend.value} adapter unavailable: {e}")
+            return None
+
+    def _build_backend_adapter(
+        self, backend: StorageBackend, cfg: Dict[str, Any]
+    ) -> Optional[StorageBackendAdapter]:
+        """Construct a real adapter for ``backend`` or return None if unsupported."""
+        if backend == StorageBackend.VICTORIAMETRICS:
+            from core.storage.l4.victoriametrics import VictoriaMetricsStorage
+
+            storage = VictoriaMetricsStorage(cfg.get("victoriametrics", {}))
+            storage.initialize()
+            return _L4BackendAdapter(backend, storage)
+
+        if backend == StorageBackend.LOKI:
+            from core.storage.l4.loki import LokiStorage
+
+            storage = LokiStorage(cfg.get("loki", {}))
+            storage.initialize()
+            return _L4BackendAdapter(backend, storage)
+
+        if backend == StorageBackend.TEMPO:
+            from core.storage.l4.tempo import TempoStorage
+
+            storage = TempoStorage(cfg.get("tempo", {}))
+            storage.initialize()
+            return _L4BackendAdapter(backend, storage)
+
+        if backend == StorageBackend.REDIS:
+            import redis.asyncio as aioredis
+
+            from config import REDIS_PASSWORD, REDIS_URL
+
+            kwargs: Dict[str, Any] = {"decode_responses": True}
+            if REDIS_PASSWORD:
+                kwargs["password"] = REDIS_PASSWORD
+            client = aioredis.from_url(REDIS_URL, **kwargs)
+            return _RedisAdapter(client, ttl_seconds=self.cache_ttl)
+
+        if backend == StorageBackend.POSTGRESQL:
+            from sqlalchemy import create_engine
+
+            from config import DATABASE_URL
+
+            url = cfg.get("postgresql", {}).get("url", DATABASE_URL)
+            engine = create_engine(url, pool_pre_ping=True, future=True)
+            return _PostgresAdapter(engine)
+
+        if backend == StorageBackend.ELASTICSEARCH:
+            from elasticsearch import Elasticsearch
+
+            from config import ELASTICSEARCH_URL
+
+            client = Elasticsearch(cfg.get("elasticsearch", {}).get("url", ELASTICSEARCH_URL))
+            return _ElasticsearchAdapter(client)
+
+        if backend == StorageBackend.QDRANT:
+            from core.qdrant_service import get_qdrant_client
+
+            client = get_qdrant_client()
+            if client is None:
+                logger.warning("Qdrant client unavailable; skipping Qdrant adapter")
+                return None
+            return _QdrantAdapter(client)
+
         return None
 
     async def store_data(self, request: StorageRequest) -> StorageResult:
@@ -390,27 +840,42 @@ class L3L4StorageIntegrator:
         return await adapter.query(query, data_type)
 
     async def _retrieve_from_cache(self, data_id: str, data_type: DataType) -> Optional[Any]:
-        """Retrieve data from cache"""
-        import logging
+        """Retrieve data from the in-process TTL cache.
 
-        logging.getLogger(__name__).info(f"{__name__}._retrieve_from_cache invoked")
-        return None
+        历史问题（已修复）：原实现仅 ``logging.info`` 后 ``return None``（空实现），
+        缓存命中永远为 0。现为一款真实生效的带 TTL / LRU 淘汰的缓存。
+        """
+        key = (data_type.value, data_id)
+        entry = self._cache.get(key)
+        if entry is None:
+            return None
+        value, expires_at = entry
+        if expires_at is not None and time.monotonic() > expires_at:
+            self._cache.pop(key, None)
+            return None
+        return value
 
     async def _store_in_cache(self, data_id: str, data_type: DataType, data: Any) -> None:
-        """Store data in cache"""
-        import logging
-
-        logging.getLogger(__name__).info(f"{__name__}._store_in_cache invoked")
-        return None
-        # In real implementation, would use Redis or in-memory cache
+        """Store data in the in-process TTL cache."""
+        key = (data_type.value, data_id)
+        expires_at = time.monotonic() + self.cache_ttl if self.cache_ttl else None
+        self._cache[key] = (data, expires_at)
+        # Bound the cache size with simple LRU-style eviction.
+        if len(self._cache) > self.cache_max_entries:
+            oldest = next(iter(self._cache))
+            self._cache.pop(oldest, None)
 
     async def _remove_from_cache(self, data_id: str, data_type: DataType) -> None:
-        """Remove data from cache"""
-        import logging
+        """Remove data from the in-process TTL cache."""
+        self._cache.pop((data_type.value, data_id), None)
 
-        logging.getLogger(__name__).info(f"{__name__}._remove_from_cache invoked")
-        return None
-        # In real implementation, would use Redis or in-memory cache
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """Return current cache size and TTL configuration."""
+        return {
+            "cached_entries": len(self._cache),
+            "cache_ttl_seconds": self.cache_ttl,
+            "cache_max_entries": self.cache_max_entries,
+        }
 
     def register_storage_policy(self, policy: StoragePolicy) -> None:
         """

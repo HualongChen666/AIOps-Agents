@@ -448,7 +448,8 @@ async def test_l3l4_storage_integrator_operations(monkeypatch):
     assert result4.success is False
     assert "connection lost" in str(result4.error)
 
-    # No adapter for primary and secondaries
+    # No adapter for primary and secondaries (real adapters exist now, so remove TEMPO)
+    integrator.backend_adapters.pop(StorageBackend.TEMPO, None)
     other = StorageRequest(
         data_type=DataType.METRICS,
         data={"x": 1},

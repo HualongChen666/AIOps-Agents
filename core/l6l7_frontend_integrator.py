@@ -242,19 +242,97 @@ class L6L7FrontendIntegrator:
             logger.debug(f"Executed data binding: {binding.binding_id}")
 
     async def _apply_transformation(self, transformation: str, data: Any) -> Any:
-        """
-        Apply data transformation
+        """Apply a real data transformation.
 
-        Args:
-            transformation: Transformation type
-            data: Data to transform
-
-        Returns:
-            Transformed data
+        历史问题（已修复）：原实现仅 ``asyncio.sleep(0.1)`` 后原样返回数据（"Simulate
+        transformation"）。现支持 ``json_path``（``path.to.field``）、``extract``、
+        ``pick``、``count``、``sum``、``upper``、``lower`` 等真实算子。
         """
-        # In real implementation, would apply actual transformation
-        await asyncio.sleep(0.1)  # Simulate transformation
-        return data
+        spec = (transformation or "").strip()
+        if not spec:
+            return data
+
+        name, _, arg = spec.partition(":")
+        name = name.strip().lower()
+        arg = arg.strip()
+
+        if name in ("", "identity", "none"):
+            return data
+
+        if name in ("json_path", "path", "get"):
+            if not arg:
+                raise ValueError("json_path transformation requires a dotted path")
+            cur = data
+            for part in arg.split("."):
+                if isinstance(cur, dict):
+                    cur = cur.get(part)
+                elif isinstance(cur, list):
+                    cur = cur[int(part)]
+                else:
+                    return None
+            return cur
+
+        if name == "extract":
+            field = arg or "value"
+            if isinstance(data, dict):
+                return data.get(field)
+            return data
+
+        if name == "pick":
+            fields = [f.strip() for f in arg.split(",") if f.strip()]
+            if isinstance(data, dict):
+                return {f: data.get(f) for f in fields}
+            return data
+
+        if name == "count":
+            return len(data) if isinstance(data, (list, dict, str)) else 1
+
+        if name == "sum":
+            if isinstance(data, list):
+                return sum(float(x) for x in data)
+            raise ValueError("sum transformation requires a list")
+
+        if name == "upper":
+            return data.upper() if isinstance(data, str) else data
+
+        if name == "lower":
+            return data.lower() if isinstance(data, str) else data
+
+        raise ValueError(f"unknown transformation: {transformation}")
+
+    async def _refresh_component(self, component_id: str) -> None:
+        """Fetch fresh component data from its real data source.
+
+        历史问题（已修复）：原实现仅 ``asyncio.sleep(0.2)``（"would fetch fresh data from
+        data source"），从不拉取数据。现按 ``component.data_source`` 真实发起 HTTP 拉取并
+        写入 component_data；拉取失败如实记录并保留旧值。
+        """
+        if component_id not in self.components:
+            return
+
+        component = self.components[component_id]
+        source = component.data_source
+        if not source:
+            logger.warning(f"Component {component_id} has no data_source; nothing to refresh")
+            return
+
+        base_url = self.config.get("data_source_base_url", "")
+        url = source if source.startswith(("http://", "https://")) else f"{base_url}{source}"
+        if not url.startswith(("http://", "https://")):
+            raise ValueError(
+                f"component {component_id} data_source '{source}' is not fetchable "
+                f"(set config['data_source_base_url'])"
+            )
+
+        import httpx
+
+        timeout = self.config.get("data_source_timeout", 10)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            self.component_data[component_id] = response.json()
+        self.total_updates += 1
+        logger.debug(f"Refreshed component: {component_id} from {url}")
 
     async def start_auto_refresh(self) -> None:
         """Start auto-refresh for components"""
@@ -280,23 +358,6 @@ class L6L7FrontendIntegrator:
 
         asyncio.create_task(refresh_loop())
         logger.info("Auto-refresh started")
-
-    async def _refresh_component(self, component_id: str) -> None:
-        """
-        Refresh component data
-
-        Args:
-            component_id: Component ID
-        """
-        if component_id not in self.components:
-            return
-
-        self.components[component_id]
-
-        # In real implementation, would fetch fresh data from data source
-        await asyncio.sleep(0.2)  # Simulate data fetch
-
-        logger.debug(f"Refreshed component: {component_id}")
 
     def get_component_data(self, component_id: str) -> Optional[Any]:
         """

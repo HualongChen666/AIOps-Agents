@@ -7,6 +7,7 @@ Enterprise-grade Kubernetes deployment and management system
 import os
 
 import asyncio
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -340,26 +341,71 @@ spec:
         averageUtilization: {config.target_memory_utilization}
 """
 
-    async def _apply_manifests(self, config: DeploymentConfig) -> None:
-        """
-        Apply Kubernetes manifests
+    async def _kubectl(self, args: List[str], timeout: int = 300) -> subprocess.CompletedProcess:
+        """Run a real ``kubectl`` command, raising if the tool is unavailable."""
+        import shutil
 
-        Args:
-            config: Deployment configuration
+        kubectl = shutil.which("kubectl")
+        if not kubectl:
+            raise RuntimeError(
+                "kubectl not found on PATH; cannot apply Kubernetes manifests. "
+                "Install kubectl and configure KUBECONFIG to enable real deployments."
+            )
+        import os as _os
+
+        env = dict(_os.environ)
+        kubeconfig = self.config.get("kubeconfig_path")
+        if kubeconfig:
+            env["KUBECONFIG"] = _os.path.expanduser(kubeconfig)
+        return await asyncio.to_thread(
+            subprocess.run,
+            [kubectl, *args],
+            capture_output=True,
+            timeout=timeout,
+            env=env,
+        )
+
+    async def _apply_manifests(self, config: DeploymentConfig) -> None:
+        """Apply Kubernetes manifests to the cluster via ``kubectl apply``.
+
+        历史问题（已修复）：原实现仅 ``await asyncio.sleep(2)``（注释 "would use kubectl
+        or Kubernetes Python client"），仅生成 YAML 不应用到集群。现真实执行
+        ``kubectl apply -f <manifest_dir>``；kubectl/集群不可用时抛出明确错误，由
+        ``_execute_deployment`` 如实置为 FAILED（不伪造成功）。
         """
-        # In real implementation, would use kubectl or Kubernetes Python client
-        await asyncio.sleep(2)  # Simulate applying manifests
+        manifest_dir = self.manifests_dir / config.deployment_id
+        proc = await self._kubectl(
+            ["apply", "-f", str(manifest_dir), "-n", config.namespace],
+            timeout=self.config.get("apply_timeout", 300),
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"kubectl apply failed for {config.deployment_id}: "
+                f"{proc.stderr.decode(errors='ignore').strip()}"
+            )
         logger.info(f"Manifests applied for deployment: {config.deployment_id}")
 
     async def _wait_for_deployment_ready(self, deployment_id: str) -> None:
-        """
-        Wait for deployment to be ready
-
-        Args:
-            deployment_id: Deployment ID
-        """
-        # In real implementation, would poll Kubernetes API
-        await asyncio.sleep(5)  # Simulate waiting for readiness
+        """Wait for the real deployment to become ready via ``kubectl rollout status``."""
+        if deployment_id not in self.deployments:
+            return
+        config = self.deployments[deployment_id]
+        proc = await self._kubectl(
+            [
+                "rollout",
+                "status",
+                f"deployment/{config.app_name}",
+                "-n",
+                config.namespace,
+                "--timeout=300s",
+            ],
+            timeout=360,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"deployment {deployment_id} did not become ready: "
+                f"{proc.stderr.decode(errors='ignore').strip()}"
+            )
         logger.info(f"Deployment ready: {deployment_id}")
 
     async def scale_deployment(self, deployment_id: str, replicas: int) -> bool:
@@ -378,6 +424,27 @@ spec:
 
         config = self.deployments[deployment_id]
         state = self.deployment_states[deployment_id]
+
+        proc = None
+        try:
+            proc = await self._kubectl(
+                [
+                    "scale",
+                    f"deployment/{config.app_name}",
+                    f"--replicas={replicas}",
+                    "-n",
+                    config.namespace,
+                ],
+                timeout=120,
+            )
+        except Exception as e:  # noqa: BLE001 - kubectl/cluster unavailable -> honest failure
+            logger.error(f"Scale failed for {deployment_id}: {e}")
+            return False
+        if proc.returncode != 0:
+            logger.error(
+                f"Scale failed for {deployment_id}: {proc.stderr.decode(errors='ignore').strip()}"
+            )
+            return False
 
         config.replicas = replicas
         state.current_replicas = replicas
@@ -400,12 +467,22 @@ spec:
         if deployment_id not in self.deployments:
             return False
 
+        config = self.deployments[deployment_id]
         state = self.deployment_states[deployment_id]
         state.status = DeploymentStatus.ROLLING_BACK
         state.updated_at = datetime.now(timezone.utc)
 
-        # In real implementation, would execute rollback
-        await asyncio.sleep(3)  # Simulate rollback
+        # 真实执行回滚：kubectl rollout undo
+        proc = await self._kubectl(
+            ["rollout", "undo", f"deployment/{config.app_name}", "-n", config.namespace],
+            timeout=300,
+        )
+        if proc.returncode != 0:
+            state.status = DeploymentStatus.FAILED
+            state.error_message = proc.stderr.decode(errors="ignore").strip()
+            state.updated_at = datetime.now(timezone.utc)
+            logger.error(f"Rollback failed for {deployment_id}: {state.error_message}")
+            return False
 
         state.status = DeploymentStatus.RUNNING
         state.updated_at = datetime.now(timezone.utc)
