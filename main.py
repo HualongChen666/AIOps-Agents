@@ -9,7 +9,6 @@ from api.middleware.tenant_middleware import TenantMiddleware  # noqa: F401
 # from core.analysis.l2.enhanced_causal_analyzer import get_enhanced_causal_analyzer
 from core.api_error import (
     api_error_handler,
-    general_exception_handler,
     validation_error_handler,
 )
 from core.api_governance import setup_api_governance
@@ -410,12 +409,11 @@ FastAPI 主入口文件 – 已在原项目中实现多个路由注册。
 import asyncio
 import inspect
 import os
-import traceback
 import warnings
 from contextlib import asynccontextmanager
 from typing import Any, Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -1073,28 +1071,16 @@ async def security_middleware(request: Request, call_next):
 
 
 # 注册统一错误处理器
+# NOTE (实测核对): FastAPI 对同一异常类只保留**最后注册**的 handler。
+# 对 `Exception`，规范 handler 由文件末尾的 setup_exception_handlers(app)
+# 注册（core/exception_handler.generic_exception_handler）。此前此处还存在
+# 两个重复注册（core.api_error.general_exception_handler，以及本地定义的
+# global_exception_handler），二者均被覆盖、从不执行，属死代码——已删除，
+# 运行时行为不变（原先生效的仍是 generic_exception_handler）。
 app.add_exception_handler(HTTPException, api_error_handler)  # type: ignore[arg-type]
 app.add_exception_handler(
     RequestValidationError, validation_error_handler  # type: ignore[arg-type]
 )
-app.add_exception_handler(Exception, general_exception_handler)
-
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    """全局异常处理器，防止敏感信息泄露"""
-    # 记录详细错误到日志
-    _logger.error(
-        f"Unhandled exception: {exc.__class__.__name__} | "
-        f"Path: {request.url.path} | "
-        f"Error: {str(exc)} | "
-        f"Traceback: {traceback.format_exc()}"
-    )
-    # 返回通用错误消息给客户端
-    return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Internal server error. Please contact administrator."},
-    )
 
 
 # ------------------------
@@ -1381,11 +1367,23 @@ async def run_dr_scenario_endpoint(scenario_name: str):
 # Setup unified exception handling
 setup_exception_handlers(app)
 
+# Add request tracking middleware
+app.add_middleware(RequestTrackingMiddleware)
+
+# Add global RBAC middleware (auth + write-method role checks)
+app.add_middleware(RBACMiddleware)
+
+# Add tenant middleware (resolves tenant_id from JWT or header)
+app.add_middleware(TenantMiddleware)
+
 # ------------------------
 # CORS 中间件（安全配置）
 # ------------------------
-# 注意：CORS中间件必须在最后添加，确保它最先执行
-# 这样可以避免其他中间件干扰CORS处理
+# NOTE (实测核对): Starlette 的 add_middleware 是 insert(0)，即
+# **最后添加者最外层、最先执行**。因此 CORS 必须放在本文件最后添加，
+# 才能成为最外层中间件、先于 RBAC/Tenant 处理预检(OPTIONS)。
+# 此前 CORS 被添加在 RBAC/Tenant *之前*，实际位于第 4 层（见运行期栈探针），
+# 导致 OPTIONS 预检先被 RBAC 拦成 401 且无 CORS 头。
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,  # 明确指定允许的域名
@@ -1394,16 +1392,6 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type", "X-Internal-Key"],
     max_age=600,  # 预检请求缓存时间
 )
-
-# Add request tracking middleware (在CORS之后添加，最后执行)
-app.add_middleware(RequestTrackingMiddleware)
-
-# Add global RBAC middleware (auth + write-method role checks)
-# 放在TenantMiddleware之前，让它最先检查公开端点
-app.add_middleware(RBACMiddleware)
-
-# Add tenant middleware (resolves tenant_id from JWT or header)
-app.add_middleware(TenantMiddleware)
 
 
 # ------------------------
