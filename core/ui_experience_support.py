@@ -13,6 +13,7 @@ Provides backend support for enhanced UI experience:
 """
 
 import asyncio
+import os
 import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -30,6 +31,22 @@ try:
 except ImportError:
     WEBSOCKET_AVAILABLE = False
     logger.warning("WebSocket not available")
+
+
+def _collect_realtime_metrics() -> Dict[str, Any]:
+    """Collect real host metrics via psutil (CPU / memory / disk / network I/O)."""
+    metrics: Dict[str, Any] = {}
+    try:
+        import psutil
+
+        metrics["cpu_usage"] = psutil.cpu_percent(interval=None)
+        metrics["memory_usage"] = psutil.virtual_memory().percent
+        metrics["disk_usage"] = psutil.disk_usage(os.path.abspath(os.sep)).percent
+        net = psutil.net_io_counters()
+        metrics["network_io"] = {"in": net.bytes_recv, "out": net.bytes_sent}
+    except Exception as e:  # noqa: BLE001 - 采集失败时如实体现在结果中
+        logger.warning(f"Failed to collect realtime system metrics: {e}")
+    return metrics
 
 
 class ThemeMode(Enum):
@@ -335,17 +352,8 @@ class UIExperienceSupport:
                 logger.error(f"Realtime data push loop error: {e}")
 
     async def _push_realtime_metrics(self):
-        """推送实时指标"""
-        # 模拟实时数据
-        metrics_data = {
-            "cpu_usage": 45.2,
-            "memory_usage": 67.8,
-            "disk_usage": 55.3,
-            "network_io": {"in": 1024, "out": 2048},
-            "response_time": 125,
-            "throughput": 850,
-            "error_rate": 0.02,
-        }
+        """推送实时指标（真实采集：psutil CPU/内存/磁盘 + 网络 I/O）"""
+        metrics_data = await asyncio.to_thread(_collect_realtime_metrics)
 
         # 缓存数据
         for metric_name, value in metrics_data.items():
@@ -687,13 +695,30 @@ class UIExperienceSupport:
 
         # 根据端点返回优化后的数据
         if endpoint == "dashboard":
-            # 简化的仪表板数据
+            # 真实主机指标 + 真实最近告警
+            metrics = await asyncio.to_thread(_collect_realtime_metrics)
+            recent_alerts: List[Dict[str, Any]] = []
+            try:
+                from core.db_engine import alert_repository
+
+                alerts = await alert_repository.get_recent(limit=5)
+                recent_alerts = [
+                    {
+                        "severity": getattr(a, "severity", None),
+                        "message": getattr(a, "message", ""),
+                    }
+                    for a in alerts
+                ]
+            except Exception as e:  # noqa: BLE001 - 告警源不可用时返回空列表
+                logger.debug(f"Recent alerts unavailable for mobile dashboard: {e}")
+
             return {
-                "metrics": {"cpu": 45.2, "memory": 67.8, "alerts": 3},
-                "recent_alerts": [
-                    {"severity": "high", "message": "CPU high"},
-                    {"severity": "medium", "message": "Memory warning"},
-                ],
+                "metrics": {
+                    "cpu": metrics.get("cpu_usage"),
+                    "memory": metrics.get("memory_usage"),
+                    "alerts": len(recent_alerts),
+                },
+                "recent_alerts": recent_alerts,
                 "optimized": True,
             }
         elif endpoint == "alerts":

@@ -5,6 +5,7 @@ Integration of WebSocket real-time communication with system components
 """
 
 import asyncio
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
@@ -14,6 +15,20 @@ from loguru import logger
 if TYPE_CHECKING:
     from core.enhanced_websocket_manager import EnhancedWebSocketManager
     from core.websocket_manager import ConnectionManager
+
+
+def _collect_system_metrics() -> Dict[str, Any]:
+    """Collect real host metrics via psutil (CPU / memory / disk)."""
+    metrics: Dict[str, Any] = {}
+    try:
+        import psutil
+
+        metrics["cpu_usage"] = psutil.cpu_percent(interval=None)
+        metrics["memory_usage"] = psutil.virtual_memory().percent
+        metrics["disk_usage"] = psutil.disk_usage(os.path.abspath(os.sep)).percent
+    except Exception as e:  # noqa: BLE001 - 采集失败时如实反映
+        logger.warning(f"Failed to collect system metrics: {e}")
+    return metrics
 
 
 @dataclass
@@ -252,21 +267,24 @@ class WebSocketIntegrator:
             logger.error(f"Status broadcasting loop error: {e}")
 
     async def _get_system_status(self) -> Dict[str, Any]:
-        """Get current system status"""
-        # In real implementation, would gather actual system status
+        """Get current system status (real host metrics via psutil).
+
+        历史问题（已修复）：曾返回硬编码 cpu 45.2 / mem 62.8 / disk 38.5 与全层
+        "healthy"。现采集真实指标，并由指标阈值推导整体及各层状态。
+        """
+        metrics = await asyncio.to_thread(_collect_system_metrics)
+        thresholds = {"cpu_usage": 90.0, "memory_usage": 90.0, "disk_usage": 90.0}
+        degraded = any(
+            metrics.get(metric) is not None and metrics[metric] >= limit
+            for metric, limit in thresholds.items()
+        )
+        overall = "degraded" if degraded else "healthy"
+
         return {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "status": "healthy",
-            "components": {
-                "L1": "healthy",
-                "L2": "healthy",
-                "L3": "healthy",
-                "L4": "healthy",
-                "L5": "healthy",
-                "L6": "healthy",
-                "L7": "healthy",
-            },
-            "metrics": {"cpu_usage": 45.2, "memory_usage": 62.8, "disk_usage": 38.5},
+            "status": overall,
+            "components": {f"L{layer}": overall for layer in range(1, 8)},
+            "metrics": metrics,
         }
 
     def register_alert_handler(self, handler: Callable) -> None:

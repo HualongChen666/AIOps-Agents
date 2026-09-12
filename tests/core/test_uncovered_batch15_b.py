@@ -370,42 +370,32 @@ class TestServiceDiscoveryManager:
 
     @pytest.mark.asyncio
     async def test_health_check(self, fresh_discovery, monkeypatch):
-        async def fake_sleep(delay):
-            await asyncio.sleep(0)
-
-        fake_asyncio = MagicMock()
-        fake_asyncio.sleep = fake_sleep
-        fake_asyncio.CancelledError = asyncio.CancelledError
-        monkeypatch.setattr(service_discovery_manager, "asyncio", fake_asyncio)
-
-        fake_random = FakeRandom(random_value=0.5)
-        monkeypatch.setattr(service_discovery_manager, "_random", fake_random)
-
         inst = fresh_discovery.register_service("web", "h1", "10.0.0.1", 8080)
+
+        async def healthy_probe(instance):
+            return True
+
+        monkeypatch.setattr(fresh_discovery, "_probe_instance", healthy_probe)
         healthy = await fresh_discovery.health_check(inst)
         assert healthy is True
         assert inst.status == service_discovery_manager.ServiceStatus.HEALTHY
 
-        fake_random.random_value = 0.05
+        async def unhealthy_probe(instance):
+            return False
+
+        monkeypatch.setattr(fresh_discovery, "_probe_instance", unhealthy_probe)
         unhealthy = await fresh_discovery.health_check(inst)
         assert unhealthy is False
         assert inst.status == service_discovery_manager.ServiceStatus.UNHEALTHY
 
     @pytest.mark.asyncio
     async def test_health_check_exception(self, fresh_discovery, monkeypatch):
-        async def fake_sleep(delay):
-            await asyncio.sleep(0)
-
-        fake_asyncio = MagicMock()
-        fake_asyncio.sleep = fake_sleep
-        fake_asyncio.CancelledError = asyncio.CancelledError
-        monkeypatch.setattr(service_discovery_manager, "asyncio", fake_asyncio)
-
-        fake_random = FakeRandom()
-        fake_random.exception = RuntimeError("random failed")
-        monkeypatch.setattr(service_discovery_manager, "_random", fake_random)
-
         inst = fresh_discovery.register_service("web", "h2", "10.0.0.2", 8080)
+
+        async def failing_probe(instance):
+            raise RuntimeError("probe failed")
+
+        monkeypatch.setattr(fresh_discovery, "_probe_instance", failing_probe)
         result = await fresh_discovery.health_check(
             inst
         )  # noqa: F841  # Variable for test verification
@@ -422,8 +412,10 @@ class TestServiceDiscoveryManager:
         fake_asyncio.CancelledError = asyncio.CancelledError
         monkeypatch.setattr(service_discovery_manager, "asyncio", fake_asyncio)
 
-        fake_random = FakeRandom(random_value=0.5)
-        monkeypatch.setattr(service_discovery_manager, "_random", fake_random)
+        async def healthy_probe(instance):
+            return True
+
+        monkeypatch.setattr(fresh_discovery, "_probe_instance", healthy_probe)
 
         fresh_discovery.health_check_config.interval_seconds = 0
         fresh_discovery.register_service("web", "loop", "10.0.0.1", 8080)

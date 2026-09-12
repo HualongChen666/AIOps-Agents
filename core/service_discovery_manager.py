@@ -292,9 +292,42 @@ class ServiceDiscoveryManager:
 
         return instances[-1]
 
+    async def _probe_instance(self, instance: ServiceInstance) -> bool:
+        """Perform a real health probe against the instance endpoint.
+
+        Uses an HTTP GET against the configured health path when ``httpx`` is
+        available, otherwise falls back to a raw TCP connect.
+        """
+        cfg = self.health_check_config
+        timeout = cfg.timeout_seconds
+        path = instance.metadata.get("health_check_path", cfg.health_check_path)
+        scheme = instance.metadata.get("scheme", "http")
+
+        try:
+            import httpx
+
+            url = f"{scheme}://{instance.host}:{instance.port}{path}"
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.get(url)
+                return 200 <= response.status_code < 400
+        except ImportError:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(instance.host, instance.port), timeout=timeout
+            )
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug(f"Error closing probe connection: {exc}")
+            return True
+
     async def health_check(self, instance: ServiceInstance) -> bool:
         """
-        Perform health check on instance
+        Perform health check on instance (real network probe)
+
+        历史问题（已修复）：曾用 ``_random.random() > 0.1`` 随机标记健康（注释
+        "Simulate health check"），导致服务健康状态随机、discover_service 的
+        HEALTHY 过滤失真。现改为真实 HTTP/TCP 探测。
 
         Args:
             instance: Service instance
@@ -305,25 +338,21 @@ class ServiceDiscoveryManager:
         self.total_health_checks += 1
 
         try:
-            # Simulate health check (in real implementation, this would make HTTP/gRPC call)
-            await asyncio.sleep(0.1)  # Simulate network delay
+            is_healthy = await self._probe_instance(instance)
+        except Exception as e:  # noqa: BLE001 - 探测失败即判定不健康
+            logger.warning(
+                f"Health check failed for {instance.host}:{instance.port}: "
+                f"{type(e).__name__}: {e}"
+            )
+            is_healthy = False
 
-            # For demonstration, randomly mark as healthy
-            is_healthy = _random.random() > 0.1  # 90% chance of being healthy
+        instance.last_health_check = datetime.now(timezone.utc)
+        instance.status = ServiceStatus.HEALTHY if is_healthy else ServiceStatus.UNHEALTHY
 
-            instance.last_health_check = datetime.now(timezone.utc)
-            instance.status = ServiceStatus.HEALTHY if is_healthy else ServiceStatus.UNHEALTHY
-
-            if not is_healthy:
-                self.failed_health_checks += 1
-
-            return is_healthy
-
-        except Exception as e:
-            logger.error(f"Health check failed for {instance.instance_id}: {e}")
-            instance.status = ServiceStatus.UNHEALTHY
+        if not is_healthy:
             self.failed_health_checks += 1
-            return False
+
+        return is_healthy
 
     async def start_health_check_loop(self) -> None:
         """Start health check loop"""
