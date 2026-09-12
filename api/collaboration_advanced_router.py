@@ -535,9 +535,6 @@ async def delete_team(team_id: str) -> Dict[str, Any]:
         finally:
             db.close()
     except Exception as e:
-
-        return create_success_response({"id": team_id}, "团队删除成功")
-    except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="删除团队失败"
         )

@@ -576,16 +576,6 @@ async def upload_and_analyze_log(
     return await analyze_hardware_log(analysis_request, request)
 
 
-@router.post(
-    "/repair/trigger",
-    summary="触发硬件修复",
-    responses={
-        200: {"description": "修复触发结果"},
-        400: {"description": "请求参数错误"},
-        403: {"description": "权限不足或需要审批"},
-        500: {"description": "服务器内部错误"},
-    },
-)
 def _build_repair_alert(request: RepairTriggerRequest, tenant_id: str) -> dict[str, Any]:
     """
     构造修复告警对象
@@ -672,6 +662,16 @@ def _submit_for_approval(
         raise HTTPException(status_code=500, detail=f"Failed to submit for approval: {str(e)}")
 
 
+@router.post(
+    "/repair/trigger",
+    summary="触发硬件修复",
+    responses={
+        200: {"description": "修复触发结果"},
+        400: {"description": "请求参数错误"},
+        403: {"description": "权限不足或需要审批"},
+        500: {"description": "服务器内部错误"},
+    },
+)
 async def trigger_hardware_repair(
     request: RepairTriggerRequest,
     req: Request,

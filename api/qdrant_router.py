@@ -648,9 +648,14 @@ async def get_point_endpoint(
             raise HTTPException(status_code=503, detail="Qdrant client not available")
         
         from qdrant_client.models import PointId
+        raw_id = payload.id
+        if isinstance(raw_id, int) or (isinstance(raw_id, str) and raw_id.isdigit()):
+            point_id = PointId(num=int(raw_id))
+        else:
+            point_id = PointId(uuid=str(raw_id))
         result = client.retrieve(
             collection_name=payload.collection,
-            ids=[PointId(int=payload.id) if isinstance(payload.id, (int, str) and payload.id.isdigit()) else PointId(payload.id)],
+            ids=[point_id],
         )
         if not result:
             raise HTTPException(status_code=404, detail="Point not found")

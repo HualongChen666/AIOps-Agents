@@ -360,6 +360,173 @@ class ComplianceManager:
         # Apply limit
         return filtered_logs[:limit]
     
+    # ------------------------------------------------------------------
+    # 合规要求 -> 真实证据探测
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _probe_role_based_access_control() -> tuple:
+        try:
+            from core.rbac import ROLE_PERMISSIONS
+
+            roles = sorted(role.value for role in ROLE_PERMISSIONS)
+            return bool(roles), {"roles": roles, "source": "core.rbac"}
+        except Exception as e:  # noqa: BLE001
+            return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_least_privilege_principle() -> tuple:
+        try:
+            from core.rbac import Permission, ROLE_PERMISSIONS, Role
+
+            guest = ROLE_PERMISSIONS.get(Role.GUEST, set())
+            ok = Permission.WRITE not in guest and Permission.DELETE not in guest
+            return ok, {"guest_permissions": sorted(p.value for p in guest), "source": "core.rbac"}
+        except Exception as e:  # noqa: BLE001
+            return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_multi_factor_authentication() -> tuple:
+        try:
+            import config
+
+            enabled = bool(getattr(config, "MFA_ENABLED", False))
+        except Exception:  # noqa: BLE001
+            enabled = False
+        return enabled, {"mfa_enabled": enabled, "source": "config"}
+
+    @staticmethod
+    def _probe_data_encryption_at_rest() -> tuple:
+        try:
+            from core import crypto
+
+            funcs = [fn for fn in ("derive_encryption_key", "encrypt", "encrypt_file") if hasattr(crypto, fn)]
+            return bool(funcs), {"module": "core.crypto", "functions": funcs}
+        except Exception as e:  # noqa: BLE001
+            return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_encryption_key_management() -> tuple:
+        try:
+            from core import key_management
+
+            funcs = [fn for fn in ("rotate", "rotate_key", "generate_key", "get_key") if hasattr(key_management, fn)]
+            return bool(funcs), {"module": "core.key_management", "functions": funcs}
+        except Exception as e:  # noqa: BLE001
+            return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_key_rotation_policy() -> tuple:
+        try:
+            from core import key_management
+
+            has_rotation = any(hasattr(key_management, fn) for fn in ("rotate", "rotate_key"))
+            return has_rotation, {"module": "core.key_management", "rotation": has_rotation}
+        except Exception as e:  # noqa: BLE001
+            return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_secure_cryptographic_algorithms() -> tuple:
+        try:
+            from core.authentication import pwd_context
+
+            schemes = pwd_context.schemes() if hasattr(pwd_context, "schemes") else []
+            return "bcrypt" in schemes, {"password_schemes": schemes, "source": "core.authentication"}
+        except Exception as e:  # noqa: BLE001
+            return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_audit_trail_for_all_actions() -> tuple:
+        try:
+            from core import audit_service  # noqa: F401
+
+            return True, {"module": "core.audit_service"}
+        except Exception:
+            try:
+                from services import audit_service  # noqa: F401
+
+                return True, {"module": "services.audit_service"}
+            except Exception as e:  # noqa: BLE001
+                return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_log_retention_policy() -> tuple:
+        try:
+            import config
+
+            days = int(getattr(config, "AUDIT_RETENTION_DAYS", 0) or 0)
+        except Exception:  # noqa: BLE001
+            days = 0
+        return days > 0, {"retention_days": days, "source": "config"}
+
+    @staticmethod
+    def _probe_incident_detection_mechanisms() -> tuple:
+        try:
+            from core import incident_manager  # noqa: F401
+
+            return True, {"module": "core.incident_manager"}
+        except Exception:
+            try:
+                from services import alert_service  # noqa: F401
+
+                return True, {"module": "services.alert_service"}
+            except Exception as e:  # noqa: BLE001
+                return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_escalation_procedures() -> tuple:
+        try:
+            import importlib
+
+            mod = importlib.import_module("services.alert_service.escalator")
+            return hasattr(mod, "AlertEscalator"), {"module": "services.alert_service.escalator"}
+        except Exception as e:  # noqa: BLE001
+            return False, {"error": str(e)}
+
+    @staticmethod
+    def _probe_response_playbook() -> tuple:
+        try:
+            import importlib
+
+            mod = importlib.import_module("services.repair_service.strategy_manager")
+            strategies = getattr(mod, "BUILTIN_STRATEGIES", None)
+            return True, {"module": "services.repair_service.strategy_manager", "strategies": len(strategies) if strategies else None}
+        except Exception as e:  # noqa: BLE001
+            return False, {"error": str(e)}
+
+    _REQUIREMENT_PROBES = {
+        "role_based_access_control": _probe_role_based_access_control,
+        "least_privilege_principle": _probe_least_privilege_principle,
+        "multi_factor_authentication": _probe_multi_factor_authentication,
+        "data_encryption_at_rest": _probe_data_encryption_at_rest,
+        "encryption_at_rest_and_transit": _probe_data_encryption_at_rest,
+        "encryption_key_management": _probe_encryption_key_management,
+        "key_rotation_policy": _probe_key_rotation_policy,
+        "secure_cryptographic_algorithms": _probe_secure_cryptographic_algorithms,
+        "audit_trail_for_all_actions": _probe_audit_trail_for_all_actions,
+        "log_retention_policy": _probe_log_retention_policy,
+        "incident_detection_mechanisms": _probe_incident_detection_mechanisms,
+        "escalation_procedures": _probe_escalation_procedures,
+        "response_playbook": _probe_response_playbook,
+    }
+
+    def _requirement_evidence(self, requirement: str) -> tuple:
+        """Return ``(verified, evidence)`` for a control requirement.
+
+        Evidence is gathered from real project state (module capabilities,
+        configuration). Requirements without an automated evidence source are
+        reported as not verified rather than assumed compliant.
+        """
+        probe = self._REQUIREMENT_PROBES.get(requirement)
+        if probe is None:
+            return False, {
+                "verified": False,
+                "reason": "no automated evidence source for this control",
+            }
+        try:
+            return probe()
+        except Exception as e:  # noqa: BLE001
+            return False, {"verified": False, "error": str(e)}
+
     def run_compliance_check(
         self,
         policy_id: str,
@@ -382,16 +549,20 @@ class ComplianceManager:
                 next_check=datetime.now() + self.compliance_check_interval
             )
         
-        # Simulate compliance check
-        # In production, this would run actual checks against the system
+        # 真实合规检查：对每条要求执行基于真实项目状态的证据探测。
+        # 历史问题（已修复）：此处原为 `pass` 空循环，findings 恒空 → status 恒 COMPLIANT。
         findings = []
         evidence = {}
-        
+
         for requirement in policy.requirements:
-            # Simulate check (in production, this would be real checks)
-            # For now, we'll mark all as compliant
-            pass
-        
+            verified, req_evidence = self._requirement_evidence(requirement)
+            evidence[requirement] = req_evidence
+            if not verified:
+                findings.append(
+                    f"Requirement not verified: {requirement} "
+                    f"({req_evidence.get('reason') or req_evidence.get('error', 'no evidence')})"
+                )
+
         status = ComplianceStatus.COMPLIANT if not findings else ComplianceStatus.PARTIAL
         
         check = ComplianceCheck(

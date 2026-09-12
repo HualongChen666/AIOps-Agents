@@ -457,6 +457,7 @@ async def get_dependencies(
     target_service: Optional[str] = Query(None, description="目标服务名称"),
     criticality: Optional[ImpactSeverityEnum] = Query(None, description="关键程度"),
     limit: int = Query(20, ge=1, le=100, description="返回数量限制"),
+    offset: int = Query(0, ge=0, description="分页偏移量"),
 ) -> Dict[str, Any]:
     """
     获取服务依赖关系列表

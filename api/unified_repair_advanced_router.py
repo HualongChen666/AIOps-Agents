@@ -31,7 +31,7 @@ from core.auto_heal import (
 )
 from core.persistent_store import PersistentStore
 from core.platform_strategies import get_platform_strategy
-from core.repair_engine import execute_repair, get_repair_history
+from core.repair_engine import get_repair_history
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/unified-repair", tags=["Advanced Unified Repair"])
@@ -457,7 +457,9 @@ async def create_execution(execution: RepairExecutionCreate, request: Request) -
                 script_key = strategy.get("name", "default")
                 host_name = execution.target_resource
 
-                result = await execute_repair(platform, script_key, host_name, execution.parameters)
+                result = await get_platform_strategy(platform).execute_repair(
+                    script_key, host_name, execution.parameters
+                )
 
                 new_execution["status"] = "completed" if result.get("success") else "failed"
                 new_execution["result"] = result
@@ -549,7 +551,9 @@ async def update_execution(
                     host_name = existing.get("target_resource")
                     parameters = existing.get("parameters", {})
 
-                    result = await execute_repair(platform, script_key, host_name, parameters)
+                    result = await get_platform_strategy(platform).execute_repair(
+                        script_key, host_name, parameters
+                    )
 
                     existing["status"] = "completed" if result.get("success") else "failed"
                     existing["result"] = result

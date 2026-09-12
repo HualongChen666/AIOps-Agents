@@ -120,3 +120,6 @@ frontend/tsconfig.tsbuildinfo
 
 # Tenant data-export artifacts (written to <cwd>/exports/tenant at runtime)
 /exports/
+
+# Runtime settings artifact
+/data/settings.json

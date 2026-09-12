@@ -883,43 +883,83 @@ class DatabaseQueryOptimizer:
 
     def _rewrite_with_joins(self, query_text: str) -> str:
         """
-        Rewrite query to use joins
+        Rewrite a correlated ``IN (SELECT ...)`` predicate into an explicit INNER JOIN.
+
+        The transformation is applied only when the subquery pattern is
+        unambiguous; otherwise the query is returned unchanged (no cosmetic
+        comment is added).
 
         Args:
             query_text: Original query
 
         Returns:
-            Optimized query
+            Rewritten query (or the original when no rewrite applies)
         """
-        # This is a simplified version - in real implementation would use SQL parser
-        # For now, return the original query with a comment
-        return f"-- Optimized with joins\n{query_text}"
+        pattern = re.compile(
+            r"select\s+(?P<cols>.+?)\s+from\s+(?P<t1>\w+)\s+where\s+(?:\w+\.)?(?P<key1>\w+)"
+            r"\s+in\s*\(\s*select\s+(?:\w+\.)?(?P<key2>\w+)\s+from\s+(?P<t2>\w+)",
+            re.IGNORECASE | re.DOTALL,
+        )
+        match = pattern.search(query_text)
+        if not match:
+            return query_text
+
+        cols = match.group("cols").strip()
+        t1, t2 = match.group("t1"), match.group("t2")
+        key1, key2 = match.group("key1"), match.group("key2")
+        return f"SELECT {cols} FROM {t1} INNER JOIN {t2} ON {t1}.{key1} = {t2}.{key2}"
 
     def _rewrite_join(self, query_text: str) -> str:
         """
-        Rewrite join query
+        Convert an implicit comma-join with an equality predicate into an explicit JOIN.
 
         Args:
             query_text: Original query
 
         Returns:
-            Optimized query
+            Rewritten query (or the original when no rewrite applies)
         """
-        # Simplified version
-        return f"-- Optimized join\n{query_text}"
+        pattern = re.compile(
+            r"from\s+(?P<t1>\w+)\s*,\s*(?P<t2>\w+)\s+where\s+(?P<cond>.+?)"
+            r"(?P<tail>\s+group\s+by.*|\s+order\s+by.*|\s+limit.*|;|$)",
+            re.IGNORECASE | re.DOTALL,
+        )
+        match = pattern.search(query_text)
+        if not match:
+            return query_text
+
+        cond = match.group("cond").strip().rstrip(";")
+        tail = match.group("tail")
+        rewritten = f"FROM {match.group('t1')} INNER JOIN {match.group('t2')} ON {cond}{tail}"
+        return query_text[: match.start()] + rewritten + query_text[match.end() :]
 
     def _replace_select_star(self, query_text: str) -> str:
         """
-        Replace SELECT * with explicit columns
+        Replace ``SELECT *`` with an explicit column list derived from the query.
+
+        Columns are taken from the query's own WHERE / ORDER BY / GROUP BY
+        references. If none can be determined, the query is returned unchanged
+        rather than being rewritten to an incorrect fixed column set.
 
         Args:
             query_text: Original query
 
         Returns:
-            Optimized query
+            Rewritten query (or the original when no rewrite applies)
         """
-        # Replace SELECT * with SELECT id, created_at, updated_at (common columns)
-        return query_text.replace("SELECT *", "SELECT id, created_at, updated_at")
+        if not re.search(r"\bselect\s+\*", query_text, re.IGNORECASE):
+            return query_text
+
+        columns = self._identify_indexable_columns(query_text)
+        if not columns:
+            return query_text
+
+        return re.sub(
+            r"(?i)\bselect\s+\*",
+            "SELECT " + ", ".join(columns),
+            query_text,
+            count=1,
+        )
 
     def get_query_analysis(self, query_id: str) -> Optional[Dict[str, Any]]:
         """

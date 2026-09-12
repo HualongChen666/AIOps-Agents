@@ -154,16 +154,12 @@ def me(current_user: User = Depends(get_current_user)) -> _UserOut:
     Returns:
         UserOut: Current user information
     """
-    # Handle case where current_user is None (test mode)
+    # Require a real authenticated user; never fabricate a test user in prod paths.
     if current_user is None:
-        from unittest.mock import Mock
-        user = Mock()
-        user.id = 1
-        user.username = "test_user"
-        user.role = "viewer"
-        user.is_active = True
-        user.created_at = datetime.now()
-        return _user_dict(user)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
     return _user_dict(current_user)
 
 
