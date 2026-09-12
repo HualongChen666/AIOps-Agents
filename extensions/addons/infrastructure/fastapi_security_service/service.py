@@ -23,3 +23,9 @@ class Service(BaseSecurityService):
         "integrate_api_gateway",
         "test_and_optimize_fastapi_security",
     ]
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+BASE_METHODS: List[str] = list(getattr(Service, "BASE_METHODS", []))
+OPERATIONS: List[str] = list(getattr(Service, "OPERATIONS", []))
+FastAPISecurityService = Service

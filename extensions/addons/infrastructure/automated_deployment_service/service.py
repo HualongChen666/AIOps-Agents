@@ -89,3 +89,7 @@ class Service(BaseInfraService):
     OPERATIONS = OPERATIONS
     COMMAND_MAP = COMMAND_MAP
     display_name = "Automated Deployment"
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+AutomatedDeploymentService = Service

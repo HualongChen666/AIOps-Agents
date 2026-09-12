@@ -187,3 +187,7 @@ class Service(BaseInfraService):
     OPERATIONS = OPERATIONS
     COMMAND_MAP = COMMAND_MAP
     display_name = "Service Mesh"
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+ServiceMeshService = Service

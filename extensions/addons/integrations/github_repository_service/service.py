@@ -27,3 +27,8 @@ class Service:
         dry_run = params.pop("dry_run", True)
         bus = ConnectorBus(dry_run=dry_run)
         return getattr(bus, method)(**params)
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+BASE_METHODS: List[str] = list(getattr(Service, "BASE_METHODS", []))
+GitHubRepositoryService = Service

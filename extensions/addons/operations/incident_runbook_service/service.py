@@ -28,3 +28,8 @@ class Service:
         if name not in cls.OPERATIONS:
             raise ValueError(f"Unknown operation: {name}")
         return getattr(cls._get_engine(), name)(**params)
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+BASE_METHODS: List[str] = list(getattr(Service, "BASE_METHODS", []))
+IncidentRunbookService = Service

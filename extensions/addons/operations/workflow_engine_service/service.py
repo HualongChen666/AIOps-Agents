@@ -30,3 +30,8 @@ class Service:
             raise ValueError(f"Unknown operation: {name}")
         method = _DISPATCH.get(name, name)
         return getattr(cls._get_engine(), method)(**params)
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+BASE_METHODS: List[str] = list(getattr(Service, "BASE_METHODS", []))
+WorkflowEngineService = Service

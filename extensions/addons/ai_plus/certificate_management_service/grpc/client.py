@@ -2,6 +2,7 @@
 """gRPC client for Certificate Management Service."""
 
 import asyncio
+import logging
 from typing import Any, Dict, List, Optional
 
 try:

@@ -23,3 +23,9 @@ class Service(BaseSecurityService):
         "schedule_security_scans",
         "test_and_optimize_security_scanning",
     ]
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+BASE_METHODS: List[str] = list(getattr(Service, "BASE_METHODS", []))
+OPERATIONS: List[str] = list(getattr(Service, "OPERATIONS", []))
+SecurityScanningService = Service

@@ -23,3 +23,9 @@ class Service(BaseSecurityService):
         "handle_license_changes",
         "test_and_optimize_licenses",
     ]
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+BASE_METHODS: List[str] = list(getattr(Service, "BASE_METHODS", []))
+OPERATIONS: List[str] = list(getattr(Service, "OPERATIONS", []))
+OpenSourceLicenseService = Service

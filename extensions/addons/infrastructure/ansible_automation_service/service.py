@@ -53,3 +53,7 @@ class Service(BaseInfraService):
     OPERATIONS = OPERATIONS
     COMMAND_MAP = COMMAND_MAP
     display_name = "Ansible Automation"
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+AnsibleAutomationService = Service

@@ -23,3 +23,9 @@ class Service(BaseSecurityService):
         "test_and_optimize_sqlalchemy_security",
         "write_security_docs",
     ]
+
+
+# --- addon loader compatibility exports (main_app imports) ---
+BASE_METHODS: List[str] = list(getattr(Service, "BASE_METHODS", []))
+OPERATIONS: List[str] = list(getattr(Service, "OPERATIONS", []))
+SQLAlchemySecurityService = Service
