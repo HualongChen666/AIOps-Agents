@@ -11801,3 +11801,30 @@ terraform/storage.tf
 ## D) 待续
 
 - task #7 users/tenant/testing/maturity/docs/frontend；横切 #8 余项、#9。
+
+
+---
+
+# PART XLV — users(10)+tenant(10)+testing(15)+maturity(6)+docs(8)+frontend(8) 页重写
+
+> 任务：task #7。共 57 个 74 行模板页。按【决策】：users/tenant/maturity 属用户/管理端 → 真实页；testing/docs/frontend 属开发/运维端后端功能 → 以后端满足调用（精简真实页，非厚重业务页）。
+
+## A) 端点映射（方法级核验，全部存在）
+
+- **users(10)** → `/api/v1/users/*` + `/api/v1/security/*`：mfa→`/users/me/mfa/status`；password-management→`/users/me`；session-management→`/users/sessions`；user-audit→`/users/audit-logs`；user-authentication→`/users/me`+mfa status；user-authorization/user-permissions→`/security/rbac/roles`+`/security/abac/policies`；user-management→`/users/`；user-profile→`/users/profile`+`/users/me`；user-training→`/users/notifications`+`/users/me`。
+- **tenant(10)** → `/api/v1/tenant/*`（+`/api/v1/tenants/`）：tenant-api→`/tenants/`+`/tenant/health`；tenant-audit→`/tenant/audit-logs`；tenant-billing→`/tenant/billing`；tenant-configuration→`/tenant/configurations`+`/tenant/settings`；tenant-isolation→`/tenant/configurations`+`/tenant/health`；tenant-management→`/tenants/`；tenant-monitoring→`/tenant/{metrics,statistics,health}`；tenant-permissions→`/tenant/members`；tenant-quota→`/tenant/{quotas,limits}`；tenant-resources→`/tenant/{usage,limits}`。
+- **testing(15)** → `/api/v1/test-{automation,coverage,framework}/*`。
+- **maturity(6)** → `/api/maturity/{benchmark,capability-assessment,improvement-plan,maturity-report,maturity-score,sre-maturity}`。
+- **docs(8)** → `/api/doc-generator/*` + `/api/docs/*` + `/api/v1/documentation/*`。
+- **frontend(8)** → `/api/v1/frontend/{components,themes,layouts,localization,reports/templates}`。
+
+## B) 验证证据
+
+- 方法级确认上述 path 全部存在（含 `/api/docs/templates`、`/api/v1/tenants/`、`/api/v1/tenant/{audit-logs,statistics,health}`、`/api/v1/users/notifications` 等边界项）。
+- 六域内 74 行模板页残留 = **0**。
+- `npx tsc --noEmit`（frontend）→ **exit 0 / 0 error**。
+- 逻辑行数：57 文件 `splitlines == wc -l`（0 mismatch）。
+
+## C) 待续
+
+- 横切 #8 余项（FE-632/633/638/639/642/643）、#9（硬编码/桩）。
