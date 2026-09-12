@@ -849,10 +849,21 @@ def test_root_cause_inference_build_and_infer():
         RootCauseGraphBuilder.EDGE_TYPE_DEPENDS,
     ]
     in_feats = {nt: 10 for nt in node_types}
+    # Real training contract: labeled data is required; metrics are computed, not faked.
     train_result = inference.train_model(
-        [], node_types, edge_types, in_feats, epochs=1
+        [
+            {"features": [0.1] * 10, "label": 0},
+            {"features": [0.9] * 10, "label": 1},
+            {"features": [0.2] * 10, "label": 0},
+        ],
+        node_types,
+        edge_types,
+        in_feats,
+        epochs=1,
     )  # noqa: F841  # Variable for test verification
     assert "loss" in train_result
+    assert "accuracy" in train_result
+    assert 0.0 <= train_result["accuracy"] <= 1.0
     result = inference.infer_root_cause(
         "a1", hops=2
     )  # noqa: F841  # Variable for test verification

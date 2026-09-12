@@ -238,24 +238,66 @@ class ClickHouseStorage:
 
         logger.info("Configured S3 storage volumes")
 
-    def _execute_query(self, query: str, params: Optional[List[Any]] = None) -> None:
-        """Execute ClickHouse query over HTTP."""
+    @staticmethod
+    def _format_sql_value(value: Any) -> str:
+        """Render a Python value as a ClickHouse SQL literal (safe escaping)."""
+        if value is None:
+            return "NULL"
+        if isinstance(value, bool):
+            return "1" if value else "0"
+        if isinstance(value, (int, float)):
+            return repr(value)
+        if isinstance(value, datetime):
+            return "'" + value.strftime("%Y-%m-%d %H:%M:%S") + "'"
+        escaped = str(value).replace("\\", "\\\\").replace("'", "\\'")
+        return "'" + escaped + "'"
+
+    def _bind_params(self, query: str, params: Optional[List[Any]]) -> str:
+        """Bind positional ``?`` placeholders with escaped SQL literals.
+
+        历史问题（已修复）：原实现**从不使用 ``params``**（未随查询发送），INSERT 中的
+        ``?`` 从未被替换，写入/查询实际不可用。现按位置安全绑定参数。
+        """
+        if not params:
+            return query
+        parts = query.split("?")
+        if len(parts) - 1 != len(params):
+            raise ValueError(
+                f"parameter count mismatch: {len(parts) - 1} placeholders vs {len(params)} params"
+            )
+        out = parts[0]
+        for value, tail in zip(params, parts[1:]):
+            out += self._format_sql_value(value) + tail
+        return out
+
+    def _execute_query(self, query: str, params: Optional[List[Any]] = None) -> str:
+        """Execute ClickHouse query over HTTP (with real parameter binding)."""
         import httpx
 
+        bound = self._bind_params(query, params)
         url = f"http://{self.host}:{self.port}/"
         try:
             response = httpx.post(
                 url,
-                params={"query": query},
+                params={"query": bound},
                 auth=(self.user, self.password) if self.user and self.password else None,
                 timeout=30.0,
             )
             response.raise_for_status()
-            logger.debug("ClickHouse query executed: %s...", query[:100])
+            logger.debug("ClickHouse query executed: %s...", bound[:100])
+            return response.text
         except httpx.RequestError as e:
             raise RuntimeError(f"ClickHouse connection failed: {e}") from e
         except httpx.HTTPStatusError as e:
             raise RuntimeError(f"ClickHouse query failed: {e.response.text}") from e
+
+    def _query_rows(self, sql: str, params: Optional[List[Any]] = None) -> List[Dict[str, Any]]:
+        """Execute a SELECT and return parsed JSON rows (``FORMAT JSON``)."""
+        text = self._execute_query(sql + " FORMAT JSON", params=params)
+        try:
+            return list(json.loads(text).get("data", []))
+        except (json.JSONDecodeError, AttributeError) as e:
+            raise RuntimeError(f"ClickHouse returned non-JSON result: {e}") from e
 
     async def store_metric(
         self,
@@ -464,8 +506,7 @@ class ClickHouseStorage:
 
             def _run():
                 logger.debug(f"Querying metrics: {metric_name}")  # noqa: F541
-                self._execute_query(sql, params=params)
-                return []
+                return self._query_rows(sql, params=params)
 
             return await cached_query(self._query_cache, cache_key, with_query_timeout(_run()))
 
@@ -532,8 +573,7 @@ class ClickHouseStorage:
 
             def _run():
                 logger.debug("Querying anomalies")
-                self._execute_query(sql, params=params)
-                return []
+                return self._query_rows(sql, params=params)
 
             return await cached_query(self._query_cache, cache_key, with_query_timeout(_run()))
 
