@@ -26,6 +26,34 @@ from core.models import Base
 # ============================================================================
 
 
+def _persist(orm_row, cleanup_model, obj_id, value):
+    """Persist a real row so the *live* DB the endpoint uses can find it.
+
+    The fixtures below historically handed the endpoints a MagicMock via a
+    ``patch(get_db)`` that never took effect (the dependency is bound at import
+    time), and the old repository returned hard-coded sample rows for any id.
+    Now that the repository is DB-backed the endpoint must be able to fetch a
+    real row, so each fixture seeds one and removes it afterwards.
+    """
+    from core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        db.merge(orm_row)
+        db.commit()
+    finally:
+        db.close()
+    try:
+        yield value
+    finally:
+        db = SessionLocal()
+        try:
+            db.query(cleanup_model).filter(cleanup_model.id == obj_id).delete()
+            db.commit()
+        finally:
+            db.close()
+
+
 @pytest.fixture
 def client():
     """Create a test client for the service mesh router"""
@@ -80,7 +108,9 @@ def mock_service_mesh_manager():
 
 @pytest.fixture
 def sample_mesh_config():
-    """Sample mesh configuration"""
+    """Sample mesh configuration (persisted so the live endpoint can find it)."""
+    from core.models import MeshConfiguration
+
     config = MagicMock()
     config.id = str(uuid.uuid4())
     config.name = "test-mesh"
@@ -95,12 +125,22 @@ def sample_mesh_config():
     config.config_metadata = {"environment": "production"}
     config.created_at = datetime.utcnow()
     config.updated_at = datetime.utcnow()
-    return config
+    row = MeshConfiguration(
+        id=config.id, name=config.name, mesh_type=config.mesh_type,
+        namespace=config.namespace, profile=config.profile,
+        auto_injection_enabled=True, mtls_enabled=True,
+        resource_limits=config.resource_limits, status="active",
+        mesh_id=config.mesh_id, config_metadata=config.config_metadata,
+        created_at=config.created_at, updated_at=config.updated_at,
+    )
+    yield from _persist(row, MeshConfiguration, config.id, config)
 
 
 @pytest.fixture
 def sample_traffic_rule():
-    """Sample traffic rule"""
+    """Sample traffic rule (persisted)."""
+    from core.models import TrafficRule
+
     rule = MagicMock()
     rule.id = str(uuid.uuid4())
     rule.name = "test-rule"
@@ -115,12 +155,22 @@ def sample_traffic_rule():
     rule.rule_metadata = {"description": "Test rule"}
     rule.created_at = datetime.utcnow()
     rule.updated_at = datetime.utcnow()
-    return rule
+    row = TrafficRule(
+        id=rule.id, name=rule.name, service_name=rule.service_name,
+        match_conditions=rule.match_conditions, destination=rule.destination,
+        weight=rule.weight, timeout_seconds=rule.timeout_seconds,
+        retry_policy=rule.retry_policy, fault_injection=None, enabled=True,
+        rule_metadata=rule.rule_metadata,
+        created_at=rule.created_at, updated_at=rule.updated_at,
+    )
+    yield from _persist(row, TrafficRule, rule.id, rule)
 
 
 @pytest.fixture
 def sample_security_policy():
-    """Sample security policy"""
+    """Sample security policy (persisted)."""
+    from core.models import SecurityPolicy
+
     policy = MagicMock()
     policy.id = str(uuid.uuid4())
     policy.name = "test-policy"
@@ -134,12 +184,22 @@ def sample_security_policy():
     policy.policy_metadata = {"description": "Test policy"}
     policy.created_at = datetime.utcnow()
     policy.updated_at = datetime.utcnow()
-    return policy
+    row = SecurityPolicy(
+        id=policy.id, name=policy.name, policy_type=policy.policy_type,
+        target_service=policy.target_service, mtls_mode=policy.mtls_mode,
+        allowed_principals=policy.allowed_principals, denied_principals=[],
+        jwt_validation=policy.jwt_validation, enabled=True,
+        policy_metadata=policy.policy_metadata,
+        created_at=policy.created_at, updated_at=policy.updated_at,
+    )
+    yield from _persist(row, SecurityPolicy, policy.id, policy)
 
 
 @pytest.fixture
 def sample_observability_config():
-    """Sample observability configuration"""
+    """Sample observability configuration (persisted)."""
+    from core.models import ObservabilityConfig
+
     config = MagicMock()
     config.id = str(uuid.uuid4())
     config.name = "test-observability"
@@ -153,12 +213,20 @@ def sample_observability_config():
     config.config_metadata = {"description": "Test observability"}
     config.created_at = datetime.utcnow()
     config.updated_at = datetime.utcnow()
-    return config
+    row = ObservabilityConfig(
+        id=config.id, name=config.name, tracing_enabled=True, metrics_enabled=True,
+        access_logging_enabled=True, sampling_rate=1.0, prometheus_enabled=True,
+        grafana_enabled=False, enabled=True, config_metadata=config.config_metadata,
+        created_at=config.created_at, updated_at=config.updated_at,
+    )
+    yield from _persist(row, ObservabilityConfig, config.id, config)
 
 
 @pytest.fixture
 def sample_policy():
-    """Sample general policy"""
+    """Sample general policy (persisted)."""
+    from core.models import Policy
+
     policy = MagicMock()
     policy.id = str(uuid.uuid4())
     policy.name = "test-general-policy"
@@ -169,7 +237,13 @@ def sample_policy():
     policy.policy_metadata = {"description": "Test policy"}
     policy.created_at = datetime.utcnow()
     policy.updated_at = datetime.utcnow()
-    return policy
+    row = Policy(
+        id=policy.id, name=policy.name, policy_type=policy.policy_type,
+        target_service=policy.target_service, rules=policy.rules, enabled=True,
+        policy_metadata=policy.policy_metadata,
+        created_at=policy.created_at, updated_at=policy.updated_at,
+    )
+    yield from _persist(row, Policy, policy.id, policy)
 
 
 # ============================================================================
@@ -711,15 +785,27 @@ class TestNewEndpoints:
 
     # 38. GET /circuit-breakers/{cb_id}
     def test_get_circuit_breaker(self, client, mock_db):
-        """Test GET /circuit-breakers/{cb_id} endpoint"""
-        with patch("api.service_mesh_advanced_router.get_db", return_value=mock_db):
-            mock_repo = MagicMock()
-            mock_repo.get_circuit_breaker.return_value = {"id": str(uuid.uuid4()), "name": "test-cb"}
-            mock_db.query.return_value = mock_repo
+        """Test GET /circuit-breakers/{cb_id} returns the persisted breaker."""
+        from core.database import SessionLocal
+        from core.service_mesh_repository import ServiceMeshRepository
 
-            cb_id = str(uuid.uuid4())
-            response = client.get(f"/api/v1/service-mesh/circuit-breakers/{cb_id}")
-            assert response.status_code != 404, response.text
+        db = SessionLocal()
+        try:
+            cb = ServiceMeshRepository(db).create_circuit_breaker(
+                "test-cb", "test-service", 5, 60, 30, {}
+            )
+        finally:
+            db.close()
+
+        response = client.get(f"/api/v1/service-mesh/circuit-breakers/{cb['id']}")
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["name"] == "test-cb"
+
+        db = SessionLocal()
+        try:
+            ServiceMeshRepository(db).delete_circuit_breaker(cb["id"])
+        finally:
+            db.close()
 
     # 39. GET /circuit-breakers
     def test_list_circuit_breakers(self, client, mock_db):
@@ -774,15 +860,27 @@ class TestNewEndpoints:
 
     # 42. GET /retry-policies/{policy_id}
     def test_get_retry_policy(self, client, mock_db):
-        """Test GET /retry-policies/{policy_id} endpoint"""
-        with patch("api.service_mesh_advanced_router.get_db", return_value=mock_db):
-            mock_repo = MagicMock()
-            mock_repo.get_retry_policy.return_value = {"id": str(uuid.uuid4()), "name": "test-retry"}
-            mock_db.query.return_value = mock_repo
+        """Test GET /retry-policies/{policy_id} returns the persisted policy."""
+        from core.database import SessionLocal
+        from core.service_mesh_repository import ServiceMeshRepository
 
-            policy_id = str(uuid.uuid4())
-            response = client.get(f"/api/v1/service-mesh/retry-policies/{policy_id}")
-            assert response.status_code != 404, response.text
+        db = SessionLocal()
+        try:
+            p = ServiceMeshRepository(db).create_retry_policy(
+                "test-retry", "test-service", 3, 30, ["5xx"], {}
+            )
+        finally:
+            db.close()
+
+        response = client.get(f"/api/v1/service-mesh/retry-policies/{p['id']}")
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["name"] == "test-retry"
+
+        db = SessionLocal()
+        try:
+            ServiceMeshRepository(db).delete_retry_policy(p["id"])
+        finally:
+            db.close()
 
     # 43. GET /retry-policies
     def test_list_retry_policies(self, client, mock_db):
@@ -820,15 +918,25 @@ class TestNewEndpoints:
 
     # 45. GET /timeout-policies/{policy_id}
     def test_get_timeout_policy(self, client, mock_db):
-        """Test GET /timeout-policies/{policy_id} endpoint"""
-        with patch("api.service_mesh_advanced_router.get_db", return_value=mock_db):
-            mock_repo = MagicMock()
-            mock_repo.get_timeout_policy.return_value = {"id": str(uuid.uuid4()), "name": "test-timeout"}
-            mock_db.query.return_value = mock_repo
+        """Test GET /timeout-policies/{policy_id} returns the persisted policy."""
+        from core.database import SessionLocal
+        from core.service_mesh_repository import ServiceMeshRepository
 
-            policy_id = str(uuid.uuid4())
-            response = client.get(f"/api/v1/service-mesh/timeout-policies/{policy_id}")
-            assert response.status_code != 404, response.text
+        db = SessionLocal()
+        try:
+            p = ServiceMeshRepository(db).create_timeout_policy("test-timeout", "test-service", 15, {})
+        finally:
+            db.close()
+
+        response = client.get(f"/api/v1/service-mesh/timeout-policies/{p['id']}")
+        assert response.status_code == 200, response.text
+        assert response.json()["data"]["name"] == "test-timeout"
+
+        db = SessionLocal()
+        try:
+            ServiceMeshRepository(db).delete_timeout_policy(p["id"])
+        finally:
+            db.close()
 
     # 46. GET /timeout-policies
     def test_list_timeout_policies(self, client, mock_db):
@@ -955,17 +1063,43 @@ class TestNewEndpoints:
             assert response.status_code in [200, 401, 500]
 
     # 55. POST /configurations/diff
-    def test_compare_configurations(self, client, mock_db, sample_mesh_config):
-        """Test POST /configurations/diff endpoint"""
-        with patch("api.service_mesh_advanced_router.get_db", return_value=mock_db):
-            mock_repo = MagicMock()
-            mock_repo.get_mesh_configuration.return_value = sample_mesh_config
-            mock_db.query.return_value = mock_repo
+    def test_compare_configurations(self, client, mock_db):
+        """Test POST /configurations/diff endpoint with two real configs."""
+        from core.database import SessionLocal
+        from core.models import MeshConfiguration
 
-            config_id_1 = str(uuid.uuid4())
-            config_id_2 = str(uuid.uuid4())
-            response = client.post(f"/api/v1/service-mesh/configurations/diff?config_id_1={config_id_1}&config_id_2={config_id_2}")
+        db = SessionLocal()
+        try:
+            ids = []
+            for name in ("diff-a", "diff-b"):
+                cid = str(uuid.uuid4())
+                db.add(
+                    MeshConfiguration(
+                        id=cid, name=name, mesh_type="istio", namespace="istio-system",
+                        profile="default", auto_injection_enabled=True, mtls_enabled=True,
+                        resource_limits={}, status="active", mesh_id=f"mesh-{cid[:8]}",
+                        config_metadata={}, created_at=datetime.utcnow(), updated_at=datetime.utcnow(),
+                    )
+                )
+                ids.append(cid)
+            db.commit()
+        finally:
+            db.close()
+
+        try:
+            response = client.post(
+                f"/api/v1/service-mesh/configurations/diff?config_id_1={ids[0]}&config_id_2={ids[1]}"
+            )
             assert response.status_code != 404, response.text
+        finally:
+            db = SessionLocal()
+            try:
+                db.query(MeshConfiguration).filter(MeshConfiguration.id.in_(ids)).delete(
+                    synchronize_session=False
+                )
+                db.commit()
+            finally:
+                db.close()
 
     # 56. POST /configurations/{config_id}/clone
     def test_clone_configuration(self, client, mock_db, mock_current_user, sample_mesh_config):

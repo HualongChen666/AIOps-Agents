@@ -11685,3 +11685,51 @@ terraform/storage.tf
 ## H) 待续
 
 - task #4 realtime(16)+service-mesh(12) → #5 → #6 → #7；横切 #8 余项（FE-632/633/638/639/642/643）、#9。
+
+
+---
+
+# PART XLII — realtime 域（15 页）+ service-mesh 域（12 页）重写；后端去桩与路由顺序修复
+
+> 任务：task #4（realtime 16 + service-mesh 12）。realtime 15 个模板页 + service-mesh 12 个模板页。
+
+## A) 后端真实性修复（service-mesh）
+
+1. **消除伪实例桩**：`GET /api/v1/service-mesh/services/{name}/instances` 原为 `for i in range(3)` 生成 `10.0.0.x` 假实例（注释自承 "In a real implementation…"）。改为调用真实 **`core.service_discovery_manager.ServiceDiscoveryManager.get_service_details()`**，返回真实注册实例（无→空）。
+2. **熔断器/重试/超时 由内存桩改为真实持久化**：`core/service_mesh_repository.py` 的 `create/get/list/update_state`（circuit-breaker）与 `create/get/list`（retry/timeout）原为 `return []` / `return {"name":"sample-*"}` / create 不落库。新增 ORM 模型 **`MeshCircuitBreaker` / `MeshRetryPolicy` / `MeshTimeoutPolicy`**（`core/models.py`，表 `mesh_circuit_breakers`/`mesh_retry_policies`/`mesh_timeout_policies`，随 `Base.metadata.create_all` 建表），仓库方法改为真实 DB 读写。
+3. **路由顺序遮蔽修复（真实缺陷）**：`/api/v1/service-mesh/traffic/{rule_id}`（GET/PATCH/DELETE）注册在 `/traffic/batch`（POST/PATCH/DELETE）之前 → 批量端点被 `{rule_id}` 吞掉（PATCH/DELETE `/traffic/batch` 命中 `rule_id="batch"` 返回 404）。将 3 个批量端点**前置注册**；实测 `router.routes` 顺序已修正。
+4. 新增 `DELETE /api/v1/service-mesh/{circuit-breakers,retry-policies,timeout-policies}/{id}`。
+
+## B) 前端：27 个 74 行模板页 → 真实业务页
+
+**service-mesh（12）**：circuit-breaker(151)、retry-policy(125)、timeout-config(115)、health-check(71)、service-discovery(134)、load-balancing(80)、traffic-management(132)、mesh-observability(130)、service-monitoring(75)、mesh-management(143)、microservice-mesh(104)、service-mesh(78)。
+**realtime（15）**：realtime-status(89,`/api/realtime/status`+10s 轮询)、websocket(123,独立) 及复用同构组件的 13 页 —— 由 `frontend/components/realtime/{StreamsPanel,EventsPanel,SubscriptionsPanel,WebhooksPanel}.tsx` 提供真实 CRUD：
+- StreamsPanel：websocket-manager/websocket-connection/enhanced-websocket/bidirectional-communication（`stream_type=websocket`）、sse/stream-monitoring（`sse`）、kafka-stream/flink-stream/event-stream（`kafka`）、realtime-communication（全部）。
+- SubscriptionsPanel：message-queue；WebhooksPanel：push-notification；EventsPanel：event-processing。
+
+全部调用真实 `/api/v1/realtime/*`、`/api/v1/service-mesh/*`、`/api/service-mesh/*`、`/api/realtime/*`；含加载/错误/空态与 toast。
+
+## C) 修复的既有失效测试（**HEAD 即失败**，已 `git stash` 于 HEAD 复核）
+
+`tests/test_service_mesh_router.py` 19 例（`TestOriginalEndpoints`/`TestNewEndpoints` 的 get/update/delete + batch/compare/export）依赖 `patch("...get_db")`+`mock_db.query.return_value=mock_repo` 的 mock 模式，但该 patch 对装饰期绑定的 `Depends(get_db)` 无效；此前仅因仓库返回 `sample-*` 桩/`return []`/`delete→True` 而“通过”。修复：
+- 5 个 sample fixtures 改为经真实仓库**落库 + 清理**（新增 `_persist` 生成器）；
+- `test_compare_configurations` 改为创建两个真实配置后 diff；
+- 3 例 circuit/retry/timeout GET 改为真实建实体→GET→清理。
+
+## D) 验证证据
+
+- `python -m py_compile core/models.py core/service_mesh_repository.py api/service_mesh_advanced_router.py` → OK。
+- 仓库直测：create/list/get/update_state/delete 熔断器、retry、timeout 均真实持久化（重启后仍在）。
+- `pytest tests/test_service_mesh_router.py tests/api/test_service_mesh_advanced_router.py tests/api/test_realtime_advanced_router.py tests/api/test_realtime_router.py` → **143 passed**（其中 service-mesh 67 全绿，含先前 19 例红转绿）。
+- `app.openapi()['paths']` 方法级确认 **34 个** path×方法（27 页依赖）全部存在（MISS 0）。
+- `npx tsc --noEmit`（frontend）→ **exit 0 / 0 error**。
+- 逻辑行数：`splitlines == wc -l`（35 个改动/新增文件全部一致）。
+
+## E) 备注
+
+- realtime 聚合端点 `realtime_router`(`/api/realtime/*`) 返回裸对象（`{items,total,timestamp}` 或 `{connections,rooms,timestamp}`），与 `realtime_advanced_router`(`/api/v1/realtime/*`) 的 `List[...]` 契约不同，页面按各自真实契约解包。
+- 三个新表已在本机 `data/aiops.db` 生效；生产经 `async_init_db` 建表。
+
+## F) 待续
+
+- task #5 i18n/graphql/grpc（后端满足）+ vector(8) → #6 → #7；横切 #8 余项、#9。

@@ -785,6 +785,196 @@ async def create_traffic_rule(rule: TrafficRuleCreate, db: Session = Depends(get
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ==================== Batch Operations (3 endpoints) ====================
+
+@router.post(
+    "/traffic/batch",
+    summary="Batch create traffic rules",
+    responses={
+        201: {"description": "Traffic rules created successfully"},
+        400: {"description": "Invalid request"},
+        429: {"description": "Rate limit exceeded"},
+        500: {"description": "Internal server error"},
+    },
+    status_code=201,
+)
+async def batch_create_traffic_rules(
+    batch: BatchTrafficRuleCreate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Batch create traffic rules with rate limiting
+
+    Args:
+        batch: Batch of traffic rules to create
+
+    Returns:
+        Created traffic rules
+    """
+    try:
+        # Rate limiting
+        identifier = current_user.username if current_user else request.client.host
+        check_rate_limit(identifier, requests_per_minute=10)
+
+        # Permission check
+        require_permission("service_mesh", "create")(current_user)
+
+        repo = ServiceMeshRepository(db)
+        rules_data = [
+            {
+                "name": rule.name,
+                "service_name": rule.service_name,
+                "match_conditions": rule.match_conditions,
+                "destination": rule.destination,
+                "weight": rule.weight,
+                "timeout_seconds": rule.timeout_seconds,
+                "retry_policy": rule.retry_policy,
+                "fault_injection": rule.fault_injection,
+                "metadata": rule.metadata,
+            }
+            for rule in batch.rules
+        ]
+
+        created_rules = repo.batch_create_traffic_rules(rules_data)
+
+        logger.info(f"Batch created {len(created_rules)} traffic rules by user: {current_user.username}")
+
+        return {
+            "status": "success",
+            "data": {
+                "created_count": len(created_rules),
+                "rules": [
+                    {
+                        "id": rule.id,
+                        "name": rule.name,
+                        "service_name": rule.service_name,
+                    }
+                    for rule in created_rules
+                ],
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error batch creating traffic rules: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/traffic/batch",
+    summary="Batch update traffic rules",
+    responses={
+        200: {"description": "Traffic rules updated successfully"},
+        400: {"description": "Invalid request"},
+        429: {"description": "Rate limit exceeded"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def batch_update_traffic_rules(
+    batch: BatchTrafficRuleUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Batch update traffic rules with rate limiting
+
+    Args:
+        batch: Batch of traffic rule updates
+
+    Returns:
+        Updated traffic rules
+    """
+    try:
+        # Rate limiting
+        identifier = current_user.username if current_user else request.client.host
+        check_rate_limit(identifier, requests_per_minute=10)
+
+        # Permission check
+        require_permission("service_mesh", "update")(current_user)
+
+        repo = ServiceMeshRepository(db)
+        updated_rules = repo.batch_update_traffic_rules(batch.updates)
+
+        logger.info(f"Batch updated {len(updated_rules)} traffic rules by user: {current_user.username}")
+
+        return {
+            "status": "success",
+            "data": {
+                "updated_count": len(updated_rules),
+                "rules": [
+                    {
+                        "id": rule.id,
+                        "name": rule.name,
+                        "service_name": rule.service_name,
+                    }
+                    for rule in updated_rules
+                ],
+            },
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error batch updating traffic rules: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/traffic/batch",
+    summary="Batch delete traffic rules",
+    responses={
+        200: {"description": "Traffic rules deleted successfully"},
+        400: {"description": "Invalid request"},
+        429: {"description": "Rate limit exceeded"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def batch_delete_traffic_rules(
+    batch: ServiceMeshAdvancedBatchDeleteRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Batch delete traffic rules with rate limiting
+
+    Args:
+        batch: List of rule IDs to delete
+
+    Returns:
+        Deletion result
+    """
+    try:
+        # Rate limiting
+        identifier = current_user.username if current_user else request.client.host
+        check_rate_limit(identifier, requests_per_minute=10)
+
+        # Permission check
+        require_permission("service_mesh", "delete")(current_user)
+
+        repo = ServiceMeshRepository(db)
+        result = repo.batch_delete_traffic_rules(batch.ids)
+
+        logger.info(f"Batch deleted {result['deleted']} traffic rules by user: {current_user.username}")
+
+        return {
+            "status": "success",
+            "data": result,
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error batch deleting traffic rules: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+
 @router.get(
     "/traffic/{rule_id}",
     summary="Get traffic rule by ID",
@@ -1660,194 +1850,6 @@ async def delete_policy(policy_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ==================== Batch Operations (3 endpoints) ====================
-
-@router.post(
-    "/traffic/batch",
-    summary="Batch create traffic rules",
-    responses={
-        201: {"description": "Traffic rules created successfully"},
-        400: {"description": "Invalid request"},
-        429: {"description": "Rate limit exceeded"},
-        500: {"description": "Internal server error"},
-    },
-    status_code=201,
-)
-async def batch_create_traffic_rules(
-    batch: BatchTrafficRuleCreate,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """
-    Batch create traffic rules with rate limiting
-
-    Args:
-        batch: Batch of traffic rules to create
-
-    Returns:
-        Created traffic rules
-    """
-    try:
-        # Rate limiting
-        identifier = current_user.username if current_user else request.client.host
-        check_rate_limit(identifier, requests_per_minute=10)
-
-        # Permission check
-        require_permission("service_mesh", "create")(current_user)
-
-        repo = ServiceMeshRepository(db)
-        rules_data = [
-            {
-                "name": rule.name,
-                "service_name": rule.service_name,
-                "match_conditions": rule.match_conditions,
-                "destination": rule.destination,
-                "weight": rule.weight,
-                "timeout_seconds": rule.timeout_seconds,
-                "retry_policy": rule.retry_policy,
-                "fault_injection": rule.fault_injection,
-                "metadata": rule.metadata,
-            }
-            for rule in batch.rules
-        ]
-
-        created_rules = repo.batch_create_traffic_rules(rules_data)
-
-        logger.info(f"Batch created {len(created_rules)} traffic rules by user: {current_user.username}")
-
-        return {
-            "status": "success",
-            "data": {
-                "created_count": len(created_rules),
-                "rules": [
-                    {
-                        "id": rule.id,
-                        "name": rule.name,
-                        "service_name": rule.service_name,
-                    }
-                    for rule in created_rules
-                ],
-            },
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error batch creating traffic rules: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.patch(
-    "/traffic/batch",
-    summary="Batch update traffic rules",
-    responses={
-        200: {"description": "Traffic rules updated successfully"},
-        400: {"description": "Invalid request"},
-        429: {"description": "Rate limit exceeded"},
-        500: {"description": "Internal server error"},
-    },
-)
-async def batch_update_traffic_rules(
-    batch: BatchTrafficRuleUpdate,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """
-    Batch update traffic rules with rate limiting
-
-    Args:
-        batch: Batch of traffic rule updates
-
-    Returns:
-        Updated traffic rules
-    """
-    try:
-        # Rate limiting
-        identifier = current_user.username if current_user else request.client.host
-        check_rate_limit(identifier, requests_per_minute=10)
-
-        # Permission check
-        require_permission("service_mesh", "update")(current_user)
-
-        repo = ServiceMeshRepository(db)
-        updated_rules = repo.batch_update_traffic_rules(batch.updates)
-
-        logger.info(f"Batch updated {len(updated_rules)} traffic rules by user: {current_user.username}")
-
-        return {
-            "status": "success",
-            "data": {
-                "updated_count": len(updated_rules),
-                "rules": [
-                    {
-                        "id": rule.id,
-                        "name": rule.name,
-                        "service_name": rule.service_name,
-                    }
-                    for rule in updated_rules
-                ],
-            },
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error batch updating traffic rules: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete(
-    "/traffic/batch",
-    summary="Batch delete traffic rules",
-    responses={
-        200: {"description": "Traffic rules deleted successfully"},
-        400: {"description": "Invalid request"},
-        429: {"description": "Rate limit exceeded"},
-        500: {"description": "Internal server error"},
-    },
-)
-async def batch_delete_traffic_rules(
-    batch: ServiceMeshAdvancedBatchDeleteRequest,
-    request: Request,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """
-    Batch delete traffic rules with rate limiting
-
-    Args:
-        batch: List of rule IDs to delete
-
-    Returns:
-        Deletion result
-    """
-    try:
-        # Rate limiting
-        identifier = current_user.username if current_user else request.client.host
-        check_rate_limit(identifier, requests_per_minute=10)
-
-        # Permission check
-        require_permission("service_mesh", "delete")(current_user)
-
-        repo = ServiceMeshRepository(db)
-        result = repo.batch_delete_traffic_rules(batch.ids)
-
-        logger.info(f"Batch deleted {result['deleted']} traffic rules by user: {current_user.username}")
-
-        return {
-            "status": "success",
-            "data": result,
-            "timestamp": datetime.utcnow().isoformat(),
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error batch deleting traffic rules: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ==================== Service Discovery (2 endpoints) ====================
 
 @router.get(
@@ -2217,6 +2219,33 @@ async def get_circuit_breaker(cb_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete(
+    "/circuit-breakers/{cb_id}",
+    summary="Delete circuit breaker",
+    responses={
+        200: {"description": "Circuit breaker deleted"},
+        404: {"description": "Circuit breaker not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def delete_circuit_breaker(cb_id: str, db: Session = Depends(get_db)):
+    """Delete a circuit breaker by ID."""
+    try:
+        repo = ServiceMeshRepository(db)
+        if not repo.delete_circuit_breaker(cb_id):
+            raise HTTPException(status_code=404, detail=f"Circuit breaker {cb_id} not found")
+        return {
+            "status": "success",
+            "data": {"id": cb_id, "deleted": True},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting circuit breaker: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get(
     "/circuit-breakers",
     summary="List all circuit breakers",
@@ -2409,6 +2438,33 @@ async def get_retry_policy(policy_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete(
+    "/retry-policies/{policy_id}",
+    summary="Delete retry policy",
+    responses={
+        200: {"description": "Retry policy deleted"},
+        404: {"description": "Retry policy not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def delete_retry_policy(policy_id: str, db: Session = Depends(get_db)):
+    """Delete a retry policy by ID."""
+    try:
+        repo = ServiceMeshRepository(db)
+        if not repo.delete_retry_policy(policy_id):
+            raise HTTPException(status_code=404, detail=f"Retry policy {policy_id} not found")
+        return {
+            "status": "success",
+            "data": {"id": policy_id, "deleted": True},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting retry policy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get(
     "/retry-policies",
     summary="List all retry policies",
@@ -2542,6 +2598,33 @@ async def get_timeout_policy(policy_id: str, db: Session = Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error getting timeout policy: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/timeout-policies/{policy_id}",
+    summary="Delete timeout policy",
+    responses={
+        200: {"description": "Timeout policy deleted"},
+        404: {"description": "Timeout policy not found"},
+        500: {"description": "Internal server error"},
+    },
+)
+async def delete_timeout_policy(policy_id: str, db: Session = Depends(get_db)):
+    """Delete a timeout policy by ID."""
+    try:
+        repo = ServiceMeshRepository(db)
+        if not repo.delete_timeout_policy(policy_id):
+            raise HTTPException(status_code=404, detail=f"Timeout policy {policy_id} not found")
+        return {
+            "status": "success",
+            "data": {"id": policy_id, "deleted": True},
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting timeout policy: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -2911,25 +2994,11 @@ async def get_service_instances(
         Service instances
     """
     try:
-        from core.service_mesh_manager import get_service_mesh_manager
+        from core.service_discovery_manager import get_service_discovery_manager
 
-        manager = get_service_mesh_manager()
-        summary = manager.generate_service_mesh_summary()
-
-        # In a real implementation, this would query the service registry
-        instances = []
-        for i in range(3):
-            instances.append(
-                {
-                    "id": f"{service_name}-{i}",
-                    "service_name": service_name,
-                    "address": f"10.0.0.{10 + i}",
-                    "port": 8080,
-                    "status": "healthy" if i < 2 else "unhealthy",
-                    "zone": "zone-a",
-                    "last_heartbeat": datetime.utcnow().isoformat(),
-                }
-            )
+        manager = get_service_discovery_manager()
+        details = manager.get_service_details(service_name)
+        instances = details["instances"]
 
         if status:
             instances = [inst for inst in instances if inst["status"] == status]
@@ -2940,7 +3009,8 @@ async def get_service_instances(
                 "service_name": service_name,
                 "instances": instances,
                 "total": len(instances),
-                "summary": summary,
+                "healthy_count": details["healthy_count"],
+                "unhealthy_count": details["unhealthy_count"],
             },
             "timestamp": datetime.utcnow().isoformat(),
         }

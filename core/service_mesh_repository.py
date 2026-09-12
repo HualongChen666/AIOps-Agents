@@ -12,7 +12,10 @@ from loguru import logger
 from sqlalchemy.orm import Session
 
 from core.models import (
+    MeshCircuitBreaker,
     MeshConfiguration,
+    MeshRetryPolicy,
+    MeshTimeoutPolicy,
     ObservabilityConfig,
     Policy,
     SecurityPolicy,
@@ -751,6 +754,22 @@ class ServiceMeshRepository:
 
     # ==================== Circuit Breaker Operations ====================
 
+    @staticmethod
+    def _breaker_to_dict(cb: MeshCircuitBreaker) -> Dict[str, Any]:
+        return {
+            "id": cb.id,
+            "name": cb.name,
+            "target_service": cb.target_service,
+            "consecutive_errors": cb.consecutive_errors,
+            "interval_seconds": cb.interval_seconds,
+            "timeout_seconds": cb.timeout_seconds,
+            "state": cb.state,
+            "enabled": cb.enabled,
+            "config_metadata": cb.config_metadata or {},
+            "created_at": cb.created_at.isoformat() if cb.created_at else None,
+            "updated_at": cb.updated_at.isoformat() if cb.updated_at else None,
+        }
+
     def create_circuit_breaker(
         self,
         name: str,
@@ -760,41 +779,86 @@ class ServiceMeshRepository:
         timeout_seconds: int,
         config_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create circuit breaker configuration"""
-        cb_id = str(uuid4())
-        circuit_breaker = {
-            "id": cb_id,
-            "name": name,
-            "target_service": target_service,
-            "consecutive_errors": consecutive_errors,
-            "interval_seconds": interval_seconds,
-            "timeout_seconds": timeout_seconds,
-            "state": "closed",
-            "enabled": True,
-            "config_metadata": config_metadata or {},
-            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-        }
-
-        logger.info(f"Created circuit breaker: {name} with ID: {cb_id}")
-        return circuit_breaker
+        """Create circuit breaker configuration (persisted)."""
+        cb = MeshCircuitBreaker(
+            id=str(uuid4()),
+            name=name,
+            target_service=target_service,
+            consecutive_errors=consecutive_errors,
+            interval_seconds=interval_seconds,
+            timeout_seconds=timeout_seconds,
+            state="closed",
+            enabled=True,
+            config_metadata=config_metadata or {},
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+        self.db.add(cb)
+        self.db.commit()
+        self.db.refresh(cb)
+        logger.info(f"Created circuit breaker: {name} with ID: {cb.id}")
+        return self._breaker_to_dict(cb)
 
     def get_circuit_breaker(self, cb_id: str) -> Optional[Dict[str, Any]]:
-        """Get circuit breaker by ID"""
-        logger.info(f"Retrieved circuit breaker: {cb_id}")
-        return {"id": cb_id, "name": "sample-circuit-breaker"}
+        """Get circuit breaker by ID."""
+        cb = (
+            self.db.query(MeshCircuitBreaker)
+            .filter(MeshCircuitBreaker.id == cb_id)
+            .first()
+        )
+        return self._breaker_to_dict(cb) if cb else None
 
     def list_circuit_breakers(self, target_service: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List circuit breakers"""
-        logger.info(f"Listed circuit breakers for service: {target_service}")
-        return []
+        """List circuit breakers."""
+        query = self.db.query(MeshCircuitBreaker)
+        if target_service:
+            query = query.filter(MeshCircuitBreaker.target_service == target_service)
+        return [self._breaker_to_dict(cb) for cb in query.all()]
 
     def update_circuit_breaker_state(self, cb_id: str, state: str) -> bool:
-        """Update circuit breaker state"""
+        """Update circuit breaker state."""
+        cb = (
+            self.db.query(MeshCircuitBreaker)
+            .filter(MeshCircuitBreaker.id == cb_id)
+            .first()
+        )
+        if not cb:
+            return False
+        cb.state = state
+        cb.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.db.commit()
         logger.info(f"Updated circuit breaker {cb_id} state to: {state}")
         return True
 
+    def delete_circuit_breaker(self, cb_id: str) -> bool:
+        """Delete a circuit breaker."""
+        cb = (
+            self.db.query(MeshCircuitBreaker)
+            .filter(MeshCircuitBreaker.id == cb_id)
+            .first()
+        )
+        if not cb:
+            return False
+        self.db.delete(cb)
+        self.db.commit()
+        return True
+
     # ==================== Retry Policy Operations ====================
+
+    @staticmethod
+    def _retry_to_dict(policy: MeshRetryPolicy) -> Dict[str, Any]:
+        return {
+            "id": policy.id,
+            "name": policy.name,
+            "target_service": policy.target_service,
+            "max_attempts": policy.max_attempts,
+            "timeout_seconds": policy.timeout_seconds,
+            "retry_on": policy.retry_on or [],
+            "enabled": policy.enabled,
+            "config_metadata": policy.config_metadata or {},
+            "created_at": policy.created_at.isoformat() if policy.created_at else None,
+            "updated_at": policy.updated_at.isoformat() if policy.updated_at else None,
+        }
 
     def create_retry_policy(
         self,
@@ -805,35 +869,64 @@ class ServiceMeshRepository:
         retry_on: List[str],
         config_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create retry policy"""
-        policy_id = str(uuid4())
-        retry_policy = {
-            "id": policy_id,
-            "name": name,
-            "target_service": target_service,
-            "max_attempts": max_attempts,
-            "timeout_seconds": timeout_seconds,
-            "retry_on": retry_on,
-            "enabled": True,
-            "config_metadata": config_metadata or {},
-            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-        }
-
-        logger.info(f"Created retry policy: {name} with ID: {policy_id}")
-        return retry_policy
+        """Create retry policy (persisted)."""
+        policy = MeshRetryPolicy(
+            id=str(uuid4()),
+            name=name,
+            target_service=target_service,
+            max_attempts=max_attempts,
+            timeout_seconds=timeout_seconds,
+            retry_on=retry_on,
+            enabled=True,
+            config_metadata=config_metadata or {},
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+        self.db.add(policy)
+        self.db.commit()
+        self.db.refresh(policy)
+        logger.info(f"Created retry policy: {name} with ID: {policy.id}")
+        return self._retry_to_dict(policy)
 
     def get_retry_policy(self, policy_id: str) -> Optional[Dict[str, Any]]:
-        """Get retry policy by ID"""
-        logger.info(f"Retrieved retry policy: {policy_id}")
-        return {"id": policy_id, "name": "sample-retry-policy"}
+        """Get retry policy by ID."""
+        policy = (
+            self.db.query(MeshRetryPolicy).filter(MeshRetryPolicy.id == policy_id).first()
+        )
+        return self._retry_to_dict(policy) if policy else None
 
     def list_retry_policies(self, target_service: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List retry policies"""
-        logger.info(f"Listed retry policies for service: {target_service}")
-        return []
+        """List retry policies."""
+        query = self.db.query(MeshRetryPolicy)
+        if target_service:
+            query = query.filter(MeshRetryPolicy.target_service == target_service)
+        return [self._retry_to_dict(p) for p in query.all()]
+
+    def delete_retry_policy(self, policy_id: str) -> bool:
+        """Delete a retry policy."""
+        policy = (
+            self.db.query(MeshRetryPolicy).filter(MeshRetryPolicy.id == policy_id).first()
+        )
+        if not policy:
+            return False
+        self.db.delete(policy)
+        self.db.commit()
+        return True
 
     # ==================== Timeout Operations ====================
+
+    @staticmethod
+    def _timeout_to_dict(policy: MeshTimeoutPolicy) -> Dict[str, Any]:
+        return {
+            "id": policy.id,
+            "name": policy.name,
+            "target_service": policy.target_service,
+            "timeout_seconds": policy.timeout_seconds,
+            "enabled": policy.enabled,
+            "config_metadata": policy.config_metadata or {},
+            "created_at": policy.created_at.isoformat() if policy.created_at else None,
+            "updated_at": policy.updated_at.isoformat() if policy.updated_at else None,
+        }
 
     def create_timeout_policy(
         self,
@@ -842,31 +935,47 @@ class ServiceMeshRepository:
         timeout_seconds: int,
         config_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create timeout policy"""
-        timeout_id = str(uuid4())
-        timeout_policy = {
-            "id": timeout_id,
-            "name": name,
-            "target_service": target_service,
-            "timeout_seconds": timeout_seconds,
-            "enabled": True,
-            "config_metadata": config_metadata or {},
-            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-        }
-
-        logger.info(f"Created timeout policy: {name} with ID: {timeout_id}")
-        return timeout_policy
+        """Create timeout policy (persisted)."""
+        policy = MeshTimeoutPolicy(
+            id=str(uuid4()),
+            name=name,
+            target_service=target_service,
+            timeout_seconds=timeout_seconds,
+            enabled=True,
+            config_metadata=config_metadata or {},
+            created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+            updated_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        )
+        self.db.add(policy)
+        self.db.commit()
+        self.db.refresh(policy)
+        logger.info(f"Created timeout policy: {name} with ID: {policy.id}")
+        return self._timeout_to_dict(policy)
 
     def get_timeout_policy(self, timeout_id: str) -> Optional[Dict[str, Any]]:
-        """Get timeout policy by ID"""
-        logger.info(f"Retrieved timeout policy: {timeout_id}")
-        return {"id": timeout_id, "name": "sample-timeout-policy"}
+        """Get timeout policy by ID."""
+        policy = (
+            self.db.query(MeshTimeoutPolicy).filter(MeshTimeoutPolicy.id == timeout_id).first()
+        )
+        return self._timeout_to_dict(policy) if policy else None
 
     def list_timeout_policies(self, target_service: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List timeout policies"""
-        logger.info(f"Listed timeout policies for service: {target_service}")
-        return []
+        """List timeout policies."""
+        query = self.db.query(MeshTimeoutPolicy)
+        if target_service:
+            query = query.filter(MeshTimeoutPolicy.target_service == target_service)
+        return [self._timeout_to_dict(p) for p in query.all()]
+
+    def delete_timeout_policy(self, timeout_id: str) -> bool:
+        """Delete a timeout policy."""
+        policy = (
+            self.db.query(MeshTimeoutPolicy).filter(MeshTimeoutPolicy.id == timeout_id).first()
+        )
+        if not policy:
+            return False
+        self.db.delete(policy)
+        self.db.commit()
+        return True
 
     # ==================== Export/Import Operations ====================
 

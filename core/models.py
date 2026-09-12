@@ -5012,6 +5012,77 @@ class TrafficRule(Base):
         return f"<TrafficRule(id='{self.id}', name='{self.name}', service='{self.service_name}')>"
 
 
+class MeshCircuitBreaker(Base):
+    """Service Mesh Circuit Breaker Table"""
+
+    __tablename__ = "mesh_circuit_breakers"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False, index=True)
+    target_service = Column(String(200), nullable=False, index=True)
+    consecutive_errors = Column(Integer, nullable=False, default=5)
+    interval_seconds = Column(Integer, nullable=False, default=60)
+    timeout_seconds = Column(Integer, nullable=False, default=30)
+    state = Column(String(20), nullable=False, default="closed")  # closed, open, half-open
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    config_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_mesh_circuit_breakers_target_service", "target_service"),
+        Index("idx_mesh_circuit_breakers_state", "state"),
+    )
+
+    def __repr__(self):
+        return (
+            f"<MeshCircuitBreaker(id='{self.id}', name='{self.name}', "
+            f"target_service='{self.target_service}', state='{self.state}')>"
+        )
+
+
+class MeshRetryPolicy(Base):
+    """Service Mesh Retry Policy Table"""
+
+    __tablename__ = "mesh_retry_policies"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False, index=True)
+    target_service = Column(String(200), nullable=False, index=True)
+    max_attempts = Column(Integer, nullable=False, default=3)
+    timeout_seconds = Column(Integer, nullable=False, default=30)
+    retry_on = Column(JSON, nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    config_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (Index("idx_mesh_retry_policies_target_service", "target_service"),)
+
+    def __repr__(self):
+        return f"<MeshRetryPolicy(id='{self.id}', name='{self.name}')>"
+
+
+class MeshTimeoutPolicy(Base):
+    """Service Mesh Timeout Policy Table"""
+
+    __tablename__ = "mesh_timeout_policies"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False, index=True)
+    target_service = Column(String(200), nullable=False, index=True)
+    timeout_seconds = Column(Integer, nullable=False, default=30)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    config_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (Index("idx_mesh_timeout_policies_target_service", "target_service"),)
+
+    def __repr__(self):
+        return f"<MeshTimeoutPolicy(id='{self.id}', name='{self.name}')>"
+
+
 class SecurityPolicy(Base):
     """Service Mesh Security Policy Table"""
 
