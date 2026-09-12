@@ -3,15 +3,28 @@
 
 import asyncio
 import logging
+import os
+import sys
 from typing import Any, Dict, Optional
 
-from ..config import Config
+try:
+    from ..config import Config
+except ImportError:
+    from config import Config
+
+try:
+    from ...json_grpc_rpc import JsonRpcClient
+except ImportError:  # pragma: no cover - bare import fallback
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+    from json_grpc_rpc import JsonRpcClient
 
 logger = logging.getLogger(Config.SERVICE_NAME)
 
+SERVICE_FQN = "release.ReleaseManagementService"
 
-class ReleaseManagementClient:
-    """Client for communicating with Release Management Service."""
+
+class ReleaseManagementClient(JsonRpcClient):
+    """Real gRPC client for the Release Management Service."""
 
     def __init__(self, host: str = None, port: int = None) -> None:
         """Initialize the client.
@@ -20,23 +33,20 @@ class ReleaseManagementClient:
             host: gRPC server host
             port: gRPC server port
         """
-        self._host = host or Config.GRPC_HOST
-        self._port = port or Config.GRPC_PORT
-        self._channel = None
+        super().__init__(SERVICE_FQN, host or Config.GRPC_HOST, port or Config.GRPC_PORT)
 
     async def connect(self) -> None:
-        """Connect to the gRPC server."""
-        # In a real implementation, this would create a gRPC channel
-        # For now, we use HTTP communication
-        logger.info(f"Connected to Release Management Service at {self._host}:{self._port}")
+        """Connect to the gRPC server (waits until the channel is ready)."""
+        await super().connect()
+        logger.info(f"Connected to Release Management Service at {self.host}:{self.port}")
 
     async def close(self) -> None:
         """Close the connection."""
-        # In a real implementation, this would close the gRPC channel
+        await super().disconnect()
         logger.info("Closed connection to Release Management Service")
 
     async def _call(self, method: str, payload: Optional[Dict[str, Any]] = None) -> Any:
-        """Call a remote method.
+        """Call a remote method over real gRPC.
 
         Args:
             method: Method name to call
@@ -48,15 +58,7 @@ class ReleaseManagementClient:
         Raises:
             ConnectionError: If connection fails
         """
-        # In a real implementation, this would use gRPC stubs
-        # For now, we simulate the call
-        logger.debug(f"Calling method {method} with payload: {payload}")
-
-        # This would be replaced with actual gRPC call:
-        # response = await self.stub.method_name(request)
-
-        # For now, return a placeholder
-        return {"success": True, "message": "Method called (simulated)"}
+        return await super().call(method, payload)
 
     # Release management methods
     async def create_release(

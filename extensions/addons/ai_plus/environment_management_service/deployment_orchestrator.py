@@ -4,8 +4,10 @@ Deployment Orchestrator - Handles deployment orchestration between environments
 
 import uuid
 import time
+import copy
+import logging
 import threading
-from typing import Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import queue
@@ -14,6 +16,8 @@ try:
     from .config_sync import SyncStrategy
 except ImportError:
     from config_sync import SyncStrategy
+
+logger = logging.getLogger(__name__)
 
 
 class DeploymentStatus(Enum):
@@ -75,6 +79,8 @@ class DeploymentOrchestrator:
         self.environment_manager = environment_manager
         self.config_sync = config_sync
         self.deployments: Dict[str, Deployment] = {}
+        # Real pre-deployment backups keyed by the deployment id that created them.
+        self.backups: Dict[str, Dict[str, Any]] = {}
         self.lock = threading.RLock()
         self.deployment_queue = queue.Queue()
         self.worker_thread = None
@@ -102,7 +108,7 @@ class DeploymentOrchestrator:
             except queue.Empty:
                 continue
             except Exception as e:
-                print(f"Deployment worker error: {e}")
+                logger.error(f"Deployment worker error: {e}", exc_info=True)
     
     def deploy_to_environment(
         self,
@@ -401,17 +407,21 @@ class DeploymentOrchestrator:
         return True
     
     def _backup_target_environment(self, deployment: Deployment) -> bool:
-        """Backup target environment configuration"""
-        # In a real implementation, this would create a backup
-        # For now, we'll store the config hash for potential rollback
+        """Take a real backup of the target environment (config + variables)."""
         target_env = self.environment_manager.get_environment(deployment.target_env_id)
         if not target_env:
             return False
-        
-        deployment.parameters['backup_hash'] = self.environment_manager.get_environment_hash(
-            deployment.target_env_id
-        )
-        
+
+        env_hash = self.environment_manager.get_environment_hash(deployment.target_env_id)
+        with self.lock:
+            self.backups[deployment.id] = {
+                "config": copy.deepcopy(target_env.config),
+                "variables": copy.deepcopy(target_env.variables),
+                "hash": env_hash,
+                "created_at": int(time.time()),
+            }
+        deployment.parameters['backup_hash'] = env_hash
+
         return True
     
     def _sync_configuration(self, deployment: Deployment) -> bool:
@@ -446,24 +456,63 @@ class DeploymentOrchestrator:
         return comparison['success']
     
     def _perform_health_check(self, deployment: Deployment) -> bool:
-        """Perform health check on target environment"""
-        # In a real implementation, this would check actual health endpoints
-        # For now, we'll simulate a health check
+        """Perform a real health check on the target environment.
+
+        The target must exist, be active, keep valid isolation and expose a
+        non-empty (persisted) configuration hash.
+        """
+        target_env = self.environment_manager.get_environment(deployment.target_env_id)
+        if not target_env or target_env.status != 'active':
+            return False
+
+        if not self.environment_manager.validate_isolation(deployment.target_env_id):
+            return False
+
+        return bool(self.environment_manager.get_environment_hash(deployment.target_env_id))
+
+    def _validate_deployment_for_rollback(self, deployment: Deployment) -> bool:
+        """Validate that the referenced original deployment exists and has a backup."""
+        original_id = deployment.parameters.get('original_deployment_id')
+        if not original_id:
+            return False
+
+        with self.lock:
+            original = self.deployments.get(original_id)
+            backup = self.backups.get(original_id)
+
+        if original is None or backup is None:
+            return False
+
+        return original.status in (
+            DeploymentStatus.COMPLETED.value,
+            DeploymentStatus.ROLLED_BACK.value,
+        )
+
+    def _restore_backup(self, deployment: Deployment) -> bool:
+        """Restore the target environment from the original deployment's backup."""
+        original_id = deployment.parameters.get('original_deployment_id')
+        with self.lock:
+            backup = self.backups.get(original_id) if original_id else None
+        if not backup:
+            return False
+
         target_env = self.environment_manager.get_environment(deployment.target_env_id)
         if not target_env:
             return False
-        
-        # Simulate health check
-        return target_env.status == 'active'
-    
-    def _validate_deployment_for_rollback(self, deployment: Deployment) -> bool:
-        """Validate deployment exists for rollback"""
-        return deployment.source_env_id in self.deployments
-    
-    def _restore_backup(self, deployment: Deployment) -> bool:
-        """Restore from backup"""
-        # In a real implementation, this would restore from actual backup
-        # For now, this is a placeholder
+
+        # Restore configuration and variables to the pre-deployment snapshot.
+        self.environment_manager.update_config(
+            deployment.target_env_id, copy.deepcopy(backup["config"])
+        )
+        for key in list(target_env.variables.keys()):
+            self.environment_manager.delete_variable(deployment.target_env_id, key)
+        for key, var in backup["variables"].items():
+            self.environment_manager.set_variable(
+                deployment.target_env_id,
+                key,
+                var.get("value", ""),
+                var.get("is_secret", False),
+            )
         return True
     
     def _verify_rollback(self, deployment: Deployment) -> bool:
@@ -537,11 +586,11 @@ class DeploymentOrchestrator:
             if original_deployment.status != DeploymentStatus.COMPLETED.value:
                 return None
         
-        # Create a rollback deployment
+        # Create a rollback deployment targeting the environment that was changed
         try:
             rollback_deployment = self.deploy_to_environment(
-                source_env_id=original_deployment.target_env_id,
-                target_env_id=original_deployment.source_env_id,
+                source_env_id=original_deployment.source_env_id,
+                target_env_id=original_deployment.target_env_id,
                 deployment_type=DeploymentType.ROLLBACK.value,
                 parameters={
                     'original_deployment_id': deployment_id,
@@ -556,7 +605,7 @@ class DeploymentOrchestrator:
             
             return rollback_deployment
         except Exception as e:
-            print(f"Rollback failed: {e}")
+            logger.error(f"Rollback failed: {e}", exc_info=True)
             return None
     
     def cancel_deployment(self, deployment_id: str) -> bool:

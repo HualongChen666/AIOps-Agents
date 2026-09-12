@@ -15,13 +15,13 @@ from pydantic import BaseModel, Field
 try:
     from .config import Config
     from .deployment_manager import DeploymentManager, DeploymentInfo
-    from .grpc.server import ReleaseManagementRPCServer
+    from .grpc_service.server import ReleaseManagementRPCServer
     from .release_builder import ReleaseBuilder, BuildInfo
     from .version_manager import VersionManager, Version
 except ImportError:
     from config import Config
     from deployment_manager import DeploymentManager, DeploymentInfo
-    from grpc.server import ReleaseManagementRPCServer
+    from grpc_service.server import ReleaseManagementRPCServer
     from release_builder import ReleaseBuilder, BuildInfo
     from version_manager import VersionManager, Version
 

@@ -17,14 +17,14 @@ try:
     from .audit_log import AuditLog
     from .config import Config
     from .encryption_service import EncryptionService
-    from .grpc.server import SecretManagementRPCServer
+    from .grpc_service.server import SecretManagementRPCServer
     from .secret_manager import SecretManager
 except ImportError:
     from access_control import AccessControl
     from audit_log import AuditLog
     from config import Config
     from encryption_service import EncryptionService
-    from grpc.server import SecretManagementRPCServer
+    from grpc_service.server import SecretManagementRPCServer
     from secret_manager import SecretManager
 
 # Configure logging

@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from compliance_monitor import ComplianceMonitor, AlertSeverity
 from policy_checker import PolicyChecker, PolicyType
 from report_generator import ReportGenerator, ReportFormat, ReportType
-from grpc.server import rpc_server, serve as grpc_serve
+from grpc_service.server import rpc_server, serve as grpc_serve
 
 # Import compliance manager from core
 from core.compliance_manager import ComplianceFramework, ComplianceStatus, RiskLevel

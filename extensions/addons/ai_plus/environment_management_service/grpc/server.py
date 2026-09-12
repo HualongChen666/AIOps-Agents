@@ -4,10 +4,14 @@ gRPC Server for Environment Management Service
 
 import grpc
 from concurrent import futures
+import json
+import os
 import time
 import threading
 from typing import Optional
 import logging
+
+import httpx
 
 from . import (
     environment_management_pb2,
@@ -463,46 +467,63 @@ class EnvironmentManagementServicer(environment_management_pb2_grpc.EnvironmentM
             )
     
     def GetEnvironmentMetrics(self, request, context):
-        """Get environment metrics"""
+        """Get environment metrics from the configured metrics backend.
+
+        Metrics are *not* fabricated: if no real metrics backend is configured the
+        call fails explicitly (``success=False``) rather than returning made-up
+        numbers.
+        """
         try:
             env = self.environment_manager.get_environment(request.environment_id)
-            
             if not env:
                 return environment_management_pb2.MetricsResponse(
                     success=False,
                     message="Environment not found"
                 )
-            
-            # In a real implementation, these would be actual metrics
-            # For now, we'll simulate metrics based on environment type
-            base_metrics = {
-                'dev': {'cpu': 30, 'memory': 40, 'connections': 50},
-                'staging': {'cpu': 45, 'memory': 55, 'connections': 200},
-                'prod': {'cpu': 60, 'memory': 70, 'connections': 500}
-            }
-            
-            metrics = base_metrics.get(env.type, base_metrics['dev'])
-            
+
+            backend_url = os.getenv("ENVIRONMENT_METRICS_BACKEND_URL")
+            if not backend_url:
+                return environment_management_pb2.MetricsResponse(
+                    success=False,
+                    message=(
+                        "No metrics backend configured "
+                        "(set ENVIRONMENT_METRICS_BACKEND_URL); refusing to fabricate metrics"
+                    ),
+                )
+
+            try:
+                response = httpx.get(
+                    f"{backend_url.rstrip('/')}/environments/{request.environment_id}/metrics",
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+            except Exception as exc:
+                logger.error(f"Metrics backend query failed: {exc}")
+                return environment_management_pb2.MetricsResponse(
+                    success=False,
+                    message=f"Metrics backend unavailable: {exc}",
+                )
+
             uptime = int(time.time()) - env.created_at
-            
             return environment_management_pb2.MetricsResponse(
                 success=True,
                 message="Metrics retrieved successfully",
                 metrics=environment_management_pb2.EnvironmentMetrics(
                     environment_id=request.environment_id,
-                    cpu_usage_percent=metrics['cpu'],
-                    memory_usage_percent=metrics['memory'],
-                    active_connections=metrics['connections'],
-                    request_count=1000 + uptime * 10,
-                    error_rate=0.01 if env.type == 'prod' else 0.05,
-                    uptime_seconds=uptime
-                )
+                    cpu_usage_percent=float(data.get("cpu_usage_percent", 0.0)),
+                    memory_usage_percent=float(data.get("memory_usage_percent", 0.0)),
+                    active_connections=int(data.get("active_connections", 0)),
+                    request_count=int(data.get("request_count", 0)),
+                    error_rate=float(data.get("error_rate", 0.0)),
+                    uptime_seconds=int(data.get("uptime_seconds", uptime)),
+                ),
             )
         except Exception as e:
-            logger.error(f"Error getting metrics: {e}")
+            logger.error(f"Error retrieving environment metrics: {e}")
             return environment_management_pb2.MetricsResponse(
                 success=False,
-                message=str(e)
+                message=str(e),
             )
     
     # Helper methods

@@ -17,10 +17,11 @@ import os
 import signal
 import time
 
-# Add the current directory to the path to allow imports
-sys.path.insert(0, os.path.dirname(__file__))
+# Ensure the project root is importable so the service package resolves by its
+# absolute name (avoids the local ``grpc`` package shadowing the grpc library).
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
 
-from grpc.server import serve
+from extensions.addons.ai_plus.environment_management_service.grpc.server import serve  # noqa: E402
 
 
 # Configure logging

@@ -486,11 +486,13 @@ class EnvironmentManager:
             if not env:
                 return False
             
-            # Check for cross-environment references
+            # Check for cross-environment references (only string values can
+            # contain a reference; non-string values are skipped safely).
             for other_env in self.environments.values():
                 if other_env.id != environment_id:
-                    # Check if config references other environment
                     for value in env.config.values():
+                        if not isinstance(value, str):
+                            continue
                         if other_env.id in value or other_env.name in value:
                             return False
             

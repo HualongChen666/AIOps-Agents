@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field
 try:
     from .config import Config
     from .certificate_manager import CertificateManager
-    from .grpc.server import CertificateManagementRPCServer
+    from .grpc_service.server import CertificateManagementRPCServer
 except ImportError:
     from config import Config
     from certificate_manager import CertificateManager
-    from grpc.server import CertificateManagementRPCServer
+    from grpc_service.server import CertificateManagementRPCServer
 
 # Configure logging
 Config.validate()

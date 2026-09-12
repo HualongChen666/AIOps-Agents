@@ -21,7 +21,15 @@ from typing import Any, Awaitable, Callable, Dict, Optional
 
 
 def _import_grpc_lib():
-    """Import the installed grpc library, avoiding sibling ``grpc`` shadowing."""
+    """Import the installed grpc library, working even when a sibling ``grpc``
+    package (shipped by several addon services) occupies the top-level name.
+
+    Strategy: locate the real ``grpc`` distribution on paths that exclude any
+    local shadow, load it *while it owns* ``sys.modules['grpc']`` (so its own
+    submodule imports resolve), then restore whatever occupied the name.  The
+    returned module object is used directly by callers, so later imports of the
+    local ``grpc`` package never affect us.
+    """
 
     def _is_shadow(p: str) -> bool:
         base = os.path.abspath(p or ".")
@@ -30,14 +38,48 @@ def _import_grpc_lib():
             os.path.join(gd, "server.py")
         )
 
-    saved = list(sys.path)
-    sys.path = [p for p in sys.path if not _is_shadow(p)]
-    try:
-        import grpc as _grpc
+    cached = sys.modules.get("grpc")
+    if cached is not None and hasattr(cached, "aio"):
+        return cached
 
-        return _grpc
+    import importlib.machinery
+    import importlib.util
+
+    search_paths = [p for p in sys.path if not _is_shadow(p)]
+    try:
+        import site
+
+        for sp in site.getsitepackages():
+            if os.path.isdir(sp) and sp not in search_paths:
+                search_paths.append(sp)
+        user_sp = site.getusersitepackages()
+        if os.path.isdir(user_sp) and user_sp not in search_paths:
+            search_paths.append(user_sp)
+    except Exception:  # pragma: no cover - site may be unavailable
+        pass
+
+    spec = importlib.machinery.PathFinder.find_spec("grpc", search_paths)
+    if spec is None or spec.loader is None:
+        raise ImportError("grpc library not found on sys.path")
+
+    shadow = sys.modules.get("grpc")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["grpc"] = module
+    try:
+        spec.loader.exec_module(module)
+        # Ensure the commonly used submodules are available as attributes.
+        for sub in ("aio",):
+            try:
+                importlib.import_module(f"grpc.{sub}")
+            except Exception:  # pragma: no cover - optional submodule
+                pass
     finally:
-        sys.path = saved
+        if shadow is not None:
+            sys.modules["grpc"] = shadow
+        else:
+            sys.modules.pop("grpc", None)
+
+    return module
 
 
 grpc = _import_grpc_lib()

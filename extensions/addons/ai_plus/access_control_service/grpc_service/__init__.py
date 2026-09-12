@@ -2,11 +2,11 @@
 """gRPC module for Access Control Service."""
 
 from .client import AccessControlClient, create_client
-from .server import AccessControlServicer, serve
+from .server import AccessControlRPCServer, serve
 
 __all__ = [
     "AccessControlClient",
     "create_client",
-    "AccessControlServicer",
+    "AccessControlRPCServer",
     "serve",
 ]

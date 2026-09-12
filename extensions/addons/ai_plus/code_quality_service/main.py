@@ -20,7 +20,7 @@ from typing import Optional
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from grpc.server import serve
+    from grpc_service.server import serve
     GRPC_AVAILABLE = True
 except ImportError:
     print("Warning: gRPC server not available. Install grpcio-tools to enable gRPC functionality.")

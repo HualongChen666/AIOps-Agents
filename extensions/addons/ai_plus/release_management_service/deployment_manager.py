@@ -106,9 +106,12 @@ class DeploymentManager:
             deployment_id=deployment_id,
             target_environment=target_environment,
             target_hosts=target_hosts,
-            deployment_config=deployment_config,
+            deployment_config=dict(deployment_config),
             rollback_on_failure=rollback_on_failure,
         )
+        # Record how/with what this deployment was performed so rollback can be real.
+        deployment_info.deployment_config["_method"] = "docker"
+        deployment_info.deployment_config["_image"] = artifact_path
 
         if not target_hosts:
             deployment_info.status = "failed"
@@ -282,9 +285,12 @@ class DeploymentManager:
             deployment_id=deployment_id,
             target_environment=target_environment,
             target_hosts=target_hosts,
-            deployment_config=deployment_config,
+            deployment_config=dict(deployment_config),
             rollback_on_failure=rollback_on_failure,
         )
+        # Record how/with what this deployment was performed so rollback can be real.
+        deployment_info.deployment_config["_method"] = "package"
+        deployment_info.deployment_config["_artifact"] = artifact_path
 
         if not os.path.exists(artifact_path):
             deployment_info.status = "failed"
@@ -381,10 +387,48 @@ class DeploymentManager:
                     result.message = f"Failed to extract package: {extract_result.stderr}"
                     result.error = extract_result.stderr
             else:
-                # For remote deployment, would use SSH or other transport
-                # For now, simulate successful deployment
-                result.success = True
-                result.message = f"Package deployed to {host} (simulated)"
+                # Remote deployment requires a real transport. Use scp/ssh when
+                # configured; otherwise fail explicitly rather than fake success.
+                ssh_user = config.get("ssh_user")
+                ssh_key = config.get("ssh_key")
+                if not ssh_user:
+                    result.success = False
+                    result.message = (
+                        "Remote package deployment requires 'ssh_user' (and optional "
+                        "'ssh_key') in the deployment config; refusing to simulate"
+                    )
+                    return result
+
+                scp_cmd = ["scp"]
+                ssh_cmd = ["ssh"]
+                if ssh_key:
+                    scp_cmd.extend(["-i", ssh_key])
+                    ssh_cmd.extend(["-i", ssh_key])
+                scp_cmd.extend([package_path, f"{ssh_user}@{host}:/tmp/"])
+                ssh_cmd.extend(
+                    [
+                        f"{ssh_user}@{host}",
+                        f"mkdir -p {config.get('install_path', '/opt/app')} && "
+                        f"tar -xzf /tmp/{os.path.basename(package_path)} "
+                        f"-C {config.get('install_path', '/opt/app')}",
+                    ]
+                )
+
+                scp_result = subprocess.run(scp_cmd, capture_output=True, text=True, timeout=300)
+                if scp_result.returncode != 0:
+                    result.success = False
+                    result.message = f"scp failed: {scp_result.stderr}"
+                    result.error = scp_result.stderr
+                    return result
+
+                ssh_result = subprocess.run(ssh_cmd, capture_output=True, text=True, timeout=300)
+                if ssh_result.returncode == 0:
+                    result.success = True
+                    result.message = f"Package deployed to {host}"
+                else:
+                    result.success = False
+                    result.message = f"Remote install failed: {ssh_result.stderr}"
+                    result.error = ssh_result.stderr
 
         except Exception as e:
             result.success = False
@@ -475,6 +519,10 @@ class DeploymentManager:
     ) -> DeploymentResult:
         """Rollback deployment on a single host.
 
+        Docker rollbacks pull and restart the previous image tag; package rollbacks
+        must have the previous artifact available (recorded on the original
+        deployment).  Nothing is reported as successful unless it actually happened.
+
         Args:
             host: Target host
             original_deployment: Original deployment info
@@ -485,23 +533,84 @@ class DeploymentManager:
         """
         result = DeploymentResult(host=host, success=False, message="")
 
+        config = original_deployment.deployment_config
+        method = config.get("_method", "docker")
+
         try:
-            # For Docker deployments, stop and remove current container
-            # In a real implementation, this would pull and start the previous version
-            container_name = original_deployment.deployment_config.get(
-                "container_name", "app"
-            )
+            if method == "docker":
+                original_image = config.get("_image") or config.get("image")
+                if not original_image:
+                    result.message = "Cannot rollback: original image not recorded"
+                    return result
 
-            stop_cmd = ["docker", "stop", container_name]
-            subprocess.run(stop_cmd, capture_output=True, text=True, timeout=30)
+                # Replace the tag with the rollback target version.
+                repo = original_image.rsplit(":", 1)[0] if ":" in original_image.rsplit("/", 1)[-1] else original_image
+                previous_image = f"{repo}:{rollback_to_version}"
 
-            remove_cmd = ["docker", "rm", container_name]
-            subprocess.run(remove_cmd, capture_output=True, text=True, timeout=30)
+                pull = subprocess.run(
+                    ["docker", "pull", previous_image],
+                    capture_output=True, text=True, timeout=300
+                )
+                if pull.returncode != 0:
+                    result.message = f"Failed to pull previous image {previous_image}: {pull.stderr}"
+                    result.error = pull.stderr
+                    return result
 
-            # Start previous version (simulated)
-            result.success = True
-            result.message = f"Rolled back to version {rollback_to_version} on {host}"
+                container_name = config.get("container_name", repo.split("/")[-1])
+                subprocess.run(["docker", "stop", container_name], capture_output=True, text=True, timeout=30)
+                subprocess.run(["docker", "rm", container_name], capture_output=True, text=True, timeout=30)
 
+                run_cmd = ["docker", "run", "-d", "--name", container_name]
+                for port_mapping in str(config.get("ports", "80:80")).split(","):
+                    run_cmd.extend(["-p", port_mapping.strip()])
+                for key, value in (config.get("environment", {}) or {}).items():
+                    run_cmd.extend(["-e", f"{key}={value}"])
+                volumes = config.get("volumes", "")
+                if volumes:
+                    for volume_mapping in str(volumes).split(","):
+                        run_cmd.extend(["-v", volume_mapping.strip()])
+                run_cmd.extend(["--restart", config.get("restart_policy", "unless-stopped")])
+                run_cmd.append(previous_image)
+
+                run_result = subprocess.run(run_cmd, capture_output=True, text=True, timeout=60)
+                if run_result.returncode != 0:
+                    result.message = f"Failed to start previous image: {run_result.stderr}"
+                    result.error = run_result.stderr
+                    return result
+
+                result.success = True
+                result.message = f"Rolled back to {previous_image} on {host}"
+
+            elif method == "package":
+                prev_artifacts = config.get("_previous_artifacts", {})
+                prev_artifact = prev_artifacts.get(rollback_to_version)
+                if not prev_artifact or not os.path.exists(prev_artifact):
+                    result.message = (
+                        f"Cannot rollback: previous artifact for version "
+                        f"{rollback_to_version} is not available"
+                    )
+                    return result
+
+                restore_path = config.get("install_path", "/opt/app")
+                extract = subprocess.run(
+                    ["tar", "-xzf", prev_artifact, "-C", restore_path],
+                    capture_output=True, text=True, timeout=300
+                )
+                if extract.returncode != 0:
+                    result.message = f"Failed to restore {prev_artifact}: {extract.stderr}"
+                    result.error = extract.stderr
+                    return result
+
+                result.success = True
+                result.message = f"Restored {prev_artifact} on {host}"
+            else:
+                result.message = f"Unknown deployment method: {method}"
+                return result
+
+        except subprocess.TimeoutExpired:
+            result.success = False
+            result.message = "Rollback timeout"
+            result.error = "Rollback timeout"
         except Exception as e:
             result.success = False
             result.message = f"Rollback error: {str(e)}"

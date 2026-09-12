@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from .config import Config
 from .dependency_scanner import Dependency, DependencyScanner, ScanMetadata
-from .grpc.server import DependencyManagementRPCServer
+from .grpc_service.server import DependencyManagementRPCServer
 from .update_manager import Conflict, UpdateManager, UpdateResult
 from .version_checker import OutdatedPackage, VersionChecker, Vulnerability
 

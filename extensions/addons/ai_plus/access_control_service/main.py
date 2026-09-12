@@ -17,7 +17,7 @@ from datetime import datetime
 from access_control_manager import AccessControlManager
 from policy_enforcer import PolicyEnforcer
 from permission_checker import PermissionChecker
-from grpc.server import serve as grpc_serve
+from grpc_service.server import serve as grpc_serve
 
 # Import storage
 from modules.storage.postgres.storage import PostgreSQLStorage

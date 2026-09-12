@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from .config import Config
-from .grpc.server import AutomatedTestingRPCServer
+from .grpc_service.server import AutomatedTestingRPCServer
 from .test_reporter import TestReporter
 from .test_runner import TestReport, TestRunner
 from .test_scheduler import TestSchedule, TestScheduler

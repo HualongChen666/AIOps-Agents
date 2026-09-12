@@ -3,10 +3,13 @@ Configuration Synchronizer - Handles configuration sync between environments
 """
 
 import json
+import logging
 import time
-from typing import Dict, List, Tuple, Optional
-from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple, Optional
+from dataclasses import dataclass, field
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 
 class SyncStrategy(Enum):
@@ -26,6 +29,11 @@ class SyncResult:
     source_env_id: str
     target_env_id: str
     sync_time: int
+    # Snapshot of the target values for ``synced_keys`` taken *before* the sync,
+    # enabling a faithful rollback.
+    previous_state: Dict[str, Any] = field(default_factory=dict)
+    # Which namespace was synchronised: "config" or "variables".
+    kind: str = "config"
 
 
 class ConfigSync:
@@ -111,6 +119,9 @@ class ConfigSync:
             else:
                 keys_to_sync = list(source_env.config.keys())
             
+            # Snapshot the target config *before* applying, so the sync can be rolled back.
+            pre_target_config = dict(target_env.config)
+
             # Perform sync based on strategy
             if strategy == SyncStrategy.OVERWRITE:
                 synced_keys, failed_keys = self._sync_overwrite(
@@ -134,7 +145,14 @@ class ConfigSync:
                     target_env_id=target_env_id,
                     sync_time=sync_time
                 )
-            
+
+            # Previous target values for the synced keys (for rollback).
+            previous_state = {
+                key: pre_target_config[key]
+                for key in synced_keys
+                if key in pre_target_config
+            }
+
             # Record sync history
             result = SyncResult(
                 success=len(failed_keys) == 0,
@@ -143,7 +161,8 @@ class ConfigSync:
                 failed_keys=failed_keys,
                 source_env_id=source_env_id,
                 target_env_id=target_env_id,
-                sync_time=sync_time
+                sync_time=sync_time,
+                previous_state=previous_state,
             )
             
             self.sync_history.append(result)
@@ -223,6 +242,21 @@ class ConfigSync:
         
         return synced_keys, failed_keys
     
+    @staticmethod
+    def _deep_merge(base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+        """Recursively merge ``override`` into ``base`` (override takes precedence)."""
+        merged = dict(base)
+        for key, value in override.items():
+            if (
+                key in merged
+                and isinstance(merged[key], dict)
+                and isinstance(value, dict)
+            ):
+                merged[key] = ConfigSync._deep_merge(merged[key], value)
+            else:
+                merged[key] = value
+        return merged
+
     def _sync_merge(
         self,
         source_env,
@@ -231,14 +265,17 @@ class ConfigSync:
         dry_run: bool
     ) -> Tuple[List[str], List[str]]:
         """
-        Merge source config into target config
-        
+        Merge source config into target config (source takes precedence).
+
+        Nested dictionaries are deep-merged; scalar values are replaced by the
+        source value.
+
         Args:
             source_env: Source environment
             target_env: Target environment
             keys: Keys to sync
             dry_run: If True, don't apply changes
-            
+
         Returns:
             Tuple of (synced_keys, failed_keys)
         """
@@ -248,13 +285,18 @@ class ConfigSync:
         for key in keys:
             try:
                 if key in source_env.config:
-                    # Merge: source takes precedence
+                    src_value = source_env.config[key]
+                    tgt_value = target_env.config.get(key)
+                    if isinstance(src_value, dict) and isinstance(tgt_value, dict):
+                        merged = self._deep_merge(tgt_value, src_value)
+                    else:
+                        merged = src_value
                     if not dry_run:
-                        target_env.config[key] = source_env.config[key]
+                        target_env.config[key] = merged
                     synced_keys.append(key)
                 else:
                     failed_keys.append(key)
-            except Exception as e:
+            except Exception:
                 failed_keys.append(key)
         
         if not dry_run and synced_keys:
@@ -353,7 +395,14 @@ class ConfigSync:
                 vars_to_sync = variable_keys
             else:
                 vars_to_sync = list(source_env.variables.keys())
-            
+
+            # Snapshot target variables before applying (for rollback).
+            pre_variables = {
+                key: dict(target_env.variables[key])
+                for key in vars_to_sync
+                if key in target_env.variables
+            }
+
             # Sync variables
             for key in vars_to_sync:
                 try:
@@ -394,7 +443,9 @@ class ConfigSync:
                 failed_keys=failed_keys,
                 source_env_id=source_env_id,
                 target_env_id=target_env_id,
-                sync_time=sync_time
+                sync_time=sync_time,
+                previous_state=pre_variables,
+                kind="variables",
             )
             
             self.sync_history.append(result)
@@ -454,29 +505,28 @@ class ConfigSync:
         
         differences = []
         for key in sorted(all_keys):
-            val1 = env1.config.get(key)
-            val2 = env2.config.get(key)
-            
-            if val1 != val2:
+            in_env1 = key in env1.config
+            in_env2 = key in env2.config
+            if in_env1 and not in_env2:
                 differences.append({
                     'key': key,
-                    'env1_value': val1,
-                    'env2_value': val2,
-                    'status': 'different'
+                    'env1_value': env1.config[key],
+                    'env2_value': None,
+                    'status': 'only_in_env1'
                 })
-            elif val1 is None:
+            elif in_env2 and not in_env1:
                 differences.append({
                     'key': key,
                     'env1_value': None,
-                    'env2_value': val2,
+                    'env2_value': env2.config[key],
                     'status': 'only_in_env2'
                 })
-            elif val2 is None:
+            elif env1.config[key] != env2.config[key]:
                 differences.append({
                     'key': key,
-                    'env1_value': val1,
-                    'env2_value': None,
-                    'status': 'only_in_env1'
+                    'env1_value': env1.config[key],
+                    'env2_value': env2.config[key],
+                    'status': 'different'
                 })
         
         return {
@@ -489,32 +539,44 @@ class ConfigSync:
     
     def rollback_sync(self, sync_result: SyncResult) -> bool:
         """
-        Rollback a sync operation by reversing the changes
-        
+        Rollback a sync operation by restoring the target's previous state.
+
+        The pre-sync values are captured on the ``SyncResult.previous_state``
+        field.  Keys that were newly introduced by the sync are removed.
+
         Args:
             sync_result: The sync result to rollback
-            
+
         Returns:
             True if rollback successful
         """
         try:
-            # Get the environments
-            source_env = self.environment_manager.get_environment(sync_result.source_env_id)
             target_env = self.environment_manager.get_environment(sync_result.target_env_id)
-            
-            if not source_env or not target_env:
+            if not target_env:
                 return False
-            
-            # This is a simplified rollback - in production, you'd want
-            # to store the previous state before sync
-            # For now, we'll just reverse the sync
-            for key in sync_result.synced_keys:
-                if key in source_env.config:
-                    # Revert target to original value (this is simplified)
-                    # In production, store original values before sync
-                    pass
-            
+
+            if sync_result.kind == "variables":
+                for key, var in sync_result.previous_state.items():
+                    self.environment_manager.set_variable(
+                        sync_result.target_env_id,
+                        key,
+                        var.get("value", ""),
+                        var.get("is_secret", False),
+                    )
+                for key in sync_result.synced_keys:
+                    if key not in sync_result.previous_state:
+                        self.environment_manager.delete_variable(sync_result.target_env_id, key)
+            else:
+                for key in sync_result.synced_keys:
+                    if key in sync_result.previous_state:
+                        target_env.config[key] = sync_result.previous_state[key]
+                    else:
+                        target_env.config.pop(key, None)
+                self.environment_manager.update_config(
+                    sync_result.target_env_id, target_env.config
+                )
+
             return True
         except Exception as e:
-            print(f"Rollback failed: {e}")
+            logger.error(f"Rollback failed: {e}", exc_info=True)
             return False
