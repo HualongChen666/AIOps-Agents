@@ -11504,3 +11504,15 @@ terraform/storage.tf
 - `api/plugin_marketplace_router.py` 与 `api/plugin_marketplace_advanced_router.py` **注册了重复的 openapi operationId**（`get_plugin_listings_api_v1_plugin_marketplace_plugins_get`、`install_plugin_...`），FastAPI 运行期告警；属重复实现，待合并（记入待办）。
 
 ## 待续（后续域，见 task #2–#10）
+
+## 域 2：数据库（task #2）— 勘察完成（写码待续）
+
+- 模板页实测 **15** 个（此前记 16，订正）：cache-optimization, connection-optimization, failover, health-monitoring, index-optimization, optimization-manager, optimization, performance-tuning, postgresql-shard, query-cache, query-optimization, read-write-routing, replication, sharding, slow-query。
+  （`database-advanced`、`database-monitoring` 非模板页，已有真实实现，不在本域。）
+- 真实后端（openapi 实测）：
+  - `/api/v1/database`（api/database_advanced_router.py，`PersistentStore` 落盘）：GET/POST `/optimization`、GET `/performance`、GET `/queries`、GET/POST `/indexes`、GET/POST `/backups`、GET/POST `/migrations`。
+  - `/api/v1/database-optimization`（api/database_optimization_router.py）：`/query-metrics[/{id}]`、`/analyze-query`、`/index-recommendations[/generate]`、`/optimization-tasks[/{id}/execute]`、`/database-statistics[/{table}/analyze]`、`/tuning-recommendations[/generate]`、`/performance-summary`。
+  - `/api/v1/database-monitoring`（api/database_monitoring_router.py）：`/config`(GET/PUT)、`/thresholds[/{metric}]`、`/baselines[/{name}]`、`/alert-rules[/{id}]`、`/status`、`/health`、`/establish-baseline`。
+- 映射：**10/15** 页可直连真实端点（cache-optimization / connection-optimization / query-cache / optimization / optimization-manager / performance-tuning / slow-query / query-optimization / index-optimization / health-monitoring）。
+- **无后端：5/15** 页（failover / postgresql-shard / read-write-routing / replication / sharding）——全库 openapi 无任何 shard/replication/failover/read-write-routing 端点（`grep -i routing` 仅命中 `alerts/routing`）。属基础设施高可用/分片拓扑，**需新建后端域**才真实 → 结构性/产品决策，记 **task #11**，不伪造。
+- 后端已发现缺陷（待修，属本域）：`database_advanced_router.get_indexes/get_backups` 在无数据时**回填硬编码示例**（`idx_users_email`、`production/full` 等）并写入 PersistentStore —— 属「伪种子数据」，违反无硬编码要求。
