@@ -108,7 +108,8 @@ class TestChaosExperiments:
                 "/api/v1/chaos/experiment/invalid_type",
                 json={}
             )
-            assert response.status_code == 200
+            # Declared contract is 400 for an invalid experiment type (not 200).
+            assert response.status_code == 400
             data = response.json()
             assert data["success"] is False
             assert "error" in data

@@ -4,6 +4,9 @@ Localization Resource API Router
 """
 
 from datetime import datetime
+import os
+import tempfile
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from loguru import logger
@@ -11,6 +14,56 @@ from loguru import logger
 from core.authentication import get_current_active_user
 
 router = APIRouter(prefix="/api/localization", tags=["Localization"])
+
+
+def _translation_io_roots() -> list[Path]:
+    """Allowed roots for translation import/export file paths.
+
+    The translations I/O endpoints must not allow writing/reading arbitrary
+    filesystem locations. Only the configured translations directory (or the
+    system temp dir, used for download/upload staging) are accepted.
+    """
+    base = Path(os.getenv("TRANSLATION_IO_DIR", "data/translations")).expanduser()
+    if not base.is_absolute():
+        base = Path.cwd() / base
+    roots = [base.resolve()]
+    try:
+        roots.append(Path(tempfile.gettempdir()).resolve())
+    except OSError:  # pragma: no cover - defensive
+        pass
+    return roots
+
+
+def _validate_translation_path(raw_path: str) -> str:
+    """Resolve and validate a translation file path against the allowed roots.
+
+    Rejects empty paths and any path that resolves outside the allowed roots
+    (the configured translations directory or the system temp dir used for
+    download/upload staging). Returns the resolved absolute path string.
+    """
+    if not raw_path or not raw_path.strip():
+        raise HTTPException(status_code=400, detail="文件路径不能为空")
+
+    candidate = Path(raw_path).expanduser()
+    resolved = (
+        candidate.resolve()
+        if candidate.is_absolute()
+        else (Path.cwd() / candidate).resolve()
+    )
+
+    for root in _translation_io_roots():
+        try:
+            resolved.relative_to(root)
+            break
+        except ValueError:
+            continue
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="文件路径不在允许的翻译目录内（禁止任意路径读写）",
+        )
+
+    return str(resolved)
 
 
 @router.get(
@@ -161,17 +214,18 @@ async def add_translation(language: str, namespace: str, key: str, value: str, u
 )
 async def export_translations(language: str, namespace: str, output_path: str, user=Depends(get_current_active_user)):
     """Export translations to JSON file"""
+    safe_output_path = _validate_translation_path(output_path)
     try:
         from core.localization_resource_manager import get_resource_manager
 
         manager = get_resource_manager()
-        success = manager.export_translations(language, namespace, output_path)
+        success = manager.export_translations(language, namespace, safe_output_path)
         return {
             "status": "success",
             "data": {
                 "language": language,
                 "namespace": namespace,
-                "output_path": output_path,
+                "output_path": safe_output_path,
                 "exported": success,
             },
             "timestamp": datetime.utcnow().isoformat(),
@@ -191,17 +245,18 @@ async def export_translations(language: str, namespace: str, output_path: str, u
 )
 async def import_translations(language: str, namespace: str, input_path: str, user=Depends(get_current_active_user)):
     """Import translations from JSON file"""
+    safe_input_path = _validate_translation_path(input_path)
     try:
         from core.localization_resource_manager import get_resource_manager
 
         manager = get_resource_manager()
-        success = manager.import_translations(language, namespace, input_path)
+        success = manager.import_translations(language, namespace, safe_input_path)
         return {
             "status": "success",
             "data": {
                 "language": language,
                 "namespace": namespace,
-                "input_path": input_path,
+                "input_path": safe_input_path,
                 "imported": success,
             },
             "timestamp": datetime.utcnow().isoformat(),

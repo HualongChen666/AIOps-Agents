@@ -364,27 +364,26 @@ def test_itsm_create_and_resolve(client, admin_headers, monkeypatch):
     monkeypatch.setattr(mod, "JIRA_TOKEN", "tok")
     monkeypatch.setitem(sys.modules, "httpx", None)
 
+    # Without httpx the external ITSM cannot be called -> honest 503, no fake success.
     r = client.post(
         "/api/itsm/incident?provider=servicenow",
         headers=admin_headers,
         json={"summary": "s", "description": "d"},
     )
-    assert r.status_code == 200
-    assert r.json()["status"] == "created"
+    assert r.status_code == 503
 
     r = client.post(
         "/api/itsm/incident?provider=jira",
         headers=admin_headers,
         json={"summary": "s"},
     )
-    assert r.status_code == 200
+    assert r.status_code == 503
 
     r = client.patch(
         "/api/itsm/incident/123?provider=servicenow",
         headers=admin_headers,
     )
-    assert r.status_code == 200
-    assert r.json()["status"] == "resolved"
+    assert r.status_code == 503
 
 
 def test_itsm_errors(client, admin_headers, monkeypatch):

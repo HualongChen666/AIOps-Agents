@@ -23,6 +23,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _require_remote_bearer(request: Request) -> None:
+    """Enforce Bearer authentication for non-local callers (fail-closed).
+
+    Local loopback callers are exempt. Any other client must present a
+    ``Authorization: Bearer <token>`` header; otherwise a 401 is raised.
+    """
+    client_host = get_client_ip(request)
+    if client_host in ALLOWED_LOCAL_IPS:
+        return
+    token = request.headers.get("Authorization", "")
+    if not isinstance(token, str) or not token.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Remote access requires Bearer token")
+
+
 @router.get(
     "/api/v1/health/ping",
     tags=["Health"],
@@ -49,11 +63,8 @@ async def ping(request: Request) -> dict:
         HTTPException: 如果远程访问未提供Bearer token（401）
     """
     client_host = get_client_ip(request)
-    # 本地回环无需认证
-    if client_host not in ALLOWED_LOCAL_IPS:
-        token = request.headers.get("Authorization", "")
-        if not token.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Remote access requires Bearer token")
+    # 本地回环无需认证，远程访问需要 Bearer token
+    _require_remote_bearer(request)
 
     return create_timestamp_response(data={"status": "alive", "client": client_host})
 
@@ -226,15 +237,11 @@ async def detailed_health(request: Request) -> dict:
         - 503: Service unavailable
     """
     try:
-        client_host = get_client_ip(request)
-        # 允许本地回环地址无需认证
-        if client_host in ALLOWED_LOCAL_IPS:
-            return get_detailed_health()
-
-        # 远程访问需要认证
-        # Note: Depends should be used in function signature, not in body
-        # This is a simplified check - in production, use proper dependency injection
+        # 本地回环无需认证，远程访问需要 Bearer token
+        _require_remote_bearer(request)
         return get_detailed_health()
+    except HTTPException:
+        raise
     except Exception as e:
         handle_service_error(
             e, "Detailed health check", status_code=status.HTTP_503_SERVICE_UNAVAILABLE
@@ -296,15 +303,11 @@ async def trigger_health_check(request: Request) -> dict:
         - 503: Service unavailable
     """
     try:
-        client_host = get_client_ip(request)
-        # 允许本地回环地址无需认证
-        if client_host in ALLOWED_LOCAL_IPS:
-            return await perform_health_checks()
-
-        # 远程访问需要认证
-        # Note: Depends should be used in function signature, not in body
-        # This is a simplified check - in production, use proper dependency injection
+        # 本地回环无需认证，远程访问需要 Bearer token
+        _require_remote_bearer(request)
         return await perform_health_checks()
+    except HTTPException:
+        raise
     except Exception as e:
         handle_service_error(
             e, "Health check trigger", status_code=status.HTTP_503_SERVICE_UNAVAILABLE

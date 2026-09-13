@@ -40,6 +40,33 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/alerts", tags=["告警管理"])
 
 
+def _parse_metric_timestamp(value: Any) -> datetime:
+    """Parse a METRICS_HISTORY timestamp into a datetime.
+
+    The metrics ring buffer stores either ``%H:%M:%S`` (legacy push) or full
+    ISO-8601 timestamps (push_metric). Previously only ``%H:%M:%S`` was
+    accepted, so any dated timestamp was silently dropped and the endpoint
+    falsely reported "历史数据不足".
+    """
+    if isinstance(value, datetime):
+        return value
+    text = str(value).strip()
+    if not text:
+        raise ValueError("empty timestamp")
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        pass
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S"):
+        try:
+            return datetime.strptime(text, fmt)
+        except ValueError:
+            continue
+    # Time-only strings: anchor to today so ordering stays meaningful.
+    parsed = datetime.strptime(text, "%H:%M:%S").time()
+    return datetime.combine(datetime.now().date(), parsed)
+
+
 class RoutingRule(BaseModel):
     """告警路由规则模型.
 
@@ -446,7 +473,7 @@ async def predict_alert_trend(request: TrendPredictionRequest) -> dict[str, Any]
         raise HTTPException(status_code=400, detail=f"指标 {request.metric_name} 数据不完整")
     for ts, val in zip(timestamps, values):
         try:
-            dt = datetime.strptime(ts, "%H:%M:%S")
+            dt = _parse_metric_timestamp(ts)
             historical_data.append((dt, float(val)))
         except (ValueError, TypeError):
             continue

@@ -260,7 +260,7 @@ def test_itsm_create_incident_jira_missing_config(client, admin_headers, monkeyp
 
 
 def test_itsm_create_incident_jira_failure(client, admin_headers, monkeypatch):
-    """Jira API failure returns local record."""
+    """Jira API failure is reported as 502 (the ticket was NOT created)."""
     _patch_httpx_for_itsm(monkeypatch, 500, {"error": "server error"})
     monkeypatch.setattr(api.itsm_router, "JIRA_URL", "https://jira.example")
     monkeypatch.setattr(api.itsm_router, "JIRA_TOKEN", "token")
@@ -270,14 +270,12 @@ def test_itsm_create_incident_jira_failure(client, admin_headers, monkeypatch):
         params={"provider": "jira"},
         json={"summary": "test", "description": "test"},
     )
-    assert resp.status_code in (200, 404)
-    body = resp.json()
-    assert body["status"] == "created"
-    assert "本地记录" in body["message"]
+    assert resp.status_code == 502
+    assert "Jira" in resp.text
 
 
 def test_itsm_create_incident_servicenow_failure(client, admin_headers, monkeypatch):
-    """ServiceNow API failure returns local record."""
+    """ServiceNow API failure is reported as 502 (the ticket was NOT created)."""
     _patch_httpx_for_itsm(monkeypatch, 500, {"error": "server error"})
     monkeypatch.setattr(api.itsm_router, "SERVICE_NOW_URL", "https://snow.example")
     monkeypatch.setattr(api.itsm_router, "SERVICE_NOW_TOKEN", "token")
@@ -287,14 +285,12 @@ def test_itsm_create_incident_servicenow_failure(client, admin_headers, monkeypa
         params={"provider": "servicenow"},
         json={"summary": "test", "description": "test"},
     )
-    assert resp.status_code in (200, 404)
-    body = resp.json()
-    assert body["status"] == "created"
-    assert "本地记录" in body["message"]
+    assert resp.status_code == 502
+    assert "ServiceNow" in resp.text
 
 
 def test_itsm_create_incident_exception(client, admin_headers, monkeypatch):
-    """Exception in create_incident returns local record."""
+    """Exception in create_incident is surfaced as 502 (no fake success)."""
 
     def _raise_error(*args, **kwargs):
         raise Exception("Network error")
@@ -308,10 +304,8 @@ def test_itsm_create_incident_exception(client, admin_headers, monkeypatch):
         params={"provider": "servicenow"},
         json={"summary": "test", "description": "test"},
     )
-    assert resp.status_code != 404, resp.text
-    body = resp.json()
-    assert body["status"] == "created"
-    assert "本地记录" in body["message"]
+    assert resp.status_code == 502
+    assert "工单未创建" in resp.text
 
 
 def test_itsm_resolve_incident_servicenow_missing_config(client, admin_headers, monkeypatch):
@@ -374,7 +368,7 @@ def test_itsm_resolve_incident_jira_success(client, admin_headers, monkeypatch):
 
 
 def test_itsm_resolve_incident_jira_failure(client, admin_headers, monkeypatch):
-    """Jira API failure returns local record."""
+    """Jira API failure is reported as 502 (the ticket was NOT closed)."""
     _patch_httpx_for_itsm(monkeypatch, 500, {"error": "server error"})
     monkeypatch.setattr(api.itsm_router, "JIRA_URL", "https://jira.example")
     monkeypatch.setattr(api.itsm_router, "JIRA_TOKEN", "token")
@@ -383,10 +377,8 @@ def test_itsm_resolve_incident_jira_failure(client, admin_headers, monkeypatch):
         headers=admin_headers,
         params={"provider": "jira"},
     )
-    assert resp.status_code in (200, 404)
-    body = resp.json()
-    assert body["status"] == "resolved"
-    assert "本地记录" in body["message"]
+    assert resp.status_code == 502
+    assert "Jira" in resp.text
 
 
 def test_itsm_resolve_incident_servicenow_success(client, admin_headers, monkeypatch):
@@ -406,7 +398,7 @@ def test_itsm_resolve_incident_servicenow_success(client, admin_headers, monkeyp
 
 
 def test_itsm_resolve_incident_servicenow_failure(client, admin_headers, monkeypatch):
-    """ServiceNow API failure returns local record."""
+    """ServiceNow API failure is reported as 502 (the ticket was NOT closed)."""
     _patch_httpx_for_itsm(monkeypatch, 500, {"error": "server error"})
     monkeypatch.setattr(api.itsm_router, "SERVICE_NOW_URL", "https://snow.example")
     monkeypatch.setattr(api.itsm_router, "SERVICE_NOW_TOKEN", "token")
@@ -415,14 +407,12 @@ def test_itsm_resolve_incident_servicenow_failure(client, admin_headers, monkeyp
         headers=admin_headers,
         params={"provider": "servicenow"},
     )
-    assert resp.status_code in (200, 404)
-    body = resp.json()
-    assert body["status"] == "resolved"
-    assert "本地记录" in body["message"]
+    assert resp.status_code == 502
+    assert "ServiceNow" in resp.text
 
 
 def test_itsm_resolve_incident_exception(client, admin_headers, monkeypatch):
-    """Exception in resolve_incident returns local record."""
+    """Exception in resolve_incident is surfaced as 502 (no fake success)."""
 
     def _raise_error(*args, **kwargs):
         raise Exception("Network error")
@@ -435,10 +425,8 @@ def test_itsm_resolve_incident_exception(client, admin_headers, monkeypatch):
         headers=admin_headers,
         params={"provider": "servicenow"},
     )
-    assert resp.status_code != 404, resp.text
-    body = resp.json()
-    assert body["status"] == "resolved"
-    assert "本地记录" in body["message"]
+    assert resp.status_code == 502
+    assert "工单未关闭" in resp.text
 
 
 # ---------------------------------------------------------------------------

@@ -35,7 +35,9 @@ JIRA_TOKEN = os.getenv("JIRA_TOKEN")
             },
         },
         400: {"description": "不支持的ITSM提供商"},
-        500: {"description": "配置未完成或创建失败"},
+        500: {"description": "ITSM 配置未完成"},
+        502: {"description": "外部 ITSM 工单创建失败（工单未真正创建）"},
+        503: {"description": "httpx 未安装，无法调用外部 ITSM"},
     },
 )
 async def create_incident(data: Dict, provider: str = "servicenow") -> Dict[str, Any]:
@@ -48,16 +50,22 @@ async def create_incident(data: Dict, provider: str = "servicenow") -> Dict[str,
             raise HTTPException(status_code=500, detail="Jira 配置未完成")
     else:
         raise HTTPException(status_code=400, detail="Unsupported ITSM provider")
+
+    import uuid
+
     try:
-        import uuid
+        import httpx
+    except ImportError:
+        httpx = None  # type: ignore
 
-        try:
-            import httpx
-        except ImportError:
-            httpx = None  # type: ignore
-
-        incident_id = str(uuid.uuid4())
-        if httpx and provider.lower() == "jira" and JIRA_URL and JIRA_TOKEN:
+    incident_id = str(uuid.uuid4())
+    try:
+        if provider.lower() == "jira":
+            if httpx is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="httpx 未安装，无法调用外部 Jira；工单未创建",
+                )
             async with httpx.AsyncClient() as client:
                 payload = {
                     "fields": {
@@ -83,51 +91,55 @@ async def create_incident(data: Dict, provider: str = "servicenow") -> Dict[str,
                         "provider": provider,
                         "incident_id": resp_data.get("key", incident_id),
                         "message": "工单创建成功",
+                        "external_created": True,
                     }
-                logger.warning(f"Jira create incident failed: {resp.status_code} {resp.text}")
-
-        elif httpx and provider.lower() == "servicenow" and SERVICE_NOW_URL and SERVICE_NOW_TOKEN:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    f"{SERVICE_NOW_URL.rstrip('/')}/api/now/table/incident",
-                    json={
-                        "short_description": data.get("summary", "Auto-created incident"),
-                        "description": data.get("description", ""),
-                        "urgency": data.get("urgency", "3"),
-                    },
-                    headers={
-                        "Authorization": f"Basic {SERVICE_NOW_TOKEN}",
-                        "Content-Type": "application/json",
-                    },
-                    timeout=30,
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Jira 工单创建失败：{resp.status_code} {resp.text}",
                 )
-                if resp.status_code in (200, 201):
-                    resp_data = resp.json()
-                    result = resp_data.get("result", {})
-                    return {
-                        "status": "created",
-                        "provider": provider,
-                        "incident_id": result.get("sys_id", incident_id),
-                        "message": "工单创建成功",
-                    }
-                msg = f"ServiceNow create incident failed: {resp.status_code} {resp.text}"
-                logger.warning(msg)
 
-        return {
-            "status": "created",
-            "provider": provider,
-            "incident_id": incident_id,
-            "message": "工单创建成功（本地记录，未实际调用外部ITSM）",
-        }
+        # ServiceNow
+        if httpx is None:
+            raise HTTPException(
+                status_code=503,
+                detail="httpx 未安装，无法调用外部 ServiceNow；工单未创建",
+            )
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"{SERVICE_NOW_URL.rstrip('/')}/api/now/table/incident",
+                json={
+                    "short_description": data.get("summary", "Auto-created incident"),
+                    "description": data.get("description", ""),
+                    "urgency": data.get("urgency", "3"),
+                },
+                headers={
+                    "Authorization": f"Basic {SERVICE_NOW_TOKEN}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+            if resp.status_code in (200, 201):
+                resp_data = resp.json()
+                result = resp_data.get("result", {})
+                return {
+                    "status": "created",
+                    "provider": provider,
+                    "incident_id": result.get("sys_id", incident_id),
+                    "message": "工单创建成功",
+                    "external_created": True,
+                }
+            raise HTTPException(
+                status_code=502,
+                detail=f"ServiceNow 工单创建失败：{resp.status_code} {resp.text}",
+            )
+    except HTTPException:
+        raise
     except Exception as exc:
-        msg = f"External ITSM create failed for {provider}: {exc}; returning local record"
-        logger.warning(msg)
-        return {
-            "status": "created",
-            "provider": provider,
-            "incident_id": incident_id,
-            "message": "工单创建成功（本地记录，未实际调用外部ITSM）",
-        }
+        logger.warning(f"External ITSM create failed for {provider}: {exc}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"外部 ITSM 工单创建失败（{provider}）：{exc}；工单未创建",
+        )
 
 
 @router.patch(
@@ -148,7 +160,9 @@ async def create_incident(data: Dict, provider: str = "servicenow") -> Dict[str,
             },
         },
         400: {"description": "不支持的ITSM提供商"},
-        500: {"description": "配置未完成或关闭失败"},
+        500: {"description": "ITSM 配置未完成"},
+        502: {"description": "外部 ITSM 工单关闭失败（工单未真正关闭）"},
+        503: {"description": "httpx 未安装，无法调用外部 ITSM"},
     },
 )
 async def resolve_incident(incident_id: str, provider: str = "servicenow") -> Dict[str, Any]:
@@ -162,12 +176,17 @@ async def resolve_incident(incident_id: str, provider: str = "servicenow") -> Di
     else:
         raise HTTPException(status_code=400, detail="Unsupported ITSM provider")
     try:
-        try:
-            import httpx
-        except ImportError:
-            httpx = None  # type: ignore
+        import httpx
+    except ImportError:
+        httpx = None  # type: ignore
 
-        if httpx and provider.lower() == "jira" and JIRA_URL and JIRA_TOKEN:
+    try:
+        if provider.lower() == "jira":
+            if httpx is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="httpx 未安装，无法调用外部 Jira；工单未关闭",
+                )
             async with httpx.AsyncClient() as client:
                 resp = await client.post(
                     f"{JIRA_URL.rstrip('/')}/rest/api/2/issue/{incident_id}/transitions",
@@ -184,48 +203,50 @@ async def resolve_incident(incident_id: str, provider: str = "servicenow") -> Di
                         "provider": provider,
                         "incident_id": incident_id,
                         "message": "工单已关闭",
+                        "external_updated": True,
                     }
-                logger.warning(f"Jira resolve incident failed: {resp.status_code} {resp.text}")
-
-        elif httpx and provider.lower() == "servicenow" and SERVICE_NOW_URL and SERVICE_NOW_TOKEN:
-            async with httpx.AsyncClient() as client:
-                resp = await client.put(
-                    f"{SERVICE_NOW_URL.rstrip('/')}/api/now/table/incident/{incident_id}",
-                    json={
-                        "state": "6",
-                        "close_code": "Resolved",
-                        "close_notes": "Closed by AIOps",
-                    },
-                    headers={
-                        "Authorization": f"Basic {SERVICE_NOW_TOKEN}",
-                        "Content-Type": "application/json",
-                    },
-                    timeout=30,
-                )
-                if resp.status_code in (200, 201, 204):
-                    return {
-                        "status": "resolved",
-                        "provider": provider,
-                        "incident_id": incident_id,
-                        "message": "工单已关闭",
-                    }
-                logger.warning(
-                    f"ServiceNow resolve incident failed: {resp.status_code} {resp.text}"
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Jira 工单关闭失败：{resp.status_code} {resp.text}",
                 )
 
-        return {
-            "status": "resolved",
-            "provider": provider,
-            "incident_id": incident_id,
-            "message": "工单已关闭（本地记录，未实际调用外部ITSM）",
-        }
+        # ServiceNow
+        if httpx is None:
+            raise HTTPException(
+                status_code=503,
+                detail="httpx 未安装，无法调用外部 ServiceNow；工单未关闭",
+            )
+        async with httpx.AsyncClient() as client:
+            resp = await client.put(
+                f"{SERVICE_NOW_URL.rstrip('/')}/api/now/table/incident/{incident_id}",
+                json={
+                    "state": "6",
+                    "close_code": "Resolved",
+                    "close_notes": "Closed by AIOps",
+                },
+                headers={
+                    "Authorization": f"Basic {SERVICE_NOW_TOKEN}",
+                    "Content-Type": "application/json",
+                },
+                timeout=30,
+            )
+            if resp.status_code in (200, 201, 204):
+                return {
+                    "status": "resolved",
+                    "provider": provider,
+                    "incident_id": incident_id,
+                    "message": "工单已关闭",
+                    "external_updated": True,
+                }
+            raise HTTPException(
+                status_code=502,
+                detail=f"ServiceNow 工单关闭失败：{resp.status_code} {resp.text}",
+            )
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.warning(
-            f"External ITSM resolve failed for {provider}: {exc}; returning local record"
+        logger.warning(f"External ITSM resolve failed for {provider}: {exc}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"外部 ITSM 工单关闭失败（{provider}）：{exc}；工单未关闭",
         )
-        return {
-            "status": "resolved",
-            "provider": provider,
-            "incident_id": incident_id,
-            "message": "工单已关闭（本地记录，未实际调用外部ITSM）",
-        }

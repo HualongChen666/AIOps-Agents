@@ -254,10 +254,9 @@ async def export_proto_file(service_name: str):
 
         manager = get_grpc_service_manager()
 
-        if service_name not in manager.services:
+        service = manager.get_service(service_name)
+        if service is None:
             raise HTTPException(status_code=404, detail="Service not found")
-
-        service = manager.services[service_name]
 
         return {
             "status": "success",
@@ -295,10 +294,9 @@ async def export_python_file(service_name: str):
 
         manager = get_grpc_service_manager()
 
-        if service_name not in manager.services:
+        service = manager.get_service(service_name)
+        if service is None:
             raise HTTPException(status_code=404, detail="Service not found")
-
-        service = manager.services[service_name]
 
         return {
             "status": "success",
@@ -367,11 +365,11 @@ async def get_grpc_service(service_name: str):
 
         manager = get_grpc_service_manager()
 
-        if service_name not in manager.services:
+        service = manager.get_service(service_name)
+        if service is None:
             raise HTTPException(status_code=404, detail="Service not found")
 
-        service = manager.services[service_name]
-        methods = manager.methods.get(service_name, [])
+        methods = manager.get_service_methods(service_name)
 
         return {
             "status": "success",
@@ -425,15 +423,8 @@ async def delete_grpc_service(service_name: str):
 
         manager = get_grpc_service_manager()
 
-        if service_name not in manager.services:
+        if not manager.delete_service(service_name):
             raise HTTPException(status_code=404, detail="Service not found")
-
-        del manager.services[service_name]
-        if service_name in manager.methods:
-            del manager.methods[service_name]
-        manager.total_services_defined -= 1
-
-        logger.info(f"Deleted gRPC service: {service_name}")
 
         return {
             "status": "success",
@@ -473,7 +464,8 @@ async def update_service_status(service_name: str, status: str):
 
         manager = get_grpc_service_manager()
 
-        if service_name not in manager.services:
+        service = manager.get_service(service_name)
+        if service is None:
             raise HTTPException(status_code=404, detail="Service not found")
 
         valid_statuses = [s.value for s in ServiceStatus]
@@ -482,7 +474,6 @@ async def update_service_status(service_name: str, status: str):
                 status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}"
             )
 
-        service = manager.services[service_name]
         service.status = ServiceStatus(status)
 
         logger.info(f"Updated gRPC service status: {service_name} -> {status}")

@@ -638,7 +638,13 @@ def test_health_ready_performance(client):
 @pytest.mark.benchmark
 def test_health_detailed_performance(client):
     """Test detailed health endpoint performance"""
-    metrics = run_sequential_requests(client, "GET", "/api/v1/health/detailed", num_requests=50)
+    metrics = run_sequential_requests(
+        client,
+        "GET",
+        "/api/v1/health/detailed",
+        num_requests=50,
+        headers={"Authorization": "Bearer perf-benchmark-token"},
+    )
 
     # Assert performance benchmarks
     assert metrics.p50 < PERFORMANCE_BENCHMARKS["p50_ms"], f"P50 {metrics.p50}ms exceeds benchmark"

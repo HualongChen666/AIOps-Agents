@@ -432,6 +432,7 @@ async def search_linux_logs(
     host_config: dict[str, Any],
     keyword: str,
     newest: int = 100,
+    case_sensitive: bool = False,
 ) -> list[dict[str, Any]]:
     """
     在 Linux 系统日志中按关键词搜索
@@ -439,6 +440,8 @@ async def search_linux_logs(
     🔧 R2-1:keyword 增强过滤
     🔧 R2-2:复用主机 Semaphore
     🔧 R2-7:grep 命令链增加 head 防止内存溢出
+    🔧 LG6:case_sensitive=True 时改用 grep(Linux 默认区分大小写),
+              False 时沿用 grep -i(忽略大小写)
     """
     if not isinstance(host_config, dict):
         logger.error("search_linux_logs: host_config 非 dict")
@@ -454,12 +457,14 @@ async def search_linux_logs(
     # 🔧 R2-4:钳制 newest
     safe_newest = _clamp_newest(newest, default=100)
 
+    grep_flag = "" if case_sensitive else "-i "
+
     # 🔧 R2-7:grep 搜索时增加 head -n 防爆
     # 使用 || 短路:某个文件不存在时降级到下一个
     cmd = (
-        f"( grep -i '{safe_keyword}' /var/log/syslog 2>/dev/null "
-        f"|| grep -i '{safe_keyword}' /var/log/messages 2>/dev/null "
-        f"|| journalctl --no-pager 2>/dev/null | grep -i '{safe_keyword}' "
+        f"( grep {grep_flag}'{safe_keyword}' /var/log/syslog 2>/dev/null "
+        f"|| grep {grep_flag}'{safe_keyword}' /var/log/messages 2>/dev/null "
+        f"|| journalctl --no-pager 2>/dev/null | grep {grep_flag}'{safe_keyword}' "
         f") | head -n {safe_newest}"
     )
 

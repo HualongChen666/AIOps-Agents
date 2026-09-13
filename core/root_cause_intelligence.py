@@ -436,6 +436,47 @@ class RootCauseIntelligenceEngine:
             distribution[node.health_status] += 1
         return dict(distribution)
 
+    # ------------------------------------------------------------------
+    # Public accessors — stable encapsulation boundary for API consumers
+    # (see api/root_cause_router.py). They must not be bypassed by touching
+    # the internal ``topology_graph`` / ``active_hypotheses`` attributes.
+    # ------------------------------------------------------------------
+    def get_topology_summary(self) -> Dict[str, Any]:
+        """Public snapshot of the current topology summary."""
+        return self._get_topology_summary()
+
+    def list_topology_nodes(self) -> Dict[str, Dict[str, Any]]:
+        """Public serialisable snapshot of the current topology nodes."""
+        return {
+            node_id: {
+                "name": node.name,
+                "layer": node.layer.value,
+                "health_status": node.health_status,
+                "dependencies": list(node.dependencies),
+                "dependents": list(node.dependents),
+                "last_updated": node.last_updated.isoformat(),
+            }
+            for node_id, node in self.topology_graph.items()
+        }
+
+    def get_hypothesis(self, hypothesis_id: str) -> Optional[RootCauseHypothesis]:
+        """Return the active hypothesis with ``hypothesis_id`` (or None)."""
+        return self.active_hypotheses.get(hypothesis_id)
+
+    def list_active_hypotheses(self) -> List[RootCauseHypothesis]:
+        """Return active hypotheses ordered by descending confidence."""
+        return sorted(
+            self.active_hypotheses.values(), key=lambda h: h.confidence, reverse=True
+        )
+
+    def remove_hypothesis(self, hypothesis_id: str) -> bool:
+        """Move an active hypothesis to history. False if it does not exist."""
+        hypothesis = self.active_hypotheses.pop(hypothesis_id, None)
+        if hypothesis is None:
+            return False
+        self.hypothesis_history.append(hypothesis)
+        return True
+
     async def perform_cross_layer_tracking(
         self, alert: Dict[str, Any], max_depth: int = 5
     ) -> List[str]:

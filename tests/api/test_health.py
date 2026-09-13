@@ -147,11 +147,12 @@ def test_detailed_health_local_ip_bypass(client):
 
 
 def test_detailed_health_no_client_info():
-    """Test detailed health when request.client is None (covers line 230 else branch)."""
+    """Test detailed health rejects callers with unknown client address (fail-closed)."""
     import asyncio
     from unittest.mock import MagicMock
 
-    from fastapi import Request
+    import pytest
+    from fastapi import HTTPException, Request
 
     from api.health_router import detailed_health
 
@@ -159,22 +160,28 @@ def test_detailed_health_no_client_info():
     mock_request = MagicMock(spec=Request)
     mock_request.client = None
 
-    # Call the endpoint directly (it's async)
-    result = asyncio.run(detailed_health(mock_request))
-    # Should return health data
-    assert isinstance(result, dict)
+    # Unknown client origin is treated as remote and must authenticate
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(detailed_health(mock_request))
+    assert excinfo.value.status_code == 401
 
 
-def test_detailed_health_exception_handling(client):
+def test_detailed_health_exception_handling(client, admin_headers):
     """Test detailed health endpoint returns 503 on exception (covers lines 238-240)."""
     with patch("api.health_router.get_detailed_health") as mock_detailed:
         mock_detailed.side_effect = Exception("Simulated detailed health check failure")
-        resp = client.get("/api/v1/health/detailed")
+        resp = client.get("/api/v1/health/detailed", headers=admin_headers)
         assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()
         error_msg = data.get("error", {}).get("message", "")
         assert "Detailed health check service unavailable" in error_msg
+
+
+def test_detailed_health_remote_without_token_is_rejected(client):
+    """Un-authenticated remote callers must not reach the detailed health probe."""
+    resp = client.get("/api/v1/health/detailed")
+    assert resp.status_code == 401
 
 
 def test_trigger_health_check_with_auth(client, admin_headers):
@@ -220,11 +227,12 @@ def test_trigger_health_check_local_ip_bypass(client):
 
 
 def test_trigger_health_check_no_client_info():
-    """Test trigger health check when request.client is None (covers line 301 else branch)."""
+    """Test trigger health check rejects callers with unknown client address (fail-closed)."""
     import asyncio
-    from unittest.mock import AsyncMock, MagicMock
+    from unittest.mock import MagicMock
 
-    from fastapi import Request
+    import pytest
+    from fastapi import HTTPException, Request
 
     from api.health_router import trigger_health_check
 
@@ -232,25 +240,16 @@ def test_trigger_health_check_no_client_info():
     mock_request = MagicMock(spec=Request)
     mock_request.client = None
 
-    # Mock perform_health_checks to return a valid result
-    with patch("api.health_router.perform_health_checks", new_callable=AsyncMock) as mock_health:
-        mock_health.return_value = {
-            "status": "healthy",
-            "timestamp": "2026-08-18T00:00:00Z",
-            "checks": {},
-        }
-
-        # Call the endpoint directly
-        result = asyncio.run(trigger_health_check(mock_request))
-        # Should return health data
-        assert isinstance(result, dict)
+    with pytest.raises(HTTPException) as excinfo:
+        asyncio.run(trigger_health_check(mock_request))
+    assert excinfo.value.status_code == 401
 
 
-def test_trigger_health_check_exception_handling(client):
+def test_trigger_health_check_exception_handling(client, admin_headers):
     """Test trigger health check returns 503 on exception (covers lines 309-311)."""
     with patch("api.health_router.perform_health_checks") as mock_health:
         mock_health.side_effect = Exception("Simulated health check trigger failure")
-        resp = client.post("/api/v1/health/check")
+        resp = client.post("/api/v1/health/check", headers=admin_headers)
         assert resp.status_code != 404, resp.text
         if resp.status_code != 404:
             data = resp.json()

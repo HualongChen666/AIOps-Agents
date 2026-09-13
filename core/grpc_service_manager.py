@@ -455,6 +455,30 @@ message {message_name} {{
             ],
         }
 
+    def get_service(self, service_name: str) -> Optional[GRPCService]:
+        """Return the registered service with ``service_name`` (or None)."""
+        return self.services.get(service_name)
+
+    def get_service_methods(self, service_name: str) -> List[GRPCMethod]:
+        """Return the methods registered for ``service_name``."""
+        return list(self.methods.get(service_name, []))
+
+    def delete_service(self, service_name: str) -> bool:
+        """Delete a service together with its methods and counters.
+
+        Keeps ``services``/``methods``/``total_services_defined`` in sync so
+        callers never have to mutate internal containers directly.
+        """
+        if service_name not in self.services:
+            return False
+        service = self.services.pop(service_name)
+        methods = self.methods.pop(service_name, [])
+        method_count = len(methods)
+        self.total_services_defined = max(0, self.total_services_defined - 1)
+        self.total_methods_defined = max(0, self.total_methods_defined - method_count)
+        logger.info(f"Deleted gRPC service {service.service_name} ({method_count} methods)")
+        return True
+
     def export_proto_file(self, service_name: str, filename: str) -> None:
         """
         Export proto file

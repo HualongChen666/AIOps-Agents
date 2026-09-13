@@ -119,21 +119,11 @@ async def get_topology_structure() -> dict[str, Any]:
     """
     if not ROOT_CAUSE_INTELLIGENCE_AVAILABLE:
         raise HTTPException(status_code=503, detail="根因智能引擎不可用")
-    topology_summary: dict[str, Any] = root_cause_intelligence_engine._get_topology_summary()
+    topology_summary: dict[str, Any] = root_cause_intelligence_engine.get_topology_summary()
     return {
         "status": "success",
         "topology": topology_summary,
-        "nodes": {
-            node_id: {
-                "name": node.name,
-                "layer": node.layer.value,
-                "health_status": node.health_status,
-                "dependencies": list(node.dependencies),
-                "dependents": list(node.dependents),
-                "last_updated": node.last_updated.isoformat(),
-            }
-            for node_id, node in root_cause_intelligence_engine.topology_graph.items()
-        },
+        "nodes": root_cause_intelligence_engine.list_topology_nodes(),
     }
 
 
@@ -310,7 +300,7 @@ async def verify_root_cause_hypothesis(request: VerificationRequest) -> dict[str
     """
     if not ROOT_CAUSE_INTELLIGENCE_AVAILABLE:
         raise HTTPException(status_code=503, detail="根因智能引擎不可用")
-    hypothesis = root_cause_intelligence_engine.active_hypotheses.get(request.hypothesis_id)
+    hypothesis = root_cause_intelligence_engine.get_hypothesis(request.hypothesis_id)
     if not hypothesis:
         raise HTTPException(status_code=404, detail=f"假设 {request.hypothesis_id} 不存在")
     verification_result: dict[str, Any] = await root_cause_intelligence_engine.verify_root_cause(
@@ -337,8 +327,7 @@ async def get_active_hypotheses(limit: int = Query(default=20, ge=1, le=100)) ->
     """
     if not ROOT_CAUSE_INTELLIGENCE_AVAILABLE:
         raise HTTPException(status_code=503, detail="根因智能引擎不可用")
-    hypotheses: List[Any] = list(root_cause_intelligence_engine.active_hypotheses.values())
-    hypotheses.sort(key=lambda h: h.confidence, reverse=True)
+    hypotheses: List[Any] = root_cause_intelligence_engine.list_active_hypotheses()
     return {
         "status": "success",
         "total_hypotheses": len(hypotheses),
@@ -367,8 +356,6 @@ async def delete_hypothesis(hypothesis_id: str) -> dict[str, Any]:
     """
     if not ROOT_CAUSE_INTELLIGENCE_AVAILABLE:
         raise HTTPException(status_code=503, detail="根因智能引擎不可用")
-    if hypothesis_id not in root_cause_intelligence_engine.active_hypotheses:
+    if not root_cause_intelligence_engine.remove_hypothesis(hypothesis_id):
         raise HTTPException(status_code=404, detail=f"假设 {hypothesis_id} 不存在")
-    hypothesis = root_cause_intelligence_engine.active_hypotheses.pop(hypothesis_id)
-    root_cause_intelligence_engine.hypothesis_history.append(hypothesis)
     return {"status": "success", "message": f"假设 {hypothesis_id} 已删除并移至历史记录"}

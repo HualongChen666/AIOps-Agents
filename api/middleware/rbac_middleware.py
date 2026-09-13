@@ -229,6 +229,25 @@ class RBACMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Could not validate credentials"},
             )
 
+        # Reject revoked (logged-out) tokens even if they are still unexpired.
+        jti = payload.get("jti") if isinstance(payload, dict) else None
+        if jti:
+            try:
+                from core.token_blacklist import is_blacklisted
+
+                revoked = is_blacklisted(str(jti))
+            except Exception as exc:  # fail-closed: cannot verify revocation
+                logger.error(f"RBAC Middleware: token revocation check failed: {exc}")
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Could not validate credentials"},
+                )
+            if revoked:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Token has been revoked"},
+                )
+
         request.state.user = payload
         request.state.tenant_id = str(payload.get("tenant_id", "default"))
         request.state.role = str(payload.get("role", "viewer")).lower()

@@ -657,6 +657,8 @@ async def get_view_modes() -> dict[str, Any]:
     """
     获取支持的视图模式列表
     """
+    if not FRONTEND_AVAILABLE:
+        raise HTTPException(status_code=503, detail="前端增强管理器不可用")
     view_modes = [mode.value for mode in ViewMode]
     return {"status": "success", "view_modes": view_modes}
 

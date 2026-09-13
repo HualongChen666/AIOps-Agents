@@ -9,11 +9,22 @@ Chaos Engineering Router
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 
 from core.api_response_standard import create_error_response, create_success_response
 from core.chaos_engineering import ChaosExperiment, chaos_engine
 
 router = APIRouter(prefix="/api/v1/chaos", tags=["混沌工程"])
+
+
+def _error_response(status_code: int, error: str, error_code: str) -> JSONResponse:
+    """Return a standard error body with the matching HTTP status code.
+
+    The declared contract for these endpoints is 400/500, so errors must not be
+    surfaced as HTTP 200 with ``success: false``.
+    """
+    body = create_error_response(error=error, error_code=error_code)
+    return JSONResponse(content=body, status_code=status_code)
 
 
 @router.get(
@@ -61,7 +72,7 @@ async def get_chaos_status() -> Dict[str, Any]:
         stats = chaos_engine.get_experiment_stats()
         return create_success_response({"enabled": chaos_engine.is_enabled(), "stats": stats})
     except Exception as e:
-        return create_error_response(error=str(e), error_code="CHAOS_STATUS_ERROR")
+        return _error_response(500, str(e), "CHAOS_STATUS_ERROR")
 
 
 @router.post(
@@ -108,7 +119,7 @@ async def enable_chaos() -> Dict[str, Any]:
         chaos_engine.enable()
         return create_success_response({"message": "Chaos engineering enabled", "enabled": True})
     except Exception as e:
-        return create_error_response(error=str(e), error_code="CHAOS_ENABLE_ERROR")
+        return _error_response(500, str(e), "CHAOS_ENABLE_ERROR")
 
 
 @router.post(
@@ -153,7 +164,7 @@ async def disable_chaos() -> Dict[str, Any]:
         chaos_engine.disable()
         return create_success_response({"message": "Chaos engineering disabled", "enabled": False})
     except Exception as e:
-        return create_error_response(error=str(e), error_code="CHAOS_DISABLE_ERROR")
+        return _error_response(500, str(e), "CHAOS_DISABLE_ERROR")
 
 
 @router.post(
@@ -226,9 +237,10 @@ async def run_experiment(
         try:
             experiment = ChaosExperiment(experiment_type)
         except ValueError:
-            return create_error_response(
-                error=f"Invalid experiment type: {experiment_type}",
-                error_code="INVALID_EXPERIMENT",
+            return _error_response(
+                400,
+                f"Invalid experiment type: {experiment_type}",
+                "INVALID_EXPERIMENT",
             )
 
         # 执行实验
@@ -244,7 +256,7 @@ async def run_experiment(
             }
         )
     except Exception as e:
-        return create_error_response(error=str(e), error_code="EXPERIMENT_ERROR")
+        return _error_response(500, str(e), "EXPERIMENT_ERROR")
 
 
 @router.get(
@@ -319,7 +331,7 @@ async def get_experiments(limit: int = 10) -> Dict[str, Any]:
             {"total": len(formatted_history), "experiments": formatted_history}
         )
     except Exception as e:
-        return create_error_response(error=str(e), error_code="EXPERIMENT_HISTORY_ERROR")
+        return _error_response(500, str(e), "EXPERIMENT_HISTORY_ERROR")
 
 
 @router.get(
@@ -399,7 +411,7 @@ async def get_chaos_templates() -> Dict[str, Any]:
         ]
         return create_success_response({"templates": templates})
     except Exception as e:
-        return create_error_response(error=str(e), error_code="TEMPLATES_ERROR")
+        return _error_response(500, str(e), "TEMPLATES_ERROR")
 
 
 @router.get(
@@ -454,4 +466,4 @@ async def get_chaos_mesh_status() -> Dict[str, Any]:
             }
         )
     except Exception as e:
-        return create_error_response(error=str(e), error_code="CHAOS_MESH_ERROR")
+        return _error_response(500, str(e), "CHAOS_MESH_ERROR")

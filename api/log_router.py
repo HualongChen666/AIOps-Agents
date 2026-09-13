@@ -575,9 +575,8 @@ async def linux_search(
 
     🔧 LG1 [P1]:keyword 二次校验
     🔧 LG6 [P2]:支持 case_sensitive 参数
-        - 注意:当前 search_linux_logs 内部固定用 grep -i(忽略大小写)
-        - case_sensitive=True 时本参数仅作为接口契约,实际行为不变
-        - 后续可在 log_collector 层支持此参数
+        - case_sensitive=True 时使用 grep(区分大小写)
+        - case_sensitive=False 时使用 grep -i(忽略大小写,默认)
     """
     # 🔧 LG1:二次校验
     keyword_safe = _validate_keyword(keyword)
@@ -594,7 +593,7 @@ async def linux_search(
     host_config = _get_linux_host(host_name)
 
     try:
-        data = await search_linux_logs(host_config, keyword_safe, newest)
+        data = await search_linux_logs(host_config, keyword_safe, newest, case_sensitive)
         return {
             "total": len(data),
             "host": host_name,

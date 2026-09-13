@@ -189,11 +189,9 @@ def test_create_incident_jira_non_2xx(client, itsm_server, monkeypatch):
         params={"provider": "jira"},
         json={"summary": "x"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "created"
-    assert data["provider"] == "jira"
-    assert "本地记录" in data["message"] or "local" in data["message"].lower()
+    assert resp.status_code == 502
+    assert "Jira" in resp.text
+    assert "工单未创建" in resp.text or "创建失败" in resp.text
 
 
 def test_create_incident_servicenow_non_2xx(client, itsm_server, monkeypatch):
@@ -205,11 +203,9 @@ def test_create_incident_servicenow_non_2xx(client, itsm_server, monkeypatch):
         params={"provider": "servicenow"},
         json={"summary": "x"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "created"
-    assert data["provider"] == "servicenow"
-    assert "本地记录" in data["message"] or "local" in data["message"].lower()
+    assert resp.status_code == 502
+    assert "ServiceNow" in resp.text
+    assert "工单未创建" in resp.text or "创建失败" in resp.text
 
 
 def test_create_incident_connection_refused(client, monkeypatch):
@@ -219,11 +215,8 @@ def test_create_incident_connection_refused(client, monkeypatch):
         params={"provider": "jira"},
         json={"summary": "x"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "created"
-    assert data["provider"] == "jira"
-    assert "本地记录" in data["message"] or "local" in data["message"].lower()
+    assert resp.status_code == 502
+    assert "工单未创建" in resp.text or "创建失败" in resp.text
 
 
 def test_create_incident_httpx_not_available(client, itsm_server, monkeypatch):
@@ -234,11 +227,8 @@ def test_create_incident_httpx_not_available(client, itsm_server, monkeypatch):
         params={"provider": "jira"},
         json={"summary": "x"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "created"
-    assert data["provider"] == "jira"
-    assert "本地记录" in data["message"] or "local" in data["message"].lower()
+    assert resp.status_code == 503
+    assert "httpx" in resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -313,10 +303,9 @@ def test_resolve_incident_jira_non_2xx(client, itsm_server, monkeypatch):
         "/api/itsm/incident/OPS-42",
         params={"provider": "jira"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "resolved"
-    assert "本地记录" in data["message"] or "local" in data["message"].lower()
+    assert resp.status_code == 502
+    assert "Jira" in resp.text
+    assert "工单未关闭" in resp.text or "关闭失败" in resp.text
 
 
 def test_resolve_incident_servicenow_non_2xx(client, itsm_server, monkeypatch):
@@ -327,10 +316,9 @@ def test_resolve_incident_servicenow_non_2xx(client, itsm_server, monkeypatch):
         "/api/itsm/incident/snow-123",
         params={"provider": "servicenow"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "resolved"
-    assert "本地记录" in data["message"] or "local" in data["message"].lower()
+    assert resp.status_code == 502
+    assert "ServiceNow" in resp.text
+    assert "工单未关闭" in resp.text or "关闭失败" in resp.text
 
 
 def test_resolve_incident_connection_refused(client, monkeypatch):
@@ -339,11 +327,8 @@ def test_resolve_incident_connection_refused(client, monkeypatch):
         "/api/itsm/incident/snow-123",
         params={"provider": "servicenow"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "resolved"
-    assert data["provider"] == "servicenow"
-    assert "本地记录" in data["message"] or "local" in data["message"].lower()
+    assert resp.status_code == 502
+    assert "工单未关闭" in resp.text or "关闭失败" in resp.text
 
 
 def test_resolve_incident_httpx_not_available(client, monkeypatch):
@@ -353,8 +338,5 @@ def test_resolve_incident_httpx_not_available(client, monkeypatch):
         "/api/itsm/incident/snow-123",
         params={"provider": "servicenow"},
     )
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "resolved"
-    assert data["provider"] == "servicenow"
-    assert "本地记录" in data["message"] or "local" in data["message"].lower()
+    assert resp.status_code == 503
+    assert "httpx" in resp.text
