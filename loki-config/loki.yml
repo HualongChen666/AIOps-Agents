@@ -114,12 +114,6 @@ memberlist:
   join_members:
     - 127.0.0.1
 
-# Table manager configuration
-table_manager:
-  retention_deletes_enabled: true
-  retention_period: 30d
-  creation_deletion_enabled: true
-
 # Analytics configuration
 analytics:
   reporting_enabled: false

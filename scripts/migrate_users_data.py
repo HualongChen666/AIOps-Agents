@@ -37,6 +37,23 @@ class UserMigration:
         self.failed_count = 0
         self.skipped_count = 0
 
+    @staticmethod
+    def _dialect(session) -> str:
+        """Return the active SQL dialect name (for dialect-agnostic SQL)."""
+        try:
+            return session.get_bind().dialect.name
+        except Exception:  # noqa: BLE001 - fall back to the project default
+            return "sqlite"
+
+    async def _table_exists(self, session, table_name: str) -> bool:
+        """Dialect-agnostic table existence check via SQLAlchemy inspector."""
+        from sqlalchemy import inspect
+
+        names = await session.run_sync(
+            lambda sync_session: inspect(sync_session.connection()).get_table_names()
+        )
+        return table_name in names
+
     async def backup_existing_data(self) -> bool:
         """备份现有用户数据
         
@@ -47,6 +64,10 @@ class UserMigration:
             logger.info("开始备份现有用户数据...")
             
             async with AsyncSessionLocal() as session:
+                if not await self._table_exists(session, "users"):
+                    logger.info("users表不存在，无需备份")
+                    return True
+
                 # 查询所有用户
                 result = await session.execute(text("SELECT * FROM users"))
                 users = result.fetchall()
@@ -84,18 +105,8 @@ class UserMigration:
             logger.info("开始验证数据完整性...")
             
             async with AsyncSessionLocal() as session:
-                # 检查users表是否存在
-                result = await session.execute(
-                    text("""
-                        SELECT EXISTS (
-                            SELECT FROM information_schema.tables 
-                            WHERE table_name = 'users'
-                        )
-                    """)
-                )
-                table_exists = result.scalar()
-                
-                if not table_exists:
+                # 检查users表是否存在（方言无关）
+                if not await self._table_exists(session, "users"):
                     logger.warning("users表不存在，跳过验证")
                     return True
                 
@@ -136,6 +147,10 @@ class UserMigration:
             
             async with AsyncSessionLocal() as session:
                 # 获取所有用户
+                if not await self._table_exists(session, "users"):
+                    logger.info("users表不存在，无需迁移")
+                    return True
+
                 result = await session.execute(text("SELECT * FROM users"))
                 users_data = result.fetchall()
                 columns = result.keys()
@@ -218,6 +233,10 @@ class UserMigration:
             
             async with AsyncSessionLocal() as session:
                 # 检查用户数量
+                if not await self._table_exists(session, "users"):
+                    logger.info("users表不存在，跳过迁移验证")
+                    return True
+
                 result = await session.execute(text("SELECT COUNT(*) FROM users"))
                 user_count = result.scalar()
                 
@@ -255,19 +274,8 @@ class UserMigration:
             backup_table = f"users_backup_{self.migration_start.strftime('%Y%m%d_%H%M%S')}"
             
             async with AsyncSessionLocal() as session:
-                # 检查备份表是否存在
-                result = await session.execute(
-                    text("""
-                        SELECT EXISTS (
-                            SELECT FROM information_schema.tables 
-                            WHERE table_name = :backup_table
-                        )
-                    """),
-                    {"backup_table": backup_table}
-                )
-                backup_exists = result.scalar()
-                
-                if not backup_exists:
+                # 检查备份表是否存在（方言无关）
+                if not await self._table_exists(session, backup_table):
                     logger.error(f"❌ 备份表不存在: {backup_table}")
                     return False
                 

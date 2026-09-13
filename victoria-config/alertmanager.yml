@@ -18,17 +18,10 @@ route:
   receiver: 'default'
 
   routes:
-    # Critical alerts go to PagerDuty/Slack immediately
-    - match:
-        severity: critical
-      receiver: 'critical-alerts'
-      continue: false
-
-    # Warning alerts go to email
-    - match:
-        severity: warning
-      receiver: 'warning-alerts'
-      continue: false
+    # Component-specific routes are evaluated FIRST with continue:true so that
+    # component receivers fire *and* the severity routing below still applies.
+    # (Previously the severity routes came first with continue:false, which made
+    # these component routes unreachable for every alert that carried a severity.)
 
     # VictoriaMetrics specific alerts
     - match:
@@ -41,6 +34,18 @@ route:
         component: aiops-agent
       receiver: 'aiops-alerts'
       continue: true
+
+    # Critical alerts go to PagerDuty/Slack immediately
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: false
+
+    # Warning alerts go to email
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      continue: false
 
 # Receivers define how alerts are sent
 receivers:

@@ -1,5 +1,5 @@
 # Promtail Configuration for AIOps Agent
-# Log collection agent configuration
+# Log collection agent configuration (Promtail 2.9 schema)
 
 server:
   http_listen_port: 9080
@@ -24,18 +24,33 @@ scrape_configs:
           job: aiops-agent
           service: api
           environment: production
+          cluster: aiops-agent
+          region: default
           __path__: /var/log/aiops-agent/*.log
-
-  # AIOps Agent error logs
-  - job_name: aiops-agent-errors
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: aiops-agent
-          level: error
-          environment: production
-          __path__: /var/log/aiops-agent/error.log
+    pipeline_stages:
+      # Parse JSON logs
+      - json:
+          expressions:
+            timestamp: timestamp
+            level: level
+            message: message
+            service: service
+            trace_id: trace_id
+            span_id: span_id
+      # Parse timestamp
+      - timestamp:
+          source: timestamp
+          format: RFC3339
+      # Promote structured fields to labels
+      - labels:
+          level:
+          service:
+          trace_id:
+          span_id:
+      # Drop debug logs in production
+      - match:
+          selector: '{level="debug"}'
+          action: drop
 
   # System logs
   - job_name: system
@@ -45,7 +60,15 @@ scrape_configs:
         labels:
           job: system
           environment: production
+          cluster: aiops-agent
+          region: default
           __path__: /var/log/syslog
+    pipeline_stages:
+      # Promote the syslog severity as a label when present
+      - regex:
+          expression: '^(?P<timestamp>\S+\s+\S+\s+\S+)\s+(?P<host>\S+)\s+(?P<unit>[^:]+):\s+(?P<message>.*)$'
+      - labels:
+          unit:
 
   # Docker container logs
   - job_name: docker
@@ -77,42 +100,8 @@ scrape_configs:
       - source_labels: ['__journal_priority']
         target_label: priority
 
-# Pipeline configurations for log processing
-pipeline_stages:
-  # Parse JSON logs
-  - json:
-      expressions:
-        timestamp: timestamp
-        level: level
-        message: message
-        service: service
-        trace_id: trace_id
-        span_id: span_id
-
-  # Parse timestamp
-  - timestamp:
-      source: timestamp
-      format: RFC3339
-
-  # Add labels from structured data
-  - labels:
-      level:
-      service:
-      trace_id:
-      span_id:
-
-  # Filter out debug logs in production
-  - match:
-      selector: '{level="debug"}'
-      action: drop
-
-  # Add static labels
-  - static_labels:
-      cluster: aiops-agent
-      region: default
-
 # Limit configuration
-limit_config:
+limits_config:
   readline_rate: 10000
   readline_burst: 20000
   max_line_size: 1048576
@@ -121,12 +110,3 @@ limit_config:
 # Target configuration
 target_config:
   sync_period: 10s
-
-# Metrics configuration
-metrics:
-  # Enable metrics endpoint
-  enabled: true
-  # Metrics endpoint path
-  path: /metrics
-  # Metrics endpoint address
-  address: localhost:9080

@@ -12,6 +12,7 @@ from typing import Optional
 sys.path.insert(0, ".")
 
 from core.db_engine import AsyncSessionLocal
+from core.security.sql_identifier_validator import validate_pg_identifier
 from sqlalchemy import text
 
 logging.basicConfig(
@@ -38,23 +39,17 @@ class UserRollback:
         self.rollback_start = datetime.now()
 
     async def list_backup_tables(self) -> list[str]:
-        """列出所有备份表
-        
-        Returns:
-            备份表名列表
-        """
+        """列出所有备份表（方言无关）"""
         try:
+            from sqlalchemy import inspect
+
             async with AsyncSessionLocal() as session:
-                result = await session.execute(
-                    text("""
-                        SELECT table_name 
-                        FROM information_schema.tables 
-                        WHERE table_name LIKE 'users_backup_%'
-                        ORDER BY table_name DESC
-                    """)
+                names = await session.run_sync(
+                    lambda sync_session: inspect(sync_session.connection()).get_table_names()
                 )
-                backup_tables = [row[0] for row in result.fetchall()]
-                return backup_tables
+            return sorted(
+                (name for name in names if name.startswith("users_backup_")), reverse=True
+            )
         except Exception as e:
             logger.error(f"❌ 获取备份表列表失败: {e}", exc_info=True)
             return []
@@ -80,23 +75,17 @@ class UserRollback:
             备份是否有效
         """
         try:
+            from sqlalchemy import inspect
+
             async with AsyncSessionLocal() as session:
-                # 检查表是否存在
-                result = await session.execute(
-                    text("""
-                        SELECT EXISTS (
-                            SELECT FROM information_schema.tables 
-                            WHERE table_name = :backup_table
-                        )
-                    """),
-                    {"backup_table": backup_table}
+                # 检查表是否存在（方言无关）
+                names = await session.run_sync(
+                    lambda sync_session: inspect(sync_session.connection()).get_table_names()
                 )
-                table_exists = result.scalar()
-                
-                if not table_exists:
+                if backup_table not in names:
                     logger.error(f"❌ 备份表不存在: {backup_table}")
                     return False
-                
+
                 # 检查表是否有数据
                 result = await session.execute(
                     text(f"SELECT COUNT(*) FROM {validate_pg_identifier(backup_table, kind='backup_table')}")
@@ -127,7 +116,6 @@ class UserRollback:
             pre_rollback_backup = f"users_pre_rollback_{timestamp}"
             
             async with AsyncSessionLocal() as session:
-                from core.security.sql_identifier_validator import validate_pg_identifier
                 safe_pre = validate_pg_identifier(pre_rollback_backup, kind="backup_table")
                 await session.execute(
                     text(f"CREATE TABLE {safe_pre} AS SELECT * FROM users")

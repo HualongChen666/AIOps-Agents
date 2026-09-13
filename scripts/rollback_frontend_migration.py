@@ -12,12 +12,16 @@ Usage:
 
 import asyncio
 import logging
+import sys
 from datetime import datetime
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.db_engine import AsyncSessionLocal
+# Ensure the project root is importable when executed as `python scripts/<this>.py`.
+sys.path.insert(0, ".")
+
+from core.db_engine import AsyncSessionLocal  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -31,6 +35,23 @@ class FrontendMigrationRollback:
             "tables_dropped": 0,
             "errors": [],
         }
+
+    @staticmethod
+    def _dialect(db: AsyncSession) -> str:
+        """Return the active SQL dialect name (dialect-agnostic helpers below)."""
+        try:
+            return db.get_bind().dialect.name
+        except Exception:  # noqa: BLE001 - fall back to the project default
+            return "sqlite"
+
+    async def _table_exists(self, db: AsyncSession, table_name: str) -> bool:
+        """Dialect-agnostic table existence check via SQLAlchemy inspector."""
+        from sqlalchemy import inspect
+
+        names = await db.run_sync(
+            lambda sync_session: inspect(sync_session.connection()).get_table_names()
+        )
+        return table_name in names
 
     async def drop_frontend_tables(self, db: AsyncSession) -> None:
         """Drop all frontend-related tables"""
@@ -46,23 +67,15 @@ class FrontendMigrationRollback:
 
         for table_name in tables_to_drop:
             try:
-                # Check if table exists
-                check_sql = text(
-                    f"""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables
-                        WHERE table_name = '{table_name}'
-                    )
-                """
-                )
-                result = await db.execute(check_sql)
-                exists = result.scalar()
+                exists = await self._table_exists(db, table_name)
 
                 if exists:
                     from core.security.sql_identifier_validator import validate_pg_identifier
+
                     safe_table = validate_pg_identifier(table_name, kind="table")
-                    drop_sql = text(f"DROP TABLE IF EXISTS {safe_table} CASCADE")
-                    await db.execute(drop_sql)
+                    # CASCADE is PostgreSQL-only; SQLite rejects it.
+                    suffix = " CASCADE" if self._dialect(db) == "postgresql" else ""
+                    await db.execute(text(f"DROP TABLE IF EXISTS {safe_table}{suffix}"))
                     await db.commit()
                     self.rollback_stats["tables_dropped"] += 1
                     logger.info(f"✅ 表已删除: {table_name}")
