@@ -29,7 +29,7 @@ export default function SLOEvaluationPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.post('/api/slo/evaluation', { period });
+      const res = await api.post('/api/v1/slo/evaluation', { period });
       setResults(res.data.results || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '评估失败');

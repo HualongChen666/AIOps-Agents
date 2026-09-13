@@ -79,7 +79,7 @@ export default function RepairAdvancedPage() {
   const { data: configs, isLoading: configsLoading, refetch: refetchConfigs } = useQuery({
     queryKey: ['repair-configs'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/repair/configurations')
+      const resp = await api.get('/api/v1/repair/configuration')
       return resp.data as RepairConfig[]
     }
   })
@@ -88,7 +88,7 @@ export default function RepairAdvancedPage() {
   const { data: approvals, isLoading: approvalsLoading, refetch: refetchApprovals } = useQuery({
     queryKey: ['repair-approvals'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/repair/hitl-approvals')
+      const resp = await api.get('/api/v1/repair/hitl-approval')
       return resp.data as HITLApproval[]
     }
   })
@@ -106,7 +106,7 @@ export default function RepairAdvancedPage() {
   const { data: verifications, isLoading: verificationsLoading, refetch: refetchVerifications } = useQuery({
     queryKey: ['repair-verifications'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/repair/verifications')
+      const resp = await api.get('/api/v1/repair/verification')
       return resp.data as RepairVerification[]
     }
   })
@@ -114,7 +114,7 @@ export default function RepairAdvancedPage() {
   // 创建配置
   const createConfigMutation = useMutation({
     mutationFn: async (config: any) => {
-      const resp = await api.post('/api/v1/repair/configurations', config)
+      const resp = await api.post('/api/v1/repair/configuration', config)
       return resp.data
     },
     onSuccess: () => {
@@ -131,7 +131,7 @@ export default function RepairAdvancedPage() {
   // 更新配置
   const updateConfigMutation = useMutation({
     mutationFn: async ({ configId, data }: { configId: string; data: any }) => {
-      const resp = await api.put(`/api/v1/repair/configurations/${configId}`, data)
+      const resp = await api.put(`/api/v1/repair/configuration/${configId}`, data)
       return resp.data
     },
     onSuccess: () => {
@@ -147,7 +147,7 @@ export default function RepairAdvancedPage() {
   // 删除配置
   const deleteConfigMutation = useMutation({
     mutationFn: async (configId: string) => {
-      const resp = await api.delete(`/api/v1/repair/configurations/${configId}`)
+      const resp = await api.delete(`/api/v1/repair/configuration/${configId}`)
       return resp.data
     },
     onSuccess: () => {
@@ -162,7 +162,7 @@ export default function RepairAdvancedPage() {
   // 审批操作
   const approveMutation = useMutation({
     mutationFn: async (approvalId: string) => {
-      const resp = await api.post(`/api/v1/repair/hitl-approvals/${approvalId}/approve`)
+      const resp = await api.post(`/api/v1/repair/hitl-approval/${approvalId}/approve`)
       return resp.data
     },
     onSuccess: () => {
@@ -176,7 +176,7 @@ export default function RepairAdvancedPage() {
 
   const rejectMutation = useMutation({
     mutationFn: async ({ approvalId, reason }: { approvalId: string; reason: string }) => {
-      const resp = await api.post(`/api/v1/repair/hitl-approvals/${approvalId}/reject`, { reason })
+      const resp = await api.post(`/api/v1/repair/hitl-approval/${approvalId}/reject`, { reason })
       return resp.data
     },
     onSuccess: () => {

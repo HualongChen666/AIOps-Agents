@@ -32,7 +32,7 @@ export default function SLOIncidentPage() {
   const fetchIncidents = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/slo/incident');
+      const res = await api.get('/api/v1/slo/incident');
       setIncidents(res.data.incidents || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载事件失败');

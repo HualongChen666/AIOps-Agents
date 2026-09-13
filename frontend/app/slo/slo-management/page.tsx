@@ -37,7 +37,7 @@ export default function SLOManagementPage() {
   const fetchSLOs = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/slo/management');
+      const res = await api.get('/api/v1/slo/management');
       setSlos(res.data.slos || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载SLO失败');
@@ -48,7 +48,7 @@ export default function SLOManagementPage() {
 
   const handleCreate = async () => {
     try {
-      await api.post('/api/slo/management', newSLO);
+      await api.post('/api/v1/slo/management', newSLO);
       setNewSLO({ name: '', service: '', target: 99.9, window: '30d' });
       fetchSLOs();
     } catch (err: any) {
@@ -58,7 +58,7 @@ export default function SLOManagementPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await api.delete(`/api/slo/management/${id}`);
+      await api.delete(`/api/v1/slo/management/${id}`);
       fetchSLOs();
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '删除SLO失败');

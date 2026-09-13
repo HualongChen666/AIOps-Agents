@@ -32,7 +32,7 @@ export default function SLAReportPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.post('/api/slo/sla-report', { period });
+      const res = await api.post('/api/v1/slo/sla-report', { period });
       setReports(res.data.reports || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '生成报告失败');

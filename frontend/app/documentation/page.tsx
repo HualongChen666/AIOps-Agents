@@ -52,7 +52,7 @@ export default function DocumentationPage() {
   const { data: statusData, isLoading: statusLoading, refetch: refetchStatus } = useQuery<{ data: DocumentationStatus; timestamp: string }>({
     queryKey: ['documentation-status'],
     queryFn: async () => {
-      const resp = await api.get('/api/documentation/status');
+      const resp = await api.get('/api/v1/documentation/status');
       return resp.data;
     },
     refetchInterval: 120000, // 2分钟刷新
@@ -62,7 +62,7 @@ export default function DocumentationPage() {
   const { data: documentsData, isLoading: documentsLoading, refetch: refetchDocuments } = useQuery<{ data: { documents: Document[]; count: number }; timestamp: string }>({
     queryKey: ['documentation-documents'],
     queryFn: async () => {
-      const resp = await api.get('/api/documentation/documents');
+      const resp = await api.get('/api/v1/documentation/documents');
       return resp.data;
     },
     refetchInterval: 120000, // 2分钟刷新
@@ -71,7 +71,7 @@ export default function DocumentationPage() {
   // 🔧 创建文档
   const createDocumentMutation = useMutation({
     mutationFn: async (data: typeof documentData) => {
-      const resp = await api.post('/api/documentation/document/create', data);
+      const resp = await api.post('/api/v1/documentation/document/create', data);
       return resp.data;
     },
     onSuccess: () => {
@@ -88,7 +88,7 @@ export default function DocumentationPage() {
   // 🔧 更新文档
   const updateDocumentMutation = useMutation({
     mutationFn: async ({ docId, content, status }: { docId: string; content?: string; status?: string }) => {
-      const resp = await api.post(`/api/documentation/document/${docId}/update`, { content, status });
+      const resp = await api.post(`/api/v1/documentation/document/${docId}/update`, { content, status });
       return resp.data;
     },
     onSuccess: () => {
@@ -105,7 +105,7 @@ export default function DocumentationPage() {
     queryKey: ['document-detail', selectedDocument?.doc_id],
     queryFn: async () => {
       if (!selectedDocument) throw new Error('No document selected');
-      const resp = await api.get(`/api/documentation/document/${selectedDocument.doc_id}`);
+      const resp = await api.get(`/api/v1/documentation/document/${selectedDocument.doc_id}`);
       return resp.data;
     },
     enabled: !!selectedDocument,

@@ -32,7 +32,7 @@ export default function SLOMonitoringPage() {
   const fetchMonitors = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/slo/monitoring');
+      const res = await api.get('/api/v1/slo/monitoring');
       setMonitors(res.data.monitors || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载监控数据失败');

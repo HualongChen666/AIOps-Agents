@@ -27,7 +27,7 @@ export default function SLOStoragePage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/slo/storage');
+      const res = await api.get('/api/v1/slo/storage');
       setData(res.data.data || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载数据失败');

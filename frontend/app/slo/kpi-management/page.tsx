@@ -37,7 +37,7 @@ export default function KPIManagementPage() {
   const fetchKPIs = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/slo/kpi-management');
+      const res = await api.get('/api/v1/slo/kpi-management');
       setKpis(res.data.kpis || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载KPI失败');
@@ -48,7 +48,7 @@ export default function KPIManagementPage() {
 
   const handleCreate = async () => {
     try {
-      await api.post('/api/slo/kpi-management', newKPI);
+      await api.post('/api/v1/slo/kpi-management', newKPI);
       setNewKPI({ name: '', category: '', unit: '', target: 0 });
       fetchKPIs();
     } catch (err: any) {
@@ -58,7 +58,7 @@ export default function KPIManagementPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await api.delete(`/api/slo/kpi-management/${id}`);
+      await api.delete(`/api/v1/slo/kpi-management/${id}`);
       fetchKPIs();
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '删除KPI失败');

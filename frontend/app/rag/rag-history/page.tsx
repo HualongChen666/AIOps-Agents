@@ -35,7 +35,7 @@ export default function RAGHistoryPage() {
     const loadHistory = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/api/rag/history');
+        const response = await api.get('/api/v1/rag/history');
         setHistory(response.data.history || []);
       } catch (err: any) {
         console.error('Failed to load RAG history:', err);
@@ -60,7 +60,7 @@ export default function RAGHistoryPage() {
       setError(null);
 
       // Call RAG search API
-      const response = await api.post('/api/rag/search', {
+      const response = await api.post('/api/v1/rag/search', {
         query: searchQuery,
         top_k: 5
       });
@@ -95,7 +95,7 @@ export default function RAGHistoryPage() {
   const handleClearHistory = async () => {
     if (confirm('确定要清空搜索历史吗？')) {
       try {
-        await api.delete('/api/rag/history');
+        await api.delete('/api/v1/rag/history');
         setHistory([]);
       } catch (err: any) {
         setError('清空历史失败: ' + (err.response?.data?.detail || err.message));

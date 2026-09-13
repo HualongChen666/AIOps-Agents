@@ -28,7 +28,7 @@ export default function SLOMetricsPage() {
   const fetchMetrics = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/slo/metrics');
+      const res = await api.get('/api/v1/slo/metrics');
       setMetrics(res.data.metrics || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载指标失败');

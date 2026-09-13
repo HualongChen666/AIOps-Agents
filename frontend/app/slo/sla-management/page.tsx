@@ -41,7 +41,7 @@ export default function SLAManagementPage() {
   const fetchSLAs = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/slo/sla-management');
+      const res = await api.get('/api/v1/slo/sla-management');
       setSlas(res.data.slas || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载SLA失败');
@@ -52,7 +52,7 @@ export default function SLAManagementPage() {
 
   const handleCreate = async () => {
     try {
-      await api.post('/api/slo/sla-management', newSLA);
+      await api.post('/api/v1/slo/sla-management', newSLA);
       setNewSLA({
         name: '',
         customer: '',

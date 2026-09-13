@@ -31,7 +31,7 @@ export default function KPIConfigPage() {
   const fetchConfigs = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/slo/kpi-config');
+      const res = await api.get('/api/v1/slo/kpi-config');
       setConfigs(res.data.configs || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载配置失败');
@@ -42,7 +42,7 @@ export default function KPIConfigPage() {
 
   const handleUpdate = async (id: string, config: Partial<KPIConfig>) => {
     try {
-      await api.put(`/api/slo/kpi-config/${id}`, config);
+      await api.put(`/api/v1/slo/kpi-config/${id}`, config);
       fetchConfigs();
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '更新配置失败');
