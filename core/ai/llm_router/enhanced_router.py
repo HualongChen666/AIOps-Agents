@@ -415,20 +415,19 @@ class EnhancedLLMRouter:
             return self._fallback_result(prompt, model_name)
 
     def _fallback_result(self, prompt: str, model_name: str) -> Dict[str, Any]:
-        """Return a deterministic fallback result when no API key is configured."""
-        input_tokens = self.cost_optimizer.estimate_tokens(prompt)
-        output_tokens = min(50, max(10, input_tokens // 4))
-        total_tokens = input_tokens + output_tokens
+        """Return an explicit no-LLM result instead of a fabricated analysis.
+
+        Deliberately returns **empty** content (never invented text that callers
+        could mistake for a real model response) and no fabricated token usage,
+        so downstream logic (e.g. ``ai_engine``) can detect the failure and fall
+        back to the rule engine on its own terms.
+        """
         return {
-            "content": (
-                f"[AI Router fallback] AIOps analysis result for prompt: {prompt[:100]}..."
-            ),
+            "content": "",
             "model": model_name,
-            "usage": {
-                "prompt_tokens": input_tokens,
-                "completion_tokens": output_tokens,
-                "total_tokens": total_tokens,
-            },
+            "usage": {},
+            "is_fallback": True,
+            "fallback_reason": "no_llm_available",
         }
 
     def _is_model_available(self, model_name: str) -> bool:

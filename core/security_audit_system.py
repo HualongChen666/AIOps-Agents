@@ -480,14 +480,24 @@ class SecurityAuditSystem:
         }
 
 
+_security_audit_system_instance: Optional[SecurityAuditSystem] = None
+
+
 def get_security_audit_system(config: Optional[Dict[str, Any]] = None) -> SecurityAuditSystem:
     """
-    Factory function to get security audit system instance
+    Get the shared security audit system instance.
+
+    Returns the process-wide singleton (created on first use) so that events
+    logged through this factory are visible to every consumer — e.g. the audit
+    integration manager. Mirrors ``get_compliance_manager``.
 
     Args:
-        config: Optional configuration dictionary
+        config: Optional configuration used only for the first instantiation.
 
     Returns:
-        SecurityAuditSystem: System instance
+        SecurityAuditSystem: shared system instance
     """
-    return SecurityAuditSystem(config)
+    global _security_audit_system_instance
+    if _security_audit_system_instance is None:
+        _security_audit_system_instance = SecurityAuditSystem(config)
+    return _security_audit_system_instance

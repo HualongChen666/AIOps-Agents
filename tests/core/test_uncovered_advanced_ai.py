@@ -193,16 +193,27 @@ def test_adaptive_learning_online(monkeypatch, ai):
 
 def test_adaptive_learning_batch_and_reinforcement(monkeypatch, ai):
     monkeypatch.setattr(adv, "ML_AVAILABLE", True)
+    # A single sample is insufficient to retrain -> honest 0.0 (no fake constant).
     batch = asyncio.run(ai.adaptive_learning_update({"a": 1.0}, {"score": 0.5}, LearningMode.BATCH))
     assert batch.learning_mode == LearningMode.BATCH
-    assert batch.performance_improvement == 0.15
+    assert batch.performance_improvement == 0.0
+    assert len(ai._learning_buffer) == 1
+
+    # Once samples accumulate, the batch update really retrains and reports a
+    # measured accuracy gain (a value in [0, 1], not a fixed 0.15).
+    asyncio.run(ai.adaptive_learning_update({"a": 2.0}, {"score": 1.0}, LearningMode.BATCH))
+    batch2 = asyncio.run(
+        ai.adaptive_learning_update({"a": 3.0}, {"score": 1.0}, LearningMode.BATCH)
+    )
+    assert 0.0 <= batch2.performance_improvement <= 1.0
 
     monkeypatch.setattr(adv, "ML_AVAILABLE", False)
     rule = asyncio.run(
         ai.adaptive_learning_update({"b": 2.0}, {"score": 0.8}, LearningMode.REINFORCEMENT)
     )
     assert rule.learning_mode == LearningMode.REINFORCEMENT
-    assert rule.performance_improvement == 0.05
+    # Derived from the real feedback signal (all-positive feedback -> 1.0).
+    assert rule.performance_improvement == 1.0
 
 
 def test_adaptive_learning_exception(monkeypatch, ai):

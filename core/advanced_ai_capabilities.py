@@ -145,6 +145,10 @@ class AdvancedAICapabilities:
         self.learning_models: Dict[str, Any] = {}
         self.learning_updates: List[LearningUpdate] = []
         self.performance_metrics: Dict[str, List[float]] = defaultdict(list)
+        # Real training samples accumulated across online/batch updates, used to
+        # measure the *actual* accuracy delta of each learning step.
+        self._learning_buffer: List[Tuple[List[float], int]] = []
+        self._online_classes: Optional[List[int]] = None
 
         # Natural language interaction
         self.conversation_contexts: Dict[str, ConversationContext] = {}
@@ -467,42 +471,89 @@ class AdvancedAICapabilities:
     async def _online_learning_update(
         self, new_data: Dict[str, Any], feedback: Dict[str, float]
     ) -> float:
-        """Perform online learning update"""
+        """Incrementally update the online model and return the measured accuracy gain."""
         # Extract features from new data
         features = self._extract_features(new_data)
-        target = list(feedback.values())[0] if feedback else 0.0
+        target = int(round(list(feedback.values())[0])) if feedback else 0
 
-        # Update online learning model
-        if "online" in self.learning_models and features:
-            try:
-                model = self.learning_models["online"]
-                # Incremental fit
-                model.partial_fit([features], [int(target)])
-                return 0.1  # Assume small improvement
-            except Exception as e:
-                logger.error(f"Online learning update failed: {e}")
+        if "online" not in self.learning_models or not features:
+            return 0.0
 
-        return 0.0
+        model = self.learning_models["online"]
+        # Real baseline: accuracy of the current model on accumulated samples.
+        before = self._model_accuracy(model)
+
+        try:
+            if self._online_classes is None:
+                self._online_classes = [0, 1]
+            # Incremental fit
+            model.partial_fit([features], [target], classes=self._online_classes)
+        except Exception as e:
+            logger.error(f"Online learning update failed: {e}")
+            return 0.0
+
+        self._learning_buffer.append((features, target))
+        # Real post-update accuracy on the same accumulated samples.
+        after = self._model_accuracy(model)
+        return round(max(0.0, after - before), 4)
+
+    def _model_accuracy(self, model: Any, limit: int = 200) -> float:
+        """Return the real accuracy of ``model`` over recent accumulated samples.
+
+        Returns 0.0 when there is no data or the model has not been fitted yet
+        (never a fabricated constant).
+        """
+        samples = self._learning_buffer[-limit:]
+        if not samples or model is None:
+            return 0.0
+        try:
+            X = [s[0] for s in samples]
+            y = [s[1] for s in samples]
+            return float(model.score(X, y))
+        except Exception:
+            return 0.0
 
     async def _batch_learning_update(
         self, new_data: Dict[str, Any], feedback: Dict[str, float]
     ) -> float:
-        """Perform batch learning update"""
-        # Accumulate data and retrain
-        # Simplified implementation
-        return 0.15  # Assume moderate improvement for batch learning
+        """Retrain on accumulated data and return the measured accuracy gain."""
+        features = self._extract_features(new_data)
+        target = int(round(list(feedback.values())[0])) if feedback else 0
+        if features:
+            self._learning_buffer.append((features, target))
+
+        if len(self._learning_buffer) < 2:
+            return 0.0
+
+        before = self._model_accuracy(self.learning_models.get("online"))
+        X = [s[0] for s in self._learning_buffer]
+        y = [s[1] for s in self._learning_buffer]
+        try:
+            retrained = SGDClassifier(learning_rate="adaptive", eta0=0.01, random_state=42)
+            retrained.fit(X, y)
+        except Exception as e:
+            logger.error(f"Batch learning update failed: {e}")
+            return 0.0
+
+        self.learning_models["online"] = retrained
+        after = self._model_accuracy(retrained)
+        return round(max(0.0, after - before), 4)
 
     async def _rule_based_learning_update(
         self, new_data: Dict[str, Any], feedback: Dict[str, float]
     ) -> float:
-        """Rule-based learning update"""
+        """Rule-based learning update; improvement derived from the real feedback signal."""
         # Update knowledge base with new patterns
         for key, value in new_data.items():
             self.knowledge_base[key].append(
                 {"value": value, "feedback": feedback.get(key, 0.0), "timestamp": datetime.now()}
             )
 
-        return 0.05  # Small improvement for rule-based
+        if not feedback:
+            return 0.0
+        # Real signal: share of feedback that validated the update (positive reward).
+        positive = sum(1 for v in feedback.values() if v > 0)
+        return round(positive / len(feedback), 4)
 
     def _extract_features(self, data: Dict[str, Any]) -> List[float]:
         """Extract numerical features from data"""

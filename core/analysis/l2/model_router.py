@@ -188,11 +188,16 @@ class MultiModelRouter:
             original_config = self._get_ai_config()
             self._set_ai_config(model)
 
-            # Perform analysis
-            result = analyze(full_prompt)
+            try:
+                # ``core.ai_engine.analyze`` is async — must be awaited,
+                # otherwise we get a coroutine and the metadata write below fails.
+                result = await analyze(full_prompt)
+            finally:
+                # Always restore the global AI config, even on failure.
+                self._set_ai_config(original_config)
 
-            # Restore original config
-            self._set_ai_config(original_config)
+            if not isinstance(result, dict):
+                return {"error": f"Unexpected analysis result type: {type(result).__name__}"}
 
             # Add routing metadata
             result["routing_metadata"] = {

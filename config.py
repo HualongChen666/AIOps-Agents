@@ -116,7 +116,10 @@ TOPOLOGY_ENABLED: bool = _safe_bool("TOPOLOGY_ENABLED", default=True)
 TRACING_ENABLED: bool = _safe_bool("TRACING_ENABLED", default=True)
 LOG_AGGREGATION_ENABLED: bool = _safe_bool("LOG_AGGREGATION_ENABLED", default=True)
 
-# SRE Operations Pack
+# L3 (persistent) cache backend: prefer a real SQLite store that survives
+# process restarts; a process-local fallback is used when disabled/unavailable.
+L3_CACHE_SQLITE_ENABLED: bool = _safe_bool("L3_CACHE_SQLITE_ENABLED", default=True)
+L3_CACHE_SQLITE_PATH: str = os.getenv("L3_CACHE_SQLITE_PATH", os.path.join("data", "cache_l3.db"))# SRE Operations Pack
 INCIDENT_RESPONSE_ENABLED: bool = _safe_bool("INCIDENT_RESPONSE_ENABLED", default=True)
 WORKFLOW_ENABLED: bool = _safe_bool("WORKFLOW_ENABLED", default=True)
 RELEASE_MANAGEMENT_ENABLED: bool = _safe_bool("RELEASE_MANAGEMENT_ENABLED", default=True)

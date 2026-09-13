@@ -14,6 +14,8 @@ Provides reusable TTL cache implementations with advanced features:
 
 import hashlib
 import json
+import os
+import pickle
 import time
 from collections import OrderedDict
 from datetime import datetime
@@ -560,8 +562,12 @@ class ParametricTTLCache:
 # ============================================================
 class ThreeLevelCache:
     """
-    P2 Enhanced three-level cache with memory, Redis, and database backends.
+    P2 Enhanced three-level cache with memory, Redis, and a persistent L3 tier.
     Implements intelligent cache invalidation and adaptive eviction.
+
+    L3 is backed by a real SQLite store (persistent across process restarts)
+    when available, and falls back to an explicitly-labelled process-local
+    TTL store otherwise (``db_cache_backend`` in ``get_stats`` reflects which).
 
     Usage:
         cache = ThreeLevelCache(
@@ -631,13 +637,52 @@ class ThreeLevelCache:
             self._redis_client = None
 
         # Try to initialize database cache
+        self._db_backend: str = "process-local"
+        self._db_conn: Optional[Any] = None
+        self._init_db_backend()
+
+    def _init_db_backend(self) -> None:
+        """Initialise the L3 persistent backend.
+
+        Prefers a real SQLite store (survives process restarts); on failure it
+        falls back to an explicit process-local TTL store and labels it as such.
+        """
         try:
             import config
+        except Exception:  # pragma: no cover - config always importable in-app
+            config = None  # type: ignore[assignment]
 
+        enabled = getattr(config, "L3_CACHE_SQLITE_ENABLED", True) if config else False
+        if not enabled:
+            logger.info("Three-level cache: L3 using process-local fallback")
+            return
+
+        path = getattr(
+            config, "L3_CACHE_SQLITE_PATH", os.path.join("data", "cache_l3.db")
+        )
+        try:
+            import sqlite3
+
+            directory = os.path.dirname(path)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+            conn = sqlite3.connect(path, timeout=5, check_same_thread=False)
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS cache_l3 ("
+                "key TEXT PRIMARY KEY, value BLOB NOT NULL, expires_at REAL NOT NULL)"
+            )
+            conn.commit()
+            self._db_conn = conn
+            self._db_backend = "sqlite"
             self._db_available = True
-            logger.info("Three-level cache: Database backend available")
+            logger.info(f"Three-level cache: L3 SQLite backend available at {path}")
         except Exception as e:
-            logger.warning(f"Three-level cache: Database not available: {e}")
+            logger.warning(
+                f"Three-level cache: L3 SQLite unavailable ({e}); "
+                "using process-local fallback"
+            )
 
     def register_invalidation_callback(
         self, event: CacheInvalidationEvent, callback: Callable
@@ -738,16 +783,41 @@ class ThreeLevelCache:
             return None
 
     def _set_db_cache(self, key: str, value: Any, ttl: float) -> None:
-        """Store value in database cache (in-memory L3 fallback with TTL)."""
+        """Store value in the L3 tier (SQLite-backed, or process-local fallback)."""
+        expires_at = time.time() + ttl
+        if self._db_backend == "sqlite" and self._db_conn is not None:
+            blob = pickle.dumps(value, protocol=pickle.HIGHEST_PROTOCOL)
+            self._db_conn.execute(
+                "INSERT INTO cache_l3 (key, value, expires_at) VALUES (?, ?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value, "
+                "expires_at = excluded.expires_at",
+                (key, blob, expires_at),
+            )
+            self._db_conn.commit()
+            return
+
+        # Process-local fallback (explicitly labelled as such via _db_backend).
         if not hasattr(self, "_db_cache"):
             self._db_cache: Dict[str, Any] = {}
-        import time
-
-        self._db_cache[key] = {"value": value, "expires_at": time.time() + ttl}
+        self._db_cache[key] = {"value": value, "expires_at": expires_at}
 
     def _get_db_cache(self, key: str) -> Optional[Any]:
-        """Get value from database cache (in-memory L3 fallback with TTL)."""
-        import time
+        """Get value from the L3 tier (SQLite-backed, or process-local fallback)."""
+        if self._db_backend == "sqlite" and self._db_conn is not None:
+            row = self._db_conn.execute(
+                "SELECT value, expires_at FROM cache_l3 WHERE key = ?", (key,)
+            ).fetchone()
+            if row is None:
+                return None
+            blob, expires_at = row
+            if time.time() > expires_at:
+                self._db_conn.execute("DELETE FROM cache_l3 WHERE key = ?", (key,))
+                self._db_conn.commit()
+                return None
+            try:
+                return pickle.loads(blob)
+            except Exception:
+                return None
 
         if not hasattr(self, "_db_cache"):
             return None
@@ -789,7 +859,11 @@ class ThreeLevelCache:
             self._trigger_invalidation_event(event, key, metadata)
 
     def _invalidate_db_cache(self, key: str) -> None:
-        """Invalidate value in database cache (in-memory L3 fallback)."""
+        """Invalidate a value in the L3 tier (SQLite-backed or process-local)."""
+        if self._db_backend == "sqlite" and self._db_conn is not None:
+            self._db_conn.execute("DELETE FROM cache_l3 WHERE key = ?", (key,))
+            self._db_conn.commit()
+            return
         if not hasattr(self, "_db_cache"):
             return
         self._db_cache.pop(key, None)
@@ -838,7 +912,11 @@ class ThreeLevelCache:
                     logger.error(f"Database cache clear failed: {e}")
 
     def _clear_db_cache(self) -> None:
-        """Clear database cache (in-memory L3 fallback)."""
+        """Clear the L3 tier (SQLite-backed or process-local fallback)."""
+        if self._db_backend == "sqlite" and self._db_conn is not None:
+            self._db_conn.execute("DELETE FROM cache_l3")
+            self._db_conn.commit()
+            return
         if not hasattr(self, "_db_cache"):
             return
         self._db_cache.clear()
@@ -860,6 +938,7 @@ class ThreeLevelCache:
             "memory_cache": memory_stats,
             "redis_cache_size": redis_size,
             "db_cache_available": self._db_available,
+            "db_cache_backend": self._db_backend,
             "eviction_policy": self._eviction_policy.value,
         }
 

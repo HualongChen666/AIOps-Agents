@@ -261,12 +261,12 @@ async def test_router_no_models_raises():
 @pytest.mark.asyncio
 async def test_router_generate_no_key_fallback():
     router = enhanced_router.EnhancedLLMRouter(MODEL_CFGS)
-    result = await router.generate(
-        "What is the issue?"
-    )  # noqa: F841  # Variable for test verification
-    assert result["content"].startswith("[AI Router fallback]")
+    result = await router.generate("What is the issue?")
+    # No API key configured -> honest empty fallback, never fabricated content.
+    assert result["content"] == ""
+    assert result["is_fallback"] is True
+    assert result["usage"] == {}
     assert "model" in result
-    assert "usage" in result
 
 
 @pytest.mark.asyncio
@@ -285,18 +285,18 @@ async def test_router_generate_success(monkeypatch):
 @pytest.mark.asyncio
 async def test_router_generate_budget_exceeded():
     router = enhanced_router.EnhancedLLMRouter(MODEL_CFGS, budget_per_request=0.0)
-    result = await router.generate("analyze")  # noqa: F841  # Variable for test verification
-    assert result["content"].startswith("[AI Router fallback]")
+    result = await router.generate("analyze")
+    assert result["content"] == ""
+    assert result["is_fallback"] is True
 
 
 @pytest.mark.asyncio
 async def test_router_generate_context_window_fallback():
     tiny = [{"model": "tiny", "max_tokens": 2, "context_window": 2, "cost_per_1k": 0.001}]
     router = enhanced_router.EnhancedLLMRouter(tiny)
-    result = await router.generate(
-        "This is a very long prompt that exceeds tiny context"
-    )  # noqa: F841  # Variable for test verification
-    assert result["content"].startswith("[AI Router fallback]")
+    result = await router.generate("This is a very long prompt that exceeds tiny context")
+    assert result["content"] == ""
+    assert result["is_fallback"] is True
 
 
 def test_router_stats_and_record():
@@ -776,8 +776,9 @@ async def test_router_generate_api_error(monkeypatch):
     monkeypatch.setitem(sys.modules, "openai", fake_openai)
     monkeypatch.setenv("AI_API_KEY", "test-key")
     router = enhanced_router.EnhancedLLMRouter(MODEL_CFGS)
-    result = await router.generate("prompt")  # noqa: F841  # Variable for test verification
-    assert result["content"].startswith("[AI Router fallback]")
+    result = await router.generate("prompt")
+    assert result["content"] == ""
+    assert result["is_fallback"] is True
 
 
 def test_router_find_and_is_available():

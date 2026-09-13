@@ -78,6 +78,39 @@ class AuditReport:
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
+def _parse_ts(value: Any) -> datetime:
+    """Coerce an ISO string (or datetime) into a timezone-aware datetime."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc)
+
+
+def _priority_from_severity(severity: Any) -> AuditPriority:
+    """Map a security-audit severity to an integration-level priority."""
+    text = str(getattr(severity, "value", severity) or "").lower()
+    if text in {"critical", "high"}:
+        return AuditPriority.HIGH
+    if text in {"low", "info", "debug"}:
+        return AuditPriority.LOW
+    return AuditPriority.MEDIUM
+
+
+def _priority_from_outcome(outcome: Any) -> AuditPriority:
+    """Map a compliance/access outcome to an integration-level priority."""
+    text = str(outcome or "").lower()
+    if text in {"failure", "blocked", "denied", "error"}:
+        return AuditPriority.HIGH
+    return AuditPriority.MEDIUM
+
+
 class AuditIntegrationManager:
     """Enterprise-grade audit integration manager"""
 
@@ -115,6 +148,10 @@ class AuditIntegrationManager:
         # Statistics
         self.total_trails = 0
         self.total_reports = 0
+
+        # Per-source dedup: trail/event ids already ingested, so repeated
+        # collection passes do not re-add the same real records.
+        self._collected_ids: Dict[str, set] = {}
 
         logger.info("Audit integration manager initialized")
 
@@ -204,53 +241,162 @@ class AuditIntegrationManager:
 
     async def _collect_from_source(self, source: AuditSource) -> List[str]:
         """
-        Collect audit trails from specific source
+        Collect audit trails from a specific source.
+
+        从真实的内部子系统（security_audit / compliance_manager / access_control /
+        change_management）读取审计记录；外部/未注册来源不返回任何伪造数据。
 
         Args:
             source: Audit source
 
         Returns:
-            List of trail IDs
+            List of newly collected trail IDs
         """
-        trail_ids = []
+        trail_ids: List[str] = []
 
         try:
-            # Simulate collection from source
-            # In real implementation, would connect to actual audit source
-            await asyncio.sleep(0.5)
-
-            # Simulate some audit trails
-            import secrets
-
-            _random = secrets.SystemRandom()
-            num_trails = _random.randint(0, 10)
-
-            for i in range(num_trails):
-                trail = AuditTrail(
-                    trail_id=(
-                        f"trail_{source.source_id}_"
-                        f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}_{i}"
-                    ),
-                    source_id=source.source_id,
-                    category=source.category,
-                    event_type=f"sample_event_{i}",
-                    action=f"Sample action {i}",
-                    details={"collected_from": source.source_name},
-                    priority=_random.choice(list(AuditPriority)),
-                )
-
-                self.audit_trails.append(trail)
-                trail_ids.append(trail.trail_id)
-                self.total_trails += 1
-
-            # Prune old trails
-            if len(self.audit_trails) > self.max_trails:
-                self.audit_trails = self.audit_trails[-self.max_trails :]
-
+            events = await self._fetch_source_events(source.endpoint)
         except Exception as e:
             logger.error(f"Failed to collect from source {source.source_id}: {e}")
+            return trail_ids
+
+        seen = self._collected_ids.setdefault(source.source_id, set())
+        for event in events:
+            native_id = str(event.get("trail_id") or "")
+            if not native_id or native_id in seen:
+                continue
+            trail = AuditTrail(
+                trail_id=f"{source.source_id}:{native_id}",
+                source_id=source.source_id,
+                category=source.category,
+                event_type=event.get("event_type", "audit_event"),
+                user_id=event.get("user_id"),
+                resource=event.get("resource"),
+                action=event.get("action", ""),
+                details=event.get("details", {}) or {},
+                priority=event.get("priority", AuditPriority.MEDIUM),
+                timestamp=event.get("timestamp") or datetime.now(timezone.utc),
+            )
+            seen.add(native_id)
+            self.audit_trails.append(trail)
+            trail_ids.append(trail.trail_id)
+            self.total_trails += 1
+
+        # Prune old trails
+        if len(self.audit_trails) > self.max_trails:
+            self.audit_trails = self.audit_trails[-self.max_trails :]
 
         return trail_ids
+
+    async def _fetch_source_events(self, endpoint: str) -> List[Dict[str, Any]]:
+        """Read real audit records from the subsystem backing ``endpoint``.
+
+        Returns normalized dicts (trail_id/event_type/user_id/resource/action/
+        details/timestamp/priority). Unknown or external endpoints return an
+        empty list rather than fabricated samples.
+        """
+        if endpoint == "internal://security_audit":
+            from core.security_audit_system import get_security_audit_system
+
+            system = get_security_audit_system()
+            return [
+                {
+                    "trail_id": e.get("event_id"),
+                    "event_type": e.get("event_type", "security_event"),
+                    "user_id": e.get("user_id"),
+                    "resource": e.get("resource"),
+                    "action": e.get("action", ""),
+                    "details": e.get("details", {}),
+                    "timestamp": _parse_ts(e.get("timestamp")),
+                    "priority": _priority_from_severity(e.get("severity")),
+                }
+                for e in system.query_events(limit=self.max_trails)
+            ]
+
+        if endpoint == "internal://compliance_manager":
+            from core.compliance_manager import get_compliance_manager
+
+            manager = get_compliance_manager()
+            return [
+                {
+                    "trail_id": entry.id,
+                    "event_type": (
+                        entry.action.value
+                        if hasattr(entry.action, "value")
+                        else str(entry.action)
+                    ),
+                    "user_id": entry.user_id,
+                    "resource": f"{entry.resource_type}:{entry.resource_id}",
+                    "action": entry.outcome,
+                    "details": {
+                        "tenant_id": entry.tenant_id,
+                        "ip_address": entry.ip_address,
+                        **(entry.metadata or {}),
+                    },
+                    "timestamp": _parse_ts(entry.timestamp),
+                    "priority": _priority_from_outcome(entry.outcome),
+                }
+                for entry in manager.get_audit_logs(limit=self.max_trails)
+            ]
+
+        if endpoint == "internal://access_control":
+            from core.unified_access_control import unified_access_control
+
+            return [
+                {
+                    "trail_id": f"{e.get('timestamp')}::{e.get('subject_id')}::{e.get('resource')}",
+                    "event_type": "access_decision",
+                    "user_id": e.get("subject_id"),
+                    "resource": e.get("resource"),
+                    "action": e.get("action", ""),
+                    "details": {
+                        "granted": e.get("granted"),
+                        "rule_id": e.get("rule_id"),
+                        "subject_roles": e.get("subject_roles", []),
+                    },
+                    "timestamp": _parse_ts(e.get("timestamp")),
+                    "priority": (
+                        AuditPriority.MEDIUM if e.get("granted") else AuditPriority.HIGH
+                    ),
+                }
+                for e in unified_access_control.get_audit_log(limit=self.max_trails)
+            ]
+
+        if endpoint == "internal://change_management":
+            from core.change_management_engine import list_requests
+
+            requests = await list_requests()
+            events: List[Dict[str, Any]] = []
+            for req in requests:
+                events.append(
+                    {
+                        "trail_id": req.id,
+                        "event_type": "change_request",
+                        "user_id": req.requester,
+                        "resource": req.id,
+                        "action": (
+                            req.status.value
+                            if hasattr(req.status, "value")
+                            else str(req.status)
+                        ),
+                        "details": {
+                            "title": req.title,
+                            "approver": req.approver,
+                            "risk_level": (
+                                req.risk_level.value
+                                if hasattr(req.risk_level, "value")
+                                else str(req.risk_level)
+                            ),
+                            "affected_services": req.affected_services,
+                        },
+                        "timestamp": datetime.now(timezone.utc),
+                    }
+                )
+            return events
+
+        # External endpoint (e.g. SIEM) without a configured connector:
+        # return nothing rather than simulate.
+        return []
 
     async def add_audit_trail(self, trail: AuditTrail) -> str:
         """

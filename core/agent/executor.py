@@ -349,6 +349,10 @@ class RollbackMechanism:
         self.rollback_actions[operation_id] = rollback_action
         logger.info(f"Registered rollback for operation: {operation_id}")
 
+    def discard_rollback(self, operation_id: str) -> None:
+        """Drop a registered rollback after the operation succeeded (no undo needed)."""
+        self.rollback_actions.pop(operation_id, None)
+
     def execute_rollback(
         self,
         operation_id: str,
@@ -888,6 +892,16 @@ class AutonomousExecutor:
             merged_context["_depth"] = _depth
             merged_context["dry_run"] = self.tool_executor.dry_run
 
+        # 在真正执行前，为可撤销的变更类操作注册真实的回滚动作，
+        # 使得后续“校验失败 / 异常”分支的 execute_rollback 能真正生效。
+        try:
+            inferred_params = self.tool_executor._infer_parameters(tool, merged_context)
+            rollback_action = self._build_rollback_action(tool.name, inferred_params)
+            if rollback_action is not None:
+                self.rollback_mechanism.register_rollback(task.id, rollback_action)
+        except Exception as rb_err:
+            logger.debug(f"Rollback registration skipped for {task.id}: {rb_err}")
+
         try:
             result = self.tool_executor.execute_with_auto_selection(
                 task.description,
@@ -916,6 +930,7 @@ class AutonomousExecutor:
                 }
 
             # 成功
+            self.rollback_mechanism.discard_rollback(task.id)
             self.risk_assessor.record_execution(task.description, True)
             self.trust_mechanism.update_trust(task.description, True)
 
@@ -964,6 +979,47 @@ class AutonomousExecutor:
                                 return float(candidates[0].get("confidence", 0.0))
                             except (TypeError, ValueError, AttributeError):
                                 pass
+
+        return None
+
+    def _build_rollback_action(self, tool_name: str, params: Dict[str, Any]) -> Optional[Any]:
+        """为可撤销的文件变更返回真实补偿动作；无通用补偿时返回 None。
+
+        - ``write_to_file``：快照原内容（或“文件原不存在”），回滚时恢复/删除。
+        - ``edit``：快照原内容，回滚时整文件还原。
+        - 其余工具（如 bash）无通用撤销语义，则如实不注册。
+        """
+        file_path = params.get("file_path")
+        if not file_path:
+            return None
+        try:
+            from core.agent.coding_tools import _resolve_allowed_path
+
+            target = _resolve_allowed_path(str(file_path))
+        except Exception:
+            return None
+
+        if tool_name == "write_to_file":
+            existed = target.exists()
+            original = target.read_bytes() if existed else None
+
+            def _restore_write() -> None:
+                if existed and original is not None:
+                    target.write_bytes(original)
+                elif not existed and target.exists():
+                    target.unlink()
+
+            return _restore_write
+
+        if tool_name == "edit":
+            if not target.exists():
+                return None
+            original_edit = target.read_bytes()
+
+            def _restore_edit() -> None:
+                target.write_bytes(original_edit)
+
+            return _restore_edit
 
         return None
 

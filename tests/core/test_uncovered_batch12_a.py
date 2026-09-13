@@ -120,7 +120,7 @@ def test_build_prompt_full_context(router_cfg):
 async def test_route_analysis_success(router_cfg, monkeypatch):
     router = mr.MultiModelRouter(router_cfg)
     monkeypatch.setattr(config, "AI_CONFIG", {"api_key": "ak", "model": "gpt-4"})
-    monkeypatch.setattr("core.ai_engine.analyze", MagicMock(return_value={"result": "ok"}))
+    monkeypatch.setattr("core.ai_engine.analyze", AsyncMock(return_value={"result": "ok"}))
     result = await router.route_analysis(  # noqa: F841  # Variable for test verification
         "prompt", {"rag_enabled": True, "rag_knowledge": [{"text": "k"}]}
     )
@@ -131,7 +131,7 @@ async def test_route_analysis_success(router_cfg, monkeypatch):
 @pytest.mark.asyncio
 async def test_route_analysis_error_no_fallback(router_cfg, monkeypatch):
     router = mr.MultiModelRouter({"models": [router_cfg["models"][0]], "token_cost_threshold": 10})
-    monkeypatch.setattr("core.ai_engine.analyze", MagicMock(side_effect=Exception("boom")))
+    monkeypatch.setattr("core.ai_engine.analyze", AsyncMock(side_effect=Exception("boom")))
     result = await router.route_analysis("prompt")  # noqa: F841  # Variable for test verification
     assert "error" in result
 
@@ -140,7 +140,7 @@ async def test_route_analysis_error_no_fallback(router_cfg, monkeypatch):
 async def test_route_analysis_fallback(router_cfg, monkeypatch):
     router = mr.MultiModelRouter(router_cfg)
     monkeypatch.setattr(
-        "core.ai_engine.analyze", MagicMock(side_effect=[Exception("boom"), {"result": "ok"}])
+        "core.ai_engine.analyze", AsyncMock(side_effect=[Exception("boom"), {"result": "ok"}])
     )
     result = await router.route_analysis("prompt")  # noqa: F841  # Variable for test verification
     assert result["result"] == "ok"

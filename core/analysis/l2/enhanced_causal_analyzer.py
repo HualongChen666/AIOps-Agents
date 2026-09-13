@@ -4,6 +4,7 @@ L2 Analysis Layer - Enhanced Causal Analyzer (Phase 2)
 Enhanced causal analysis with advanced algorithms and real-time processing
 """
 
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -147,6 +148,10 @@ class EnhancedCausalAnalyzer:
         self.analysis_count = 0
         self.avg_analysis_time = 0.0
         self.total_analysis_time = 0.0
+
+        # 实时滑窗缓冲：按指标保存最近观测，用于真实实时因果分析
+        self._realtime_timestamps: deque = deque()
+        self._realtime_buffer: Dict[str, deque] = {}
 
         # Initialize components
         self._initialize_components()
@@ -564,24 +569,79 @@ class EnhancedCausalAnalyzer:
         self, metrics_stream: Dict[str, float], window_size: int = 60
     ) -> CausalAnalysisResult:
         """
-        Real-time causal analysis for streaming data
+        Real-time causal analysis for streaming data.
+
+        维护每个指标的滚动窗口；当窗口内样本足够时，直接复用真实的
+        ``analyze_causal_relationships`` 因果分析管线（PC/相关性 + 根因推断
+        + 影响分析）；样本不足时返回如实标注 ``insufficient_data`` 的空结果，
+        绝不返回硬编码的伪结果。
 
         Args:
-            metrics_stream: Current metrics snapshot
-            window_size: Size of the sliding window for analysis
+            metrics_stream: 当前指标快照
+            window_size: 滑动窗口大小
 
         Returns:
-            CausalAnalysisResult: Real-time analysis result
+            CausalAnalysisResult: 实时分析结果
         """
-        # This would integrate with the L1 data stream for real-time processing
-        # For now, return a simplified result
-        return CausalAnalysisResult(
-            root_causes=list(metrics_stream.keys()),
-            causal_paths=[[k] for k in metrics_stream.keys()],
-            impact_scores={k: 0.8 for k in metrics_stream.keys()},
-            confidence=0.7,
-            metadata={"realtime": True},
-        )
+        window_size = max(3, int(window_size))
+        now = datetime.now(timezone.utc)
+
+        # 维护时间戳窗口
+        self._realtime_timestamps.append(now)
+        while len(self._realtime_timestamps) > window_size:
+            self._realtime_timestamps.popleft()
+
+        for key, value in metrics_stream.items():
+            try:
+                fv = float(value)
+            except (TypeError, ValueError):
+                continue
+            buf = self._realtime_buffer.get(key)
+            if buf is None or buf.maxlen != window_size:
+                buf = deque(buf or (), maxlen=window_size)
+                self._realtime_buffer[key] = buf
+            buf.append(fv)
+            # 与时间窗口对齐，避免指标晚到时长度不一致
+            while len(buf) > len(self._realtime_timestamps):
+                buf.popleft()
+
+        available = {k: list(v) for k, v in self._realtime_buffer.items() if v}
+        n = min((len(v) for v in available.values()), default=0)
+
+        if n < 3:
+            return CausalAnalysisResult(
+                root_causes=[],
+                causal_paths=[],
+                impact_scores={},
+                confidence=0.0,
+                analysis_timestamp=now,
+                metadata={"realtime": True, "status": "insufficient_data", "samples": n},
+            )
+
+        metrics_data = {k: v[-n:] for k, v in available.items()}
+        timestamps = list(self._realtime_timestamps)[-n:]
+        target = self._select_realtime_target(metrics_data)
+
+        result = await self.analyze_causal_relationships(metrics_data, timestamps, target)
+        result.metadata["realtime"] = True
+        result.metadata["window_size"] = window_size
+        result.metadata["target_variable"] = target
+        return result
+
+    @staticmethod
+    def _select_realtime_target(metrics_data: Dict[str, List[float]]) -> str:
+        """选择窗口内偏离自身均值最显著的指标作为实时分析目标。"""
+        best: Optional[str] = None
+        best_score = -1.0
+        for key, series in metrics_data.items():
+            arr = np.asarray(series, dtype=float)
+            mean = float(arr.mean())
+            std = float(arr.std())
+            deviation = abs(float(arr[-1]) - mean)
+            score = deviation / std if std > 1e-9 else deviation
+            if score > best_score:
+                best, best_score = key, score
+        return best if best is not None else next(iter(metrics_data))
 
 
 def get_enhanced_causal_analyzer(config: Optional[Dict[str, Any]] = None) -> EnhancedCausalAnalyzer:

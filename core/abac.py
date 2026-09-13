@@ -191,11 +191,13 @@ class ABACEngine:
 
         if self._is_sqlalchemy:
             # Use SQLAlchemy session
+            from sqlalchemy import text
+
             try:
-                self.storage.execute(create_policies_table)
-                self.storage.execute(create_policy_evaluations_table)
+                self.storage.execute(text(create_policies_table))
+                self.storage.execute(text(create_policy_evaluations_table))
                 for index in create_indexes:
-                    self.storage.execute(index)
+                    self.storage.execute(text(index))
                 self.storage.commit()
                 logger.info("ABAC tables created successfully (SQLAlchemy)")
             except Exception as e:
@@ -225,7 +227,9 @@ class ABACEngine:
         )
 
         if self._is_sqlalchemy:
-            policies_data = self.storage.execute(query)
+            from sqlalchemy import text
+
+            policies_data = self.storage.execute(text(query))
             policies_data = [dict(row._mapping) for row in policies_data]
         else:
             policies_data = self.storage.execute_query(query)
@@ -389,21 +393,65 @@ class ABACEngine:
 
         return True
 
+    def _execute_write(
+        self, sql: str, params: Optional[Dict[str, Any]] = None, *, returning: bool = False
+    ) -> Optional[Any]:
+        """Execute a write statement against whichever storage backend is in use.
+
+        The SQL uses ``:name`` bind markers.  When the underlying storage is a
+        SQLAlchemy ``Session`` the statement runs through ``Session.execute``
+        (``text()`` clause); otherwise it runs through a DB-API connection opened
+        by ``storage.get_connection()`` after rewriting ``:name`` to ``%s``.
+
+        Returns the first column of the first row when ``returning`` is true.
+        """
+        params = params or {}
+
+        if self._is_sqlalchemy:
+            from sqlalchemy import text
+
+            result = self.storage.execute(text(sql), params)
+            value = None
+            if returning:
+                row = result.first()
+                value = row[0] if row is not None else None
+            self.storage.commit()
+            return value
+
+        import re as _re
+
+        names = _re.findall(r":([A-Za-z_][A-Za-z0-9_]*)", sql)
+        positional = _re.sub(r":[A-Za-z_][A-Za-z0-9_]*", "%s", sql)
+        args = tuple(params[n] for n in names) if names else ()
+        with self.storage.get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(positional, args)
+                value = None
+                if returning:
+                    row = cursor.fetchone()
+                    value = row[0] if row is not None else None
+                conn.commit()
+                return value
+
     def _log_evaluation(
         self, policy_id: str, subject_id: str, resource_id: str, action: str, decision: bool
     ) -> None:
         """Log policy evaluation"""
         try:
-            with self.storage.get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        INSERT INTO abac_policy_evaluations
-                        (policy_id, subject_id, resource_id, action, decision)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """,
-                        (policy_id, subject_id, resource_id, action, decision),
-                    )
+            self._execute_write(
+                """
+                INSERT INTO abac_policy_evaluations
+                (policy_id, subject_id, resource_id, action, decision)
+                VALUES (:policy_id, :subject_id, :resource_id, :action, :decision)
+                """,
+                {
+                    "policy_id": policy_id,
+                    "subject_id": subject_id,
+                    "resource_id": resource_id,
+                    "action": action,
+                    "decision": decision,
+                },
+            )
         except Exception as e:
             logger.error(f"Failed to log policy evaluation: {e}")
 
@@ -435,36 +483,33 @@ class ABACEngine:
             Policy ID or None if failed
         """
         try:
-            with self.storage.get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute(
-                        """
-                        INSERT INTO abac_policies
-                        (name, description, effect, subject_conditions, resource_conditions,
-                         environment_conditions, actions, priority)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                        RETURNING id
-                    """,
-                        (
-                            name,
-                            description,
-                            effect,
-                            json.dumps(subject_conditions),
-                            json.dumps(resource_conditions),
-                            json.dumps(environment_conditions),
-                            json.dumps(actions),
-                            priority,
-                        ),
-                    )
+            policy_id = self._execute_write(
+                """
+                INSERT INTO abac_policies
+                (name, description, effect, subject_conditions, resource_conditions,
+                 environment_conditions, actions, priority)
+                VALUES (:name, :description, :effect, :subject_conditions, :resource_conditions,
+                        :environment_conditions, :actions, :priority)
+                RETURNING id
+                """,
+                {
+                    "name": name,
+                    "description": description,
+                    "effect": effect,
+                    "subject_conditions": json.dumps(subject_conditions),
+                    "resource_conditions": json.dumps(resource_conditions),
+                    "environment_conditions": json.dumps(environment_conditions),
+                    "actions": json.dumps(actions),
+                    "priority": priority,
+                },
+                returning=True,
+            )
 
-                    policy_id = cursor.fetchone()[0]
-                    conn.commit()
+            # Reload policies
+            self._load_policies()
 
-                    # Reload policies
-                    self._load_policies()
-
-                    logger.info(f"Created policy: {name} (ID: {policy_id})")
-                    return str(policy_id)
+            logger.info(f"Created policy: {name} (ID: {policy_id})")
+            return str(policy_id) if policy_id is not None else None
 
         except Exception as e:
             logger.error(f"Failed to create policy {name}: {e}")
@@ -503,57 +548,54 @@ class ABACEngine:
         """
         try:
             updates: List[str] = []
-            params: List[Any] = []
+            params: Dict[str, Any] = {}
 
             if name is not None:
-                updates.append("name = %s")
-                params.append(name)
+                updates.append("name = :name")
+                params["name"] = name
             if description is not None:
-                updates.append("description = %s")
-                params.append(description)
+                updates.append("description = :description")
+                params["description"] = description
             if enabled is not None:
-                updates.append("enabled = %s")
-                params.append(enabled)
+                updates.append("enabled = :enabled")
+                params["enabled"] = enabled
             if effect is not None:
-                updates.append("effect = %s")
-                params.append(effect)
+                updates.append("effect = :effect")
+                params["effect"] = effect
             if subject_conditions is not None:
-                updates.append("subject_conditions = %s")
-                params.append(json.dumps(subject_conditions))
+                updates.append("subject_conditions = :subject_conditions")
+                params["subject_conditions"] = json.dumps(subject_conditions)
             if resource_conditions is not None:
-                updates.append("resource_conditions = %s")
-                params.append(json.dumps(resource_conditions))
+                updates.append("resource_conditions = :resource_conditions")
+                params["resource_conditions"] = json.dumps(resource_conditions)
             if environment_conditions is not None:
-                updates.append("environment_conditions = %s")
-                params.append(json.dumps(environment_conditions))
+                updates.append("environment_conditions = :environment_conditions")
+                params["environment_conditions"] = json.dumps(environment_conditions)
             if actions is not None:
-                updates.append("actions = %s")
-                params.append(json.dumps(actions))
+                updates.append("actions = :actions")
+                params["actions"] = json.dumps(actions)
             if priority is not None:
-                updates.append("priority = %s")
-                params.append(priority)
+                updates.append("priority = :priority")
+                params["priority"] = priority
 
             if not updates:
                 return True
 
             updates.append("updated_at = CURRENT_TIMESTAMP")
-            params.append(policy_id)
+            params["policy_id"] = policy_id
 
-            with self.storage.get_connection() as conn:
-                with conn.cursor() as cursor:
-                    # Security: Use parameterized query to prevent SQL injection
-                    # Column names are hardcoded in the updates list, not from user input
-                    query = "".join(
-                        ["UPDATE abac_policies SET ", ", ".join(updates), " WHERE id = %s"]
-                    )
-                    cursor.execute(query, params)
-                    conn.commit()
+            # Security: parameterized query; column names are hardcoded above,
+            # never taken from user input.
+            query = "".join(
+                ["UPDATE abac_policies SET ", ", ".join(updates), " WHERE id = :policy_id"]
+            )
+            self._execute_write(query, params)
 
-                    # Reload policies
-                    self._load_policies()
+            # Reload policies
+            self._load_policies()
 
-                    logger.info(f"Updated policy: {policy_id}")
-                    return True
+            logger.info(f"Updated policy: {policy_id}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to update policy {policy_id}: {e}")
@@ -570,16 +612,15 @@ class ABACEngine:
             True if successful
         """
         try:
-            with self.storage.get_connection() as conn:
-                with conn.cursor() as cursor:
-                    cursor.execute("DELETE FROM abac_policies WHERE id = %s", (policy_id,))
-                    conn.commit()
+            self._execute_write(
+                "DELETE FROM abac_policies WHERE id = :policy_id", {"policy_id": policy_id}
+            )
 
-                    # Reload policies
-                    self._load_policies()
+            # Reload policies
+            self._load_policies()
 
-                    logger.info(f"Deleted policy: {policy_id}")
-                    return True
+            logger.info(f"Deleted policy: {policy_id}")
+            return True
 
         except Exception as e:
             logger.error(f"Failed to delete policy {policy_id}: {e}")

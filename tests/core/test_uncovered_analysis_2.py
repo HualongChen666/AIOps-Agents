@@ -579,13 +579,25 @@ async def test_enhanced_causal_analyze_relationships(eca_analyzer):
 
 @pytest.mark.asyncio
 async def test_enhanced_causal_realtime(eca_analyzer):
+    # A single snapshot is not enough for causal inference -> honest
+    # insufficient_data (never a hardcoded 0.7 /全量 root causes).
     stream = {"cpu": 80.0, "memory": 70.0}
-    result = await eca_analyzer.realtime_analysis(
-        stream, window_size=10
-    )  # noqa: F841  # Variable for test verification
+    result = await eca_analyzer.realtime_analysis(stream, window_size=10)
     assert isinstance(result, eca.CausalAnalysisResult)
-    assert result.confidence == 0.7
-    assert "cpu" in result.root_causes
+    assert result.confidence == 0.0
+    assert result.root_causes == []
+    assert result.metadata["status"] == "insufficient_data"
+
+    # Feed a real rolling window; once enough samples accumulate the real
+    # causal pipeline runs (realtime flag + bounded confidence).
+    for i in range(5):
+        result = await eca_analyzer.realtime_analysis(
+            {"cpu": 50.0 + i, "memory": 40.0 + i}, window_size=10
+        )
+    assert isinstance(result, eca.CausalAnalysisResult)
+    assert result.metadata.get("realtime") is True
+    assert 0.0 <= result.confidence <= 1.0
+    assert "target_variable" in result.metadata
 
 
 def test_enhanced_simplified_graph(eca_analyzer):

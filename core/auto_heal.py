@@ -819,13 +819,13 @@ def _resolve_script_key(rule_name: str, alert_payload: Dict[str, Any]) -> str:
 # ----------------------------------------------------------------------
 # 主业务入口
 # ----------------------------------------------------------------------
-def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
+async def ahandle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    接收原始告警（JSON），执行以下流程：
+    接收原始告警（JSON）的异步实现，执行以下流程：
 
     1. 将告警写入数据库（AlertHistory）。
     2. 根据告警关联的规则（rule_name）检索对应的修复脚本（script_key）。
-    3. 调用修复脚本（此处使用占位函数 simulate_repair）。
+    3. 调用修复脚本（跨平台执行器）。
     4. 将修复结果写入 RepairRecord 表。
     5. 触发验证（verify）步骤，写入 VerifyRecord。
     6. 如验证需要人工介入，生成 Runbook（RAG + LLM）并写入 PendingApproval。
@@ -844,7 +844,7 @@ def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
     # ------------------------------------------------------------------
     # 1️⃣ 记录告警
     # ------------------------------------------------------------------
-    alert_id = asyncio.run(_create_alert_record(alert_payload))
+    alert_id = await _create_alert_record(alert_payload)
 
     # ------------------------------------------------------------------
     # 2️⃣ 根据告警选择修复脚本
@@ -919,7 +919,7 @@ def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
             f"Alert Details: {safe_alert_json}\n"
             f"Relevant Context:\n{safe_context}\n"
         )
-        runbook_text = analyze(prompt, rich_context=safe_context)
+        runbook_text = await analyze(prompt, rich_context=safe_context)
 
         # 写入 PendingApproval（待人工审核）
         _create_pending_approval(
@@ -942,6 +942,25 @@ def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
     }
     _logger.info("Auto‑heal flow completed: %s", response)
     return response
+
+
+def handle_alert(alert_payload: Dict[str, Any]) -> Dict[str, Any]:
+    """同步入口：安全地驱动异步告警处理流程。
+
+    - 无运行中的事件循环时，直接 ``asyncio.run``。
+    - 已在事件循环内被调用时，改为在独立线程中执行，避免
+      ``asyncio.run() cannot be called from a running event loop``。
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(ahandle_alert(alert_payload))
+
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(lambda: asyncio.run(ahandle_alert(alert_payload)))
+        return future.result()
 
 
 # ----------------------------------------------------------------------

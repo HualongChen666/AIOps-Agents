@@ -4,7 +4,6 @@
 import asyncio  # noqa: F401  # Imported for test setup
 import json  # noqa: F401  # Imported for test setup
 import logging
-import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -157,21 +156,7 @@ async def test_general_exception_handler_no_debug(monkeypatch):
 # ---------------------------------------------------------------------------
 @pytest.fixture
 def audit_instance(tmp_path, monkeypatch):
-    """Provide an isolated AuditIntegrationManager with fast, deterministic internals."""
-    monkeypatch.setattr(audit_mgr.asyncio, "sleep", AsyncMock())
-
-    class FakeRandom:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def randint(self, a, b):
-            return 2
-
-        def choice(self, seq):
-            return seq[0]
-
-    monkeypatch.setattr(secrets, "SystemRandom", FakeRandom)
-
+    """Provide an isolated AuditIntegrationManager backed by real subsystems."""
     return audit_mgr.AuditIntegrationManager(
         config={
             "storage_dir": str(tmp_path / "audit"),
@@ -182,27 +167,85 @@ def audit_instance(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_audit_collect_and_query(audit_instance, tmp_path):
+async def test_audit_collect_and_query(audit_instance, tmp_path, monkeypatch):
     mgr = audit_instance
 
-    # Register an extra source to exercise registration path
+    # Register an extra source whose endpoint has no real provider -> no data.
     extra = audit_mgr.AuditSource(
         source_id="extra",
         source_name="Extra Source",
         category=audit_mgr.AuditCategory.OPERATIONAL,
-        endpoint="internal://extra",
+        endpoint="internal://unmapped_provider",
     )
     mgr.register_source(extra)
     assert "extra" in mgr.audit_sources
 
-    # Collect from all enabled sources (5 sources, 2 trails each)
-    trail_ids = await mgr.collect_audit_trails()
-    assert len(trail_ids) == 10
-    assert len(mgr.audit_trails) == 3  # max_trails prune applied
+    # --- seed REAL records in the backing subsystems -----------------------
+    from core.security_audit_system import (
+        AuditEventType,
+        AuditSeverity,
+        get_security_audit_system,
+    )
 
-    # Filtered collections
-    assert len(await mgr.collect_audit_trails(source_id="security_audit")) == 2
-    assert len(await mgr.collect_audit_trails(category=audit_mgr.AuditCategory.SECURITY)) >= 2
+    audit_system = get_security_audit_system()
+    await audit_system.log_event(
+        AuditEventType.USER_LOGIN,
+        action="user login",
+        user_id="sec-user",
+        severity=AuditSeverity.CRITICAL,
+    )
+
+    from core.compliance_manager import ActionType as ComplianceActionType
+    from core.compliance_manager import get_compliance_manager
+
+    await audit_system.log_event(
+        AuditEventType.USER_LOGIN,
+        action="user login 2",
+        user_id="sec-user-2",
+        severity=AuditSeverity.INFO,
+    )
+    get_compliance_manager().log_audit_event(
+        tenant_id="t1",
+        user_id="comp-user",
+        action=ComplianceActionType.UPDATE,
+        resource_type="config",
+        resource_id="cfg-1",
+        outcome="failure",
+        ip_address="10.0.0.1",
+        user_agent="pytest",
+    )
+
+    from core.unified_access_control import unified_access_control
+
+    class _Subj:
+        id = "alice"
+        type = "user"
+        roles = ["admin"]
+
+    unified_access_control._log_access_decision(_Subj(), "resource-x", "read", True, "rule-1")
+
+    from core.change_management_engine import create_request
+    import core.change_management_engine as cme
+
+    # Isolate the change-request store so the test never dirties the tracked
+    # data/change_requests.json file.
+    monkeypatch.setattr(cme, "_DATA_DIR", tmp_path / "changes")
+    monkeypatch.setattr(cme, "_DATA_FILE", tmp_path / "changes" / "change_requests.json")
+    monkeypatch.setattr(cme, "_LOADED", False)
+    monkeypatch.setattr(cme, "_REQUESTS", {})
+
+    await create_request({"title": "rotate creds", "requester": "alice"})
+
+    # --- collect real trails ----------------------------------------------
+    trail_ids = await mgr.collect_audit_trails()
+    assert len(trail_ids) >= 4  # security x2 + compliance + access + change
+    # max_trails prune applied
+    assert len(mgr.audit_trails) <= 3
+
+    # Re-collection is idempotent (real records already ingested -> no dupes).
+    assert await mgr.collect_audit_trails() == []
+    # Unknown endpoint source yields nothing fabricated.
+    assert await mgr.collect_audit_trails(source_id="extra") == []
     assert await mgr.collect_audit_trails(source_id="ghost") == []
 
     # Manually add a trail
@@ -250,11 +293,14 @@ async def test_audit_collect_and_query(audit_instance, tmp_path):
 
 @pytest.mark.asyncio
 async def test_audit_collect_exception(tmp_path, monkeypatch):
-    monkeypatch.setattr(audit_mgr.asyncio, "sleep", AsyncMock())
-    monkeypatch.setattr(secrets, "SystemRandom", MagicMock(side_effect=RuntimeError("boom")))
     mgr = audit_mgr.AuditIntegrationManager(
         config={"storage_dir": str(tmp_path / "audit"), "auto_collection": False}
     )
+
+    async def _boom(_endpoint):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(mgr, "_fetch_source_events", _boom)
     trail_ids = await mgr.collect_audit_trails(source_id="security_audit")
     assert trail_ids == []
     assert len(mgr.audit_sources) == 4
