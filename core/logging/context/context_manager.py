@@ -182,7 +182,7 @@ class LoggingContextManager:
         Returns:
             New session ID
         """
-        return str(uuid.uuid4()).replace("-")  # type: ignore[call-arg]
+        return str(uuid.uuid4()).replace("-", "")
 
     def create_correlation_id(self) -> str:
         """

@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Query
 
+from core.query_optimizer import resolve_orm_column
+
 
 class PaginationParams(BaseModel):
     """Standard pagination parameters"""
@@ -49,8 +51,8 @@ class PaginationHelper:
         """
         # Apply sorting if specified
         if params.sort_by:
-            sort_column = getattr(query.column_described, params.sort_by, None)
-            if sort_column:
+            sort_column = resolve_orm_column(query, params.sort_by)
+            if sort_column is not None:
                 if params.sort_order == "desc":
                     query = query.order_by(sort_column.desc())
                 else:

@@ -36,16 +36,23 @@ logger = logging.getLogger(__name__)
 class MemoryMonitor:
     """内存监控器"""
 
-    def __init__(self, max_memory_mb: int = 1024, warning_threshold: float = 0.8):
+    def __init__(
+        self,
+        max_memory_mb: int = 1024,
+        warning_threshold: float = 0.8,
+        critical_threshold: float = 0.95,
+    ):
         """
         初始化内存监控器
 
         Args:
             max_memory_mb: 最大内存限制（MB）
             warning_threshold: 警告阈值（0-1）
+            critical_threshold: 临界阈值（0-1），需高于 warning_threshold 才有意义
         """
         self.max_memory_mb = max_memory_mb
         self.warning_threshold = warning_threshold
+        self.critical_threshold = critical_threshold
         self._enable_tracemalloc = False
         self._memory_history: list = []
         self._max_history_size = 100
@@ -105,6 +112,7 @@ class MemoryMonitor:
             "max_memory_mb": self.max_memory_mb,
             "usage_rate": usage_rate,
             "warning_threshold": self.warning_threshold,
+            "critical_threshold": self.critical_threshold,
             "tracemalloc": tracemalloc_info,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
@@ -132,8 +140,19 @@ class MemoryMonitor:
         if len(self._memory_history) > self._max_history_size:
             self._memory_history = self._memory_history[-self._max_history_size :]
 
-        # 检查是否超过阈值
-        if usage_rate > self.warning_threshold:
+        # 检查是否超过阈值（先判临界，否则 critical 分支会被 warning 抢先命中而永不触达）
+        if usage_rate > self.critical_threshold:
+            logger.error(
+                f"Memory usage critical: {memory_info['usage_mb']:.2f}MB "
+                f"({usage_rate:.1%} of {self.max_memory_mb}MB limit)"
+            )
+
+            return {
+                "status": "critical",
+                "memory_info": memory_info,
+                "message": "Memory usage critical, immediate action required",
+            }
+        elif usage_rate > self.warning_threshold:
             logger.warning(
                 f"Memory usage high: {memory_info['usage_mb']:.2f}MB "
                 f"({usage_rate:.1%} of {self.max_memory_mb}MB limit)"
@@ -146,17 +165,6 @@ class MemoryMonitor:
                 "status": "warning",
                 "memory_info": memory_info,
                 "message": f"Memory usage exceeds {self.warning_threshold:.0%} threshold",
-            }
-        elif usage_rate > 0.95:
-            logger.error(
-                f"Memory usage critical: {memory_info['usage_mb']:.2f}MB "
-                f"({usage_rate:.1%} of {self.max_memory_mb}MB limit)"
-            )
-
-            return {
-                "status": "critical",
-                "memory_info": memory_info,
-                "message": "Memory usage critical, immediate action required",
             }
         else:
             return {"status": "healthy", "memory_info": memory_info}

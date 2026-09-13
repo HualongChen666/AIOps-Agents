@@ -6,6 +6,7 @@ Tests for core/query_optimizer.py and core/pagination.py
 
 import time
 from unittest.mock import Mock, MagicMock, patch
+from types import SimpleNamespace
 from typing import List, Dict, Any
 
 import pytest
@@ -132,6 +133,10 @@ class TestQueryOptimizer:
         """Test query filter optimization"""
         mock_query = Mock()
         mock_query.filter = Mock(return_value=mock_query)
+        # column_descriptions carries the mapped entity (real SQLAlchemy contract)
+        mock_query.column_descriptions = [
+            {"entity": SimpleNamespace(status=Mock(), priority=Mock(), name=Mock())}
+        ]
         
         filters = {
             "status": "active",
@@ -371,8 +376,7 @@ class TestPaginationHelper:
         # Mock column attribute
         mock_sort_column = Mock()
         mock_sort_column.desc.return_value = mock_sort_column
-        mock_query.column_described = Mock()
-        mock_query.column_described.created_at = mock_sort_column
+        mock_query.column_descriptions = [{"entity": SimpleNamespace(created_at=mock_sort_column)}]
         
         params = PaginationParams(page=1, per_page=50, sort_by="created_at", sort_order="desc")
         results, pagination_info = PaginationHelper.apply_pagination(mock_query, params)
@@ -435,8 +439,7 @@ class TestQueryOptimizationIntegration:
         # Mock column attribute
         mock_sort_column = Mock()
         mock_sort_column.asc.return_value = mock_sort_column
-        mock_query.column_described = Mock()
-        mock_query.column_described.created_at = mock_sort_column
+        mock_query.column_descriptions = [{"entity": SimpleNamespace(created_at=mock_sort_column)}]
         
         # Step 1: Validate parameters
         raw_params = {"page": 2, "per_page": 50, "sort_by": "created_at"}

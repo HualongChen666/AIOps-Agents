@@ -95,8 +95,10 @@ class ConfigValidator:
 
         secret = config.security.jwt_secret_key
 
-        # Check if using default secret
-        if secret == os.environ.get("JWT_SECRET_KEY", "dev-secret-key-change-me"):
+        # Check if using a known default/placeholder secret (compare against the
+        # literal defaults rather than the env var, which would be a self-compare
+        # whenever JWT_SECRET_KEY is set and equals the configured secret).
+        if not secret or secret in ("dev-secret-key-change-me", "default-secret-key"):
             severity = (
                 ValidationSeverity.ERROR
                 if config.environment == Environment.PRODUCTION

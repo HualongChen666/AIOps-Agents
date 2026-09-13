@@ -88,7 +88,8 @@ class MFAService:
         """
         codes = []
         for _ in range(count):
-            code = secrets.token_hex(4).upper()
+            # token_hex(6) -> 12 hex chars，恰好填充 XXXX-XXXX-XXXX 三段
+            code = secrets.token_hex(6).upper()
             # 格式化为 XXXX-XXXX-XXXX
             formatted_code = f"{code[:4]}-{code[4:8]}-{code[8:12]}"
             codes.append(formatted_code)

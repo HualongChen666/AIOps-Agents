@@ -44,7 +44,7 @@ class IdempotencyStore:
             # 检查是否过期
             if datetime.now() < entry["expires_at"]:
                 response = entry["response"]
-                return Dict[str, Any](response) if isinstance(response, dict) else None
+                return dict(response) if isinstance(response, dict) else None
             else:
                 # 过期删除
                 del self._store[key]
@@ -115,7 +115,7 @@ class RedisIdempotencyStore(IdempotencyStore):
             data = client.get(f"idemp:{key}")
             if data:
                 loaded = json.loads(data)
-                return Dict[str, Any](loaded) if isinstance(loaded, dict) else None
+                return dict(loaded) if isinstance(loaded, dict) else None
         except Exception as e:
             logger.error("Failed to get from Redis: %s", e)
         return None

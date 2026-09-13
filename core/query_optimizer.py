@@ -19,6 +19,30 @@ import time
 T = TypeVar('T')
 
 
+def resolve_orm_column(query: Query, field_name: str) -> Optional[Any]:
+    """Resolve a mapped ORM attribute by name from a :class:`Query`.
+
+    SQLAlchemy exposes the mapped entity through ``Query.column_descriptions``
+    (a list of dicts, each carrying the ``entity`` mapped class). This turns a
+    plain field name into a real ``InstrumentedAttribute`` usable in
+    ``order_by`` / ``filter``. Returns ``None`` when the field is not a mapped
+    column of the queried entity.
+    """
+    descriptions = getattr(query, "column_descriptions", None)
+    if not isinstance(descriptions, (list, tuple)):
+        return None
+    for description in descriptions:
+        if not isinstance(description, dict):
+            continue
+        entity = description.get("entity")
+        if entity is None:
+            continue
+        attribute = getattr(entity, field_name, None)
+        if attribute is not None:
+            return attribute
+    return None
+
+
 class QueryOptimizer:
     """Query optimization utilities"""
     
@@ -136,18 +160,21 @@ class QueryOptimizer:
         """
         for field, value in filters.items():
             if value is not None:
+                column = resolve_orm_column(query, field)
+                if column is None:
+                    continue
                 if isinstance(value, list):
                     # Use IN clause for lists
-                    query = query.filter(getattr(query.column_described, field).in_(value))
-                elif isinstance(value, (str,)):
+                    query = query.filter(column.in_(value))
+                elif isinstance(value, str):
                     # Use LIKE for string searches with wildcards
                     if '*' in value or '%' in value:
-                        query = query.filter(getattr(query.column_described, field).like(value.replace('*', '%')))
+                        query = query.filter(column.like(value.replace('*', '%')))
                     else:
-                        query = query.filter(getattr(query.column_described, field) == value)
+                        query = query.filter(column == value)
                 else:
                     # Exact match for other types
-                    query = query.filter(getattr(query.column_described, field) == value)
+                    query = query.filter(column == value)
         
         return query
 

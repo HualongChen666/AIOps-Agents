@@ -379,6 +379,33 @@ class I18nManager:
         formatted_number = self.format_number(amount, locale)
         return f"{locale.currency} {formatted_number}"
 
+    # CLDR-style tokens used by the locale ``date_format`` definitions.
+    _DATE_FORMAT_TOKENS = (
+        ("YYYY", "%Y"),
+        ("YY", "%y"),
+        ("MM", "%m"),
+        ("DD", "%d"),
+        ("HH", "%H"),
+        ("mm", "%M"),
+        ("ss", "%S"),
+    )
+
+    @classmethod
+    def _date_format_to_strftime(cls, pattern: str) -> str:
+        """Translate a locale ``date_format`` (e.g. ``YYYY-MM-DD HH:mm:ss``) into strftime."""
+        if not pattern:
+            return "%Y-%m-%d %H:%M:%S"
+        result = pattern
+        placeholders = {}
+        for index, (token, directive) in enumerate(cls._DATE_FORMAT_TOKENS):
+            placeholder = f"\x00{index}\x00"
+            if token in result:
+                result = result.replace(token, placeholder)
+                placeholders[placeholder] = directive
+        for placeholder, directive in placeholders.items():
+            result = result.replace(placeholder, directive)
+        return result
+
     def format_date(self, date: datetime, locale: Optional[Locale] = None) -> str:
         """
         Format date according to locale
@@ -396,9 +423,7 @@ class I18nManager:
         if locale is None:
             locale = self.locales["zh-CN"]
 
-        # Simple formatting (can be enhanced with locale-specific libraries)
-        locale.date_format
-        return date.strftime("%Y-%m-%d %H:%M:%S")
+        return date.strftime(self._date_format_to_strftime(locale.date_format))
 
     def convert_timezone(
         self, date: datetime, from_timezone: TimeZone, to_timezone: TimeZone
@@ -414,10 +439,19 @@ class I18nManager:
         Returns:
             Converted datetime
         """
-        # Simple timezone conversion (can be enhanced with pytz)
-        # For now, return the same datetime
-        # In production, use pytz or zoneinfo for proper conversion
-        return date
+        try:
+            from zoneinfo import ZoneInfo
+        except ImportError:  # pragma: no cover - py<3.9 fallback
+            from backports.zoneinfo import ZoneInfo
+
+        source = ZoneInfo(from_timezone.value)
+        target = ZoneInfo(to_timezone.value)
+
+        if date.tzinfo is None:
+            dated = date.replace(tzinfo=source)
+        else:
+            dated = date.astimezone(source)
+        return dated.astimezone(target)
 
     def get_supported_languages(self) -> List[Dict[str, Any]]:
         """

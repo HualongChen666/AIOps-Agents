@@ -80,20 +80,24 @@ class OncallSchedule:
             self.load_from_env()
 
         for roster_name, members in self._schedules.items():
-            match = (
-                not category
-                or category.lower() in roster_name.lower()
-                or any(category.lower() in str(m.get("categories", [])).lower() for m in members)
-            )
-            service_match = not service or any(
-                service.lower() in str(m.get("services", [])).lower() for m in members
-            )
-            team_match = (
-                not team
-                or team.lower() == roster_name.lower()
-                or any(team.lower() == str(m.get("team", "")).lower() for m in members)
-            )
-            if match or service_match or team_match:
+            roster_lower = roster_name.lower()
+            roster_categories = str([m.get("categories", []) for m in members]).lower()
+            roster_services = str([m.get("services", []) for m in members]).lower()
+            roster_teams = [str(m.get("team", "")).lower() for m in members]
+
+            # 仅对「已提供」的维度施加约束，多维度之间取 AND；未提供任何维度时
+            # （criteria 为空 -> all([]) 为 True）返回全部联系人。旧实现用 OR +
+            # `not X` 短路，任一维度为空即命中，导致几乎返回所有联系人。
+            criteria = []
+            if category:
+                criteria.append(
+                    category.lower() in roster_lower or category.lower() in roster_categories
+                )
+            if service:
+                criteria.append(service.lower() in roster_services)
+            if team:
+                criteria.append(team.lower() == roster_lower or team.lower() in roster_teams)
+            if all(criteria):
                 for m in members:
                     results.append(
                         OncallContact(
