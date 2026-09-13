@@ -1047,6 +1047,11 @@ add_input_validation_middleware(app)
 add_access_control_middleware(app)
 add_concurrency_middleware(app)
 
+# Prometheus HTTP metrics (produces aiops_api_* series exposed at /metrics)
+from core.prometheus_middleware import add_prometheus_metrics_middleware  # noqa: E402
+
+add_prometheus_metrics_middleware(app)
+
 # 🔧 P1-3: Security Middleware Initialization
 # Enable MFA and TLS enforcement
 mfa_manager.enable_mfa()

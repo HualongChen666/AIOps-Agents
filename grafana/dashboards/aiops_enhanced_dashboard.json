@@ -111,7 +111,7 @@
       },
       "targets": [
         {
-          "expr": "(1 - (node_filesystem_avail_bytes{fstype!~\"ext[234]|xfs\"} / node_filesystem_size_bytes{fstype!~\"ext[234]|xfs\"})) * 100",
+          "expr": "(1 - (node_filesystem_avail_bytes{fstype!=\"tmpfs\"} / node_filesystem_size_bytes{fstype!=\"tmpfs\"})) * 100",
           "legendFormat": "{{instance}}: {{mountpoint}}",
           "refId": "A"
         }
@@ -170,7 +170,7 @@
       },
       "targets": [
         {
-          "expr": "rate(http_requests_total[5m])",
+          "expr": "sum(rate(aiops_api_requests_total[5m]))",
           "legendFormat": "{{method}} {{endpoint}}",
           "refId": "A"
         }
@@ -197,7 +197,7 @@
       },
       "targets": [
         {
-          "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m])",
+          "expr": "sum(rate(aiops_api_requests_total{status=~\"5..\"}[5m])) / sum(rate(aiops_api_requests_total[5m]))",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
@@ -224,7 +224,7 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+          "expr": "histogram_quantile(0.95, sum(rate(aiops_api_response_time_seconds_bucket[5m])) by (le))",
           "legendFormat": "{{endpoint}}",
           "refId": "A"
         }
