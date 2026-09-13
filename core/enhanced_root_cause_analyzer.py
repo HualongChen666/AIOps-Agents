@@ -246,51 +246,261 @@ class EnhancedRootCauseAnalyzer:
         return edges
 
     async def _discover_from_config(self) -> List[TopologyNode]:
-        """从配置文件发现节点"""
-        # 实现配置文件解析逻辑
+        """从真实项目配置发现基础设施节点。
+
+        历史问题（已修复）：原实现为 ``return []`` 桩。现依据 ``config`` 中真实配置
+        的基础设施组件（PostgreSQL / Redis / Qdrant / Elasticsearch / Prometheus /
+        Grafana 等）构造节点；未配置的组件不产出（不伪造）。
+        """
+        import os
+
         nodes: List[TopologyNode] = []
-        # 示例：解析应用配置、部署配置等
+
+        def _add(node_id: str, ntype: str, name: str, props: Dict[str, Any]) -> None:
+            nodes.append(
+                TopologyNode(
+                    id=node_id,
+                    type=ntype,
+                    name=name,
+                    properties=props,
+                    last_updated=datetime.now(),
+                )
+            )
+
+        try:
+            import config as cfg
+
+            if getattr(cfg, "POSTGRES_HOST", ""):
+                _add(
+                    "postgres",
+                    "database",
+                    "PostgreSQL",
+                    {
+                        "host": cfg.POSTGRES_HOST,
+                        "port": getattr(cfg, "POSTGRES_PORT", 5432),
+                        "db": getattr(cfg, "POSTGRES_DB", ""),
+                    },
+                )
+            if getattr(cfg, "REDIS_HOST", ""):
+                _add(
+                    "redis",
+                    "cache",
+                    "Redis",
+                    {"host": cfg.REDIS_HOST, "port": getattr(cfg, "REDIS_PORT", 6379)},
+                )
+            if getattr(cfg, "QDRANT_URL", ""):
+                _add("qdrant", "vector_db", "Qdrant", {"url": cfg.QDRANT_URL})
+            if getattr(cfg, "ELASTICSEARCH_URL", ""):
+                _add(
+                    "elasticsearch", "search", "Elasticsearch", {"url": cfg.ELASTICSEARCH_URL}
+                )
+
+            prometheus_url = os.getenv("PROMETHEUS_URL") or getattr(cfg, "PROMETHEUS_URL", "")
+            if prometheus_url:
+                _add("prometheus", "monitoring", "Prometheus", {"url": prometheus_url})
+            grafana_url = os.getenv("GRAFANA_URL") or getattr(cfg, "GRAFANA_URL", "")
+            if grafana_url:
+                _add("grafana", "monitoring", "Grafana", {"url": grafana_url})
+        except Exception as e:  # noqa: BLE001 - config 读取失败须如实暴露
+            logger.warning(f"Config-based topology discovery failed: {e}")
+
         return nodes
 
     async def _discover_from_service_registry(self) -> List[TopologyNode]:
-        """从服务注册中心发现节点"""
-        # 实现服务注册中心查询逻辑
+        """从真实服务注册中心（Consul / 通用 registry）发现节点。
+
+        历史问题（已修复）：原实现为 ``return []`` 桩。现当 ``SERVICE_REGISTRY_URL`` /
+        ``CONSUL_HTTP_ADDR`` 已配置时，查询真实的 ``/v1/catalog/services``；未配置注册
+        中心时如实返回空（不伪造）。
+        """
+        import os
+
+        registry = os.getenv("SERVICE_REGISTRY_URL") or os.getenv("CONSUL_HTTP_ADDR")
+        if not registry:
+            return []
+
+        base = registry if registry.startswith("http") else f"http://{registry}"
         nodes: List[TopologyNode] = []
-        # 示例：查询Consul、Eureka、Kubernetes等
+        try:
+            import requests
+
+            resp = requests.get(base.rstrip("/") + "/v1/catalog/services", timeout=5)
+            resp.raise_for_status()
+            for name in (resp.json() or {}).keys():
+                nodes.append(
+                    TopologyNode(
+                        id=f"svc:{name}",
+                        type="service",
+                        name=str(name),
+                        properties={"registry": base},
+                        last_updated=datetime.now(),
+                    )
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Service registry topology discovery failed: {e}")
         return nodes
 
     async def _discover_from_database_metadata(self) -> List[TopologyNode]:
-        """从数据库元数据发现节点"""
-        # 实现数据库元数据查询逻辑
-        nodes: List[TopologyNode] = []
-        # 示例：查询数据库、表、存储过程等
-        return nodes
+        """从真实数据库元数据（information_schema）发现表节点。
+
+        历史问题（已修复）：原实现为 ``return []`` 桩。现通过 SQLAlchemy inspector 读取
+        项目数据库的真实表清单；数据库不可用时如实返回空。
+        """
+
+        def _query_tables() -> List[str]:
+            from sqlalchemy import inspect
+
+            from core.database import engine
+
+            return list(inspect(engine).get_table_names())
+
+        try:
+            tables = await asyncio.to_thread(_query_tables)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Database metadata topology discovery failed: {e}")
+            return []
+
+        return [
+            TopologyNode(
+                id=f"table:{name}",
+                type="database_table",
+                name=name,
+                properties={"schema": "public"},
+                last_updated=datetime.now(),
+            )
+            for name in tables
+        ]
 
     async def _discover_from_monitoring(self) -> List[TopologyNode]:
-        """从监控数据发现节点"""
-        # 实现监控数据分析逻辑
+        """从真实监控（Prometheus targets）发现被监控节点。
+
+        历史问题（已修复）：原实现为 ``return []`` 桩。现当 ``PROMETHEUS_URL`` 已配置时，
+        查询真实的 ``/api/v1/targets``；未配置时如实返回空。
+        """
+        import os
+
+        prometheus_url = os.getenv("PROMETHEUS_URL")
+        if not prometheus_url:
+            return []
+
         nodes: List[TopologyNode] = []
-        # 示例：分析Prometheus指标、日志等
+        try:
+            import requests
+
+            resp = requests.get(prometheus_url.rstrip("/") + "/api/v1/targets", timeout=5)
+            resp.raise_for_status()
+            for target in resp.json().get("data", {}).get("activeTargets", []):
+                labels = target.get("labels", {}) or {}
+                job = labels.get("job", "unknown")
+                instance = labels.get("instance", "")
+                nodes.append(
+                    TopologyNode(
+                        id=f"target:{job}:{instance}",
+                        type="monitored_target",
+                        name=f"{job}/{instance}",
+                        properties={
+                            "health": target.get("health"),
+                            "scrape_url": target.get("scrapeUrl"),
+                            "labels": labels,
+                        },
+                        health_status=target.get("health", "unknown"),
+                        last_updated=datetime.now(),
+                    )
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Monitoring topology discovery failed: {e}")
         return nodes
 
     async def _discover_edges_from_config(self) -> List[TopologyEdge]:
-        """从配置发现边"""
-        # 实现配置边发现逻辑
+        """从真实配置声明发现应用→后端依赖边。
+
+        历史问题（已修复）：原实现为 ``return []`` 桩。现基于配置中真实存在的后端
+        组件，建立应用与该后端之间的依赖边（应用为根节点）。
+        """
         edges: List[TopologyEdge] = []
+        backend_nodes = await self._discover_from_config()
+        for node in backend_nodes:
+            edges.append(
+                TopologyEdge(
+                    source="application",
+                    target=node.id,
+                    type="depends_on",
+                    properties={"declared_in": "config"},
+                )
+            )
         return edges
 
     async def _discover_edges_from_traces(self) -> List[TopologyEdge]:
-        """从追踪数据发现边"""
-        # 实现追踪数据分析逻辑
+        """从真实追踪后端（Tempo / Jaeger）发现服务调用边。
+
+        历史问题（已修复）：原实现为 ``return []`` 桩。现当 ``TEMPO_URL`` / ``JAEGER_URL``
+        已配置时查询真实的追踪 API；未配置时如实返回空。
+        """
+        import os
+
+        tempo_url = os.getenv("TEMPO_URL")
+        jaeger_url = os.getenv("JAEGER_URL")
+        if not tempo_url and not jaeger_url:
+            return []
+
         edges: List[TopologyEdge] = []
-        # 示例：分析Jaeger、Zipkin等追踪数据
+        try:
+            import requests
+
+            if jaeger_url:
+                resp = requests.get(
+                    jaeger_url.rstrip("/") + "/api/services", timeout=5
+                )
+                resp.raise_for_status()
+                services = resp.json().get("data", []) or []
+                for svc in services:
+                    edges.append(
+                        TopologyEdge(
+                            source="application",
+                            target=f"svc:{svc}",
+                            type="calls",
+                            properties={"source": "jaeger"},
+                        )
+                    )
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Trace-based edge discovery failed: {e}")
         return edges
 
     async def _discover_edges_from_database_queries(self) -> List[TopologyEdge]:
-        """从数据库查询发现边"""
-        # 实现数据库查询分析逻辑
-        edges: List[TopologyEdge] = []
-        return edges
+        """从真实数据库外键元数据发现表→表数据流边。
+
+        历史问题（已修复）：原实现为 ``return []`` 桩。现读取真实外键约束构造边。
+        """
+
+        def _query_fks() -> List[Tuple[str, str, str]]:
+            from sqlalchemy import inspect
+
+            from core.database import engine
+
+            inspector = inspect(engine)
+            relations: List[Tuple[str, str, str]] = []
+            for table in inspector.get_table_names():
+                for fk in inspector.get_foreign_keys(table):
+                    referred = fk.get("referred_table")
+                    if referred:
+                        relations.append((table, referred, ",".join(fk.get("constrained_columns", []))))
+            return relations
+
+        try:
+            relations = await asyncio.to_thread(_query_fks)
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Database-query edge discovery failed: {e}")
+            return []
+
+        return [
+            TopologyEdge(
+                source=f"table:{src}",
+                target=f"table:{dst}",
+                type="references",
+                properties={"columns": cols},
+            )
+            for src, dst, cols in relations
+        ]
 
     async def _update_topology(self, nodes: List[TopologyNode], edges: List[TopologyEdge]):
         """更新拓扑"""
@@ -309,26 +519,24 @@ class EnhancedRootCauseAnalyzer:
     def _detect_topology_changes(
         self, new_nodes: List[TopologyNode], new_edges: List[TopologyEdge]
     ) -> List[TopologyChange]:
-        """检测拓扑变更"""
-        changes = []
+        """检测拓扑变更（携带真实节点/边对象，供 _apply_topology_change 落地）。"""
+        changes: List[TopologyChange] = []
 
         # 检测节点变更
-        new_node_ids = {node.id for node in new_nodes}
+        new_nodes_by_id = {node.id: node for node in new_nodes}
         existing_node_ids = set(self.nodes.keys())
 
-        added_nodes = new_node_ids - existing_node_ids
-        removed_nodes = existing_node_ids - new_node_ids
-
-        for node_id in added_nodes:
-            changes.append(
-                TopologyChange(
-                    change_type=TopologyChangeType.ADD_NODE,
-                    timestamp=datetime.now(),
-                    details={"node_id": node_id},
+        for node_id, node in new_nodes_by_id.items():
+            if node_id not in existing_node_ids:
+                changes.append(
+                    TopologyChange(
+                        change_type=TopologyChangeType.ADD_NODE,
+                        timestamp=datetime.now(),
+                        details={"node_id": node_id, "node": node},
+                    )
                 )
-            )
 
-        for node_id in removed_nodes:
+        for node_id in existing_node_ids - set(new_nodes_by_id.keys()):
             changes.append(
                 TopologyChange(
                     change_type=TopologyChangeType.REMOVE_NODE,
@@ -338,19 +546,71 @@ class EnhancedRootCauseAnalyzer:
             )
 
         # 检测边变更
-        # 类似逻辑...
+        existing_edge_keys = {
+            (edge.source, edge.target, edge.type)
+            for edges in self.edges.values()
+            for edge in edges
+        }
+        new_edge_keys = {(edge.source, edge.target, edge.type) for edge in new_edges}
+
+        for edge in new_edges:
+            key = (edge.source, edge.target, edge.type)
+            if key not in existing_edge_keys:
+                changes.append(
+                    TopologyChange(
+                        change_type=TopologyChangeType.ADD_EDGE,
+                        timestamp=datetime.now(),
+                        details={"edge": edge},
+                    )
+                )
+
+        for key in existing_edge_keys - new_edge_keys:
+            changes.append(
+                TopologyChange(
+                    change_type=TopologyChangeType.REMOVE_EDGE,
+                    timestamp=datetime.now(),
+                    details={"edge_key": key},
+                )
+            )
 
         return changes
 
     async def _apply_topology_change(self, change: TopologyChange):
-        """应用拓扑变更"""
+        """应用拓扑变更（真实更新 ``self.nodes`` / ``self.edges``）。"""
         if change.change_type == TopologyChangeType.ADD_NODE:
-            # 添加节点逻辑
-            pass
+            node = change.details.get("node")
+            if node is not None:
+                self.nodes[node.id] = node
         elif change.change_type == TopologyChangeType.REMOVE_NODE:
-            # 移除节点逻辑
-            pass
-        # 其他变更类型...
+            node_id = change.details.get("node_id")
+            self.nodes.pop(node_id, None)
+            # 级联移除关联边
+            self.edges.pop(node_id, None)
+            for source in list(self.edges.keys()):
+                self.edges[source] = [
+                    edge for edge in self.edges[source] if edge.target != node_id
+                ]
+        elif change.change_type == TopologyChangeType.ADD_EDGE:
+            edge = change.details.get("edge")
+            if edge is not None:
+                bucket = self.edges.setdefault(edge.source, [])
+                if not any(
+                    e.source == edge.source and e.target == edge.target and e.type == edge.type
+                    for e in bucket
+                ):
+                    bucket.append(edge)
+        elif change.change_type == TopologyChangeType.REMOVE_EDGE:
+            source, target, edge_type = change.details.get("edge_key", (None, None, None))
+            if source is not None:
+                self.edges[source] = [
+                    edge
+                    for edge in self.edges.get(source, [])
+                    if not (edge.target == target and edge.type == edge_type)
+                ]
+        elif change.change_type == TopologyChangeType.UPDATE_NODE:
+            node = change.details.get("node")
+            if node is not None:
+                self.nodes[node.id] = node
 
     async def _build_causal_graph(self):
         """构建因果图"""

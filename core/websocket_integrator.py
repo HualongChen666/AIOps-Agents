@@ -31,6 +31,31 @@ def _collect_system_metrics() -> Dict[str, Any]:
     return metrics
 
 
+def _alert_identity(alert: Dict[str, Any]) -> Any:
+    """Derive a stable identity for an alert dict (for de-duplication)."""
+    if not isinstance(alert, dict):
+        return repr(alert)
+    for key in ("id", "alert_id", "alertId", "uuid"):
+        if alert.get(key) is not None:
+            return (key, str(alert[key]))
+    return (
+        str(alert.get("timestamp")),
+        str(alert.get("title") or alert.get("name") or alert.get("message") or ""),
+        str(alert.get("severity") or ""),
+    )
+
+
+async def _dispatch(handlers: List[Callable], payload: Any) -> None:
+    """Invoke registered handlers, awaiting results when needed."""
+    for handler in handlers:
+        try:
+            result = handler(payload)
+            if asyncio.iscoroutine(result):
+                await result
+        except Exception as e:  # noqa: BLE001 - 单个 handler 失败不应中断广播
+            logger.error(f"Streaming handler failed: {e}")
+
+
 @dataclass
 class WebSocketIntegrationConfig:
     """WebSocket integration configuration"""
@@ -43,6 +68,10 @@ class WebSocketIntegrationConfig:
     metrics_channel: str = "metrics"
     logs_channel: str = "logs"
     status_channel: str = "status"
+    # 轮询周期（秒）：真实数据源采集/推送间隔
+    alert_poll_interval: float = 10.0
+    metrics_poll_interval: float = 5.0
+    log_poll_interval: float = 1.0
 
 
 class WebSocketIntegrator:
@@ -203,40 +232,103 @@ class WebSocketIntegrator:
         logger.info(f"Started {len(self.background_tasks)} background integration tasks")
 
     async def _alert_monitoring_loop(self) -> None:
-        """Background alert monitoring loop"""
+        """Background alert monitoring loop (real alert source).
+
+        历史问题（已修复）：曾仅 ``await asyncio.sleep(10)`` 空转（注释 "For now,
+        simulate alert generation"），实时告警通道从不推送任何真实告警。现从真实告警
+        引擎 ``core.alert_engine.alert_history`` 增量读取新告警并广播。
+        """
+        try:
+            from core.alert_engine import alert_history
+        except Exception as e:  # noqa: BLE001 - 无真实告警源则不启动（不伪造）
+            logger.error(f"Alert engine unavailable; alert monitoring disabled: {e}")
+            return
+
+        seen = {_alert_identity(a) for a in list(alert_history)}
         try:
             while self.is_running:
-                # In real implementation, would monitor alerts from system
-                # For now, simulate alert generation
-                await asyncio.sleep(10)
+                await asyncio.sleep(self.config.alert_poll_interval)
+                pending = [
+                    a for a in list(alert_history) if _alert_identity(a) not in seen
+                ]
+                # alert_history 为 appendleft，list() 为最新在前 -> 反转按时间顺序推送
+                for alert in reversed(pending):
+                    seen.add(_alert_identity(alert))
+                    await _dispatch(self.alert_handlers, alert)
+                    await self.broadcast_alert(alert)
+                if len(seen) > 10000:  # 防止无界增长
+                    seen = {_alert_identity(a) for a in list(alert_history)}
         except asyncio.CancelledError:
             logger.info("Alert monitoring loop cancelled")
         except Exception as e:
             logger.error(f"Alert monitoring loop error: {e}")
 
     async def _metrics_streaming_loop(self) -> None:
-        """Background metrics streaming loop"""
+        """Background metrics streaming loop (real host metrics).
+
+        历史问题（已修复）：曾仅 ``await asyncio.sleep(5)`` 空转（注释 "For now,
+        simulate metrics streaming"）。现按周期采集真实主机指标（psutil）并广播。
+        """
         try:
             while self.is_running:
-                # In real implementation, would stream metrics from system
-                # For now, simulate metrics streaming
-                await asyncio.sleep(5)
+                metrics = await asyncio.to_thread(_collect_system_metrics)
+                if metrics:
+                    payload = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "metrics": metrics,
+                    }
+                    await _dispatch(self.metrics_handlers, payload)
+                    await self.broadcast_metrics(payload)
+                await asyncio.sleep(self.config.metrics_poll_interval)
         except asyncio.CancelledError:
             logger.info("Metrics streaming loop cancelled")
         except Exception as e:
             logger.error(f"Metrics streaming loop error: {e}")
 
     async def _log_streaming_loop(self) -> None:
-        """Background log streaming loop"""
+        """Background log streaming loop (real application logs).
+
+        历史问题（已修复）：曾仅 ``await asyncio.sleep(15)`` 空转（注释 "For now,
+        simulate log streaming"）。现挂接一个真实的 ``logging.Handler``，捕获应用日志
+        记录并广播到日志通道；无日志时不推送任何内容（不伪造）。
+        """
+        import logging
+        from collections import deque
+
+        buffer: "deque[Dict[str, Any]]" = deque(maxlen=1000)
+
+        class _BufferHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                try:
+                    buffer.append(
+                        {
+                            "timestamp": datetime.fromtimestamp(
+                                record.created, timezone.utc
+                            ).isoformat(),
+                            "level": record.levelname,
+                            "logger": record.name,
+                            "message": record.getMessage(),
+                        }
+                    )
+                except Exception:  # noqa: BLE001 - 日志捕获失败不得影响主流程
+                    pass
+
+        handler = _BufferHandler(level=logging.INFO)
+        root_logger = logging.getLogger()
+        root_logger.addHandler(handler)
         try:
             while self.is_running:
-                # In real implementation, would stream logs from system
-                # For now, simulate log streaming
-                await asyncio.sleep(15)
+                await asyncio.sleep(self.config.log_poll_interval)
+                while buffer:
+                    entry = buffer.popleft()
+                    await _dispatch(self.log_handlers, entry)
+                    await self.broadcast_log(entry)
         except asyncio.CancelledError:
             logger.info("Log streaming loop cancelled")
         except Exception as e:
             logger.error(f"Log streaming loop error: {e}")
+        finally:
+            root_logger.removeHandler(handler)
 
     async def _status_broadcasting_loop(self) -> None:
         """Background status broadcasting loop"""

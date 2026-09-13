@@ -401,7 +401,7 @@ class IntegrationMonitoringSystem:
         async def monitoring_loop():
             while True:
                 try:
-                    # Simulate metric collection
+                    # 采集真实指标（_collect_metrics 已实现真实采集，不伪造）
                     await self._collect_metrics()
 
                     await asyncio.sleep(30)  # Collect every 30 seconds

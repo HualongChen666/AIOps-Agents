@@ -20,6 +20,7 @@ P2 Enhancement:
 import asyncio
 import hmac
 import json
+import os
 import uuid
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
@@ -156,6 +157,9 @@ class IntegrationEcosystem:
         # 会话管理
         self.http_session = None
         self.aiohttp_session = None
+
+        # 已激活集成的真实客户端配置（provider -> base_url/auth/sdk 参数）
+        self.integration_clients: Dict[str, Dict[str, Any]] = {}
 
         # 配置
         self.max_integrations = 100
@@ -366,10 +370,17 @@ class IntegrationEcosystem:
         return {"valid": True}
 
     async def _activate_integration(self, integration: IntegrationConfig):
-        """激活集成"""
+        """激活集成（真实客户端配置落地 + 尽力而为的连通性探测）。
+
+        历史问题（已修复）：``_activate_monitoring/cloud/cicd_integration`` 曾全部为
+        ``pass`` 空实现——"激活"实为把 ``status`` 置 ``ACTIVE`` 的空操作，从未为集成
+        落地任何真实客户端配置。现每个 provider 都会构造并登记真实客户端配置
+        （base_url / 鉴权头 / SDK 参数），并在有 HTTP 会话时执行一次真实连通性探测，
+        把真实可达性写入 ``metadata['reachable']``。探测结果不影响注册（连通性的强
+        校验位于 ``_validate_*`` 层），但激活本身不再是无副作用的空操作。
+        """
         logger.info(f"Activating integration: {integration.id}")
 
-        # 根据集成类型进行激活
         if integration.type == IntegrationType.MONITORING:
             await self._activate_monitoring_integration(integration)
         elif integration.type == IntegrationType.CLOUD:
@@ -381,48 +392,200 @@ class IntegrationEcosystem:
 
         integration.status = IntegrationStatus.ACTIVE
         integration.updated_at = datetime.now()
+        integration.metadata["activated_at"] = datetime.now(timezone.utc).isoformat()
+
+    def _probe(
+        self, url: str, headers: Optional[Dict[str, str]] = None, timeout: float = 5.0
+    ) -> Dict[str, Any]:
+        """向 ``url`` 发起真实 HTTP GET 探测，返回 ``{ok, status, detail}``（不抛错）。"""
+        if not (REQUESTS_AVAILABLE and self.http_session):
+            return {"ok": False, "status": None, "detail": "no http session available"}
+        try:
+            response = self.http_session.get(url, headers=headers or {}, timeout=timeout)
+        except Exception as e:  # noqa: BLE001 - 探测失败须如实反映
+            return {"ok": False, "status": None, "detail": str(e)}
+        status_code = getattr(response, "status_code", None)
+        text = getattr(response, "text", "") or ""
+        return {
+            "ok": status_code is not None and 200 <= status_code < 300,
+            "status": status_code,
+            "detail": str(text)[:200],
+        }
+
+    def _register_client(self, integration: IntegrationConfig, client: Dict[str, Any]) -> None:
+        """登记集成的真实客户端配置（供后续查询/调用复用）。"""
+        client.setdefault("provider", integration.provider)
+        client.setdefault("integration_id", integration.id)
+        self.integration_clients[integration.id] = client
+
+    def _probe_with_auth(self, url: str, auth: Any, headers=None) -> Dict[str, Any]:
+        """带 HTTP Basic 认证的真实探测（requests 不可用时如实返回不可达）。"""
+        if not (REQUESTS_AVAILABLE and self.http_session):
+            return {"ok": False, "status": None, "detail": "no http session available"}
+        try:
+            response = self.http_session.get(url, auth=auth, headers=headers or {}, timeout=5)
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "status": None, "detail": str(e)}
+        status_code = getattr(response, "status_code", None)
+        text = getattr(response, "text", "") or ""
+        return {
+            "ok": status_code is not None and 200 <= status_code < 300,
+            "status": status_code,
+            "detail": str(text)[:200],
+        }
 
     async def _activate_monitoring_integration(self, integration: IntegrationConfig):
-        """激活监控工具集成"""
+        """激活监控工具集成：落地客户端配置并尽力探测真实端点。"""
         provider = integration.provider
+        config = integration.configuration
 
         if provider == "prometheus":
-            # 配置Prometheus查询接口
-            pass
+            port = config.get("port", 9090)
+            base = config.get("url")
+            client: Dict[str, Any] = {"kind": "monitoring", "provider": "prometheus", "port": port}
+            if base:
+                client["base_url"] = f"{base}:{port}"
+                result = self._probe(client["base_url"] + "/-/ready")
+                if not result["ok"]:
+                    result = self._probe(client["base_url"] + "/api/v1/status/config")
+                integration.metadata["reachable"] = result["ok"]
+                integration.metadata["probe"] = result
+            self._register_client(integration, client)
         elif provider == "grafana":
-            # 配置Grafana API
-            pass
+            port = config.get("port", 3000)
+            base = config.get("url")
+            client = {"kind": "monitoring", "provider": "grafana", "port": port}
+            token = integration.credentials.get("api_token")
+            if token:
+                client["auth_header"] = {"Authorization": f"Bearer {token}"}
+            if base:
+                client["base_url"] = f"{base}:{port}"
+                result = self._probe(
+                    client["base_url"] + "/api/health", headers=client.get("auth_header")
+                )
+                integration.metadata["reachable"] = result["ok"]
+                integration.metadata["probe"] = result
+            self._register_client(integration, client)
         elif provider == "elk":
-            # 配置ELK Stack API
-            pass
+            port = config.get("port", 9200)
+            base = config.get("url")
+            client = {"kind": "monitoring", "provider": "elk", "port": port}
+            if base:
+                client["base_url"] = f"{base}:{port}"
+                result = self._probe(client["base_url"] + "/_cluster/health")
+                integration.metadata["reachable"] = result["ok"]
+                integration.metadata["probe"] = result
+            self._register_client(integration, client)
+        else:
+            self._register_client(integration, {"kind": "monitoring", "url": config.get("url")})
 
     async def _activate_cloud_integration(self, integration: IntegrationConfig):
-        """激活云平台集成"""
+        """激活云平台集成：落地真实 SDK/鉴权配置，并在可用时做真实鉴权探测。"""
         provider = integration.provider
+        creds = integration.credentials
 
         if provider == "aws":
-            # 配置AWS SDK
-            pass
+            client: Dict[str, Any] = {
+                "kind": "cloud",
+                "provider": "aws",
+                "region": creds.get("region"),
+            }
+            try:
+                import boto3  # type: ignore
+
+                client["sdk"] = "boto3"
+                # 仅在具备 HTTP 会话（网络可用）时执行真实 STS 鉴权探测
+                if REQUESTS_AVAILABLE and self.http_session and creds.get("access_key"):
+                    session = boto3.session.Session(
+                        aws_access_key_id=creds.get("access_key"),
+                        aws_secret_access_key=creds.get("secret_key"),
+                        region_name=creds.get("region"),
+                    )
+                    identity = session.client("sts").get_caller_identity()
+                    integration.metadata["aws_account"] = identity.get("Account")
+                    integration.metadata["reachable"] = True
+            except Exception as e:  # noqa: BLE001 - SDK/凭据不可用时如实记录
+                integration.metadata["reachable"] = False
+                integration.metadata["probe"] = {"detail": str(e)}
+            self._register_client(integration, client)
         elif provider == "azure":
-            # 配置Azure SDK
-            pass
+            client = {"kind": "cloud", "provider": "azure", "sdk": "azure-sdk"}
+            token = creds.get("access_token")
+            if token:
+                client["auth_header"] = {"Authorization": f"Bearer {token}"}
+                result = self._probe(
+                    "https://management.azure.com/subscriptions?api-version=2020-01-01",
+                    headers=client["auth_header"],
+                )
+                integration.metadata["reachable"] = result["ok"]
+                integration.metadata["probe"] = result
+            self._register_client(integration, client)
         elif provider == "gcp":
-            # 配置GCP SDK
-            pass
+            client = {"kind": "cloud", "provider": "gcp", "sdk": "google-cloud"}
+            token = creds.get("access_token") or os.getenv("GOOGLE_ACCESS_TOKEN")
+            if token:
+                client["auth_header"] = {"Authorization": f"Bearer {token}"}
+                result = self._probe(
+                    "https://cloudresourcemanager.googleapis.com/v1/projects",
+                    headers=client["auth_header"],
+                )
+                integration.metadata["reachable"] = result["ok"]
+                integration.metadata["probe"] = result
+            self._register_client(integration, client)
+        else:
+            self._register_client(
+                integration, {"kind": "cloud", "url": integration.configuration.get("url")}
+            )
 
     async def _activate_cicd_integration(self, integration: IntegrationConfig):
-        """激活CI/CD工具集成"""
+        """激活 CI/CD 工具集成：落地真实 API 客户端配置并尽力探测。"""
         provider = integration.provider
+        config = integration.configuration
+        creds = integration.credentials
 
         if provider == "jenkins":
-            # 配置Jenkins API
-            pass
+            client: Dict[str, Any] = {"kind": "cicd", "provider": "jenkins"}
+            base = config.get("url")
+            if base:
+                client["base_url"] = base.rstrip("/")
+                user, token = creds.get("username"), creds.get("token")
+                auth = (user, token) if user and token else None
+                result = self._probe_with_auth(client["base_url"] + "/api/json", auth) if auth else self._probe(client["base_url"] + "/api/json")
+                integration.metadata["reachable"] = result["ok"]
+                integration.metadata["probe"] = result
+            self._register_client(integration, client)
         elif provider == "gitlab":
-            # 配置GitLab CI API
-            pass
+            client = {"kind": "cicd", "provider": "gitlab"}
+            base = config.get("url")
+            token = creds.get("token")
+            if base:
+                client["base_url"] = base.rstrip("/")
+                if token:
+                    client["auth_header"] = {"PRIVATE-TOKEN": token}
+                result = self._probe(
+                    client["base_url"] + "/api/v4/version", headers=client.get("auth_header")
+                )
+                integration.metadata["reachable"] = result["ok"]
+                integration.metadata["probe"] = result
+            self._register_client(integration, client)
         elif provider == "github":
-            # 配置GitHub Actions API
-            pass
+            client = {"kind": "cicd", "provider": "github", "repo": config.get("repo")}
+            token = creds.get("token")
+            if token:
+                client["auth_header"] = {
+                    "Authorization": f"token {token}",
+                    "Accept": "application/vnd.github+json",
+                }
+            if config.get("repo"):
+                result = self._probe(
+                    f"https://api.github.com/repos/{config['repo']}",
+                    headers=client.get("auth_header"),
+                )
+                integration.metadata["reachable"] = result["ok"]
+                integration.metadata["probe"] = result
+            self._register_client(integration, client)
+        else:
+            self._register_client(integration, {"kind": "cicd", "url": config.get("url")})
 
     async def _activate_notification_integration(self, integration: IntegrationConfig):
         """激活通知渠道集成"""
