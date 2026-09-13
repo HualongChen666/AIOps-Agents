@@ -156,6 +156,46 @@ class _Cache:
         return {"hits": self.hits, "misses": self.misses}
 
 
+class _CacheView(_Cache):
+    """A ``_Cache`` whose storage *is* the optimizer's canonical cache store.
+
+    ``DatabaseCacheOptimizer.get_cache`` previously returned a standalone
+    ``_Cache`` living in a second container (``_cache_objects``) that was
+    completely disconnected from the caches used by ``get``/``set``/
+    ``invalidate`` and from ``get_statistics``.  This view proxies every
+    operation to the optimizer so both entry points share one store and one
+    set of metrics.
+    """
+
+    def __init__(
+        self,
+        optimizer: "DatabaseCacheOptimizer",
+        name: str,
+        strategy: CacheStrategy = CacheStrategy.LRU,
+        size: int = 1000,
+    ):
+        super().__init__(name, strategy=strategy, size=size)
+        self._optimizer = optimizer
+
+    def set(self, key: str, value: Any) -> None:
+        self._optimizer.set(self.name, key, value)
+
+    def get(self, key: str) -> Any:
+        return self._optimizer.get(self.name, key)
+
+    def invalidate(self, key: str) -> None:
+        self._optimizer.invalidate(self.name, key)
+
+    def clear(self) -> None:
+        self._optimizer.invalidate(self.name)
+
+    def get_stats(self) -> Dict[str, int]:
+        metrics = self._optimizer.get_cache_metrics(self.name)
+        if metrics is None:
+            return {"hits": 0, "misses": 0}
+        return {"hits": metrics.hit_count, "misses": metrics.miss_count}
+
+
 class DatabaseCacheOptimizer:
     """Enterprise-grade database cache optimizer"""
 
@@ -189,9 +229,6 @@ class DatabaseCacheOptimizer:
         self.total_cache_hits = 0
         self.total_cache_misses = 0
 
-        # Per-name caches returned by get_cache()
-        self._cache_objects: Dict[str, _Cache] = {}
-
         logger.info("Database cache optimizer initialized")
 
     def get_cache(
@@ -200,15 +237,19 @@ class DatabaseCacheOptimizer:
         strategy: Optional[CacheStrategy] = None,
         size: Optional[int] = None,
     ) -> _Cache:
-        """Get or create a simple cache by name."""
-        if cache_name in self._cache_objects:
-            return self._cache_objects[cache_name]
+        """Get or create a cache by name.
 
-        strat = strategy or self.default_strategy
-        cache_size = size or self.default_cache_size
-        cache = _Cache(cache_name, strategy=strat, size=cache_size)
-        self._cache_objects[cache_name] = cache
-        return cache
+        The returned view shares the optimizer's canonical store, so it
+        participates in the same statistics and is visible to ``get``/``set``/
+        ``invalidate`` (single source of truth).
+        """
+        if cache_name not in self.caches:
+            self.create_cache(
+                cache_name,
+                cache_size=size,
+                strategy=strategy or self.default_strategy,
+            )
+        return _CacheView(self, cache_name)
 
     def get_stats(self) -> Dict[str, Any]:
         """Get overall cache statistics."""

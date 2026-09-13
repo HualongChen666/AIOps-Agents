@@ -574,7 +574,8 @@ def test_overflow_and_queue(opt):
     c1 = opt.get_connection("p")
     c2 = opt.get_connection("p")
     assert c2 is not None
-    c3 = opt.get_connection("p")
+    # 连接池耗尽且 timeout=0（非阻塞）：立即返回 None 并登记等待请求
+    c3 = opt.get_connection("p", timeout=0)
     assert c3 is None
     assert len(opt.pools["p"]["waiting_queue"]) == 1
     opt.release_connection("p", c1)

@@ -7,6 +7,7 @@ P2 Enhancement: Added read-write separation and transaction optimization
 
 import statistics
 import threading
+import time
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -220,6 +221,7 @@ class DatabaseConnectionOptimizer:
             "strategy": strategy,
             "connections": [],
             "waiting_queue": deque(),
+            "condition": threading.Condition(),
             "created_at": datetime.now(timezone.utc),
             "metadata": metadata or {},
         }
@@ -263,34 +265,15 @@ class DatabaseConnectionOptimizer:
 
         return connection_id
 
-    def get_connection(self, pool_name: str, timeout: Optional[float] = None) -> Optional[str]:
-        """
-        Get connection from pool
-
-        Args:
-            pool_name: Pool name
-            timeout: Timeout in seconds
-
-        Returns:
-            Connection ID or None
-        """
-        if pool_name not in self.pools:
-            logger.error(f"Pool {pool_name} not found")
-            return None
-
-        pool = self.pools[pool_name]
-        timeout = timeout or self.pool_timeout_seconds
-
-        # Find idle connection
+    def _try_acquire(self, pool: Dict[str, Any]) -> Optional[str]:
+        """尝试立即获取一个连接（空闲或溢出新建）；无则返回 None。"""
         for conn_id in pool["connections"]:
-            conn_id_str: str = conn_id  # Type annotation for mypy
-            metrics = self.connection_metrics[conn_id_str]
+            metrics = self.connection_metrics[conn_id]
             if metrics.status == ConnectionStatus.IDLE:
                 metrics.status = ConnectionStatus.CHECKED_OUT
                 metrics.last_used = datetime.now(timezone.utc)
-                return conn_id_str
+                return conn_id
 
-        # Check if we can create overflow connection
         active_count = sum(
             1
             for conn_id in pool["connections"]
@@ -299,16 +282,59 @@ class DatabaseConnectionOptimizer:
         )
 
         if active_count < pool["size"] + pool["max_overflow"]:
-            new_conn_id = self._create_connection(pool_name)
+            new_conn_id = self._create_connection(pool["name"])
             self.connection_metrics[new_conn_id].status = ConnectionStatus.CHECKED_OUT
             return new_conn_id
 
-        # Add to waiting queue
-        pool["waiting_queue"].append(datetime.now(timezone.utc))
-
-        logger.warning(f"No available connections in pool {pool_name}, added to waiting queue")
-
         return None
+
+    def get_connection(self, pool_name: str, timeout: Optional[float] = None) -> Optional[str]:
+        """
+        Get connection from pool
+
+        当连接池耗尽时真正 **阻塞等待**（直到有连接被归还）并在超时后返回
+        None，而不是立即返回 None。等待期间会记录到 ``waiting_queue``，
+        归还连接（``release_connection``）会唤醒等待者。
+
+        Args:
+            pool_name: Pool name
+            timeout: Timeout in seconds (defaults to ``pool_timeout_seconds``)
+
+        Returns:
+            Connection ID or None (on timeout / unknown pool)
+        """
+        if pool_name not in self.pools:
+            logger.error(f"Pool {pool_name} not found")
+            return None
+
+        pool = self.pools[pool_name]
+        timeout = self.pool_timeout_seconds if timeout is None else timeout
+        try:
+            timeout = max(0.0, float(timeout))
+        except (TypeError, ValueError):
+            timeout = float(self.pool_timeout_seconds)
+
+        condition = pool["condition"]
+        deadline = time.monotonic() + timeout
+
+        with condition:
+            while True:
+                conn_id = self._try_acquire(pool)
+                if conn_id is not None:
+                    return conn_id
+
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    # 超时：登记等待请求并如实返回 None（调用方可重试/降级）
+                    pool["waiting_queue"].append(datetime.now(timezone.utc))
+                    logger.warning(
+                        f"No available connections in pool {pool_name} after "
+                        f"{timeout}s wait; request timed out"
+                    )
+                    return None
+
+                # 等待 release_connection 唤醒（带剩余超时，避免永久阻塞）
+                condition.wait(timeout=remaining)
 
     def release_connection(
         self, pool_name: str, connection_id: str, query_duration_ms: Optional[float] = None
@@ -329,21 +355,24 @@ class DatabaseConnectionOptimizer:
             logger.error(f"Connection {connection_id} not found")
             return
 
-        metrics = self.connection_metrics[connection_id]
-        metrics.status = ConnectionStatus.IDLE
-        metrics.last_used = datetime.now(timezone.utc)
+        pool = self.pools[pool_name]
+        condition = pool["condition"]
 
-        if query_duration_ms:
-            metrics.total_queries += 1
-            metrics.total_duration_ms += query_duration_ms
-            metrics.avg_duration_ms = metrics.total_duration_ms / metrics.total_queries
-            self.total_queries_executed += 1
+        with condition:
+            metrics = self.connection_metrics[connection_id]
+            metrics.status = ConnectionStatus.IDLE
+            metrics.last_used = datetime.now(timezone.utc)
 
-        # Process waiting queue
-        if pool_name in self.pools:
-            pool = self.pools[pool_name]
+            if query_duration_ms:
+                metrics.total_queries += 1
+                metrics.total_duration_ms += query_duration_ms
+                metrics.avg_duration_ms = metrics.total_duration_ms / metrics.total_queries
+                self.total_queries_executed += 1
+
+            # Process waiting queue: 唤醒一个等待者，并清理已服务的等待记录
             if pool["waiting_queue"]:
                 pool["waiting_queue"].popleft()
+            condition.notify()
 
     def close_connection(self, pool_name: str, connection_id: str) -> None:
         """

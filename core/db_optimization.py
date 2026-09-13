@@ -276,6 +276,29 @@ QUERY_PERFORMANCE_THRESHOLDS = {
 }
 
 
+async def _execute_create_index_sql(session: Any, statement: str) -> None:
+    """Run a ``CREATE INDEX CONCURRENTLY`` statement outside any transaction.
+
+    PostgreSQL rejects ``CONCURRENTLY`` inside a transaction block (an
+    ``AsyncSession`` always holds one), so the DDL is executed on a dedicated
+    AUTOCOMMIT connection.  When no detached connection is available (e.g.
+    lightweight test doubles) we fall back to the session as before.
+    """
+    bind = getattr(session, "bind", None)
+    engine = getattr(bind, "engine", None) or bind
+    if engine is not None and hasattr(engine, "execution_options"):
+        try:
+            autocommit_engine = engine.execution_options(isolation_level="AUTOCOMMIT")
+            async with autocommit_engine.connect() as conn:
+                await conn.execute(text(statement))
+            return
+        except Exception as e:  # pragma: no cover - depends on live DB
+            logger.debug(f"AUTOCOMMIT DDL path unavailable, falling back to session: {e}")
+
+    await session.execute(text(statement))
+    await session.commit()
+
+
 async def create_performance_indexes() -> Dict[str, Any]:
     """🔧 P0 Enhancement: Create performance indexes for frequently queried fields.
 
@@ -343,14 +366,12 @@ async def create_performance_indexes() -> Dict[str, Any]:
 
                         # Use raw SQL with validated identifiers for async compatibility
                         try:
-                            await session.execute(
-                                text(
-                                    "CREATE INDEX CONCURRENTLY IF NOT EXISTS "
-                                    f"{validated_index_name} ON {validated_table_name} "
-                                    f"({columns_str})"
-                                )
+                            await _execute_create_index_sql(
+                                session,
+                                "CREATE INDEX CONCURRENTLY IF NOT EXISTS "
+                                f"{validated_index_name} ON {validated_table_name} "
+                                f"({columns_str})",
                             )
-                            await session.commit()
                             results["created"] += 1
                             results["details"].append(
                                 {"index_name": index_name, "status": "created"}
