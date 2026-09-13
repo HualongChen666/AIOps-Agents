@@ -5,9 +5,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.responses import Response
+
+from core.auth_service import get_current_user, has_role, is_internal_key
 
 from .health_check import HealthCheckEngine
 from .metrics import USER_LOGINS, USERS_CREATED
@@ -38,6 +41,50 @@ app = FastAPI(
     description="User microservice for identity, RBAC, sessions and audit.",
     version="0.1.0",
 )
+
+# Reachable without a forwarded identity (probes, docs, and the login flow the
+# gateway proxies to after injecting nothing).
+PUBLIC_PATHS = {
+    "/health",
+    "/metrics",
+    "/docs",
+    "/redoc",
+    "/openapi.json",
+    "/docs/oauth2-redirect",
+    "/auth/login",
+}
+
+
+@app.middleware("http")
+async def require_gateway_auth(request: Request, call_next):
+    """Enforce gateway-injected identity for all user-management endpoints.
+
+    历史问题（已修复）：本服务此前**全部端点无鉴权**，任何人可 ``POST /users``
+    （甚至传 admin 角色）。现按网关注入约定：仅接受网关携带的内部服务密钥
+    （``is_internal_key``）或具备 ``admin`` 角色的 JWT；``/auth/login`` 与健康/
+    指标/文档端点保持公开。
+    """
+    if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS:
+        return await call_next(request)
+
+    if is_internal_key(request):
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[len("Bearer "):]
+        try:
+            user = get_current_user(token=token, request=request)
+        except HTTPException:
+            user = None
+        if user is not None and has_role(user, "admin"):
+            return await call_next(request)
+
+    return JSONResponse(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        content={"detail": "Authentication required"},
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
 @app.get("/health", response_model=ServiceHealth)

@@ -68,6 +68,129 @@ def _time_range_hours(time_range: str) -> int:
     }.get(time_range, 1)
 
 
+# 指标名 -> 人类可读单位后缀（用于异常描述）
+_METRIC_UNITS = {"cpu": "%", "memory": "%", "network": "B/s"}
+
+
+def _compute_metric_anomalies(severity: str = "all") -> tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    """Compute real anomalies from ``metrics_history`` via a z-score test.
+
+    历史问题（已修复）：``/anomaly-detection`` 与 ``/anomaly-analysis`` 曾把
+    异常列表与 ``detection_rate``（97.3 / 95.5）**硬编码**。现改为对真实历史序列
+    （cpu / memory / net_in）逐个指标做 ``|x-μ| > 2σ`` 判定，如实返回异常与占比；
+    历史样本不足（< 10 点）时返回空列表与 0，绝不伪造。
+
+    Returns:
+        ``(anomalies, stats)``，stats 含 ``detection_rate``（被判定异常的点占比 %）、
+        ``evaluated_metrics``、``total_points``。
+    """
+    history = metrics_history.to_dict()
+    series = {
+        "cpu": history.get("cpu", []) or [],
+        "memory": history.get("memory", []) or [],
+        "network": history.get("net_in", []) or [],
+    }
+
+    anomalies: List[Dict[str, Any]] = []
+    evaluated_metrics = 0
+    total_points = 0
+
+    for metric_name, values in series.items():
+        total_points += len(values)
+        if len(values) < 10:
+            logger.debug("Not enough samples for %s anomaly detection (%d)", metric_name, len(values))
+            continue
+        mean = statistics.mean(values)
+        std = statistics.stdev(values) if len(values) > 1 else 0.0
+        if std <= 0:
+            continue
+        evaluated_metrics += 1
+        unit = _METRIC_UNITS.get(metric_name, "")
+        for i, value in enumerate(values):
+            z = abs(value - mean) / std
+            if z <= 2:
+                continue
+            level = "critical" if z > 3 else "warning"
+            anomalies.append(
+                {
+                    "id": f"{metric_name}-{i}",
+                    "timestamp": (
+                        datetime.now() - timedelta(minutes=len(values) - i)
+                    ).isoformat(),
+                    "metric_name": metric_name,
+                    "metric_value": round(float(value), 2),
+                    "expected_value": round(float(mean), 2),
+                    "deviation": round(z, 2),
+                    "severity": level,
+                    "status": "open",
+                    "description": (
+                        f"{metric_name} {value:.1f}{unit} deviates {z:.1f}σ from mean "
+                        f"{mean:.1f}{unit}"
+                    ),
+                }
+            )
+
+    filtered = anomalies if severity == "all" else [a for a in anomalies if a["severity"] == severity]
+    detection_rate = round(len(anomalies) / total_points * 100, 1) if total_points else 0.0
+    stats = {
+        "detection_rate": detection_rate,
+        "evaluated_metrics": evaluated_metrics,
+        "total_points": total_points,
+    }
+    return filtered, stats
+
+
+def _cloud_snapshot_to_summary(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """Map a ``core.cloud_collector`` snapshot onto the cloud-monitoring shape.
+
+    只使用快照里真实采集到的指标；无法从真实数据推导的字段（实例数/成本）返回
+    ``None``，绝不填充伪造常量。
+    """
+    metrics = snapshot.get("metrics", []) or []
+    lookup = {str(m.get("name", "")).lower(): m.get("value") for m in metrics}
+    raw = snapshot.get("raw", {}) or {}
+    return {
+        "provider": snapshot.get("provider"),
+        "region": raw.get("region"),
+        "instance_count": None,
+        "avg_cpu_usage": lookup.get("cpuutilization") or lookup.get("cpu_usage"),
+        "avg_memory_usage": lookup.get("mem_usedpercent") or lookup.get("memory_usage"),
+        "total_cost_usd": lookup.get("estimatedcharges"),
+        "metrics": metrics,
+        "timestamp": snapshot.get("timestamp"),
+    }
+
+
+async def _collect_docker_monitoring() -> List[Dict[str, Any]]:
+    """Aggregate real Docker container metrics from configured ``DOCKER_HOSTS``.
+
+    未配置任何 Docker 主机或主机不可达时返回空列表（不伪造容器数据）。
+    """
+    from config import DOCKER_HOSTS
+
+    from core.docker_collector import collect_docker
+
+    hosts: List[Dict[str, Any]] = []
+    for host_cfg in DOCKER_HOSTS:
+        snapshot = await asyncio.to_thread(collect_docker, host_cfg)
+        if not snapshot:
+            continue
+        containers = snapshot.get("containers", []) or []
+        running = [c for c in containers if c.get("status") == "running"]
+        cpu_values = [c.get("cpu_percent") for c in containers if c.get("cpu_percent") is not None]
+        hosts.append(
+            {
+                "host": snapshot.get("host"),
+                "container_count": len(containers),
+                "running_count": len(running),
+                "avg_cpu_percent": round(statistics.mean(cpu_values), 2) if cpu_values else 0.0,
+                "total_mem_usage_bytes": sum(int(c.get("mem_usage", 0) or 0) for c in containers),
+                "timestamp": snapshot.get("timestamp"),
+            }
+        )
+    return hosts
+
+
 async def _query_victoriametrics(query: str) -> tuple:
     """Query the VictoriaMetrics/Prometheus-compatible HTTP API.
 
@@ -1469,28 +1592,30 @@ async def get_health_check() -> Dict[str, Any]:
     logger.debug("执行健康检查")
 
     try:
+        # 真实探测各依赖组件；不可用时如实标记 unhealthy/unknown（历史问题已修复：
+        # 原实现硬编码 23.4ms/5.6ms/12.3ms 且恒 healthy）。
+        components = await _probe_health_components()
         checks = [
             {
-                "service": "API Server",
-                "status": "healthy",
-                "response_time_ms": 23.4,
-                "last_check": datetime.now().isoformat(),
-            },
-            {
-                "service": "Database",
-                "status": "healthy",
-                "response_time_ms": 5.6,
-                "last_check": datetime.now().isoformat(),
-            },
-            {
-                "service": "Cache",
-                "status": "healthy",
-                "response_time_ms": 12.3,
-                "last_check": datetime.now().isoformat(),
-            },
+                "service": c["name"],
+                "status": c["status"],
+                "response_time_ms": c.get("response_time_ms"),
+                "last_check": c.get("last_check", datetime.now().isoformat()),
+                **({"error_message": c["error_message"]} if c.get("error_message") else {}),
+            }
+            for c in components
         ]
 
-        overall_status = "healthy" if all(c["status"] == "healthy" for c in checks) else "unhealthy"
+        if not checks:
+            overall_status = "unknown"
+        elif any(c["status"] == "unhealthy" for c in checks):
+            overall_status = "unhealthy"
+        elif any(c["status"] == "degraded" for c in checks):
+            overall_status = "degraded"
+        elif any(c["status"] == "unknown" for c in checks):
+            overall_status = "unknown"
+        else:
+            overall_status = "healthy"
 
         return {
             "overall_status": overall_status,
@@ -1791,16 +1916,27 @@ async def export_metrics(
     logger.info(f"导出指标 | endpoint={endpoint}")
 
     try:
+        started = time.perf_counter()
         # 如果没有提供指标，获取当前系统指标
         if metrics is None:
             system_snapshot = await asyncio.to_thread(collect_all)
             metrics = system_snapshot
 
+        # 真实统计将被导出的指标点数量（历史问题已修复：曾硬编码 export_time_ms=12.3）
+        if isinstance(metrics, dict):
+            metrics_count = sum(
+                len(v) if isinstance(v, (list, dict)) else 1 for v in metrics.values()
+            )
+        elif isinstance(metrics, list):
+            metrics_count = len(metrics)
+        else:
+            metrics_count = 0
+
         return {
             "success": True,
             "endpoint": endpoint,
-            "metrics_count": len(metrics) if isinstance(metrics, dict) else 0,
-            "export_time_ms": 12.3,
+            "metrics_count": metrics_count,
+            "export_time_ms": round((time.perf_counter() - started) * 1000, 3),
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
@@ -1903,54 +2039,20 @@ async def get_anomaly_analysis(
     logger.info(f"获取异常分析 | time_range={time_range} severity={severity}")
 
     try:
-        # 使用metrics_history计算动态阈值
-        history = metrics_history.to_dict()
-        cpu_data = history["cpu"] if history["cpu"] else []
-
-        anomalies = []
-        if len(cpu_data) > 10:
-            mean = statistics.mean(cpu_data)
-            std = statistics.stdev(cpu_data) if len(cpu_data) > 1 else 0
-            threshold = mean + 2 * std  # noqa: F841 - Reserved for future use
-
-            for i, value in enumerate(cpu_data):
-                if abs(value - mean) > 2 * std:
-                    anomalies.append(
-                        {
-                            "id": f"anomaly-{i}",
-                            "timestamp": (
-                                datetime.now() - timedelta(minutes=len(cpu_data) - i)
-                            ).isoformat(),
-                            "metric_name": "cpu",
-                            "metric_value": value,
-                            "expected_value": mean,
-                            "deviation": abs((value - mean) / mean * 100) if mean > 0 else 0,
-                            "severity": "critical" if abs(value - mean) > 3 * std else "warning",
-                            "status": "open",
-                            "description": (
-                                f"CPU usage {value:.1f}% deviates from expected {mean:.1f}%"
-                            ),
-                        }
-                    )
-
-        # 根据严重级别过滤
-        filtered_anomalies = (
-            anomalies if severity == "all" else [a for a in anomalies if a["severity"] == severity]
-        )
-
-        total_anomalies = len(anomalies)
-        critical_anomalies = len([a for a in anomalies if a["severity"] == "critical"])
-        warning_anomalies = len([a for a in anomalies if a["severity"] == "warning"])
-        info_anomalies = len([a for a in anomalies if a["severity"] == "info"])
+        # 与 /anomaly-detection 共用真实 z-score 检测；detection_rate 由真实数据计算，
+        # 不再硬编码 95.5（历史问题已修复）。
+        anomalies, stats = _compute_metric_anomalies(severity)
 
         return {
-            "total_anomalies": total_anomalies,
-            "critical_anomalies": critical_anomalies,
-            "warning_anomalies": warning_anomalies,
-            "info_anomalies": info_anomalies,
-            "detection_rate": 95.5,
+            "total_anomalies": len(anomalies),
+            "critical_anomalies": len([a for a in anomalies if a["severity"] == "critical"]),
+            "warning_anomalies": len([a for a in anomalies if a["severity"] == "warning"]),
+            "info_anomalies": len([a for a in anomalies if a["severity"] == "info"]),
+            "detection_rate": stats["detection_rate"],
+            "evaluated_metrics": stats["evaluated_metrics"],
+            "total_points": stats["total_points"],
             "time_range": time_range,
-            "anomalies": filtered_anomalies,
+            "anomalies": anomalies,
         }
     except Exception as e:
         logger.error(f"异常分析失败: {e}", exc_info=True)
@@ -2026,47 +2128,20 @@ async def get_anomaly_detection(
     logger.info(f"获取异常检测 | time_range={time_range} severity={severity}")
 
     try:
-        # 使用metrics_history进行异常检测
-        history = metrics_history.to_dict()  # noqa: F841 - Reserved for future use
-
-        anomalies = [
-            {
-                "id": "det-001",
-                "timestamp": (datetime.now() - timedelta(minutes=15)).isoformat(),
-                "metric_name": "cpu",
-                "metric_value": 89.2,
-                "expected_value": 45.5,
-                "deviation": 96.0,
-                "severity": "critical",
-                "status": "open",
-                "description": "CPU usage anomaly detected",
-            },
-            {
-                "id": "det-002",
-                "timestamp": (datetime.now() - timedelta(hours=1)).isoformat(),
-                "metric_name": "memory",
-                "metric_value": 88.7,
-                "expected_value": 65.3,
-                "deviation": 35.8,
-                "severity": "warning",
-                "status": "investigating",
-                "description": "Memory usage anomaly detected",
-            },
-        ]
-
-        # 根据严重级别过滤
-        filtered_anomalies = (
-            anomalies if severity == "all" else [a for a in anomalies if a["severity"] == severity]
-        )
+        # 真实异常检测：对 metrics_history 中的 cpu/memory/net_in 做 z-score 判定
+        # （历史问题已修复：原实现硬编码 det-001/det-002 与 detection_rate=97.3）。
+        anomalies, stats = _compute_metric_anomalies(severity)
 
         return {
             "total_anomalies": len(anomalies),
             "critical_anomalies": len([a for a in anomalies if a["severity"] == "critical"]),
             "warning_anomalies": len([a for a in anomalies if a["severity"] == "warning"]),
             "info_anomalies": len([a for a in anomalies if a["severity"] == "info"]),
-            "detection_rate": 97.3,
+            "detection_rate": stats["detection_rate"],
+            "evaluated_metrics": stats["evaluated_metrics"],
+            "total_points": stats["total_points"],
             "time_range": time_range,
-            "anomalies": filtered_anomalies,
+            "anomalies": anomalies,
         }
     except Exception as e:
         logger.error(f"异常检测失败: {e}", exc_info=True)
@@ -2486,53 +2561,92 @@ async def get_apm_data(
     """
     logger.info(f"获取APM数据 | service={service}")
 
+    # 真实采集：从 Prometheus 查询 HTTP 吞吐/错误率/延迟分位（按 service 标签聚合）。
+    # 历史问题已修复：原实现硬编码 api-service/worker-service/database-service 的
+    # throughput/error_rate/latency/apdex。Prometheus 不可用或无匹配序列时返回空列表。
+    window = "5m"
+    latency_metric = "http_request_duration_seconds"
+    rps_metric = "http_requests_total"
+    label = "service"
+    queries = {
+        "rps": f'sum(rate({rps_metric}[{window}])) by ({label})',
+        "err": f'sum(rate({rps_metric}{{status=~"5.."}}[{window}])) by ({label})',
+        "avg": (
+            f'sum(rate({latency_metric}_sum[{window}])) by ({label})'
+            f" / sum(rate({latency_metric}_count[{window}])) by ({label})"
+        ),
+        "p95": (
+            f"histogram_quantile(0.95, sum(rate({latency_metric}_bucket[{window}]))"
+            f" by (le, {label}))"
+        ),
+        "p99": (
+            f"histogram_quantile(0.99, sum(rate({latency_metric}_bucket[{window}]))"
+            f" by (le, {label}))"
+        ),
+    }
+
+    async def _scalar_map(query: str) -> Dict[str, float]:
+        client = get_prometheus_client()
+        result = await client.query(query)
+        out: Dict[str, float] = {}
+        for item in result.data.get("result", []):
+            metric_labels = item.get("metric", {})
+            name = metric_labels.get(label) or metric_labels.get("job")
+            value = item.get("value")
+            if name and isinstance(value, list) and len(value) >= 2:
+                try:
+                    out[name] = float(value[1])
+                except (TypeError, ValueError):
+                    continue
+        return out
+
     try:
-        services_data = [
-            {
-                "name": "api-service",
-                "throughput_rps": 123.4,
-                "error_rate": 0.001,
-                "avg_latency_ms": 45.6,
-                "p95_latency_ms": 89.2,
-                "p99_latency_ms": 123.4,
-                "apdex_score": 0.98,
-            },
-            {
-                "name": "worker-service",
-                "throughput_rps": 56.7,
-                "error_rate": 0.002,
-                "avg_latency_ms": 234.5,
-                "p95_latency_ms": 456.7,
-                "p99_latency_ms": 678.9,
-                "apdex_score": 0.85,
-            },
-            {
-                "name": "database-service",
-                "throughput_rps": 234.5,
-                "error_rate": 0.0005,
-                "avg_latency_ms": 12.3,
-                "p95_latency_ms": 23.4,
-                "p99_latency_ms": 45.6,
-                "apdex_score": 0.99,
-            },
-        ]
-
-        filtered_data = (
-            services_data if not service else [s for s in services_data if service in s["name"]]
+        rps, err, avg, p95, p99 = await asyncio.gather(
+            *(_scalar_map(q) for q in queries.values())
         )
-
+    except Exception as e:  # noqa: BLE001 - Prometheus unavailable -> honest empty
+        logger.warning(f"APM data source (Prometheus) unavailable: {e}")
         return {
             "time_range": time_range,
             "service": service,
-            "total_services": len(services_data),
-            "avg_apdex": (
-                statistics.mean([s["apdex_score"] for s in filtered_data]) if filtered_data else 0
-            ),
-            "services": filtered_data,
+            "total_services": 0,
+            "avg_apdex": None,
+            "services": [],
+            "available": False,
+            "message": "APM data source (Prometheus) is not configured or unreachable",
         }
-    except Exception as e:
-        logger.error(f"获取APM数据失败: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"获取失败: {str(e)[:200]}")
+
+    names = sorted(set(rps) | set(err) | set(avg) | set(p95) | set(p99))
+    services_data: List[Dict[str, Any]] = []
+    for name in names:
+        throughput = rps.get(name)
+        error_rate = (
+            round(err.get(name, 0.0) / throughput, 4) if throughput else None
+        )
+        services_data.append(
+            {
+                "name": name,
+                "throughput_rps": round(throughput, 2) if throughput is not None else None,
+                "error_rate": error_rate,
+                "avg_latency_ms": round(avg[name] * 1000, 2) if name in avg else None,
+                "p95_latency_ms": round(p95[name] * 1000, 2) if name in p95 else None,
+                "p99_latency_ms": round(p99[name] * 1000, 2) if name in p99 else None,
+                "apdex_score": None,
+            }
+        )
+
+    filtered_data = (
+        services_data if not service else [s for s in services_data if service in s["name"]]
+    )
+
+    return {
+        "time_range": time_range,
+        "service": service,
+        "total_services": len(services_data),
+        "avg_apdex": None,
+        "services": filtered_data,
+        "available": True,
+    }
 
 
 # ============================================================
@@ -2565,44 +2679,27 @@ async def get_cloud_monitoring(
     logger.info(f"获取云监控 | provider={provider}")
 
     try:
-        cloud_data = [
-            {
-                "provider": "aws",
-                "region": "us-east-1",
-                "instance_count": 15,
-                "avg_cpu_usage": 45.2,
-                "avg_memory_usage": 68.3,
-                "total_cost_usd": 234.56,
-            },
-            {
-                "provider": "azure",
-                "region": "eastus",
-                "instance_count": 8,
-                "avg_cpu_usage": 52.1,
-                "avg_memory_usage": 71.5,
-                "total_cost_usd": 123.45,
-            },
-            {
-                "provider": "gcp",
-                "region": "us-central1",
-                "instance_count": 12,
-                "avg_cpu_usage": 38.7,
-                "avg_memory_usage": 62.4,
-                "total_cost_usd": 189.34,
-            },
-        ]
+        # 真实采集：来自 config.CLOUD_PROVIDERS 配置的云平台（CloudWatch/Monitor/…）。
+        # 历史问题已修复：原实现硬编码 aws/azure/gcp 的实例数/CPU/成本。
+        from core.cloud_collector import collect_all_cloud
+
+        snapshots = await asyncio.to_thread(collect_all_cloud)
+        cloud_data = [_cloud_snapshot_to_summary(s) for s in snapshots if s]
 
         filtered_data = (
             cloud_data
             if provider == "all"
-            else [c for c in cloud_data if c["provider"] == provider]
+            else [c for c in cloud_data if (c["provider"] or "").lower() == provider]
         )
+
+        instances = [c["instance_count"] for c in filtered_data if c["instance_count"] is not None]
+        costs = [c["total_cost_usd"] for c in filtered_data if c["total_cost_usd"] is not None]
 
         return {
             "time_range": time_range,
             "provider": provider,
-            "total_instances": sum(c["instance_count"] for c in filtered_data),
-            "total_cost_usd": sum(c["total_cost_usd"] for c in filtered_data),
+            "total_instances": sum(instances) if instances else None,
+            "total_cost_usd": round(sum(costs), 2) if costs else None,
             "clouds": filtered_data,
         }
     except Exception as e:
@@ -2674,32 +2771,26 @@ async def get_k8s_monitoring(
     logger.info(f"获取K8s监控 | namespace={namespace}")
 
     try:
-        k8s_data = [
-            {
-                "namespace": "default",
-                "pod_count": 15,
-                "deployment_count": 5,
-                "service_count": 8,
-                "avg_cpu_usage": 45.2,
-                "avg_memory_usage": 68.3,
-            },
-            {
-                "namespace": "monitoring",
-                "pod_count": 8,
-                "deployment_count": 3,
-                "service_count": 4,
-                "avg_cpu_usage": 23.4,
-                "avg_memory_usage": 45.6,
-            },
-            {
-                "namespace": "production",
-                "pod_count": 25,
-                "deployment_count": 10,
-                "service_count": 12,
-                "avg_cpu_usage": 67.8,
-                "avg_memory_usage": 78.9,
-            },
-        ]
+        # 真实采集：来自 config.K8S_HOSTS 配置的集群（core.k8s_collector）。
+        # 历史问题已修复：原实现硬编码 default/monitoring/production 三个命名空间。
+        from core.k8s_collector import collect_all_k8s
+
+        snapshots = await asyncio.to_thread(collect_all_k8s)
+        agg: Dict[str, Dict[str, Any]] = {}
+        for snap in snapshots:
+            for pod in snap.get("pods", []) or []:
+                if not isinstance(pod, dict) or "namespace" not in pod:
+                    continue
+                ns = pod["namespace"]
+                slot = agg.setdefault(
+                    ns,
+                    {"namespace": ns, "pod_count": 0, "restart_count": 0, "phases": {}},
+                )
+                slot["pod_count"] += 1
+                slot["restart_count"] += int(pod.get("restart_count") or 0)
+                phase = pod.get("phase") or "Unknown"
+                slot["phases"][phase] = slot["phases"].get(phase, 0) + 1
+        k8s_data = list(agg.values())
 
         filtered_data = (
             k8s_data if namespace == "all" else [k for k in k8s_data if k["namespace"] == namespace]
@@ -2709,7 +2800,6 @@ async def get_k8s_monitoring(
             "time_range": time_range,
             "namespace": namespace,
             "total_pods": sum(k["pod_count"] for k in filtered_data),
-            "total_deployments": sum(k["deployment_count"] for k in filtered_data),
             "namespaces": filtered_data,
         }
     except Exception as e:
@@ -2781,50 +2871,45 @@ async def get_docker_monitoring(
     logger.info(f"获取Docker监控 | container={container}")
 
     try:
-        containers_data = [
-            {
-                "container_id": "abc123",
-                "name": "aiops-api",
-                "image": "aiops-agent:latest",
-                "status": "running",
-                "cpu_usage_percent": 45.2,
-                "memory_usage_mb": 512,
-                "network_rx_mb": 123.4,
-                "network_tx_mb": 89.5,
-            },
-            {
-                "container_id": "def456",
-                "name": "aiops-worker",
-                "image": "aiops-agent:latest",
-                "status": "running",
-                "cpu_usage_percent": 23.4,
-                "memory_usage_mb": 256,
-                "network_rx_mb": 45.6,
-                "network_tx_mb": 34.2,
-            },
-            {
-                "container_id": "ghi789",
-                "name": "redis",
-                "image": "redis:7",
-                "status": "running",
-                "cpu_usage_percent": 5.6,
-                "memory_usage_mb": 128,
-                "network_rx_mb": 234.5,
-                "network_tx_mb": 189.3,
-            },
-        ]
+        # 真实采集：来自 config.DOCKER_HOSTS 配置的 Docker 主机（core.docker_collector）。
+        # 历史问题已修复：原实现硬编码 abc123/def456/ghi789 三个容器。
+        from config import DOCKER_HOSTS
+
+        from core.docker_collector import collect_docker
+
+        containers_data: List[Dict[str, Any]] = []
+        for host_cfg in DOCKER_HOSTS:
+            snapshot = await asyncio.to_thread(collect_docker, host_cfg)
+            if not snapshot:
+                continue
+            for c in snapshot.get("containers", []) or []:
+                net = c.get("net_io", {}) or {}
+                containers_data.append(
+                    {
+                        "container_id": c.get("id"),
+                        "name": c.get("name"),
+                        "host": snapshot.get("host"),
+                        "status": c.get("status"),
+                        "cpu_usage_percent": c.get("cpu_percent"),
+                        "memory_usage_mb": round((c.get("mem_usage") or 0) / (1024 * 1024), 2),
+                        "network_rx_mb": round((net.get("rx_bytes") or 0) / (1024 * 1024), 2),
+                        "network_tx_mb": round((net.get("tx_bytes") or 0) / (1024 * 1024), 2),
+                    }
+                )
 
         filtered_data = (
             containers_data
             if not container
-            else [c for c in containers_data if container in c["name"]]
+            else [c for c in containers_data if container in (c.get("name") or "")]
         )
 
         return {
             "time_range": time_range,
             "container": container,
             "total_containers": len(containers_data),
-            "running_containers": len([c for c in containers_data if c["status"] == "running"]),
+            "running_containers": len(
+                [c for c in containers_data if c.get("status") == "running"]
+            ),
             "containers": filtered_data,
         }
     except Exception as e:
