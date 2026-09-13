@@ -5,6 +5,7 @@ Provides initialization and utilities for tracing, metrics, and logging
 """
 
 from typing import Optional, cast
+from urllib.parse import urlparse
 
 from loguru import logger
 from opentelemetry import metrics, trace
@@ -27,12 +28,32 @@ except ImportError:
     logger.info("OTLP metric exporter not available, OTLP metrics will be disabled")
 
 try:
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+        OTLPMetricExporter as OTLPHTTPMetricExporter,
+    )
+
+    OTLP_HTTP_METRIC_AVAILABLE = True
+except ImportError:
+    OTLP_HTTP_METRIC_AVAILABLE = False
+    logger.info("OTLP HTTP metric exporter not available, HTTP OTLP metrics will be disabled")
+
+try:
     from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
     OTLP_TRACE_AVAILABLE = True
 except ImportError:
     OTLP_TRACE_AVAILABLE = False
     logger.info("OTLP trace exporter not available, OTLP tracing will be disabled")
+
+try:
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+        OTLPSpanExporter as OTLPHTTPSpanExporter,
+    )
+
+    OTLP_HTTP_TRACE_AVAILABLE = True
+except ImportError:
+    OTLP_HTTP_TRACE_AVAILABLE = False
+    logger.info("OTLP HTTP trace exporter not available, HTTP OTLP tracing will be disabled")
 
 try:
     from opentelemetry.exporter.zipkin.json import ZipkinExporter
@@ -91,6 +112,39 @@ def reset_apm_metrics() -> None:
     }
 
 
+def _resolve_otlp_endpoint(endpoint: str) -> tuple[str, str]:
+    """Resolve an OTLP endpoint string into ``(protocol, normalized_endpoint)``.
+
+    The OpenTelemetry SDK ships two separate OTLP exporters: gRPC (default port
+    4317) and HTTP/protobuf (default port 4318). Feeding an ``http://host:4318``
+    URL to the *gRPC* exporter (the previous behaviour) means the scheme is
+    rejected and, even when it is stripped, the data is sent to the wrong port —
+    so nothing ever reaches the collector.
+
+    Rules:
+      * an explicit ``http``/``https`` scheme selects the HTTP exporter;
+      * a bare ``host[:port]`` (no scheme) selects gRPC (missing port -> 4317);
+      * the well-known ports 4317/4318 win over the scheme when both are present.
+    """
+    raw = (endpoint or "").strip()
+    if not raw:
+        return "grpc", "localhost:4317"
+    if "://" not in raw:
+        if raw.endswith(":4318"):
+            return "http", f"http://{raw}"
+        return "grpc", raw if ":" in raw else f"{raw}:4317"
+
+    parsed = urlparse(raw)
+    port = parsed.port
+    if port == 4317:
+        return "grpc", parsed.netloc or raw
+    if port == 4318:
+        return "http", raw.rstrip("/")
+    if (parsed.scheme or "").lower() in ("http", "https"):
+        return "http", raw.rstrip("/")
+    return "grpc", parsed.netloc or raw
+
+
 def initialize_telemetry(
     service_name: str = "aiops-agent",
     otlp_endpoint: str = "localhost:4317",
@@ -140,12 +194,20 @@ def initialize_telemetry(
             resource=resource, sampler=TraceIdRatioBased(sampling_ratio)
         )
 
-        # Configure OTLP trace exporter (default)
-        if OTLP_TRACE_AVAILABLE:
+        # Configure OTLP trace exporter (default).
+        otlp_protocol, otlp_target = _resolve_otlp_endpoint(otlp_endpoint)
+        if otlp_protocol == "http" and OTLP_HTTP_TRACE_AVAILABLE:
             try:
-                trace_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+                trace_exporter = OTLPHTTPSpanExporter(endpoint=f"{otlp_target}/v1/traces")
                 trace_provider.add_span_processor(BatchSpanProcessor(trace_exporter))
-                logger.info(f"OTLP trace exporter configured: {otlp_endpoint}")
+                logger.info(f"OTLP/HTTP trace exporter configured: {otlp_target}/v1/traces")
+            except Exception as e:
+                logger.warning(f"Failed to configure OTLP/HTTP trace exporter: {e}")
+        elif OTLP_TRACE_AVAILABLE:
+            try:
+                trace_exporter = OTLPSpanExporter(endpoint=otlp_target, insecure=True)
+                trace_provider.add_span_processor(BatchSpanProcessor(trace_exporter))
+                logger.info(f"OTLP/gRPC trace exporter configured: {otlp_target}")
             except Exception as e:
                 logger.warning(f"Failed to configure OTLP trace exporter: {e}")
         else:
@@ -195,9 +257,25 @@ def initialize_telemetry(
         )
 
         # Initialize metrics
-        if OTLP_METRIC_AVAILABLE:
+        if otlp_protocol == "http" and OTLP_HTTP_METRIC_AVAILABLE:
             try:
-                metric_exporter = OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True)
+                metric_exporter = OTLPHTTPMetricExporter(endpoint=f"{otlp_target}/v1/metrics")
+
+                metric_reader = PeriodicExportingMetricReader(
+                    metric_exporter, export_interval_millis=60000  # 60 seconds
+                )
+
+                meter_provider = MeterProvider(metric_readers=[metric_reader], resource=resource)
+                metrics.set_meter_provider(meter_provider)
+
+                logger.info(
+                    f"OpenTelemetry metrics initialized (OTLP/HTTP): {otlp_target}/v1/metrics"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialize metrics: {e}")
+        elif OTLP_METRIC_AVAILABLE:
+            try:
+                metric_exporter = OTLPMetricExporter(endpoint=otlp_target, insecure=True)
 
                 metric_reader = PeriodicExportingMetricReader(
                     metric_exporter, export_interval_millis=60000  # 60 seconds

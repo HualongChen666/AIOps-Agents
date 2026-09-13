@@ -1,5 +1,9 @@
 # OpenTelemetry Integration Design for AIOps Agent
 
+> **Canonical collector configuration** lives at `deploy/otel-collector-config.yaml`
+> and is mounted by `deploy/docker-compose.otel.yml`. This directory holds the
+> design document only; there is no second (drifting) config file.
+
 ## Overview
 This document describes the OpenTelemetry integration strategy for AIOps Agent, covering tracing, metrics, and logging integration with the L4 storage layer (VictoriaMetrics, Loki, Tempo).
 

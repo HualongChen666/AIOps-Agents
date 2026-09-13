@@ -3,11 +3,15 @@ version: '3.8'
 services:
   # OpenTelemetry Collector
   otel-collector:
-    image: otel/opentelemetry-collector:latest
+    # The pipeline uses the Loki, filelog and Prometheus remote-write components,
+    # which live in the contrib distribution (the core image ships neither).
+    image: otel/opentelemetry-collector-contrib:0.92.0
     container_name: aiops-otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+      # Repository log directory consumed by the filelog receiver.
+      - ../logs:/var/log/aiops:ro
     ports:
       - "4317:4317"  # OTLP gRPC receiver
       - "4318:4318"  # OTLP HTTP receiver
@@ -16,6 +20,8 @@ services:
       - "13133:13133"  # health check
       - "1777:1777"  # pprof
       - "55679:55679"  # zpages
+    environment:
+      - DEPLOYMENT_ENVIRONMENT=${DEPLOYMENT_ENVIRONMENT:-production}
     networks:
       - monitoring
     restart: unless-stopped
