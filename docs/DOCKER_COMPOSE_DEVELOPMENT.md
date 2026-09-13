@@ -42,7 +42,7 @@
 
 ### 主配置文件
 
-#### docker-compose.dev.yml
+#### docker-compose.yml
 ```yaml
 version: "3.8"
 
@@ -203,7 +203,7 @@ volumes:
 
 ### 监控配置
 
-#### docker-compose.monitoring.yml
+#### deploy/docker-compose.monitoring.yml
 ```yaml
 version: "3.8"
 
@@ -220,7 +220,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus-dev-data:/prometheus
     networks:
       - aiops-dev-network
@@ -386,31 +386,31 @@ CMD ["npm", "run", "dev"]
 #### 一键启动
 ```bash
 # 启动所有服务
-docker-compose -f docker-compose.dev.yml up -d
+docker-compose -f docker-compose.yml up -d
 
 # 启动监控服务
-docker-compose -f docker-compose.monitoring.yml up -d
+docker-compose -f deploy/docker-compose.monitoring.yml up -d
 
 # 验证服务状态
-docker-compose -f docker-compose.dev.yml ps
+docker-compose -f docker-compose.yml ps
 ```
 
 #### 分步启动
 ```bash
 # 1. 启动数据服务
-docker-compose -f docker-compose.dev.yml up -d postgres redis qdrant
+docker-compose -f docker-compose.yml up -d postgres redis qdrant
 
 # 2. 等待数据服务就绪
-docker-compose -f docker-compose.dev.yml logs postgres
+docker-compose -f docker-compose.yml logs postgres
 
 # 3. 启动应用服务
-docker-compose -f docker-compose.dev.yml up -d aiops-agent frontend
+docker-compose -f docker-compose.yml up -d aiops-agent frontend
 
 # 4. 启动开发工具
-docker-compose -f docker-compose.dev.yml up -d pgadmin redis-commander mailhog
+docker-compose -f docker-compose.yml up -d pgadmin redis-commander mailhog
 
 # 5. 启动监控服务
-docker-compose -f docker-compose.monitoring.yml up -d
+docker-compose -f deploy/docker-compose.monitoring.yml up -d
 ```
 
 ### 停止开发环境
@@ -418,12 +418,12 @@ docker-compose -f docker-compose.monitoring.yml up -d
 #### 停止所有服务
 ```bash
 # 停止所有服务
-docker-compose -f docker-compose.dev.yml down
-docker-compose -f docker-compose.monitoring.yml down
+docker-compose -f docker-compose.yml down
+docker-compose -f deploy/docker-compose.monitoring.yml down
 
 # 停止并删除数据卷
-docker-compose -f docker-compose.dev.yml down -v
-docker-compose -f docker-compose.monitoring.yml down -v
+docker-compose -f docker-compose.yml down -v
+docker-compose -f deploy/docker-compose.monitoring.yml down -v
 ```
 
 ### 查看日志
@@ -431,12 +431,12 @@ docker-compose -f docker-compose.monitoring.yml down -v
 #### 查看服务日志
 ```bash
 # 查看所有服务日志
-docker-compose -f docker-compose.dev.yml logs -f
+docker-compose -f docker-compose.yml logs -f
 
 # 查看特定服务日志
-docker-compose -f docker-compose.dev.yml logs -f aiops-agent
-docker-compose -f docker-compose.dev.yml logs -f frontend
-docker-compose -f docker-compose.dev.yml logs -f postgres
+docker-compose -f docker-compose.yml logs -f aiops-agent
+docker-compose -f docker-compose.yml logs -f frontend
+docker-compose -f docker-compose.yml logs -f postgres
 ```
 
 ### 进入容器
@@ -444,13 +444,13 @@ docker-compose -f docker-compose.dev.yml logs -f postgres
 #### 进入容器调试
 ```bash
 # 进入AIOps Agent容器
-docker-compose -f docker-compose.dev.yml exec aiops-agent bash
+docker-compose -f docker-compose.yml exec aiops-agent bash
 
 # 进入PostgreSQL容器
-docker-compose -f docker-compose.dev.yml exec postgres psql -U aiops -d aiops
+docker-compose -f docker-compose.yml exec postgres psql -U aiops -d aiops
 
 # 进入Redis容器
-docker-compose -f docker-compose.dev.yml exec redis redis-cli
+docker-compose -f docker-compose.yml exec redis redis-cli
 ```
 
 ---
@@ -504,7 +504,7 @@ fi
 
 # 启动数据服务
 echo "Starting data services..."
-docker-compose -f docker-compose.dev.yml up -d postgres redis qdrant
+docker-compose -f docker-compose.yml up -d postgres redis qdrant
 
 # 等待数据服务就绪
 echo "Waiting for data services to be ready..."
@@ -512,15 +512,15 @@ sleep 10
 
 # 启动应用服务
 echo "Starting application services..."
-docker-compose -f docker-compose.dev.yml up -d aiops-agent frontend
+docker-compose -f docker-compose.yml up -d aiops-agent frontend
 
 # 启动开发工具
 echo "Starting development tools..."
-docker-compose -f docker-compose.dev.yml up -d pgadmin redis-commander mailhog
+docker-compose -f docker-compose.yml up -d pgadmin redis-commander mailhog
 
 # 启动监控服务
 echo "Starting monitoring services..."
-docker-compose -f docker-compose.monitoring.yml up -d
+docker-compose -f deploy/docker-compose.monitoring.yml up -d
 
 echo "Development environment started successfully!"
 echo ""
@@ -544,8 +544,8 @@ echo "  - Jaeger: http://localhost:16686"
 echo "Stopping AIOps Agent development environment..."
 
 # 停止所有服务
-docker-compose -f docker-compose.dev.yml down
-docker-compose -f docker-compose.monitoring.yml down
+docker-compose -f docker-compose.yml down
+docker-compose -f deploy/docker-compose.monitoring.yml down
 
 echo "Development environment stopped successfully!"
 ```
@@ -558,8 +558,8 @@ echo "Development environment stopped successfully!"
 echo "Restarting AIOps Agent development environment..."
 
 # 停止服务
-docker-compose -f docker-compose.dev.yml down
-docker-compose -f docker-compose.monitoring.yml down
+docker-compose -f docker-compose.yml down
+docker-compose -f deploy/docker-compose.monitoring.yml down
 
 # 启动服务
 ./scripts/dev-start.sh
@@ -574,7 +574,7 @@ docker-compose -f docker-compose.monitoring.yml down
 
 echo "Running database migrations..."
 
-docker-compose -f docker-compose.dev.yml exec aiops-agent alembic upgrade head
+docker-compose -f docker-compose.yml exec aiops-agent alembic upgrade head
 
 echo "Database migrations completed!"
 ```
@@ -587,13 +587,13 @@ echo "Database migrations completed!"
 echo "Resetting database..."
 
 # 停止服务
-docker-compose -f docker-compose.dev.yml stop postgres
+docker-compose -f docker-compose.yml stop postgres
 
 # 删除数据卷
 docker volume rm aiops-sre-agent_postgres-dev-data
 
 # 重新启动服务
-docker-compose -f docker-compose.dev.yml up -d postgres
+docker-compose -f docker-compose.yml up -d postgres
 
 # 等待数据库就绪
 sleep 10
@@ -641,37 +641,37 @@ echo "Database reset completed!"
 #### 容器启动失败
 ```bash
 # 解决方案：检查日志
-docker-compose -f docker-compose.dev.yml logs aiops-agent
+docker-compose -f docker-compose.yml logs aiops-agent
 
 # 检查端口占用
 netstat -tuln | grep 8000
 
 # 重新构建镜像
-docker-compose -f docker-compose.dev.yml build --no-cache aiops-agent
+docker-compose -f docker-compose.yml build --no-cache aiops-agent
 ```
 
 #### 数据库连接失败
 ```bash
 # 解决方案：检查数据库状态
-docker-compose -f docker-compose.dev.yml ps postgres
+docker-compose -f docker-compose.yml ps postgres
 
 # 检查数据库日志
-docker-compose -f docker-compose.dev.yml logs postgres
+docker-compose -f docker-compose.yml logs postgres
 
 # 测试数据库连接
-docker-compose -f docker-compose.dev.yml exec postgres psql -U aiops -d aiops
+docker-compose -f docker-compose.yml exec postgres psql -U aiops -d aiops
 ```
 
 #### 热重载不工作
 ```bash
 # 解决方案：检查卷挂载
-docker-compose -f docker-compose.dev.yml config
+docker-compose -f docker-compose.yml config
 
 # 检查文件权限
 ls -la ./core
 
 # 重新启动服务
-docker-compose -f docker-compose.dev.yml restart aiops-agent
+docker-compose -f docker-compose.yml restart aiops-agent
 ```
 
 ---
@@ -682,7 +682,7 @@ docker-compose -f docker-compose.dev.yml restart aiops-agent
 
 #### 容器资源限制
 ```yaml
-# docker-compose.dev.yml
+# docker-compose.yml
 services:
   aiops-agent:
     deploy:

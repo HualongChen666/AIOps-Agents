@@ -24,13 +24,16 @@ services:
       - '--storage.tsdb.retention.size=50GB'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+      # Serve under /prometheus to match the Caddy reverse proxy route.
+      - '--web.route-prefix=/prometheus'
+      - '--web.external-url=/prometheus/'
       - '--web.enable-lifecycle'
       - '--web.enable-admin-api'
     restart: unless-stopped
     networks:
       - monitoring
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/prometheus/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -77,12 +80,14 @@ services:
     command:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
+      # Serve under /alertmanager to match the Caddy reverse proxy route.
+      - '--web.route-prefix=/alertmanager'
+      - '--web.external-url=/alertmanager/'
     restart: unless-stopped
     networks:
       - monitoring
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/-/healthy"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9093/alertmanager/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3

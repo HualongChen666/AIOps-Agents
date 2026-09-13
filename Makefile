@@ -120,3 +120,18 @@ quality-gate:
 	python -m isort --check-only .
 	python -m flake8 .
 	@echo "✅ Quality gate validation completed"
+# ---------------------------------------------------------------------------
+# Observability stacks
+# ---------------------------------------------------------------------------
+.PHONY: monitoring-up monitoring-down monitoring-logs
+
+monitoring-up:
+	@echo "Starting standalone monitoring stack (Prometheus/Grafana/Alertmanager/exporters)..."
+	docker compose -f monitoring/docker-compose.yml up -d
+
+monitoring-down:
+	@echo "Stopping standalone monitoring stack..."
+	docker compose -f monitoring/docker-compose.yml down
+
+monitoring-logs:
+	docker compose -f monitoring/docker-compose.yml logs -f --tail=100

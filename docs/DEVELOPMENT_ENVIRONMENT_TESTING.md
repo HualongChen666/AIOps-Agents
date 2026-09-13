@@ -57,7 +57,7 @@ class TestDockerCompose:
         """启动Docker Compose"""
         # 启动服务
         subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "up", "-d"],
+            ["docker-compose", "-f", "docker-compose.yml", "up", "-d"],
             check=True
         )
         
@@ -68,14 +68,14 @@ class TestDockerCompose:
         
         # 清理
         subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "down"],
+            ["docker-compose", "-f", "docker-compose.yml", "down"],
             check=True
         )
     
     def test_services_started(self, compose_up):
         """测试服务启动"""
         result = subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "ps"],
+            ["docker-compose", "-f", "docker-compose.yml", "ps"],
             capture_output=True,
             text=True
         )
@@ -196,7 +196,7 @@ class TestStartupScripts:
         """测试一键启动"""
         # 验证所有服务已启动
         result = subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "ps"],
+            ["docker-compose", "-f", "docker-compose.yml", "ps"],
             capture_output=True,
             text=True
         )
@@ -263,7 +263,7 @@ class TestStopScripts:
         
         # 验证服务已停止
         result = subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "ps"],
+            ["docker-compose", "-f", "docker-compose.yml", "ps"],
             capture_output=True,
             text=True
         )
@@ -429,7 +429,7 @@ class TestDatabasePersistence:
         
         # 重启数据库服务
         subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "restart", "postgres"],
+            ["docker-compose", "-f", "docker-compose.yml", "restart", "postgres"],
             check=True
         )
         
@@ -474,7 +474,7 @@ class TestRedisPersistence:
         
         # 重启Redis服务
         subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "restart", "redis"],
+            ["docker-compose", "-f", "docker-compose.yml", "restart", "redis"],
             check=True
         )
         
@@ -534,7 +534,7 @@ class TestDebuggingTools:
         """测试容器访问"""
         # 测试进入容器
         result = subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "exec", "aiops-agent", "python", "--version"],
+            ["docker-compose", "-f", "docker-compose.yml", "exec", "aiops-agent", "python", "--version"],
             capture_output=True,
             text=True
         )
@@ -564,10 +564,10 @@ class TestMonitoringTools:
     def dev_environment(self):
         """启动开发环境"""
         subprocess.run(["bash", "scripts/dev-start.sh"], check=True)
-        subprocess.run(["docker-compose", "-f", "docker-compose.monitoring.yml", "up", "-d"], check=True)
+        subprocess.run(["docker-compose", "-f", "deploy/docker-compose.monitoring.yml", "up", "-d"], check=True)
         time.sleep(30)
         yield
-        subprocess.run(["docker-compose", "-f", "docker-compose.monitoring.yml", "down"], check=True)
+        subprocess.run(["docker-compose", "-f", "deploy/docker-compose.monitoring.yml", "down"], check=True)
         subprocess.run(["bash", "scripts/dev-stop.sh"], check=True)
     
     def test_prometheus_accessibility(self, dev_environment):
@@ -639,7 +639,7 @@ class TestStartupPerformance:
         # 测试API服务重启时间
         start_time = time.time()
         subprocess.run(
-            ["docker-compose", "-f", "docker-compose.dev.yml", "restart", "aiops-agent"],
+            ["docker-compose", "-f", "docker-compose.yml", "restart", "aiops-agent"],
             check=True
         )
         

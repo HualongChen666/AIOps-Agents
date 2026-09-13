@@ -368,7 +368,7 @@ metrics = exporter.export_metrics()
 - `aiops_ai_requests_total`
 - `aiops_ai_request_duration_seconds`
 - `aiops_ai_tokens_total`
-- `aiops_ai_cost_usd`
+- `aiops_ai_cost_usd_total`
 - `aiops_ai_cache_hits_total`
 
 #### Knowledge Graph Metrics

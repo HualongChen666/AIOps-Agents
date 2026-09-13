@@ -2,23 +2,24 @@
     email admin@aiops.local
 }
 
+# The backends are configured to serve *under* these prefixes
+# (Prometheus --web.route-prefix=/prometheus, Alertmanager --web.route-prefix
+# /alertmanager, Grafana GF_SERVER_SERVE_FROM_SUB_PATH with
+# GF_SERVER_ROOT_URL=http://<host>/grafana), so Caddy must forward the path
+# unchanged — stripping it would break the apps' absolute asset/redirect URLs.
 :80 {
     # Prometheus
     handle /prometheus* {
         reverse_proxy prometheus:9090
     }
-    
-    # Grafana
-    handle /grafana* {
-        reverse_proxy grafana:3000
-    }
-    
+
     # Alertmanager
     handle /alertmanager* {
         reverse_proxy alertmanager:9093
     }
-    
-    # Default - redirect to Grafana
+
+    # Grafana is served at the root (GF_SERVER_ROOT_URL=http://<host>/), so the
+    # default handler proxies it unchanged.
     handle {
         reverse_proxy grafana:3000
     }

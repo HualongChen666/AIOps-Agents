@@ -74,7 +74,7 @@ alembic upgrade head # 创建/迁移 PostgreSQL 表结构
 
 ### 3.1 开发环境部署（Docker Compose）
 ```bash
-docker compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml up -d
 ```
 - 该组合文件以 `dev` 配置启动所有服务，开启 hot‑reload（FastAPI 的 `--reload`）
 - 访问 http://localhost 为 Swagger UI

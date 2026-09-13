@@ -45,7 +45,7 @@ Features:
   - SLO Alerts (availability, latency, error budget)
 - Severity levels: warning, critical
 - Category-based routing
-- 30+ individual alert rules
+- 86 individual alert rules
 
 ### 3. Grafana Dashboards ✅
 
@@ -246,8 +246,8 @@ Added:
 
 ### 2. Comprehensive Coverage
 - 7 specialized dashboards
-- 30+ alert rules
-- 50+ metric types
+- 86 alert rules
+- 74 aiops_* metric families
 - Multiple severity levels
 - Category-based alert routing
 
@@ -355,7 +355,7 @@ A complete, production-ready Prometheus/Grafana monitoring solution has been imp
 - ✅ Integrates with existing performance framework
 - ✅ Provides comprehensive monitoring coverage
 - ✅ Includes 7 specialized dashboards
-- ✅ Has 30+ pre-configured alert rules
+- ✅ Has 86 pre-configured alert rules
 - ✅ Is deployable with a single command
 - ✅ Includes cross-platform deployment scripts
 - ✅ Has comprehensive documentation
