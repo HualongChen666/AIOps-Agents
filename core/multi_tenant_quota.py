@@ -75,18 +75,31 @@ class TenantQuotaProfile:
         self.updated_at = datetime.now()
     
     def check_quota(self, resource_type: ResourceType, amount: int = 1) -> bool:
-        """Check if quota allows the requested amount"""
+        """Check if quota allows the requested amount.
+
+        The hard limit (falling back to ``limit``) is the absolute cap that
+        blocks a request; the soft limit only emits a warning so operators get
+        early notice before a tenant is cut off.
+        """
         quota = self.get_quota(resource_type)
         if not quota:
             return True  # No quota defined, allow by default
-        
-        if quota.used + amount > quota.limit:
+
+        cap = quota.hard_limit if quota.hard_limit is not None else quota.limit
+        projected = quota.used + amount
+        if projected > cap:
             logger.warning(
                 f"Tenant {self.tenant_id} quota exceeded for {resource_type.value}: "
-                f"{quota.used + amount}/{quota.limit}"
+                f"{projected}/{cap}"
             )
             return False
-        
+
+        if quota.soft_limit is not None and projected > quota.soft_limit:
+            logger.warning(
+                f"Tenant {self.tenant_id} approaching soft limit for "
+                f"{resource_type.value}: {projected}/{cap} (soft={quota.soft_limit})"
+            )
+
         return True
     
     def consume_quota(self, resource_type: ResourceType, amount: int = 1) -> bool:
@@ -176,7 +189,7 @@ class MultiTenantQuotaManager:
                 resource_type=resource_type,
                 limit=limit,
                 soft_limit=int(limit * 0.8),
-                hard_limit=int(limit * 1.1)
+                hard_limit=limit,
             )
         
         # Apply custom quotas if provided
@@ -185,7 +198,7 @@ class MultiTenantQuotaManager:
                 if resource_type in quotas:
                     quotas[resource_type].limit = limit
                     quotas[resource_type].soft_limit = int(limit * 0.8)
-                    quotas[resource_type].hard_limit = int(limit * 1.1)
+                    quotas[resource_type].hard_limit = limit
         
         profile = TenantQuotaProfile(
             tenant_id=tenant_id,
@@ -270,7 +283,7 @@ class MultiTenantQuotaManager:
         logger.info(f"Reset quota for tenant {tenant_id}")
     
     def upgrade_tenant_plan(self, tenant_id: str, new_plan: str) -> bool:
-        """Upgrade tenant to a higher plan"""
+        """Upgrade tenant to a higher plan, preserving consumed quota."""
         if new_plan not in self.plan_templates:
             logger.error(f"Invalid plan: {new_plan}")
             return False
@@ -280,10 +293,20 @@ class MultiTenantQuotaManager:
             logger.error(f"Tenant profile not found: {tenant_id}")
             return False
         
+        previous_plan = profile.plan
+        # Capture current usage so an upgrade never resets consumed quota.
+        usage = {rt: quota.used for rt, quota in profile.quotas.items()}
+        
         # Create new profile with new plan
         new_profile = self.create_tenant_profile(tenant_id, new_plan)
         
-        logger.info(f"Upgraded tenant {tenant_id} from {profile.plan} to {new_plan}")
+        # Carry existing usage onto the new quotas.
+        for resource_type, quota in new_profile.quotas.items():
+            if resource_type in usage:
+                quota.used = usage[resource_type]
+        new_profile.updated_at = datetime.now()
+        
+        logger.info(f"Upgraded tenant {tenant_id} from {previous_plan} to {new_plan}")
         return True
     
     def get_quota_alerts(self, threshold: float = 0.9) -> List[Dict[str, Any]]:

@@ -1120,19 +1120,40 @@ ALERT_REPOSITORY = PostgreSQLAlertRepository()
 
 
 class _SimpleRepairDB:
-    """Simplified in-memory repair record storage for MCP tools."""
+    """Repair record storage for the MCP tools, persisted via ``persistent_records``.
+
+    Records previously lived only in a process-local ``dict`` so approvals and
+    rejections were lost on restart. They are now written through to the
+    durable :class:`core.persistent_store.PersistentStore` (the same store used
+    by the advanced API routers).
+    """
+
+    _DOMAIN = "mcp_repair"
+    _KIND = "records"
 
     def __init__(self):
-        self._records: dict[str, dict] = {}
+        # Lazily created to avoid touching the database during module import.
+        self._store = None
+
+    def _get_store(self):
+        if self._store is None:
+            from core.persistent_store import PersistentStore
+
+            self._store = PersistentStore(self._DOMAIN, self._KIND)
+        return self._store
 
     def get_repair_record(self, repair_id: str) -> dict | None:
-        return self._records.get(repair_id)
+        record = self._get_store().get(repair_id)
+        return dict(record) if record is not None else None
 
     def update_repair_status(self, repair_id: str, status: str, comment: str | None = None) -> None:
-        record = self._records.setdefault(repair_id, {"repair_id": repair_id})
+        store = self._get_store()
+        record = dict(store.get(repair_id) or {})
+        record["repair_id"] = repair_id
         record["status"] = status
         if comment is not None:
             record["comment"] = comment
+        store[repair_id] = record
 
 
 db = _SimpleRepairDB()

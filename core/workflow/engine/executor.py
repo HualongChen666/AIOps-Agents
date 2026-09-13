@@ -94,6 +94,9 @@ class WorkflowExecutor:
         # Running executions
         self._active_executions: Dict[str, ExecutionContext] = {}
 
+        # In-flight node tasks per run, so cancel can stop them promptly.
+        self._node_tasks: Dict[str, set] = {}
+
     def register_handler(self, node_type: str, handler: Callable) -> None:
         """
         Register execution handler for node type
@@ -136,18 +139,25 @@ class WorkflowExecutor:
             # Execute nodes
             await self._execute_dag(dag, context, state_machine)
 
-            # Complete workflow
-            state_machine.transition(WorkflowEvent.COMPLETE)
+            # Complete workflow (unless it already reached a terminal state,
+            # e.g. cancelled or failed).
+            if not state_machine.is_terminal():
+                if any(node.status == NodeStatus.FAILED for node in dag.nodes.values()):
+                    state_machine.transition(WorkflowEvent.FAIL)
+                else:
+                    state_machine.transition(WorkflowEvent.COMPLETE)
             context.status = state_machine.current_state
 
         except Exception as e:
             logger.error(f"Workflow execution failed: {e}")
-            state_machine.transition(WorkflowEvent.FAIL)
+            if not state_machine.is_terminal():
+                state_machine.transition(WorkflowEvent.FAIL)
             context.status = state_machine.current_state
             context.errors["workflow"] = str(e)
 
         finally:
             context.end_time = datetime.now()
+            self._node_tasks.pop(context.run_id, None)
             del self._active_executions[context.run_id]
 
         return context
@@ -164,6 +174,20 @@ class WorkflowExecutor:
             state_machine: State machine for state management
         """
         while True:
+            # Honour control requests issued through the public API. The loop
+            # otherwise only consults the state machine, so without this check
+            # pause/cancel had no effect on a running workflow.
+            if context.status == WorkflowState.PAUSED:
+                await asyncio.sleep(0.1)
+                continue
+            if context.status == WorkflowState.CANCELLED:
+                for node in dag.nodes.values():
+                    if node.status in (NodeStatus.PENDING, NodeStatus.RUNNING):
+                        node.status = NodeStatus.SKIPPED
+                if not state_machine.is_terminal():
+                    state_machine.transition(WorkflowEvent.CANCEL)
+                return
+
             # Check if workflow should stop
             if state_machine.is_terminal():
                 break
@@ -179,6 +203,20 @@ class WorkflowExecutor:
                 )
                 if all_completed:
                     break
+                # A PENDING node whose upstream dependency failed or was skipped
+                # can never become ready. If nothing is running any more the DAG
+                # is stalled — mark the unreachable nodes SKIPPED and stop
+                # instead of spinning forever.
+                if not any(node.status == NodeStatus.RUNNING for node in dag.nodes.values()):
+                    blocked = [n for n in dag.nodes.values() if n.status == NodeStatus.PENDING]
+                    for node in blocked:
+                        node.status = NodeStatus.SKIPPED
+                        context.errors.setdefault(
+                            node.id, "Skipped: upstream dependency did not succeed"
+                        )
+                    if blocked and not state_machine.is_terminal():
+                        state_machine.transition(WorkflowEvent.FAIL)
+                    break
                 # Wait for nodes to complete
                 await asyncio.sleep(0.1)
                 continue
@@ -186,11 +224,17 @@ class WorkflowExecutor:
             # Execute ready nodes in parallel (respecting max_parallel_nodes)
             semaphore = asyncio.Semaphore(self.max_parallel_nodes)
             tasks = [
-                self._execute_node(dag.nodes[node_id], dag, context, semaphore)
+                asyncio.ensure_future(
+                    self._execute_node(dag.nodes[node_id], dag, context, semaphore)
+                )
                 for node_id in ready_nodes
             ]
-
-            await asyncio.gather(*tasks, return_exceptions=True)
+            bucket = self._node_tasks.setdefault(context.run_id, set())
+            bucket.update(tasks)
+            try:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            finally:
+                bucket.difference_update(tasks)
 
     async def _execute_node(
         self, node: DAGNode, dag: DAG, context: ExecutionContext, semaphore: asyncio.Semaphore
@@ -319,6 +363,11 @@ class WorkflowExecutor:
             and context.status != WorkflowState.CANCELLED
         ):
             context.status = WorkflowState.CANCELLED
+            # Stop any node tasks that are still running so the DAG loop can
+            # wind down immediately instead of waiting for them to time out.
+            for task in list(self._node_tasks.get(run_id, ())):
+                if not task.done():
+                    task.cancel()
             return True
         return False
 

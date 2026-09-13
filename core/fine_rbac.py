@@ -83,10 +83,14 @@ def require_permission(resource: str, action: str):
 
 
 # ---------------------------------------------------------------------------
-# Example default policies – loaded at import time for demo purposes.
+# Default policy seeding – explicit opt-in, NOT executed on import.
+#
+# The policy store is empty when the module is imported so a deployment never
+# ships with hard-coded grants. Call :func:`seed_default_policies` during
+# initialisation when the demo/single-tenant grants are actually wanted.
 # ---------------------------------------------------------------------------
-def _load_demo_policies():
-    # Admins have full access on all resources.
+def seed_default_policies() -> None:
+    """Seed the development default policies (admins full, users read-only)."""
     for res in ["*"]:
         grant_permission("default", res, "*", "admin")
     # Users can read "metrics" and "logs".
@@ -94,11 +98,13 @@ def _load_demo_policies():
     grant_permission("default", "logs", "read", "user")
 
 
-_load_demo_policies()
+# Backwards-compatible alias (still an explicit call, never run at import).
+_load_demo_policies = seed_default_policies
 
 __all__ = [
     "grant_permission",
     "revoke_permission",
     "check_permission",
     "require_permission",
+    "seed_default_policies",
 ]

@@ -91,11 +91,13 @@ def get_docker_repair_history(limit: int = 100) -> List[Dict[str, Any]]:
 async def execute_repair_sync(
     host_name: str, script_key: str, params: Dict[str, str]
 ) -> Dict[str, Any]:
-    """Execute a Docker repair script and record the result.
+    """Execute a Docker repair script and record the real result.
 
-    Safety: destructive commands require ``params["force"] == "true"`` and
-    will still only run if the ``docker`` CLI is available. By default the
-    command is simulated (dry-run) to avoid accidental changes.
+    Read-only scripts (``inspect``/``stats``/``ps``) are always executed for
+    real. Destructive scripts (``restart``/``prune``) require an explicit
+    confirmation via ``params["force"]`` and are *never* reported as a success
+    unless the command actually ran. When the ``docker`` CLI is unavailable the
+    call fails honestly instead of pretending to have repaired anything.
     """
     meta = _DOCKER_SCRIPTS.get(script_key)
     if not meta:
@@ -114,7 +116,8 @@ async def execute_repair_sync(
             "script": script_key,
         }
 
-    dry_run = str(params.get("force", "")).lower() not in ("true", "1", "yes")
+    read_only = bool(meta["read_only"])
+    confirmed = str(params.get("force", "")).lower() in ("true", "1", "yes")
     command = meta["command_factory"](host_name, params)
     timestamp = datetime.now(timezone.utc).isoformat()
     docker_available = shutil.which("docker") is not None
@@ -125,19 +128,26 @@ async def execute_repair_sync(
         "command": command,
         "params": params,
         "timestamp": timestamp,
-        "dry_run": dry_run,
+        "read_only": read_only,
+        "confirmed": confirmed,
+        "executed": False,
         "docker_available": docker_available,
     }
 
-    if not docker_available:
-        result["success"] = True
-        result["output"] = "docker CLI not available; command simulated"
+    # Destructive commands must be confirmed before they can touch the host.
+    if not read_only and not confirmed:
+        result["success"] = False
+        result["requires_confirmation"] = True
+        result["error"] = (
+            "Destructive docker command requires explicit confirmation "
+            "(pass force=true); command was not executed"
+        )
         _record(result)
         return result
 
-    if dry_run:
-        result["success"] = True
-        result["output"] = f"Dry-run would execute: {' '.join(command)}"
+    if not docker_available:
+        result["success"] = False
+        result["error"] = "docker CLI not available on this host; command was not executed"
         _record(result)
         return result
 
@@ -150,6 +160,7 @@ async def execute_repair_sync(
             check=False,
             shell=False,
         )
+        result["executed"] = True
         result["success"] = proc.returncode == 0
         result["returncode"] = proc.returncode
         result["stdout"] = proc.stdout[:2000]

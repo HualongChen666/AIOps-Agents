@@ -11,6 +11,17 @@ from typing import Any, Dict, Optional
 from loguru import logger
 
 
+def _contains_error(payload: Any) -> bool:
+    """Recursively check a (possibly nested) result payload for an error entry."""
+    if isinstance(payload, dict):
+        if payload.get("error"):
+            return True
+        return any(_contains_error(value) for value in payload.values())
+    if isinstance(payload, (list, tuple)):
+        return any(_contains_error(value) for value in payload)
+    return False
+
+
 @dataclass
 class SystemResourceStatus:
     """System resource optimization status"""
@@ -75,14 +86,14 @@ class SystemResourceOptimizer:
             return {"error": "Memory optimizer not available"}
 
         try:
-            # Get current memory snapshot
-            snapshot = self.memory_optimizer.get_memory_snapshot()
+            # Get current memory snapshot (real MemoryUsageOptimizer API)
+            snapshot = self.memory_optimizer.take_memory_snapshot("system")
 
-            # Analyze memory patterns
-            analysis = self.memory_optimizer.analyze_memory_patterns()
+            # Statistics captured by the optimizer
+            statistics = self.memory_optimizer.get_memory_statistics()
 
             # Detect memory leaks
-            leaks = self.memory_optimizer.detect_memory_leaks()
+            leaks = self.memory_optimizer.detect_memory_leaks("system")
 
             self.status.current_memory_mb = snapshot.used_memory_mb
 
@@ -90,9 +101,16 @@ class SystemResourceOptimizer:
                 "current_usage_mb": snapshot.used_memory_mb,
                 "memory_percent": snapshot.memory_percent,
                 "gc_objects": snapshot.gc_objects,
-                "analysis": analysis,
+                "statistics": statistics,
                 "leaks_detected": len(leaks),
-                "leak_details": leaks[:5],  # Return top 5 leaks
+                "leak_details": [
+                    {
+                        "component": leak.component,
+                        "leak_size_mb": leak.leak_size_mb,
+                        "severity": leak.severity,
+                    }
+                    for leak in leaks[:5]
+                ],
             }
         except Exception as e:
             logger.error(f"Error analyzing memory usage: {e}")
@@ -110,19 +128,17 @@ class SystemResourceOptimizer:
 
         try:
             # Run garbage collection
-            gc_result = self.memory_optimizer.run_garbage_collection()
+            gc_result = self.memory_optimizer.collect_garbage()
 
-            # Clear caches if needed
-            cache_result = self.memory_optimizer.clear_caches()
+            # Apply memory optimizations for the system component
+            optimization = self.memory_optimizer.optimize_memory("system")
 
-            # Apply memory optimizations
-            optimizations = self.memory_optimizer.apply_memory_optimizations()
+            actions = optimization.get("actions_taken", []) if isinstance(optimization, dict) else []
 
             return {
                 "garbage_collection": gc_result,
-                "cache_cleared": cache_result,
-                "optimizations_applied": len(optimizations),
-                "optimization_details": optimizations[:5],
+                "optimization": optimization,
+                "optimizations_applied": len(actions),
             }
         except Exception as e:
             logger.error(f"Error optimizing memory: {e}")
@@ -139,14 +155,15 @@ class SystemResourceOptimizer:
             return {"error": "CPU optimizer not available"}
 
         try:
-            # Get current CPU snapshot
-            snapshot = self.cpu_optimizer.get_cpu_snapshot()
+            # Get current CPU snapshot (real CPUUsageOptimizer API)
+            snapshot = self.cpu_optimizer.take_cpu_snapshot("system")
 
-            # Analyze CPU patterns
-            analysis = self.cpu_optimizer.analyze_cpu_patterns()
+            # Statistics captured by the optimizer
+            statistics = self.cpu_optimizer.get_cpu_statistics()
 
-            # Detect CPU spikes
-            spikes = self.cpu_optimizer.detect_cpu_spikes()
+            # Detect CPU spikes / sustained high usage
+            spike = self.cpu_optimizer.detect_cpu_spike("system")
+            high_usage = self.cpu_optimizer.detect_high_usage("system")
 
             self.status.current_cpu_percent = snapshot.cpu_percent
 
@@ -155,9 +172,10 @@ class SystemResourceOptimizer:
                 "per_cpu_percent": snapshot.per_cpu_percent,
                 "load_average": snapshot.load_average,
                 "process_count": snapshot.process_count,
-                "analysis": analysis,
-                "spikes_detected": len(spikes),
-                "spike_details": spikes[:5],  # Return top 5 spikes
+                "statistics": statistics,
+                "spike_detected": spike,
+                "high_usage_detected": high_usage,
+                "spikes_detected": 1 if spike else 0,
             }
         except Exception as e:
             logger.error(f"Error analyzing CPU usage: {e}")
@@ -174,16 +192,14 @@ class SystemResourceOptimizer:
             return {"error": "CPU optimizer not available"}
 
         try:
-            # Apply CPU optimizations
-            optimizations = self.cpu_optimizer.apply_cpu_optimizations()
+            # Apply CPU optimizations (real CPUUsageOptimizer API)
+            optimization = self.cpu_optimizer.optimize_cpu("system")
 
-            # Optimize process priorities
-            priority_result = self.cpu_optimizer.optimize_process_priorities()
+            actions = optimization.get("actions_taken", []) if isinstance(optimization, dict) else []
 
             return {
-                "optimizations_applied": len(optimizations),
-                "optimization_details": optimizations[:5],
-                "priority_optimization": priority_result,
+                "optimization": optimization,
+                "optimizations_applied": len(actions),
             }
         except Exception as e:
             logger.error(f"Error optimizing CPU: {e}")
@@ -266,7 +282,7 @@ class SystemResourceOptimizer:
         except Exception as e:
             results["network_optimization"] = {"error": str(e)}
 
-        # Determine overall status
+        # Determine overall status by inspecting nested results for real errors.
         successful_count = sum(
             1
             for result in [
@@ -274,7 +290,7 @@ class SystemResourceOptimizer:
                 results["cpu_optimization"],
                 results["network_optimization"],
             ]
-            if result and "error" not in result
+            if result is not None and not _contains_error(result)
         )
 
         if successful_count == 3:

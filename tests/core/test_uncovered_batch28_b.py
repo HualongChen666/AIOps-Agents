@@ -416,13 +416,13 @@ async def test_workflow_executor_failure_and_timeout():
     dag = DAG("f")
     dag.add_node(DAGNode(id="bad1", name="B", type="bad"))
     ctx = await executor.execute(dag)
-    assert ctx.status == WorkflowState.COMPLETED
+    assert ctx.status == WorkflowState.FAILED
     assert "bad1" in ctx.errors
 
     dag2 = DAG("t")
     dag2.add_node(DAGNode(id="s1", name="S", type="slow"))
     ctx2 = await executor.execute(dag2)
-    assert ctx2.status == WorkflowState.COMPLETED
+    assert ctx2.status == WorkflowState.FAILED
     assert "s1" in ctx2.errors
     assert "timed out" in ctx2.errors["s1"]
 

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from unittest.mock import MagicMock
+
 import pytest  # noqa: F401  # Imported for test setup
 
 from core.docker_repair import (
@@ -25,13 +27,30 @@ def test_get_repair_scripts():
 
 
 @pytest.mark.asyncio
-async def test_execute_repair_dry_run():
+async def test_execute_repair_read_only_runs(monkeypatch):
+    """Read-only scripts execute for real (no dry-run simulation)."""
+    monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: "/bin/docker")
+    fake_proc = MagicMock(returncode=0, stdout="containers", stderr="")
+    monkeypatch.setattr("core.docker_repair.subprocess.run", lambda *a, **k: fake_proc)
     result = await execute_repair_sync(
         "localhost", "ps", {}
     )  # noqa: F841  # Variable for test verification
     assert result["success"] is True
-    assert result["dry_run"] is True
+    assert result["read_only"] is True
+    assert result["executed"] is True
     assert "docker_available" in result
+
+
+@pytest.mark.asyncio
+async def test_execute_repair_destructive_requires_confirmation(monkeypatch):
+    """A destructive command without confirmation is not executed nor "success"."""
+    monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: "/bin/docker")
+    result = await execute_repair_sync(
+        "localhost", "prune_images", {}
+    )  # noqa: F841  # Variable for test verification
+    assert result["success"] is False
+    assert result["requires_confirmation"] is True
+    assert result["executed"] is False
 
 
 @pytest.mark.asyncio

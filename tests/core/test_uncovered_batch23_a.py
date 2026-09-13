@@ -53,13 +53,13 @@ async def test_execute_repair_missing_required_param():
 
 
 @pytest.mark.asyncio
-async def test_execute_repair_dry_run_no_docker(monkeypatch):
+async def test_execute_repair_no_docker_fails_honestly(monkeypatch):
     monkeypatch.setattr("core.docker_repair.shutil.which", lambda x: None)
     result = await docker_repair.execute_repair_sync(
         "h1", "ps", {}
     )  # noqa: F841  # Variable for test verification
-    assert result["success"] is True
-    assert result["dry_run"] is True
+    assert result["success"] is False
+    assert result["executed"] is False
     assert result["docker_available"] is False
 
 

@@ -548,24 +548,26 @@ def _install_optimizer_fakes(monkeypatch):
         memory_percent = 50.0
         gc_objects = 123
 
+    class _FakeLeak:
+        component = "cache"
+        leak_size_mb = 10.0
+        severity = "medium"
+
     class _FakeMemoryOptimizer:
-        def get_memory_snapshot(self):
+        def take_memory_snapshot(self, component="system"):
             return _FakeMemSnap()
 
-        def analyze_memory_patterns(self):
-            return {"pattern": "stable"}
+        def get_memory_statistics(self):
+            return {"snapshots": 1}
 
-        def detect_memory_leaks(self):
-            return [{"component": "cache", "leak_size_mb": 10.0}]
+        def detect_memory_leaks(self, component="system"):
+            return [_FakeLeak()]
 
-        def run_garbage_collection(self):
+        def collect_garbage(self, generation=None):
             return {"freed_mb": 100.0}
 
-        def clear_caches(self):
-            return {"cleared": True}
-
-        def apply_memory_optimizations(self):
-            return [{"op": "gc"}, {"op": "cache"}]
+        def optimize_memory(self, component):
+            return {"component": component, "actions_taken": ["gc", "clear_cache"]}
 
     fake_mem.MemoryUsageOptimizer = _FakeMemoryOptimizer
 
@@ -578,20 +580,20 @@ def _install_optimizer_fakes(monkeypatch):
         process_count = 42
 
     class _FakeCPUOptimizer:
-        def get_cpu_snapshot(self):
+        def take_cpu_snapshot(self, component="system"):
             return _FakeCPUSnap()
 
-        def analyze_cpu_patterns(self):
-            return {"pattern": "normal"}
+        def get_cpu_statistics(self):
+            return {"snapshots": 1}
 
-        def detect_cpu_spikes(self):
-            return [{"process": "worker"}]
+        def detect_cpu_spike(self, component="system"):
+            return True
 
-        def apply_cpu_optimizations(self):
-            return [{"op": "nice"}]
+        def detect_high_usage(self, component="system"):
+            return False
 
-        def optimize_process_priorities(self):
-            return {"adjusted": 1}
+        def optimize_cpu(self, component):
+            return {"component": component, "actions_taken": ["reduce_priority"]}
 
     fake_cpu.CPUUsageOptimizer = _FakeCPUOptimizer
 
@@ -660,7 +662,6 @@ def test_optimizer_optimizations(optimizer_fakes):
 
     cpu_opt = opt.optimize_cpu()
     assert cpu_opt["optimizations_applied"] == 1
-    assert cpu_opt["priority_optimization"] == {"adjusted": 1}
 
     net = opt.optimize_network()
     assert net["active_connections"] == 1
@@ -738,10 +739,10 @@ def test_optimizer_cpu_unavailable(monkeypatch):
 
 def test_optimizer_analyze_and_optimize_errors(optimizer_fakes, monkeypatch):
     opt = sro_module.SystemResourceOptimizer()
-    monkeypatch.setattr(opt.memory_optimizer, "get_memory_snapshot", _boom)
-    monkeypatch.setattr(opt.memory_optimizer, "run_garbage_collection", _boom)
-    monkeypatch.setattr(opt.cpu_optimizer, "get_cpu_snapshot", _boom)
-    monkeypatch.setattr(opt.cpu_optimizer, "apply_cpu_optimizations", _boom)
+    monkeypatch.setattr(opt.memory_optimizer, "take_memory_snapshot", _boom)
+    monkeypatch.setattr(opt.memory_optimizer, "collect_garbage", _boom)
+    monkeypatch.setattr(opt.cpu_optimizer, "take_cpu_snapshot", _boom)
+    monkeypatch.setattr(opt.cpu_optimizer, "optimize_cpu", _boom)
     assert "error" in opt.analyze_memory_usage()
     assert "error" in opt.optimize_memory()
     assert "error" in opt.analyze_cpu_usage()

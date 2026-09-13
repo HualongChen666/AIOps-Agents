@@ -253,11 +253,21 @@ async def test_execute_macos_repair_found_script(monkeypatch, fake_os):
 
     monkeypatch.setattr(macos.asyncio, "create_subprocess_shell", create_shell)
     result = await macos.execute_macos_repair(
-        "localhost", "/exists/repair.sh", {"key": "value"}
+        "localhost", "repair.sh", {"key": "value"}
     )  # noqa: F841  # Variable for test verification
     assert result["status"] == "success"
     assert result["output"] == "fixed"
     assert result["exit_code"] == 0
+
+
+@pytest.mark.asyncio
+async def test_execute_macos_repair_rejects_arbitrary_path(fake_os):
+    """Absolute paths must be rejected – no arbitrary script execution."""
+    result = await macos.execute_macos_repair(
+        "localhost", "/tmp/evil.sh"
+    )  # noqa: F841  # Variable for test verification
+    assert result["status"] == "error"
+    assert "Invalid macOS repair script name" in result["output"]
 
 
 @pytest.mark.asyncio

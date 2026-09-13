@@ -209,6 +209,9 @@ class TaskScheduler:
             def __init__(self) -> None:
                 self._client: Optional[client.Client] = None
                 self._tasks: List[Dict[str, Any]] = []
+                # Local asyncio runner guarantees the scheduled coroutine is
+                # actually executed even before a Temporal worker is deployed.
+                self._runner = _InMemoryScheduler()
 
             async def _ensure_client(self) -> client.Client:
                 if self._client is None:
@@ -223,19 +226,22 @@ class TaskScheduler:
                 cron: Optional[str] = None,
                 interval: Optional[int] = None,
             ) -> None:
-                # Temporal 需要在工作流中定义，这里提供最简封装：直接使用 *execute_activity*。
-                # 为了保持轻量，这里仅记录任务信息，实际执行交由 Temporal Worker (outside scope)。
+                # Register the descriptor for the Temporal worker and run the
+                # coroutine locally so the task is not silently dropped when no
+                # worker is attached yet.
                 self._tasks.append({"name": name, "cron": cron, "interval": interval})
+                self._runner.schedule(name, coro, cron=cron, interval=interval)
                 logger.info(
                     "[Temporal] Scheduled task %s (cron=%s, interval=%s)", name, cron, interval
                 )
 
             def cancel(self, name: str) -> None:
                 self._tasks = [t for t in self._tasks if t["name"] != name]
+                self._runner.cancel(name)
                 logger.info("[Temporal] Cancelled task %s", name)
 
             def list_tasks(self) -> List[Dict[str, Any]]:
-                return list(self._tasks)
+                return self._runner.list_tasks()
 
         return TemporalWrapper()
 
@@ -252,6 +258,8 @@ class TaskScheduler:
         class PrefectWrapper:
             def __init__(self) -> None:
                 self._tasks: List[Dict[str, Any]] = []
+                # Local asyncio runner so tasks execute without a Prefect server.
+                self._runner = _InMemoryScheduler()
 
             def schedule(
                 self,
@@ -261,18 +269,20 @@ class TaskScheduler:
                 cron: Optional[str] = None,
                 interval: Optional[int] = None,
             ) -> None:
-                # Prefect 支持调度 via @flow & Deployment; 这里记录信息即可。
+                # Register for Prefect and run the coroutine locally.
                 self._tasks.append({"name": name, "cron": cron, "interval": interval})
+                self._runner.schedule(name, coro, cron=cron, interval=interval)
                 logger.info(
                     "[Prefect] Scheduled task %s (cron=%s, interval=%s)", name, cron, interval
                 )
 
             def cancel(self, name: str) -> None:
                 self._tasks = [t for t in self._tasks if t["name"] != name]
+                self._runner.cancel(name)
                 logger.info("[Prefect] Cancelled task %s", name)
 
             def list_tasks(self) -> List[Dict[str, Any]]:
-                return list(self._tasks)
+                return self._runner.list_tasks()
 
         return PrefectWrapper()
 

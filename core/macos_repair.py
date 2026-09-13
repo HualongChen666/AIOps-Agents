@@ -18,6 +18,41 @@ logger = logging.getLogger(__name__)
 
 SCRIPT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts", "macos")
 
+# Captured at import time so the resolvers below stay correct even when tests
+# monkeypatch the module-level ``os`` attribute.
+_REAL_SEP = os.sep
+_REAL_ALTSEP = os.altsep
+_REAL_ISABS = os.path.isabs
+
+
+def _resolve_script_path(script_name: str) -> Optional[str]:
+    """Resolve a *bare* macOS repair script name to a concrete executable path.
+
+    Security: only names inside ``scripts/macos`` (or a bare command name looked
+    up on ``PATH``) are accepted. Absolute paths and any name containing a path
+    separator or ``..`` are rejected so a caller can never point the executor at
+    an arbitrary file on the host.
+    """
+    if not script_name:
+        return None
+    if (
+        _REAL_ISABS(script_name)
+        or _REAL_SEP in script_name
+        or (_REAL_ALTSEP and _REAL_ALTSEP in script_name)
+        or ".." in script_name.split("/")
+    ):
+        logger.warning("Rejected macOS repair script name outside scripts/macos: %r", script_name)
+        return None
+
+    for candidate in (script_name, f"{script_name}.sh"):
+        full = os.path.join(SCRIPT_DIR, candidate)
+        if os.path.isfile(full):
+            return os.path.abspath(full)
+
+    # Bare command name available on PATH – kept for backward compatibility
+    # with deployments that install the repair helpers globally.
+    return script_name
+
 
 async def execute_macos_repair(
     host: str, script_name: str, args: Optional[Dict[str, Any]] = None
@@ -27,7 +62,7 @@ async def execute_macos_repair(
 
     Args:
         host: Target macOS host
-        script_name: Name of the repair script to execute
+        script_name: Name of the repair script to execute (validated against scripts/macos)
         args: Additional arguments for the script
 
     Returns:
@@ -42,21 +77,13 @@ async def execute_macos_repair(
         if host not in ("localhost", "127.0.0.1", "::1"):
             raise RuntimeError(f"Remote macOS repair is not supported for host {host}")
 
-        # Resolve the script path: absolute path, project scripts/macos, or PATH command
-        candidates = [
-            script_name,
-            os.path.join(SCRIPT_DIR, script_name),
-            os.path.join(SCRIPT_DIR, f"{script_name}.sh"),
-        ]
-        script_path = None
-        for candidate in candidates:
-            if os.path.isfile(candidate):
-                script_path = os.path.abspath(candidate)
-                break
-
+        # Only scripts resolved inside scripts/macos (or bare PATH commands) run.
+        script_path = _resolve_script_path(script_name)
         if script_path is None:
-            # Fallback: treat script_name as a command available in PATH
-            script_path = script_name
+            raise ValueError(
+                f"Invalid macOS repair script name: {script_name!r} "
+                "(must be a bare name resolved from scripts/macos)"
+            )
 
         env = os.environ.copy()
         if args:
