@@ -1,5 +1,8 @@
-# VictoriaMetrics Alert Rules for AIOps Agent
-# These rules define alerting conditions for system health and performance
+# VictoriaMetrics alert rules (loaded by the `vmalert` service).
+#
+# Metric names are the *real* series emitted by the AIOps Agent exporter
+# (core/prometheus_metrics.py, exposed at /metrics) plus standard Go process /
+# node_exporter metrics — not hypothetical names.
 
 groups:
   - name: victoriametrics_alerts
@@ -15,39 +18,28 @@ groups:
         annotations:
           summary: "VictoriaMetrics instance is down"
           description: "VictoriaMetrics has been down for more than 1 minute."
-      
-      # High storage usage
-      - alert: VictoriaMetricsHighStorageUsage
-        expr: (vmmetrics_storage_size_bytes / vmmetrics_storage_size_bytes_limit) > 0.8
-        for: 5m
+
+      # High memory usage
+      - alert: VictoriaMetricsHighMemory
+        expr: process_resident_memory_bytes{job="victoriametrics"} > 4 * 1024 * 1024 * 1024
+        for: 10m
         labels:
           severity: warning
           component: victoriametrics
         annotations:
-          summary: "VictoriaMetrics storage usage is high"
-          description: "VictoriaMetrics storage usage is {{ $value | humanizePercentage }}"
-      
-      # Slow queries
-      - alert: VictoriaMetricsSlowQueries
-        expr: histogram_quantile(0.95, rate(vmmetrics_request_duration_seconds_bucket[5m])) > 5
-        for: 5m
+          summary: "VictoriaMetrics memory usage is high"
+          description: "Resident memory is {{ $value | humanize1024 }}B"
+
+      # High CPU usage
+      - alert: VictoriaMetricsHighCPU
+        expr: rate(process_cpu_seconds_total{job="victoriametrics"}[5m]) > 0.9
+        for: 10m
         labels:
           severity: warning
           component: victoriametrics
         annotations:
-          summary: "VictoriaMetrics slow queries detected"
-          description: "95th percentile query latency is {{ $value }}s"
-      
-      # High ingestion rate
-      - alert: VictoriaMetricsHighIngestionRate
-        expr: rate(vmmetrics_rows_per_second[5m]) > 1000000
-        for: 5m
-        labels:
-          severity: warning
-          component: victoriametrics
-        annotations:
-          summary: "VictoriaMetrics high ingestion rate"
-          description: "Ingestion rate is {{ $value }} samples/sec"
+          summary: "VictoriaMetrics CPU usage is high"
+          description: "CPU usage is {{ $value | humanizePercentage }}"
 
   - name: aiops_application_alerts
     interval: 30s
@@ -62,87 +54,76 @@ groups:
         annotations:
           summary: "AIOps Agent is down"
           description: "AIOps Agent has been down for more than 2 minutes."
-      
-      # High error rate
+
+      # API error rate
       - alert: AIOpsAgentHighErrorRate
-        expr: rate(http_requests_total{job="aiops-agent",status=~"5.."}[5m]) > 0.1
+        expr: sum(rate(aiops_api_errors_total[5m])) > 1
         for: 5m
         labels:
           severity: warning
           component: aiops-agent
         annotations:
           summary: "AIOps Agent high error rate"
-          description: "Error rate is {{ $value }} requests/sec"
-      
-      # High latency
+          description: "API error rate is {{ $value }} errors/sec"
+
+      # API latency (p95)
       - alert: AIOpsAgentHighLatency
-        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="aiops-agent"}[5m])) > 2
+        expr: histogram_quantile(0.95, sum(rate(aiops_api_response_time_seconds_bucket[5m])) by (le)) > 2
         for: 5m
         labels:
           severity: warning
           component: aiops-agent
         annotations:
           summary: "AIOps Agent high latency"
-          description: "95th percentile latency is {{ $value }}s"
-      
-      # Alert engine backlog
-      - alert: AlertEngineHighBacklog
-        expr: aiops_alert_backlog_count > 1000
-        for: 5m
-        labels:
-          severity: warning
-          component: alert-engine
-        annotations:
-          summary: "Alert engine has high backlog"
-          description: "Alert backlog is {{ $value }}"
-      
-      # AI engine slow responses
+          description: "95th percentile API latency is {{ $value }}s"
+
+      # AI/LLM latency (p95)
       - alert: AIEngineSlowResponses
-        expr: histogram_quantile(0.95, rate(aiops_ai_response_duration_seconds_bucket[5m])) > 30
+        expr: histogram_quantile(0.95, sum(rate(aiops_llm_inference_time_seconds_bucket[5m])) by (le)) > 30
         for: 5m
         labels:
           severity: warning
           component: ai-engine
         annotations:
           summary: "AI engine slow responses"
-          description: "95th percentile AI response time is {{ $value }}s"
-      
-      # Repair engine failures
-      - alert: RepairEngineHighFailureRate
-        expr: rate(aiops_repair_failures_total[5m]) > 0.1
+          description: "95th percentile inference time is {{ $value }}s"
+
+      # Queue backlog
+      - alert: AIOpsHighQueueDepth
+        expr: sum(aiops_queue_depth) > 1000
         for: 5m
         labels:
           severity: warning
-          component: repair-engine
+          component: queue
         annotations:
-          summary: "Repair engine high failure rate"
-          description: "Repair failure rate is {{ $value }} repairs/sec"
+          summary: "AIOps queue backlog is high"
+          description: "Total queued messages: {{ $value }}"
 
   - name: system_alerts
     interval: 30s
     rules:
-      # High CPU usage
+      # High CPU usage (agent-reported)
       - alert: HighCPUUsage
-        expr: rate(process_cpu_seconds_total{job="aiops-agent"}[5m]) > 0.8
+        expr: aiops_system_cpu_usage_percent > 80
         for: 5m
         labels:
           severity: warning
           component: system
         annotations:
           summary: "High CPU usage detected"
-          description: "CPU usage is {{ $value | humanizePercentage }}"
-      
-      # High memory usage
+          description: "CPU usage is {{ $value }}%"
+
+      # High memory usage (agent-reported)
       - alert: HighMemoryUsage
-        expr: (process_resident_memory_bytes{job="aiops-agent"} / node_memory_MemTotal_bytes) > 0.8
+        expr: aiops_system_memory_usage_percent > 80
         for: 5m
         labels:
           severity: warning
           component: system
         annotations:
           summary: "High memory usage detected"
-          description: "Memory usage is {{ $value | humanizePercentage }}"
-      
+          description: "Memory usage is {{ $value }}%"
+
       # Disk space low
       - alert: LowDiskSpace
         expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.2

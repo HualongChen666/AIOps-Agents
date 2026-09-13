@@ -58,24 +58,81 @@ services:
       retries: 3
 
   victoria-metrics:
-    image: victoriametrics/victoria-metrics:latest
+    image: victoriametrics/victoria-metrics:v1.97.1
     container_name: aiops-victoria-metrics
     restart: unless-stopped
     ports:
       - "8428:8428"
     volumes:
       - victoria-data:/victoria-metrics-data
+      - ../victoria-config/prometheus.yml:/etc/victoriametrics/prometheus.yml:ro
     networks:
       - aiops-network
     command:
       - "--storageDataPath=/victoria-metrics-data"
       - "--httpListenAddr=:8428"
       - "--retentionPeriod=30d"
+      - "--promscrape.config=/etc/victoriametrics/prometheus.yml"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8428/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  # vmalert evaluates the alert/recording rules and notifies Alertmanager.
+  # (VictoriaMetrics itself does not evaluate rule files.)
+  vmalert:
+    image: victoriametrics/vmalert:v1.97.1
+    container_name: aiops-vmalert
+    restart: unless-stopped
+    ports:
+      - "8880:8880"
+    volumes:
+      - ../victoria-config/alert-rules.yml:/etc/vmalert/alert-rules.yml:ro
+      - ../victoria-config/recording-rules.yml:/etc/vmalert/recording-rules.yml:ro
+    networks:
+      - aiops-network
+    command:
+      - "--datasource.url=http://victoriametrics:8428"
+      - "--remoteWrite.url=http://victoriametrics:8428"
+      - "--notifier.url=http://alertmanager:9093"
+      - "--rule=/etc/vmalert/alert-rules.yml"
+      - "--rule=/etc/vmalert/recording-rules.yml"
+      - "--evaluationInterval=30s"
+      - "--httpListenAddr=:8880"
+    depends_on:
+      - victoria-metrics
+      - alertmanager
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: aiops-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ../victoria-config/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    networks:
+      - aiops-network
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: aiops-node-exporter
+    restart: unless-stopped
+    ports:
+      - "9100:9100"
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+    networks:
+      - aiops-network
 
   grafana:
     image: grafana/grafana:10.2.0
