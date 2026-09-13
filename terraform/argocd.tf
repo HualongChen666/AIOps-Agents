@@ -10,9 +10,9 @@ resource "argocd_application" "aiops" {
 
   spec {
     source {
-      repo_url        = "https://github.com/your-org/aiops-agent.git"
-      target_revision = "main"
-      path            = "helm/aiops-agent"
+      repo_url        = var.gitops_repo_url
+      target_revision = var.gitops_target_revision
+      path            = var.gitops_path
     }
 
     destination {
@@ -43,7 +43,7 @@ resource "argocd_project" "aiops" {
   spec {
     description = "AIOps Agent Project"
     source_repos {
-      repo_url = "https://github.com/your-org/aiops-agent.git"
+      repo_url = var.gitops_repo_url
     }
     destinations {
       server    = "https://kubernetes.default.svc"

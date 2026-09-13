@@ -74,7 +74,7 @@ services:
       retries: 5
 
   pgpool:
-    image: pgpool/pgpool:latest
+    image: pgpool/pgpool:4.4
     container_name: aiops-pgpool
     environment:
       POSTGRES_USERNAME: postgres
@@ -86,9 +86,11 @@ services:
       BACKEND_PORT1: 5432
     ports:
       - "5434:5432"
-    volumes:
-      - ./pgpool/pgpool.conf:/etc/pgpool-II/pgpool.conf
-      - ./pgpool/pool_hba.conf:/etc/pgpool-II/pool_hba.conf
+    # The pgpool image generates /etc/pgpool-II/pgpool.conf (streaming-replication
+    # mode, pool_hba, sr_check/health_check with the password above) from these
+    # POSTGRES_*/BACKEND_* variables at startup. A statically mounted config could
+    # not carry the backend password and would silently break health checks and
+    # failover, so we let the image generate it.
     depends_on:
       - postgres-primary
       - postgres-replica

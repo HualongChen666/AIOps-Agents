@@ -388,7 +388,7 @@ L6 外部系统 → Kafka/Debezium → L4 流处理 → L5 ClickHouse/ES
 - **容器化**：`Dockerfile`, `docker-compose.yml`, `docker-compose.{database,monitoring,prod}.yml`
 - **K8s/Helm**：`helm/aiops-agent/`
 - **IaC**：`terraform/`
-- **网关/代理**：`infrastructure/gateway/`, `pgpool/`
+- **网关/代理**：`infrastructure/gateway/`（Pgpool 连接池由 `deploy/docker-compose.database.yml` 的 `pgpool` 服务按 `BACKEND_*` 环境变量自动生成配置）
 - **可观测性**：`prometheus/`, `grafana/`, `alertmanager/`, `loki-config/`, `tempo-config/`, `victoria-config/`, `otel-collector-config.yaml`
 - **数据库**：`postgres/`, `alembic/`
 - **前端**：`frontend/` (Next.js + Tailwind + shadcn/ui)

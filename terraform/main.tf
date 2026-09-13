@@ -82,3 +82,21 @@ variable "domain_name" {
   type        = string
   default     = "aiops.example.com"
 }
+
+variable "gitops_repo_url" {
+  description = "Git repository ArgoCD syncs the AIOps Agent from"
+  type        = string
+  default     = "https://github.com/HualongChen666/AIOps-Agents.git"
+}
+
+variable "gitops_target_revision" {
+  description = "Git revision (branch/tag) ArgoCD tracks"
+  type        = string
+  default     = "main"
+}
+
+variable "gitops_path" {
+  description = "Path within the Git repo that holds the AIOps Agent Helm chart"
+  type        = string
+  default     = "helm/aiops-agent"
+}
