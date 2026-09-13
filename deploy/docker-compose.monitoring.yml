@@ -17,9 +17,13 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--storage.tsdb.retention.size=50GB'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
+      # Required so Tempo's metrics-generator can remote-write RED metrics.
+      - '--web.enable-remote-write-receiver'
     restart: unless-stopped
     networks:
       - monitoring
@@ -103,6 +107,61 @@ services:
     networks:
       - monitoring
 
+  # Loki - log aggregation. Consumes loki-config/loki.yml (server + LogQL rules).
+  loki:
+    image: grafana/loki:2.9.3
+    container_name: aiops-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ../loki-config/loki.yml:/etc/loki/loki.yml:ro
+      # Loki ruler reads LogQL rules from <ruler.storage.local.directory>/<tenant>/.
+      # auth_enabled=false => the single tenant is "fake".
+      - ../loki-config/alert-rules.yml:/etc/loki/rules/fake/aiops-rules.yml:ro
+      - loki-data:/loki
+    command:
+      - '-config.file=/etc/loki/loki.yml'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Promtail - ships the agent + container logs to Loki.
+  promtail:
+    image: grafana/promtail:2.9.3
+    container_name: aiops-promtail
+    volumes:
+      - ../loki-config/promtail.yml:/etc/promtail/promtail.yml:ro
+      - ../logs:/var/log/aiops-agent:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/tmp
+    command:
+      - '-config.file=/etc/promtail/promtail.yml'
+    depends_on:
+      - loki
+    restart: unless-stopped
+    networks:
+      - monitoring
+
+  # Tempo - distributed tracing. Consumes tempo-config/tempo.yml; receives OTLP
+  # on 4317/4318 and remote-writes generated RED metrics back to Prometheus.
+  tempo:
+    image: grafana/tempo:2.3.1
+    container_name: aiops-tempo
+    user: "0:0"
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+      - "14268:14268"
+    volumes:
+      - ../tempo-config/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+    command:
+      - '-config.file=/etc/tempo/tempo.yml'
+    restart: unless-stopped
+    networks:
+      - monitoring
+
 networks:
   monitoring:
     driver: bridge
@@ -111,3 +170,6 @@ volumes:
   prometheus-data:
   grafana-data:
   alertmanager-data:
+  loki-data:
+  promtail-positions:
+  tempo-data:

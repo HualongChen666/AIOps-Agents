@@ -1,0 +1,44 @@
+# Loki health alerts evaluated by Prometheus (PromQL).
+#
+# These rules were previously (incorrectly) placed in loki-config/alert-rules.yml,
+# which is loaded by the *Loki ruler*. The Loki ruler can only evaluate LogQL and
+# cannot see `up` / `loki_*` metric samples, so the rules never fired there.
+# Prometheus scrapes Loki's /metrics (monitoring/prometheus/prometheus.yml, job
+# `loki`), so the metric-based conditions belong here.
+
+groups:
+  - name: loki_metrics
+    interval: 30s
+    rules:
+      # Loki down
+      - alert: LokiDown
+        expr: up{job="loki"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: loki
+        annotations:
+          summary: "Loki instance is down"
+          description: "Loki has been down for more than 1 minute."
+
+      # High ingestion rate (> 10 MB/s)
+      - alert: LokiHighIngestionRate
+        expr: sum(rate(loki_distributor_bytes_received_total[5m])) > 10000000
+        for: 5m
+        labels:
+          severity: warning
+          component: loki
+        annotations:
+          summary: "Loki high ingestion rate"
+          description: "Ingestion rate is {{ $value }} bytes/sec"
+
+      # Slow queries (p95 > 5s)
+      - alert: LokiSlowQueries
+        expr: histogram_quantile(0.95, sum(rate(loki_request_duration_seconds_bucket{route=~"loki_api_v1_query.*"}[5m])) by (le)) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: loki
+        annotations:
+          summary: "Loki slow queries detected"
+          description: "95th percentile query latency is {{ $value }}s"

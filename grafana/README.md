@@ -11,9 +11,11 @@ This directory is the **provisioning source for the production/root stacks**:
 
 ## Layout
 
-- `provisioning/datasources/datasources.yml` — VictoriaMetrics / Loki / Tempo
-  (used by the production stack, which runs `victoria-metrics`, `loki` and `tempo`).
-- `provisioning/datasources/prometheus.yml` — Prometheus datasource.
+- `provisioning/datasources/datasources.yml` — the single datasource file:
+  Prometheus (default), VictoriaMetrics, Loki and Tempo. Each datasource declares
+  an explicit `uid` (`prometheus`, `victoriametrics`, `loki`, `tempo`) so the
+  traces↔logs↔metrics correlation blocks resolve; exactly one datasource is
+  `isDefault` to avoid Grafana's "two default datasources" ambiguity.
 - `provisioning/dashboards/dashboards.yml` — file provider pointing at
   `/var/lib/grafana/dashboards`, which is mounted from `grafana/dashboards`.
 - `dashboards/*.json` — **bare** Grafana dashboard models (top-level `panels`,
@@ -26,8 +28,8 @@ This directory is the **provisioning source for the production/root stacks**:
 `monitoring/grafana/` assets and Prometheus-only datasources. The repository-root
 `grafana/` tree targets the VictoriaMetrics/Loki/Tempo production topology.
 They are deliberately separate; do not cross-mount one stack's assets into the
-other, and keep datasource names distinct (`VictoriaMetrics`, `Loki`, `Tempo`
-here vs `Prometheus`/`Prometheus-AIOps` there).
+other, and keep datasource uids distinct (`prometheus`/`victoriametrics`/`loki`/`tempo`
+here vs the `monitoring/grafana` provisioning there).
 
 ## Adding a dashboard
 

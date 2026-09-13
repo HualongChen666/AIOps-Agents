@@ -72,7 +72,6 @@ compactor:
   retention_delete_worker_count: 150
   delete_request_cancel_period: 24h
   compaction_interval: 10m
-  max_compaction_concurrency: 1
 
 # Ingester configuration
 ingester:
@@ -90,7 +89,6 @@ ingester:
 
 # Querier configuration
 querier:
-  max_concurrent_queries: 20
   query_timeout: 5m
   engine:
     timeout: 5m
@@ -101,8 +99,8 @@ ruler:
   storage:
     type: local
     local:
-      directory: /loki/rules
-  rule_path: /loki/rules
+      directory: /etc/loki/rules
+  rule_path: /tmp/loki/rules
   alertmanager_url: http://alertmanager:9093
   ring:
     kvstore:

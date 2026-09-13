@@ -1,10 +1,15 @@
 # Grafana Datasource Configuration for Prometheus
 # ===============================================
+# This provisioning tree belongs to the standalone monitoring stack
+# (monitoring/docker-compose.yml), which runs Prometheus + Alertmanager only.
+# It therefore declares Prometheus backends exclusively; keep it free of
+# datasource references (uid) that this stack does not provision.
 
 apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
@@ -14,12 +19,10 @@ datasources:
       timeInterval: 15s
       queryTimeout: 60s
       httpMethod: POST
-      exemplarTraceIdDestinations:
-        - datasourceUid: jaeger
-          name: traceID
     version: 1
 
   - name: Prometheus-AIOps
+    uid: prometheus-aiops
     type: prometheus
     access: proxy
     url: http://prometheus:9090

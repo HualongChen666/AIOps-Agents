@@ -1,14 +1,25 @@
 # Grafana Datasources Provisioning Configuration
-# Configures VictoriaMetrics, Loki, and Tempo as data sources
+# Registers the observability backends deployed by the repository compose stacks:
+#   - Prometheus      -> root dev stack (docker-compose.yml) + monitoring stack
+#   - VictoriaMetrics -> production stack (deploy/docker-compose.prod.yml)
+#   - Loki / Tempo    -> monitoring stack (deploy/docker-compose.monitoring.yml)
+#
+# Explicit uids are mandatory: traces<->logs<->metrics correlation (derivedFields,
+# tracesToLogs, tracesToMetrics, serviceMap) references datasources by *uid*, not by
+# display name, so a missing uid silently breaks every cross-signal jump.
+#
+# Exactly one datasource is the default (Prometheus) to avoid Grafana's
+# "two default datasources" ambiguity.
 
 apiVersion: 1
 
 datasources:
-  # VictoriaMetrics - Metrics Storage
-  - name: VictoriaMetrics
+  # Prometheus - metrics (present in every stack: root dev + monitoring)
+  - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
-    url: http://victoriametrics:8428
+    url: http://prometheus:9090
     isDefault: true
     editable: true
     jsonData:
@@ -16,8 +27,22 @@ datasources:
       httpMethod: POST
     version: 1
 
-  # Loki - Log Aggregation
+  # VictoriaMetrics - long-term metrics storage (production stack)
+  - name: VictoriaMetrics
+    uid: victoriametrics
+    type: prometheus
+    access: proxy
+    url: http://victoriametrics:8428
+    isDefault: false
+    editable: true
+    jsonData:
+      timeInterval: 30s
+      httpMethod: POST
+    version: 1
+
+  # Loki - log aggregation
   - name: Loki
+    uid: loki
     type: loki
     access: proxy
     url: http://loki:3100
@@ -25,22 +50,23 @@ datasources:
     jsonData:
       maxLines: 1000
       derivedFields:
-        - datasourceUid: Tempo
+        - datasourceUid: tempo
           matcherRegex: "traceID=(\\w+)"
           name: TraceID
           url: "$${__value.raw}"
           urlDisplayLabel: "View Trace"
     version: 1
 
-  # Tempo - Distributed Tracing
+  # Tempo - distributed tracing
   - name: Tempo
+    uid: tempo
     type: tempo
     access: proxy
     url: http://tempo:3200
     editable: true
     jsonData:
       tracesToLogs:
-        datasourceUid: Loki
+        datasourceUid: loki
         filterByTraceID: true
         mapLabels:
           host: host
@@ -49,12 +75,12 @@ datasources:
         filterByDuration: "10m"
         customQuery: "exporter=OTLP"
       tracesToMetrics:
-        datasourceUid: VictoriaMetrics
+        datasourceUid: victoriametrics
         queries:
           - name: Sampled Trace Rate
             query: rate(tempo_spanmetrics_latency_bucket{service_name="{{serviceName}}"}[5m])
           - name: Error Rate
             query: rate(tempo_spanmetrics_calls_total{service_name="{{serviceName}}",status_code="STATUS_ERROR"}[5m])
       serviceMap:
-        datasourceUid: VictoriaMetrics
+        datasourceUid: victoriametrics
     version: 1

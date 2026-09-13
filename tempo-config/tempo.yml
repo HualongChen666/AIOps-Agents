@@ -1,15 +1,25 @@
 # Tempo Configuration for AIOps Agent
-# Single-node deployment configuration
+# Single-node (all-in-one) deployment configuration — Tempo 2.3.x schema.
+#
+# Notes on the schema (matches https://grafana.com/docs/tempo/latest/configuration/):
+#   * There is no top-level `metrics:` block; Tempo exposes its own Prometheus
+#     metrics on the HTTP listener (3200) at /metrics.
+#   * There is no top-level `search:` block; search is controlled per-tenant via
+#     `overrides.defaults.max_search_duration` + `stream_over_http_enabled`.
+#   * `compactor` / `ingester` are standalone blocks; the metrics generator needs
+#     an explicit `storage` (WAL + remote_write) before it will start.
+#   * `service-graphs` (plural) is the correct processor key.
+
+# Serve search results over the query-frontend HTTP API (required for Grafana
+# TraceQL / search used by the Tempo datasource).
+stream_over_http_enabled: true
 
 server:
   http_listen_port: 3200
+  grpc_listen_port: 9095
+  log_level: info
 
-# Metrics configuration
-metrics:
-  enabled: true
-  port: 3100
-
-# Distributor configuration
+# OTLP (and Jaeger) ingestion
 distributor:
   receivers:
     otlp:
@@ -18,55 +28,70 @@ distributor:
           endpoint: 0.0.0.0:4317
         http:
           endpoint: 0.0.0.0:4318
+    jaeger:
+      protocols:
+        thrift_http:
+          endpoint: 0.0.0.0:14268
 
-# Ingester configuration
+# Block building / flushing
 ingester:
-  max_block_duration: 2h
-  trace_idle_period: 30s
-
-# Storage configuration
-storage:
-  trace:
-    backend: local
-    local:
-      path: /tmp/tempo/traces
-    wal:
-      path: /tmp/tempo/wal
-
-# Compactor configuration
+  max_block_duration: 5m
+  trace_idle_period: 10s
+  flush_check_period: 10s
+  lifecycler:
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+# Block retention
 compactor:
   compaction:
-    block_retention: 30d
-    compacted_block_retention: 14d
+    block_retention: 720h          # 30 days
+    compacted_block_retention: 336h # 14 days
     compaction_window: 2h
     max_block_bytes: 1073741824
 
-# Metrics generator configuration
+# Generate RED metrics + service graph from spans and remote-write them to
+# Prometheus (which must run with --web.enable-remote-write-receiver).
 metrics_generator:
+  registry:
+    external_labels:
+      source: tempo
+      cluster: aiops-production
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+    remote_write_flush_deadline: 1m
   processor:
-    service-graph:
-      enabled: true
+    service_graphs:
       histogram_buckets: [0.1, 0.2, 0.5, 1, 2, 5, 10]
-    span-metrics:
-      enabled: true
+    span_metrics:
       dimensions:
         - http.method
         - http.status_code
         - http.host
 
-# Overrides configuration
-overrides:
-  per_tenant_override_config: /etc/tempo/overrides.yaml
-  defaults:
-    global:
-      ingestion_rate_limit_bytes: 41943040
-      ingestion_burst_size_bytes: 10485760
-      max_bytes_per_trace: 10485760
-      max_traces_per_user: 0
-      max_search_duration: 30d
-      max_bytes_per_tag_values_query: 10485760
+# Local storage
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
 
-# Search configuration
-search:
-  external_enabled: true
-  max_duration: 30d
+# Per-tenant defaults
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [service-graphs, span-metrics]
+    read:
+      max_search_duration: 720h
+    ingestion:
+      rate_limit_bytes: 41943040
+      burst_size_bytes: 10485760
+      max_traces_per_user: 0
+    global:
+      max_bytes_per_trace: 10485760

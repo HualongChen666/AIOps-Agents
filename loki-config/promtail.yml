@@ -1,11 +1,16 @@
 # Promtail Configuration for AIOps Agent
-# Log collection agent configuration (Promtail 2.9 schema)
+# Log collection agent configuration (Promtail 2.9.x schema).
+#
+# Deployed by deploy/docker-compose.monitoring.yml. It tails:
+#   * the AIOps agent log directory (repository ./logs -> /var/log/aiops-agent)
+#   * every Docker container log via the mounted docker socket
+# and pushes to Loki at http://loki:3100.
 
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
 
-# Position configuration
+# Position configuration (persisted in the promtail-positions volume mounted at /tmp)
 positions:
   filename: /tmp/positions.yaml
 
@@ -13,7 +18,6 @@ positions:
 clients:
   - url: http://loki:3100/loki/api/v1/push
 
-# Scrape configurations
 scrape_configs:
   # AIOps Agent application logs
   - job_name: aiops-agent
@@ -52,53 +56,17 @@ scrape_configs:
           selector: '{level="debug"}'
           action: drop
 
-  # System logs
-  - job_name: system
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          job: system
-          environment: production
-          cluster: aiops-agent
-          region: default
-          __path__: /var/log/syslog
-    pipeline_stages:
-      # Promote the syslog severity as a label when present
-      - regex:
-          expression: '^(?P<timestamp>\S+\s+\S+\s+\S+)\s+(?P<host>\S+)\s+(?P<unit>[^:]+):\s+(?P<message>.*)$'
-      - labels:
-          unit:
-
-  # Docker container logs
+  # Docker container logs (service discovery + log tailing via the mounted socket)
   - job_name: docker
-    docker:
-      host: unix:///var/run/docker.sock
-      refresh_interval: 5s
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
     relabel_configs:
       - source_labels: ['__meta_docker_container_name']
         regex: '/(.*)'
         target_label: container_name
-      - source_labels: ['__meta_docker_container_log_stream']
-        target_label: stream
       - source_labels: ['__meta_docker_container_id']
         target_label: container_id
-
-  # Journal logs (systemd)
-  - job_name: journal
-    journal:
-      max_age: 12h
-      labels:
-        job: systemd-journal
-        environment: production
-      path: /var/log/journal
-    relabel_configs:
-      - source_labels: ['__journal__systemd_unit']
-        target_label: unit
-      - source_labels: ['__journal__hostname']
-        target_label: hostname
-      - source_labels: ['__journal_priority']
-        target_label: priority
 
 # Limit configuration
 limits_config:
