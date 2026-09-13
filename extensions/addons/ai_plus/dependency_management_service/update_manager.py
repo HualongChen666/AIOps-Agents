@@ -632,12 +632,12 @@ class UpdateManager:
             Version string or "unknown"
         """
         try:
-            import toml
+            import tomllib
 
             lock_file = project_path / "poetry.lock"
             if lock_file.exists():
-                with open(lock_file, "r", encoding="utf-8") as f:
-                    data = toml.load(f)
+                with open(lock_file, "rb") as f:
+                    data = tomllib.load(f)
 
                 for package in data.get("package", []):
                     if package.get("name", "").lower() == package_name.lower():
@@ -685,10 +685,10 @@ class UpdateManager:
             Number of dependencies
         """
         try:
-            import toml
+            import tomllib
 
-            with open(lock_file, "r", encoding="utf-8") as f:
-                data = toml.load(f)
+            with open(lock_file, "rb") as f:
+                data = tomllib.load(f)
 
             return len(data.get("package", []))
 

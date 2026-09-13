@@ -6,17 +6,27 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-# Add project root to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
+# Add project root + this service dir to path for imports
+_SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(_SERVICE_DIR, "../../../..")))
+sys.path.insert(0, _SERVICE_DIR)
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from authentication_provider import authentication_provider
-from group_manager import group_manager
-from identity_manager import identity_manager
-from user_provisioning import user_provisioning
+try:
+    # Preferred: import as a package (``extensions.addons.ai_plus.identity_management_service``)
+    from .authentication_provider import authentication_provider
+    from .group_manager import group_manager
+    from .identity_manager import identity_manager
+    from .user_provisioning import user_provisioning
+except ImportError:
+    # Fallback: run as a standalone script (``python main.py``).
+    from authentication_provider import authentication_provider
+    from group_manager import group_manager
+    from identity_manager import identity_manager
+    from user_provisioning import user_provisioning
 
 from core.auth_service import (
     create_access_token,

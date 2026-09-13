@@ -12,7 +12,10 @@ from typing import Dict, List, Optional, Set
 from urllib.parse import urljoin
 from urllib.request import urlopen
 
-import toml
+try:
+    import tomllib  # Python 3.11+ standard library TOML parser
+except ImportError:  # pragma: no cover - Python < 3.11
+    import tomli as tomllib  # type: ignore[no-redef]
 
 try:
     from .config import Config
@@ -260,8 +263,8 @@ class DependencyScanner:
             return []
 
         try:
-            with open(pyproject_file, "r", encoding="utf-8") as f:
-                data = toml.load(f)
+            with open(pyproject_file, "rb") as f:
+                data = tomllib.load(f)
 
             dependencies: List[Dependency] = []
 
@@ -391,8 +394,8 @@ class DependencyScanner:
             return []
 
         try:
-            with open(pipfile, "r", encoding="utf-8") as f:
-                data = toml.load(f)
+            with open(pipfile, "rb") as f:
+                data = tomllib.load(f)
 
             dependencies: List[Dependency] = []
 

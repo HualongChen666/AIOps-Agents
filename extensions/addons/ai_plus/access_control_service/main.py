@@ -7,17 +7,28 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-# Add project root to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
+# Add project root + this service dir to path for imports
+_SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(_SERVICE_DIR, "../../../..")))
+sys.path.insert(0, _SERVICE_DIR)
 
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 from datetime import datetime
 
-from access_control_manager import AccessControlManager
-from policy_enforcer import PolicyEnforcer
-from permission_checker import PermissionChecker
-from grpc_service.server import serve as grpc_serve
+try:
+    # Preferred: import as a package (``extensions.addons.ai_plus.access_control_service``)
+    from .access_control_manager import AccessControlManager
+    from .permission_checker import PermissionChecker
+    from .policy_enforcer import PolicyEnforcer
+    from .grpc_service.server import serve as grpc_serve
+except ImportError:
+    # Fallback: run as a standalone script (``python main.py``); the service
+    # directory was added to sys.path above, so absolute imports resolve.
+    from access_control_manager import AccessControlManager
+    from permission_checker import PermissionChecker
+    from policy_enforcer import PolicyEnforcer
+    from grpc_service.server import serve as grpc_serve
 
 # Import storage
 from modules.storage.postgres.storage import PostgreSQLStorage
@@ -69,14 +80,14 @@ class PermissionRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: str = Field(default="", max_length=500)
     resource_type: str = Field(..., min_length=1, max_length=100)
-    actions: List[str] = Field(..., min_items=1)
+    actions: List[str] = Field(..., min_length=1)
 
 
 class PermissionUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=500)
     resource_type: Optional[str] = Field(None, min_length=1, max_length=100)
-    actions: Optional[List[str]] = Field(None, min_items=1)
+    actions: Optional[List[str]] = Field(None, min_length=1)
 
 
 class PermissionResponse(BaseModel):
@@ -116,11 +127,11 @@ class RoleResponse(BaseModel):
 class PolicyRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
     description: str = Field(default="", max_length=500)
-    effect: str = Field(..., regex="^(allow|deny)$")
+    effect: str = Field(..., pattern="^(allow|deny)$")
     subject_conditions: Dict[str, str] = Field(default_factory=dict)
     resource_conditions: Dict[str, str] = Field(default_factory=dict)
     environment_conditions: Dict[str, str] = Field(default_factory=dict)
-    actions: List[str] = Field(..., min_items=1)
+    actions: List[str] = Field(..., min_length=1)
     priority: int = Field(default=0, ge=0)
 
 
@@ -128,11 +139,11 @@ class PolicyUpdateRequest(BaseModel):
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=500)
     enabled: Optional[bool] = None
-    effect: Optional[str] = Field(None, regex="^(allow|deny)$")
+    effect: Optional[str] = Field(None, pattern="^(allow|deny)$")
     subject_conditions: Optional[Dict[str, str]] = None
     resource_conditions: Optional[Dict[str, str]] = None
     environment_conditions: Optional[Dict[str, str]] = None
-    actions: Optional[List[str]] = Field(None, min_items=1)
+    actions: Optional[List[str]] = Field(None, min_length=1)
     priority: Optional[int] = Field(None, ge=0)
 
 
@@ -153,7 +164,7 @@ class PolicyResponse(BaseModel):
 
 class AccessRequest(BaseModel):
     subject_id: str = Field(..., min_length=1)
-    subject_type: str = Field(default="user", regex="^(user|service|system)$")
+    subject_type: str = Field(default="user", pattern="^(user|service|system)$")
     subject_attributes: Dict[str, str] = Field(default_factory=dict)
     subject_roles: List[str] = Field(default_factory=list)
     subject_groups: List[str] = Field(default_factory=list)

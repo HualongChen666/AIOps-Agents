@@ -8,16 +8,26 @@ import sys
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
-# Add project root to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../..")))
+# Add project root + this service dir to path for imports
+_SERVICE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.abspath(os.path.join(_SERVICE_DIR, "../../../..")))
+sys.path.insert(0, _SERVICE_DIR)
 
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
-from compliance_monitor import ComplianceMonitor, AlertSeverity
-from policy_checker import PolicyChecker, PolicyType
-from report_generator import ReportGenerator, ReportFormat, ReportType
-from grpc_service.server import rpc_server, serve as grpc_serve
+try:
+    # Preferred: import as a package (``extensions.addons.ai_plus.compliance_monitoring_service``)
+    from .compliance_monitor import AlertSeverity, ComplianceMonitor
+    from .policy_checker import PolicyChecker, PolicyType
+    from .report_generator import ReportFormat, ReportGenerator, ReportType
+    from .grpc_service.server import rpc_server, serve as grpc_serve
+except ImportError:
+    # Fallback: run as a standalone script (``python main.py``).
+    from compliance_monitor import AlertSeverity, ComplianceMonitor
+    from policy_checker import PolicyChecker, PolicyType
+    from report_generator import ReportFormat, ReportGenerator, ReportType
+    from grpc_service.server import rpc_server, serve as grpc_serve
 
 # Import compliance manager from core
 from core.compliance_manager import ComplianceFramework, ComplianceStatus, RiskLevel
