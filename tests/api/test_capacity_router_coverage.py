@@ -30,7 +30,6 @@ def mock_dependencies():
         patch("api.capacity_router.forecast_capacity") as mock_forecast,
         patch("api.capacity_router.generate_scaling_recommendations") as mock_recommendations,
         patch("api.capacity_router.metrics_history") as mock_history,
-        patch("api.capacity_router.get_disk_metrics") as mock_disk,
     ):
 
         # Setup default mock returns
@@ -42,6 +41,7 @@ def mock_dependencies():
                 "forecast30d": 85.0,
                 "threshold": 80.0,
                 "unit": "%",
+                "dataAvailable": True,
             }
         }
 
@@ -61,19 +61,18 @@ def mock_dependencies():
             "memory": [55.0, 57.0, 59.0],
             "net_in": [30.0, 32.0, 34.0],
         }
-
-        mock_disk.return_value = [{"usage_percent": 45.0}, {"usage_percent": 50.0}]
+        # 真实磁盘历史由采样循环写入，经 get_disk_series() 读取
+        mock_history.get_disk_series.return_value = [45.0, 50.0]
 
         yield {
             "forecast": mock_forecast,
             "recommendations": mock_recommendations,
             "history": mock_history,
-            "disk": mock_disk,
         }
 
 
 def test_build_metric_history_success(mock_dependencies):
-    """Test _build_metric_history with successful disk metrics collection."""
+    """Test _build_metric_history uses every real history source (no synthesis)."""
     from api.capacity_router import _build_metric_history
 
     result = asyncio.run(_build_metric_history())
@@ -82,58 +81,34 @@ def test_build_metric_history_success(mock_dependencies):
     assert "memory" in result
     assert "disk" in result
     assert "network" in result
-    assert len(result["disk"]) == 10  # _DISK_HISTORY_LEN
-    mock_dependencies["disk"].assert_called_once()
+    # 磁盘序列直接取自真实历史，不再合成
+    assert result["disk"] == [45.0, 50.0]
+    assert result["cpu"] == [45.0, 46.5, 48.0]
 
 
-def test_build_metric_history_disk_exception(mock_dependencies):
-    """Test _build_metric_history when get_disk_metrics fails (lines 46-48)."""
+def test_build_metric_history_disk_read_exception(mock_dependencies):
+    """Test _build_metric_history when disk history read fails."""
     from api.capacity_router import _build_metric_history
 
-    # Make get_disk_metrics raise an exception
-    mock_dependencies["disk"].side_effect = Exception("Disk metrics collection failed")
+    mock_dependencies["history"].get_disk_series.side_effect = RuntimeError("disk read failed")
 
     result = asyncio.run(_build_metric_history())
 
-    # Should still succeed with default avg value of 45.0
+    # 读取失败按“无历史”处理，不伪造
     assert "disk" in result
-    assert len(result["disk"]) == 10
-    # All disk values should be based on avg=45.0
-    for i, val in enumerate(result["disk"]):
-        expected = max(0.0, min(100.0, 45.0 - (10 - 1 - i) * 0.5))
-        assert val == expected
+    assert result["disk"] == []
 
 
-def test_build_metric_history_empty_disk_list(mock_dependencies):
-    """Test _build_metric_history when get_disk_metrics returns empty list."""
+def test_build_metric_history_empty_disk_history(mock_dependencies):
+    """Test _build_metric_history when no genuine disk history exists yet."""
     from api.capacity_router import _build_metric_history
 
-    mock_dependencies["disk"].return_value = []
+    mock_dependencies["history"].get_disk_series.return_value = []
 
     result = asyncio.run(_build_metric_history())
 
     assert "disk" in result
-    assert len(result["disk"]) == 10
-    # With empty list, avg should be 0.0 / max(0, 1) = 0.0
-    for i, val in enumerate(result["disk"]):
-        expected = max(0.0, min(100.0, 0.0 - (10 - 1 - i) * 0.5))
-        assert val == expected
-
-
-def test_build_metric_history_missing_usage_percent(mock_dependencies):
-    """Test _build_metric_history when disk metrics missing usage_percent."""
-    from api.capacity_router import _build_metric_history
-
-    mock_dependencies["disk"].return_value = [{"mount": "/"}]
-
-    result = asyncio.run(_build_metric_history())
-
-    assert "disk" in result
-    assert len(result["disk"]) == 10
-    # With missing usage_percent, avg should be 0.0
-    for i, val in enumerate(result["disk"]):
-        expected = max(0.0, min(100.0, 0.0 - (10 - 1 - i) * 0.5))
-        assert val == expected
+    assert result["disk"] == []
 
 
 def test_build_metric_history_network_normalization(mock_dependencies):
@@ -250,11 +225,11 @@ def test_get_recommendations_exception_handling(mock_dependencies):
 
 
 def test_get_recommendations_build_metric_history_exception(mock_dependencies):
-    """Test recommendations when _build_metric_history fails at disk metrics."""
+    """Test recommendations when disk history read fails."""
     from api.capacity_router import get_recommendations
 
-    # Make get_disk_metrics fail during recommendations call
-    mock_dependencies["disk"].side_effect = Exception("Disk metrics failed")
+    # Make disk history read fail during recommendations call
+    mock_dependencies["history"].get_disk_series.side_effect = RuntimeError("Disk metrics failed")
 
     # Should still succeed because the exception is caught in _build_metric_history
     result = asyncio.run(get_recommendations())
@@ -264,13 +239,15 @@ def test_get_recommendations_build_metric_history_exception(mock_dependencies):
 
 
 def test_get_forecast_build_metric_history_exception(mock_dependencies):
-    """Test forecast when _build_metric_history fails at disk metrics."""
+    """Test forecast when disk history read fails."""
     from api.capacity_router import get_forecast
 
-    # Make get_disk_metrics fail to trigger lines 46-48
-    mock_dependencies["disk"].side_effect = RuntimeError("Permission denied accessing disk")
+    # Make disk history read fail — should be handled gracefully
+    mock_dependencies["history"].get_disk_series.side_effect = RuntimeError(
+        "Permission denied accessing disk"
+    )
 
-    # Should succeed because exception is caught and default value used
+    # Should succeed because exception is caught and disk treated as unavailable
     result = asyncio.run(get_forecast())
 
     assert "data" in result

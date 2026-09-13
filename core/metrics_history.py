@@ -83,6 +83,8 @@ class MetricsHistory:
         self.memory: Deque[float] = deque(maxlen=maxlen)
         self.net_in: Deque[float] = deque(maxlen=maxlen)
         self.timestamps: Deque[str] = deque(maxlen=maxlen)
+        # 磁盘使用率历史（由采样循环 push_disk 写入的真实分区均值）
+        self.disk: Deque[float] = deque(maxlen=maxlen)
 
         # 新增:通用按点存储的 ring buffer
         self._samples: Deque[MetricPoint] = deque(maxlen=maxlen)
@@ -201,6 +203,35 @@ class MetricsHistory:
         with self._lock:
             self._samples.append(MetricPoint(metric, value_val, service, ts_dt))
 
+    def push_disk(
+        self,
+        usage_percent: float,
+        timestamp: datetime.datetime | str | None = None,
+    ) -> None:
+        """写入一次真实的磁盘使用率采样（各分区 usage_percent 的均值）。
+
+        磁盘历史独立于 legacy cpu/memory/net_in 列，使用同一环形容量，
+        供容量预测读取真实历史序列（不再合成）。
+        """
+        try:
+            value_val = round(float(usage_percent if usage_percent is not None else 0.0), 2)
+        except (TypeError, ValueError) as e:
+            logger.warning(
+                f"MetricsHistory.push_disk() 数值转换失败,本次跳过: {e} "
+                f"| usage_percent={usage_percent!r}"
+            )
+            return
+
+        ts_dt = self._coerce_timestamp(timestamp)
+        with self._lock:
+            self.disk.append(value_val)
+            self._samples.append(MetricPoint("disk", value_val, "global", ts_dt))
+
+    def get_disk_series(self) -> list[float]:
+        """返回当前磁盘使用率历史序列快照（真实采样，按时间先后）。"""
+        with self._lock:
+            return list(self.disk)
+
     # ----------------------------------------------------------
     # 读取方法
     # ----------------------------------------------------------
@@ -299,6 +330,7 @@ class MetricsHistory:
             self.memory.clear()
             self.net_in.clear()
             self.timestamps.clear()
+            self.disk.clear()
             self._samples.clear()
         logger.info("MetricsHistory 历史数据已全部清空")
 

@@ -10,21 +10,18 @@ This is a minimal local implementation that does not require external APIs.
 import re
 from typing import List, Tuple, Union
 
-# Simple local keyword blocklist for harmful/off-limited content and prompt injection.
+# Genuinely harmful intents (destructive commands / self-harm).  Ordinary
+# SRE vocabulary such as "password", "secret key", "api key", "private key"
+# and "destroy" is deliberately **not** listed here: discussing credential
+# handling is normal operations work and must not be rejected.
 _HARMFUL_BLOCKLIST = {
     "rm -rf /",
     "format disk",
     "delete system",
-    "destroy",
     "drop database",
     "wipe all",
     "suicide",
     "self-harm",
-    "credit card",
-    "password",
-    "secret key",
-    "api key",
-    "private key",
 }
 
 _PROMPT_INJECTION_BLOCKLIST = {
@@ -51,6 +48,9 @@ _PROMPT_INJECTION_BLOCKLIST = {
     "不要遵守",
 }
 
+# Destructive shell verbs/phrases.  Bare code tokens such as ``os.system`` or
+# ``eval(`` are omitted because they legitimately appear in SRE discussion and
+# log excerpts.
 _SHELL_LIKE_PATTERNS = {
     "rm -rf",
     "killall",
@@ -63,12 +63,20 @@ _SHELL_LIKE_PATTERNS = {
     "rd /s",
     "kubectl delete",
     "drop table",
-    "exec(",
-    "eval(",
-    "__import__",
-    "subprocess",
-    "os.system",
 }
+
+# Pre-compiled word-boundary matchers for every blocklist phrase.  Matching on
+# word boundaries avoids accidental hits inside larger identifiers
+# (e.g. "reboot" inside "rebooted" is still intended, but "halt" inside
+# "halting" style substrings is no longer a substring match).
+_BLOCKLIST_PATTERNS = [
+    (keyword, re.compile(r"(?<!\w)" + re.escape(keyword) + r"(?!\w)"))
+    for keyword in sorted(
+        _HARMFUL_BLOCKLIST | _PROMPT_INJECTION_BLOCKLIST | _SHELL_LIKE_PATTERNS,
+        key=len,
+        reverse=True,
+    )
+]
 
 # Prompt-injection / instruction-override indicators (case-insensitive).
 _PROMPT_INJECTION_PATTERNS = [
@@ -129,9 +137,9 @@ def moderate_content(
     for content in texts:
         if not isinstance(content, str):
             content = str(content)
-        lower = content.lower()
-        for keyword in _HARMFUL_BLOCKLIST | _PROMPT_INJECTION_BLOCKLIST | _SHELL_LIKE_PATTERNS:
-            if keyword in lower:
+
+        for keyword, pattern in _BLOCKLIST_PATTERNS:
+            if pattern.search(content):
                 violations.append(f"Content contains prohibited keyword: {keyword}")
 
         if check_injection:
@@ -141,6 +149,9 @@ def moderate_content(
                         f"Potential prompt injection detected: {pattern.pattern[:80]}"
                     )
                     break
+
+    # 去重（如 “rm -rf /” 会同时命中 “rm -rf /” 与 “rm -rf”）
+    violations = list(dict.fromkeys(violations))
 
     if len(violations) >= threshold:
         return False, violations

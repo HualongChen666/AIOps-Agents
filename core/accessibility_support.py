@@ -166,11 +166,16 @@ class AccessibilityAudit:
                 if not AccessibilityAudit._check_contrast(
                     color.get("foreground"), color.get("background")
                 ):
+                    ratio = AccessibilityAudit._contrast_ratio(
+                        color.get("foreground"), color.get("background")
+                    )
                     issues.append(
                         {
                             "type": "low_contrast",
                             "severity": "medium",
                             "element": color.get("element", "unknown"),
+                            "contrast_ratio": round(ratio, 2) if ratio is not None else None,
+                            "required_ratio": AccessibilityAudit.MIN_CONTRAST_RATIO_AA,
                         }
                     )
 
@@ -191,21 +196,86 @@ class AccessibilityAudit:
 
         return {"total_issues": len(issues), "issues": issues, "wcag_level": "AA"}
 
+    # WCAG 2.1 AA 对普通文本要求的最小对比度
+    MIN_CONTRAST_RATIO_AA = 4.5
+
     @staticmethod
-    def _check_contrast(foreground: str, background: str) -> bool:
+    def _parse_color(color: Any) -> tuple:
         """
-        检查颜色对比度
+        将 #RGB/#RRGGBB 十六进制颜色字符串解析为 (r, g, b)，取值 0-255。
+
+        解析失败（非字符串、非法字符、长度不符）时返回 None。
+        """
+        if not isinstance(color, str):
+            return None
+
+        value = color.strip().lstrip("#")
+        if len(value) == 3:
+            value = "".join(ch * 2 for ch in value)
+        if len(value) != 6:
+            return None
+        try:
+            return (
+                int(value[0:2], 16),
+                int(value[2:4], 16),
+                int(value[4:6], 16),
+            )
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _relative_luminance(rgb: tuple) -> float:
+        """按 WCAG 相对亮度公式计算，输入 (r, g, b) 0-255。"""
+
+        def _channel(c: int) -> float:
+            cs = c / 255.0
+            return cs / 12.92 if cs <= 0.03928 else ((cs + 0.055) / 1.055) ** 2.4
+
+        r, g, b = rgb
+        return 0.2126 * _channel(r) + 0.7152 * _channel(g) + 0.0722 * _channel(b)
+
+    @staticmethod
+    def _contrast_ratio(foreground: str, background: str) -> Any:
+        """返回 WCAG 对比度比值 (>=1.0)；无法解析颜色时返回 None。"""
+        fg = AccessibilityAudit._parse_color(foreground)
+        bg = AccessibilityAudit._parse_color(background)
+        if fg is None or bg is None:
+            return None
+        l1 = AccessibilityAudit._relative_luminance(fg)
+        l2 = AccessibilityAudit._relative_luminance(bg)
+        lighter, darker = (l1, l2) if l1 >= l2 else (l2, l1)
+        return (lighter + 0.05) / (darker + 0.05)
+
+    @staticmethod
+    def _check_contrast(
+        foreground: str,
+        background: str,
+        min_ratio: float = MIN_CONTRAST_RATIO_AA,
+    ) -> bool:
+        """
+        检查颜色对比度是否符合 WCAG 2.1 AA（默认 4.5:1）。
+
+        真实计算前景/背景色的相对亮度对比度；若任一颜色无法解析
+        （例如使用 CSS 变量或命名色而非十六进制），则无法判定，返回 True
+        以免对未知输入产生误报。
 
         Args:
-            foreground: 前景色
-            background: 背景色
+            foreground: 前景色（#RGB 或 #RRGGBB）
+            background: 背景色（#RGB 或 #RRGGBB）
+            min_ratio: 要求的最小对比度比值
 
         Returns:
             是否符合对比度要求
         """
-        # 这里应该实现实际的对比度计算
-        # 简化实现，返回True
-        return True
+        ratio = AccessibilityAudit._contrast_ratio(foreground, background)
+        if ratio is None:
+            logger.debug(
+                "跳过无法解析的颜色对比度检查: foreground=%r background=%r",
+                foreground,
+                background,
+            )
+            return True
+        return ratio >= min_ratio
 
 
 class AccessibilityMiddleware:

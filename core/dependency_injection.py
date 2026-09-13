@@ -6,7 +6,6 @@ Dependency Injection Container
 提供轻量级的依赖注入功能，解决循环依赖问题，不修改现有架构。
 """
 
-import asyncio
 import inspect
 import logging
 from contextvars import ContextVar
@@ -45,6 +44,7 @@ class DIContainer:
         self._factories: Dict[str, Callable] = {}
         self._singletons: Dict[str, bool] = {}
         self._lifecycle: Dict[str, ServiceLifecycle] = {}
+        self._initialized: set = set()
         self._context: ContextVar[Dict[str, Any]] = ContextVar("di_context", default={})
 
     def register_factory(
@@ -81,6 +81,36 @@ class DIContainer:
         self._singletons[name] = True
         logger.info(f"Registered instance: {name}")
 
+    def _resolve(self, name: str) -> Any:
+        """解析服务实例：上下文 → 单例缓存 → 工厂创建并缓存。
+
+        ``get`` 与 ``get_async`` 共用此逻辑，避免两套几乎完全重复的实现。
+        """
+        context = self._context.get({})
+        if name in context:
+            return context[name]
+
+        if name in self._services and self._singletons.get(name):
+            return self._services[name]
+
+        if name in self._factories:
+            instance = self._factories[name]()
+            if self._singletons.get(name):
+                self._services[name] = instance
+            logger.debug(f"Created instance: {name}")
+            return instance
+
+        raise KeyError(f"Service not registered: {name}")
+
+    async def _initialize_instance(self, instance: Any) -> None:
+        """调用实例的 ``initialize``（同步或异步）并等待其真正完成。"""
+        init = getattr(instance, "initialize", None)
+        if not callable(init):
+            return
+        result = init()
+        if inspect.isawaitable(result):
+            await result
+
     def get(self, name: str) -> Any:
         """
         获取服务实例
@@ -94,83 +124,33 @@ class DIContainer:
         Raises:
             KeyError: 服务未注册
         """
-        # 检查上下文中的实例
-        context = self._context.get({})
-        if name in context:
-            return context[name]
+        return self._resolve(name)
 
-        # 检查是否已创建
-        if name in self._services and self._singletons[name]:
-            return self._services[name]
-
-        # 使用工厂创建
-        if name in self._factories:
-            factory = self._factories[name]
-
-            # 如果是单例且已创建，直接返回
-            if self._singletons[name] and name in self._services:
-                return self._services[name]
-
-            # 创建新实例
-            instance = factory()
-
-            # 如果是单例，缓存实例
-            if self._singletons[name]:
-                self._services[name] = instance
-
-            logger.debug(f"Created instance: {name}")
-            return instance
-
-        raise KeyError(f"Service not registered: {name}")
-
-    def get_async(self, name: str) -> Any:
+    async def get_async(self, name: str) -> Any:
         """
-        异步获取服务实例
+        异步获取服务实例，并 **等待** 带生命周期服务的初始化真正完成。
+
+        与 ``get`` 共用解析逻辑；对注册了 ``lifecycle`` 的服务，本方法会
+        ``await`` 其 ``initialize()``（同步实现则直接调用），确保返回的实例
+        已经初始化完毕，而不再 fire-and-forget。
 
         Args:
             name: 服务名称
 
         Returns:
-            服务实例
+            已初始化的服务实例
 
         Raises:
             KeyError: 服务未注册
         """
-        # 检查上下文中的实例
-        context = self._context.get({})
-        if name in context:
-            return context[name]
+        instance = self._resolve(name)
 
-        # 检查是否已创建
-        if name in self._services and self._singletons[name]:
-            return self._services[name]
+        if name in self._lifecycle and name not in self._initialized:
+            await self._initialize_instance(instance)
+            self._initialized.add(name)
+            logger.debug(f"Initialized async instance: {name}")
 
-        # 使用工厂创建
-        if name in self._factories:
-            factory = self._factories[name]
-
-            # 如果是单例且已创建，直接返回
-            if self._singletons[name] and name in self._services:
-                return self._services[name]
-
-            # 创建新实例
-            instance = factory()
-
-            # 如果有生命周期管理器，初始化
-            if name in self._lifecycle:
-                if inspect.iscoroutinefunction(instance.initialize):
-                    asyncio.create_task(instance.initialize())
-                else:
-                    instance.initialize()
-
-            # 如果是单例，缓存实例
-            if self._singletons[name]:
-                self._services[name] = instance
-
-            logger.debug(f"Created async instance: {name}")
-            return instance
-
-        raise KeyError(f"Service not registered: {name}")
+        return instance
 
     def set_context(self, context: Dict[str, Any]):
         """
@@ -206,6 +186,7 @@ class DIContainer:
                 logger.error(f"Failed to shutdown service {name}: {e}")
 
         self._services.clear()
+        self._initialized.clear()
         logger.info("DI container shutdown completed")
 
     def get_stats(self) -> Dict[str, Any]:
@@ -237,8 +218,8 @@ def inject(service_name: str):
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # 获取服务实例
-            service = di_container.get_async(service_name)
+            # 获取服务实例（等待初始化完成）
+            service = await di_container.get_async(service_name)
 
             # 将服务作为参数注入
             return await func(service, *args, **kwargs)

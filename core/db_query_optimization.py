@@ -97,6 +97,24 @@ class QueryCache:
 query_cache = QueryCache(ttl_seconds=300)
 
 
+def _make_cache_key(func_name: str, args: tuple, kwargs: dict) -> str:
+    """构造稳定的缓存键。
+
+    仅使用可哈希的标量参数（跳过 ``self``/Session 等对象），这样同一查询
+    在不同 Session 实例下也能命中缓存；否则用 ``str(session)`` 会让缓存永不命中。
+    """
+    scalar_types = (str, bytes, int, float, bool, type(None))
+    parts = [func_name]
+    for arg in args:
+        if isinstance(arg, scalar_types):
+            parts.append(repr(arg))
+    for key in sorted(kwargs):
+        value = kwargs[key]
+        if isinstance(value, scalar_types):
+            parts.append(f"{key}={value!r}")
+    return "|".join(parts)
+
+
 def cache_query_result(ttl_seconds: int = 300):
     """
     Decorator to cache query results
@@ -105,14 +123,18 @@ def cache_query_result(ttl_seconds: int = 300):
         ttl_seconds: Time-to-live for cache in seconds
     """
 
+    # 每个装饰器持有独立的缓存实例，使 TTL 成为 per-decorator 配置，
+    # 而不再通过全局单例相互覆盖。
+    cache = QueryCache(ttl_seconds=ttl_seconds)
+
     def decorator(func: Callable):
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            # Generate cache key from function name and arguments
-            cache_key = f"{func.__name__}_{str(args)}_{str(kwargs)}"
+            # Generate cache key from function name and scalar arguments
+            cache_key = _make_cache_key(func.__name__, args, kwargs)
 
             # Try to get from cache
-            cached = query_cache.get(cache_key)
+            cached = cache.get(cache_key)
             if cached is not None:
                 return cached
 
@@ -120,8 +142,7 @@ def cache_query_result(ttl_seconds: int = 300):
             result = await func(*args, **kwargs)
 
             # Cache result
-            query_cache.ttl_seconds = ttl_seconds
-            query_cache.set(cache_key, result)
+            cache.set(cache_key, result)
 
             return result
 

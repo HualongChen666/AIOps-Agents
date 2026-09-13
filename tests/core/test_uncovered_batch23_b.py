@@ -442,8 +442,9 @@ def test_setup_query_cache_no_configure(monkeypatch):
     monkeypatch.setattr(cache_opt_mod, "DatabaseCacheOptimizer", _CacheOptimizerNoConfigure)
     manager = dom.DatabaseOptimizationManager()
     result = manager.setup_query_cache()  # noqa: F841  # Variable for test verification
-    assert result["setup_successful"] is True
-    assert result["cache_enabled"] is True
+    # 优化器不支持运行时配置：必须如实报告未生效，绝不谎报 setup_successful
+    assert "error" in result
+    assert "setup_successful" not in result
 
 
 def test_get_optimization_recommendations_exception(monkeypatch):
@@ -523,7 +524,7 @@ async def test_container_async_and_shutdown():
         singleton=True,
         lifecycle=_FakeLifecycle(),
     )
-    inst = container.get_async("svc")
+    inst = await container.get_async("svc")
     assert isinstance(inst, _FakeService)
     assert inst.value == 8
     await container.shutdown()

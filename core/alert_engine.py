@@ -889,6 +889,16 @@ async def alert_monitor_loop() -> None:
                 timestamp=ts,
             )
 
+            # 2b. 记录真实磁盘使用率历史（供容量预测读取真实序列）
+            disk_list = metrics.get("disk") or []
+            disk_usages = [
+                _safe_float(d.get("usage_percent"), 0.0)
+                for d in disk_list
+                if isinstance(d, dict)
+            ]
+            if disk_usages:
+                metrics_history.push_disk(sum(disk_usages) / len(disk_usages), ts)
+
             # 3. 告警检测(🔧 N-2:内部已包含去重过滤)
             new_alerts = check_and_generate_alerts(metrics)
 

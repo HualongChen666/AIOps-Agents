@@ -26,13 +26,6 @@ _SERVICE_NAMES = {
     "network": "api-gateway",
 }
 
-_DEFAULT_SERIES = {
-    "cpu": [45.0, 46.5, 48.0, 49.2, 50.1],
-    "memory": [55.0, 57.0, 59.0, 60.5, 62.0],
-    "disk": [40.0, 42.0, 44.0, 46.0, 48.0],
-    "network": [30.0, 32.0, 34.0, 36.0, 38.0],
-}
-
 
 def _to_floats(values: Any) -> list[float]:
     """Convert a sequence to a list of floats, skipping invalid items."""
@@ -91,8 +84,16 @@ def forecast_capacity(metric_history: dict, days_ahead: int) -> dict:
 
     Returns:
         dict mapping metric key -> {
-            metric, currentValue, forecast7d, forecast30d, threshold, unit
+            metric, currentValue, forecast7d, forecast30d, forecast90d,
+            threshold, unit, dataAvailable
         }
+
+    Notes:
+        A metric only receives forecasts when at least two *genuine* history
+        points are available.  When history is missing or too short the entry
+        is returned with ``dataAvailable=False`` and ``None`` forecasts —
+        placeholder/default series are deliberately **not** substituted, so
+        downstream consumers can distinguish "no data" from a real forecast.
     """
     _ = days_ahead  # kept for API compatibility
     result: dict[str, dict[str, Any]] = {}
@@ -100,8 +101,19 @@ def forecast_capacity(metric_history: dict, days_ahead: int) -> dict:
     for key, meta in _METRIC_META.items():
         raw = metric_history.get(key) if isinstance(metric_history, dict) else None
         values = _to_floats(raw)
+
         if len(values) < 2:
-            values = _to_floats(_DEFAULT_SERIES.get(key, [0.0]))
+            result[key] = {
+                "metric": meta["name"],
+                "currentValue": round(values[-1], 2) if values else None,
+                "forecast7d": None,
+                "forecast30d": None,
+                "forecast90d": None,
+                "threshold": meta["threshold"],
+                "unit": meta["unit"],
+                "dataAvailable": False,
+            }
+            continue
 
         current = values[-1]
         forecast_7 = _linear_forecast(values, 7)
@@ -122,6 +134,7 @@ def forecast_capacity(metric_history: dict, days_ahead: int) -> dict:
             "forecast90d": round(forecast_90, 2),
             "threshold": meta["threshold"],
             "unit": meta["unit"],
+            "dataAvailable": True,
         }
 
     return result
@@ -137,6 +150,12 @@ def generate_scaling_recommendations(forecasts: dict) -> list:
     recommendations: list[dict[str, Any]] = []
 
     for key, f in forecasts.items():
+        # 跳过无真实历史、无法预测的指标：绝不基于占位数据给出扩容建议。
+        if f.get("dataAvailable") is False:
+            continue
+        if f.get("forecast7d") is None or f.get("forecast30d") is None:
+            continue
+
         meta = _METRIC_META.get(key, _METRIC_META["cpu"])
         metric_name = f.get("metric", meta["name"])
         threshold = f.get("threshold", meta["threshold"])

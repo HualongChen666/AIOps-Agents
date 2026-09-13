@@ -314,15 +314,66 @@ def test_forecast_capacity_with_history():
     assert forecasts["cpu"]["currentValue"] == pytest.approx(50.1)
 
 
-def test_forecast_capacity_uses_defaults_for_missing_and_short():
+def test_forecast_capacity_no_fabrication_for_missing_and_short():
+    """缺历史/历史过短时不得伪造预测：标记 dataAvailable=False 且预测为 None。"""
     forecasts = capacity_engine.forecast_capacity({"cpu": [50.0]}, 7)
-    assert forecasts["cpu"]["currentValue"] == pytest.approx(50.1)
-    assert forecasts["memory"]["currentValue"] > 0  # default series used
+    # 仅 1 个真实点 → 不具备预测能力
+    assert forecasts["cpu"]["dataAvailable"] is False
+    assert forecasts["cpu"]["currentValue"] == pytest.approx(50.0)
+    assert forecasts["cpu"]["forecast7d"] is None
+    assert forecasts["cpu"]["forecast30d"] is None
+    # 完全没有历史的指标同样不伪造
+    assert forecasts["memory"]["dataAvailable"] is False
+    assert forecasts["memory"]["currentValue"] is None
+    assert forecasts["memory"]["forecast7d"] is None
 
 
 def test_forecast_capacity_non_dict_history():
     forecasts = capacity_engine.forecast_capacity("invalid", 30)
-    assert all(forecasts[k]["currentValue"] > 0 for k in capacity_engine._METRIC_META)
+    for key in capacity_engine._METRIC_META:
+        assert forecasts[key]["dataAvailable"] is False
+        assert forecasts[key]["currentValue"] is None
+        assert forecasts[key]["forecast7d"] is None
+
+
+def test_forecast_capacity_marks_available_with_real_history():
+    history = {
+        "cpu": [45.0, 46.5, 48.0, 49.2, 50.1],
+        "memory": [55.0, 57.0, 59.0, 60.5, 62.0],
+        "disk": [40.0, 42.0, 44.0, 46.0, 48.0],
+        "network": [30.0, 32.0, 34.0, 36.0, 38.0],
+    }
+    forecasts = capacity_engine.forecast_capacity(history, 7)
+    assert all(forecasts[k]["dataAvailable"] is True for k in capacity_engine._METRIC_META)
+    assert forecasts["cpu"]["forecast7d"] is not None
+
+
+def test_generate_scaling_recommendations_skips_unavailable():
+    """无真实历史的指标不产生扩容建议（不基于占位数据决策）。"""
+    forecasts = {
+        "cpu": {
+            "metric": "CPU",
+            "forecast7d": None,
+            "forecast30d": None,
+            "currentValue": None,
+            "threshold": 80.0,
+            "unit": "%",
+            "dataAvailable": False,
+        },
+        "disk": {
+            "metric": "Disk",
+            "forecast7d": 90.0,
+            "forecast30d": 95.0,
+            "currentValue": 75.0,
+            "threshold": 80.0,
+            "unit": "%",
+            "dataAvailable": True,
+        },
+    }
+    recs = capacity_engine.generate_scaling_recommendations(forecasts)
+    ids = {r["id"] for r in recs}
+    assert "SR-DISK" in ids
+    assert "SR-CPU" not in ids
 
 
 def test_generate_scaling_recommendations():

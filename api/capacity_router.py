@@ -10,7 +10,6 @@ Endpoints:
 - GET /api/v1/capacity/recommendations  - scaling recommendations
 """
 
-import asyncio
 import logging
 from typing import Any
 
@@ -18,7 +17,6 @@ from fastapi import APIRouter, HTTPException
 
 from api.common import handle_service_error
 from core.capacity_engine import forecast_capacity, generate_scaling_recommendations
-from core.collector import get_disk_metrics
 from core.metrics_history import METRICS_HISTORY as metrics_history
 
 logger = logging.getLogger(__name__)
@@ -29,11 +27,16 @@ router = APIRouter(
 )
 
 _NETWORK_CAP_MB = 100.0  # reference cap used to normalize net_in (MB/s) to %
-_DISK_HISTORY_LEN = 10
 
 
 async def _build_metric_history() -> dict[str, list[float]]:
-    """Build a normalized metric history dict for the forecasting engine."""
+    """Build a normalized metric history dict for the forecasting engine.
+
+    All series are sourced from the real metric history buffer:
+    ``cpu``/``memory``/``net_in`` from the legacy columns and ``disk`` from the
+    genuine disk-usage samples written by the monitoring loop (``push_disk``).
+    No synthetic series are manufactured here.
+    """
     hist = metrics_history.to_dict()
 
     cpu = [float(v) for v in hist.get("cpu", [])]
@@ -41,17 +44,12 @@ async def _build_metric_history() -> dict[str, list[float]]:
     net_in = [float(v) for v in hist.get("net_in", [])]
     network = [max(0.0, min(100.0, v / _NETWORK_CAP_MB * 100.0)) for v in net_in]
 
+    # 真实磁盘使用率历史（采样循环写入；无历史时为空列表 → 不预测）
     try:
-        disks = await asyncio.to_thread(get_disk_metrics)
-        avg = sum(d.get("usage_percent", 0.0) for d in disks) / max(len(disks), 1)
-    except Exception as e:
-        logger.warning(f"磁盘指标采集失败，使用默认值: {e}")
-        avg = 45.0
-
-    disk = [
-        max(0.0, min(100.0, avg - (_DISK_HISTORY_LEN - 1 - i) * 0.5))
-        for i in range(_DISK_HISTORY_LEN)
-    ]
+        disk = [float(v) for v in metrics_history.get_disk_series()]
+    except Exception as e:  # pragma: no cover - defensive
+        logger.warning(f"磁盘历史读取失败，按无数据处理: {e}")
+        disk = []
 
     return {
         "cpu": cpu,
@@ -94,7 +92,9 @@ async def get_forecast() -> dict[str, Any]:
     try:
         metric_history = await _build_metric_history()
         forecasts = forecast_capacity(metric_history, days_ahead=7)
-        return {"data": list(forecasts.values())}
+        # 仅返回具备真实历史、可给出预测的指标
+        available = [f for f in forecasts.values() if f.get("dataAvailable")]
+        return {"data": available}
     except Exception as e:
         handle_service_error(e, "容量预测", detail_prefix="容量预测失败")
 

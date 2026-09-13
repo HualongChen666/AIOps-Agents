@@ -92,6 +92,9 @@ class ConsulConfigCenter:
                     if key in self.fallback_config
                     else ConfigEventType.CREATE
                 )
+                # 必须在写入新值前捕获旧值，否则 UPDATE 事件的 old_value
+                # 会等于 new_value，导致变更审计完全失真。
+                old_value = self.fallback_config[key].value if key in self.fallback_config else None
                 if key in self.fallback_config:
                     self.fallback_config[key].value = value
                     self.fallback_config[key].version += 1
@@ -107,11 +110,7 @@ class ConsulConfigCenter:
                 self._notify_change(
                     ConfigChangeEvent(
                         key=key,
-                        old_value=(
-                            None
-                            if event_type == ConfigEventType.CREATE
-                            else self.fallback_config[key].value
-                        ),
+                        old_value=old_value,
                         new_value=value,
                         event_type=event_type,
                         version=self.fallback_config[key].version,

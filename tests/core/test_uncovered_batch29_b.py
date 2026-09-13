@@ -267,8 +267,7 @@ async def test_di_container_async(monkeypatch):
             called["shutdown"] = True
 
     c.register_factory("svc", FakeService, lifecycle=FakeLife())
-    c.get_async("svc")
-    await asyncio.sleep(0)
+    await c.get_async("svc")
     assert called["init"]
 
     await c.shutdown()
@@ -280,7 +279,7 @@ async def test_di_container_async(monkeypatch):
         "svc2",
         lambda: type("S", (), {"initialize": lambda: None})(),
     )
-    c2.get_async("svc2")
+    await c2.get_async("svc2")
 
 
 def test_di_container_sync_shutdown_coroutine():
@@ -296,7 +295,7 @@ def test_di_container_sync_shutdown_coroutine():
     c.register_factory(
         "svc3", lambda: type("O", (), {"initialize": lambda s: None})(), lifecycle=FakeLife()
     )
-    c.get_async("svc3")
+    _run(c.get_async("svc3"))
     _run(c.shutdown())
 
 

@@ -158,9 +158,13 @@ class DatabaseOptimizationManager:
             return {"error": "Cache optimizer not available"}
 
         try:
-            # Configure cache with TTL strategy
-            if hasattr(self.cache_optimizer, "configure_cache"):
-                self.cache_optimizer.configure_cache(strategy="ttl", ttl_seconds=cache_ttl_seconds)
+            # 只有真正支持运行时配置的优化器才视为配置成功；否则如实返回失败，
+            # 避免 run_comprehensive_optimization 误报 "complete"。
+            if not hasattr(self.cache_optimizer, "configure_cache"):
+                logger.warning("Cache optimizer does not support runtime configuration")
+                return {"error": "Cache optimizer does not support runtime configuration"}
+
+            self.cache_optimizer.configure_cache(strategy="ttl", ttl_seconds=cache_ttl_seconds)
 
             return {
                 "cache_enabled": True,
