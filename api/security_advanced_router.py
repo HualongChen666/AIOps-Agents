@@ -277,10 +277,15 @@ async def get_abac_policies(
             {
                 "id": p.id,
                 "name": p.name,
+                "description": (p.meta_data or {}).get("description", ""),
                 "effect": p.effect,
-                "resources": p.resources,
-                "actions": p.actions,
+                "resources": p.resources or [],
+                "actions": p.actions or [],
+                "subjects": p.subjects or [],
+                "environment": p.environment or [],
+                "priority": p.priority,
                 "enabled": p.enabled,
+                "createdAt": p.created_at.isoformat() if p.created_at else None,
             }
             for p in policies
         ],
@@ -745,6 +750,37 @@ class DataKeyUpdateRequest(BaseModel):
     status: Optional[Literal["active", "disabled", "rotated"]] = None
 
 
+def _data_key_type(algorithm: Optional[str]) -> str:
+    """从算法名推导前端 ``type`` 枚举（aes/rsa/ecdsa/chacha）。"""
+    algo = (algorithm or "").upper()
+    if "RSA" in algo:
+        return "rsa"
+    if "EC" in algo or "ECDSA" in algo:
+        return "ecdsa"
+    if "CHACHA" in algo:
+        return "chacha"
+    return "aes"
+
+
+def _data_key_dict(k: Any) -> Dict[str, Any]:
+    """数据加密密钥统一序列化（补齐前端 EncryptionKey 契约字段）。"""
+    return {
+        "id": k.id,
+        "name": k.name,
+        "type": _data_key_type(k.algorithm),
+        "purpose": k.purpose,
+        "algorithm": k.algorithm,
+        "keySize": k.key_size,
+        "scope": k.scope,
+        "status": k.status,
+        "rotationEnabled": k.rotation_enabled,
+        "usage": [k.purpose] if k.purpose else [],
+        "createdAt": k.created_at.isoformat() if k.created_at else None,
+        "expiresAt": k.next_rotation_at.isoformat() if getattr(k, "next_rotation_at", None) else None,
+        "lastRotated": k.last_rotated_at.isoformat() if getattr(k, "last_rotated_at", None) else None,
+    }
+
+
 @router.get("/data-encryption/keys")
 async def get_data_keys(
     status: Optional[str] = None,
@@ -753,20 +789,7 @@ async def get_data_keys(
     repo = _get_repository(db)
     keys = repo.get_data_encryption_keys(status=status)
     return {
-        "keys": [
-            {
-                "id": k.id,
-                "name": k.name,
-                "purpose": k.purpose,
-                "algorithm": k.algorithm,
-                "keySize": k.key_size,
-                "scope": k.scope,
-                "status": k.status,
-                "rotationEnabled": k.rotation_enabled,
-                "createdAt": k.created_at.isoformat() if k.created_at else None,
-            }
-            for k in keys
-        ],
+        "keys": [_data_key_dict(k) for k in keys],
         "total": len(keys),
     }
 
@@ -790,17 +813,7 @@ async def create_data_key(
         scope=req.scope,
     )
     logger.info("创建数据加密密钥: %s", req.name)
-    return {
-        "id": key.id,
-        "name": key.name,
-        "purpose": key.purpose,
-        "algorithm": key.algorithm,
-        "keySize": key.key_size,
-        "scope": key.scope,
-        "status": key.status,
-        "rotationEnabled": key.rotation_enabled,
-        "createdAt": key.created_at.isoformat() if key.created_at else None,
-    }
+    return _data_key_dict(key)
 
 
 @router.patch("/data-encryption/keys/{key_id}")
@@ -814,17 +827,7 @@ async def update_data_key(
     if not key:
         raise HTTPException(status_code=404, detail="密钥不存在")
     logger.info("更新数据加密密钥: %s", key_id)
-    return {
-        "id": key.id,
-        "name": key.name,
-        "purpose": key.purpose,
-        "algorithm": key.algorithm,
-        "keySize": key.key_size,
-        "scope": key.scope,
-        "status": key.status,
-        "rotationEnabled": key.rotation_enabled,
-        "createdAt": key.created_at.isoformat() if key.created_at else None,
-    }
+    return _data_key_dict(key)
 
 
 # 9. Data Privacy
@@ -858,7 +861,11 @@ async def get_privacy_subjects(
                 "phone": s.phone,
                 "identifier": s.identifier,
                 "consentLevel": s.consent_level,
+                "consentGiven": s.consent_level == "full",
+                "dataCategories": s.data_categories or [],
                 "consentGivenAt": s.consent_given_at.isoformat() if s.consent_given_at else None,
+                "consentDate": s.consent_given_at.isoformat() if s.consent_given_at else None,
+                "lastAccessed": (s.meta_data or {}).get("lastAccessed"),
                 "createdAt": s.created_at.isoformat() if s.created_at else None,
             }
             for s in subjects
@@ -890,7 +897,11 @@ async def create_privacy_subject(
         "phone": subject.phone,
         "identifier": subject.identifier,
         "consentLevel": subject.consent_level,
+        "consentGiven": subject.consent_level == "full",
+        "dataCategories": subject.data_categories or [],
         "consentGivenAt": subject.consent_given_at.isoformat() if subject.consent_given_at else None,
+        "consentDate": subject.consent_given_at.isoformat() if subject.consent_given_at else None,
+        "lastAccessed": (subject.meta_data or {}).get("lastAccessed"),
         "createdAt": subject.created_at.isoformat() if subject.created_at else None,
     }
 
@@ -1029,11 +1040,14 @@ def _compliance_standard_dict(standard: Any) -> Dict[str, Any]:
     return {
         "id": standard.id,
         "name": standard.name,
+        "type": standard.category,
         "category": standard.category,
+        "version": (standard.meta_data or {}).get("version", "1.0"),
         "description": standard.description,
         "checkCriteria": standard.check_criteria,
         "severity": standard.severity,
         "status": standard.status,
+        "enabled": standard.status == "active",
         "createdAt": standard.created_at.isoformat() if standard.created_at else None,
     }
 
@@ -1100,6 +1114,7 @@ class DatabaseInstanceUpdateRequest(BaseModel):
 
 
 def _database_instance_dict(instance: Any) -> Dict[str, Any]:
+    meta = instance.meta_data or {}
     return {
         "id": instance.id,
         "name": instance.name,
@@ -1109,6 +1124,9 @@ def _database_instance_dict(instance: Any) -> Dict[str, Any]:
         "encryptionEnabled": instance.encryption_enabled,
         "sslEnabled": instance.ssl_enabled,
         "auditEnabled": instance.audit_enabled,
+        "backupEnabled": bool(meta.get("backupEnabled", False)),
+        "lastBackup": meta.get("lastBackup"),
+        "version": meta.get("version"),
         "status": instance.status,
         "createdAt": instance.created_at.isoformat() if instance.created_at else None,
     }
@@ -1163,6 +1181,11 @@ class ApiEndpointCreateRequest(BaseModel):
     method: str = Field(default="GET", max_length=10)
     authenticationRequired: bool = Field(default=True)
     authorizationRequired: bool = Field(default=True)
+    # 页面既有契约使用 authRequired/authType/rateLimit/description，一并接受。
+    authRequired: Optional[bool] = None
+    authType: Optional[str] = Field(default=None, max_length=20)
+    rateLimit: Optional[int] = Field(default=None, ge=0)
+    description: Optional[str] = Field(default=None, max_length=512)
 
 
 class ApiEndpointUpdateRequest(BaseModel):
@@ -1170,13 +1193,21 @@ class ApiEndpointUpdateRequest(BaseModel):
 
 
 def _api_endpoint_dict(endpoint: Any) -> Dict[str, Any]:
+    meta = endpoint.meta_data or {}
+    auth_type = meta.get("authType") or ("bearer" if endpoint.authentication_required else "none")
     return {
         "id": endpoint.id,
         "path": endpoint.path,
         "method": endpoint.method,
+        "authRequired": endpoint.authentication_required,
         "authenticationRequired": endpoint.authentication_required,
-        "authorizationRequired": endpoint.authorization_required,
+        "authType": auth_type,
+        "rateLimit": meta.get("rateLimit", 0),
         "rateLimitEnabled": endpoint.rate_limit_enabled,
+        "authorizationRequired": endpoint.authorization_required,
+        "enabled": endpoint.status == "active",
+        "description": meta.get("description", ""),
+        "lastAccessed": meta.get("lastAccessed"),
         "status": endpoint.status,
         "createdAt": endpoint.created_at.isoformat() if endpoint.created_at else None,
     }
@@ -1201,11 +1232,17 @@ async def create_api_endpoint(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     repo = _get_repository(db)
+    auth_required = req.authenticationRequired if req.authRequired is None else req.authRequired
     endpoint = repo.create_api_security_endpoint(
         path=req.path,
         method=req.method.upper(),
-        authentication_required=req.authenticationRequired,
+        authentication_required=auth_required,
         authorization_required=req.authorizationRequired,
+        meta_data={
+            "authType": req.authType,
+            "rateLimit": req.rateLimit,
+            "description": req.description,
+        },
     )
     logger.info("创建API端点: %s %s", req.method, req.path)
     return _api_endpoint_dict(endpoint)
@@ -1322,6 +1359,10 @@ class PenetrationTestProjectCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     target: str = Field(..., min_length=1, max_length=256)
     testType: Literal["black_box", "white_box", "gray_box"] = Field(default="black_box")
+    # 页面既有契约使用 type/startDate/endDate，一并接受。
+    type: Optional[Literal["black_box", "white_box", "gray_box"]] = None
+    startDate: Optional[str] = Field(default=None, max_length=64)
+    endDate: Optional[str] = Field(default=None, max_length=64)
 
 
 class PenetrationTestProjectUpdateRequest(BaseModel):
@@ -1329,12 +1370,19 @@ class PenetrationTestProjectUpdateRequest(BaseModel):
 
 
 def _penetration_project_dict(project: Any) -> Dict[str, Any]:
+    meta = project.meta_data or {}
     return {
         "id": project.id,
         "name": project.name,
         "target": project.target,
+        "type": project.test_type,
         "testType": project.test_type,
         "status": project.status,
+        "startDate": project.start_date.isoformat() if project.start_date else meta.get("startDate"),
+        "endDate": project.end_date.isoformat() if project.end_date else meta.get("endDate"),
+        "testers": meta.get("testers", []),
+        "severity": meta.get("severity", "medium"),
+        "findings": len(project.findings or []),
         "riskScore": project.risk_score,
         "createdAt": project.created_at.isoformat() if project.created_at else None,
     }
@@ -1362,8 +1410,12 @@ async def create_penetration_project(
     project = repo.create_penetration_test_project(
         name=req.name,
         target=req.target,
-        test_type=req.testType,
+        test_type=req.type or req.testType,
     )
+    if req.startDate or req.endDate:
+        project.meta_data = {**(project.meta_data or {}), "startDate": req.startDate, "endDate": req.endDate}
+        db.commit()
+        db.refresh(project)
     logger.info("创建渗透测试项目: %s", req.name)
     return _penetration_project_dict(project)
 
@@ -1400,7 +1452,15 @@ def _security_test_dict(test: Any) -> Dict[str, Any]:
         "testType": test.test_type,
         "target": test.target,
         "status": test.status,
+        "progress": 100 if test.status == "completed" else (50 if test.status == "running" else 0),
+        "startedAt": test.started_at.isoformat() if test.started_at else None,
+        "completedAt": test.completed_at.isoformat() if test.completed_at else None,
+        "findings": test.vulnerabilities_found,
         "vulnerabilitiesFound": test.vulnerabilities_found,
+        "criticalFindings": test.critical_count,
+        "highFindings": test.high_count,
+        "mediumFindings": test.medium_count,
+        "lowFindings": test.low_count,
         "createdAt": test.created_at.isoformat() if test.created_at else None,
     }
 
@@ -1457,6 +1517,7 @@ class VulnerabilityTicketUpdateRequest(BaseModel):
 
 
 def _vulnerability_ticket_dict(ticket: Any) -> Dict[str, Any]:
+    meta = ticket.meta_data or {}
     return {
         "id": ticket.id,
         "title": ticket.title,
@@ -1464,8 +1525,16 @@ def _vulnerability_ticket_dict(ticket: Any) -> Dict[str, Any]:
         "description": ticket.description,
         "cveId": ticket.cve_id,
         "cvssScore": ticket.cvss_score,
+        "priority": meta.get("priority", 0),
+        "assignee": ticket.assigned_to,
+        "team": meta.get("team"),
+        "dueDate": meta.get("dueDate"),
+        "affectedAssets": ticket.affected_components or [],
+        "resolution": ticket.fix_description,
+        "resolvedAt": ticket.resolved_at.isoformat() if ticket.resolved_at else None,
         "status": ticket.status,
         "detectedAt": ticket.detected_at.isoformat() if ticket.detected_at else None,
+        "createdAt": ticket.created_at.isoformat() if ticket.created_at else None,
     }
 
 
@@ -1522,13 +1591,24 @@ class ThreatCreateRequest(BaseModel):
 
 
 def _threat_dict(threat: Any) -> Dict[str, Any]:
+    meta = threat.meta_data or {}
+    indicators = threat.indicators if isinstance(threat.indicators, list) else []
     return {
         "id": threat.id,
         "name": threat.name,
+        "threatName": threat.name,
+        "cveId": meta.get("cveId"),
         "threatType": threat.threat_type,
         "description": threat.description,
         "severity": threat.severity,
+        "cvssScore": meta.get("cvssScore"),
         "confidence": threat.confidence,
+        "affectedSystems": indicators,
+        "exploitAvailable": bool(meta.get("exploitAvailable", False)),
+        "exploitMaturity": meta.get("exploitMaturity", "none"),
+        "source": threat.source,
+        "firstSeen": threat.first_seen.isoformat() if threat.first_seen else None,
+        "lastSeen": threat.last_seen.isoformat() if threat.last_seen else None,
         "status": threat.status,
         "createdAt": threat.created_at.isoformat() if threat.created_at else None,
     }
@@ -1572,11 +1652,22 @@ class VulnerabilityScanUpdateRequest(BaseModel):
 
 
 def _vulnerability_scan_dict(scan: Any) -> Dict[str, Any]:
+    meta = scan.meta_data or {}
     return {
         "id": scan.id,
+        "cveId": meta.get("cveId"),
+        "title": meta.get("title") or scan.target,
+        "description": meta.get("description", ""),
+        "severity": meta.get("severity", "medium"),
+        "cvssScore": meta.get("cvssScore"),
+        "affectedComponent": meta.get("affectedComponent", scan.target),
+        "affectedVersion": meta.get("affectedVersion"),
+        "fixAvailable": bool(meta.get("fixAvailable", False)),
+        "fixVersion": meta.get("fixVersion"),
         "target": scan.target,
         "scanType": scan.scan_type,
         "status": scan.status,
+        "discoveredAt": scan.created_at.isoformat() if scan.created_at else None,
         "vulnerabilitiesFound": scan.vulnerabilities_found,
         "createdAt": scan.created_at.isoformat() if scan.created_at else None,
     }
@@ -1632,12 +1723,25 @@ class AuditReportUpdateRequest(BaseModel):
 
 
 def _audit_report_dict(report: Any) -> Dict[str, Any]:
+    findings = report.findings or []
+
+    def _sev(sev: str) -> int:
+        return sum(1 for f in findings if isinstance(f, dict) and str(f.get("severity", "")).lower() == sev)
+
     return {
         "id": report.id,
+        "name": report.title,
         "title": report.title,
+        "type": report.report_type,
         "reportType": report.report_type,
         "description": report.description,
         "status": report.status,
+        "findings": len(findings),
+        "criticalFindings": _sev("critical"),
+        "highFindings": _sev("high"),
+        "mediumFindings": _sev("medium"),
+        "lowFindings": _sev("low"),
+        "createdBy": report.created_by,
         "publishedAt": report.published_at.isoformat() if report.published_at else None,
         "createdAt": report.created_at.isoformat() if report.created_at else None,
     }
@@ -1717,8 +1821,15 @@ async def get_audit_logs(limit: int = Query(default=50, ge=1, le=500)) -> Dict[s
 
 # 23. Command Rewrite
 class CommandRewriteRuleCreateRequest(BaseModel):
-    pattern: str = Field(..., min_length=1, max_length=256)
-    replacement: str = Field(..., min_length=1, max_length=256)
+    # 兼容页面既有的 {originalPattern, rewrittenCommand, name, category, priority}
+    # 与早期的 {pattern, replacement} 两种契约。
+    pattern: Optional[str] = Field(default=None, max_length=256)
+    replacement: Optional[str] = Field(default=None, max_length=256)
+    originalPattern: Optional[str] = Field(default=None, max_length=256)
+    rewrittenCommand: Optional[str] = Field(default=None, max_length=256)
+    name: Optional[str] = Field(default=None, max_length=128)
+    category: Optional[str] = Field(default=None, max_length=64)
+    priority: int = Field(default=0, ge=0, le=100)
     description: Optional[str] = None
 
 
@@ -1727,11 +1838,16 @@ class CommandRewriteRuleUpdateRequest(BaseModel):
 
 
 def _command_rewrite_dict(rule: Any) -> Dict[str, Any]:
+    meta = rule.meta_data or {}
     return {
         "id": rule.id,
+        "name": meta.get("name") or rule.pattern,
         "pattern": rule.pattern,
+        "originalPattern": rule.pattern,
         "replacement": rule.replacement,
+        "rewrittenCommand": rule.replacement,
         "description": rule.description,
+        "category": meta.get("category", "system"),
         "enabled": rule.enabled,
         "priority": rule.priority,
         "usageCount": rule.usage_count,
@@ -1754,12 +1870,19 @@ async def create_command_rewrite_rule(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     repo = _get_repository(db)
+    pattern = req.pattern or req.originalPattern
+    replacement = req.replacement or req.rewrittenCommand
+    if not pattern or not replacement:
+        raise HTTPException(status_code=422, detail="pattern/originalPattern 与 replacement/rewrittenCommand 必填")
     rule = repo.create_command_rewrite_rule(
-        pattern=req.pattern,
-        replacement=req.replacement,
+        pattern=pattern,
+        replacement=replacement,
         description=req.description,
+        name=req.name,
+        category=req.category,
+        priority=req.priority,
     )
-    logger.info("创建命令改写规则: %s", req.pattern)
+    logger.info("创建命令改写规则: %s", pattern)
     return _command_rewrite_dict(rule)
 
 
@@ -1796,11 +1919,50 @@ class SecurityAdvancedCommandCheckRequest(BaseModel):
 
 
 @router.post("/command-check/check")
-async def check_command(req: SecurityAdvancedCommandCheckRequest) -> Dict[str, Any]:
+async def check_command(
+    req: SecurityAdvancedCommandCheckRequest, request: Request
+) -> Dict[str, Any]:
     result = analyze_command(req.command)
+    risk_level = result["risk_level"].value
+    # 登记命令检查历史（供 /command-check/history 与 /command-check/stats 真实读取）。
+    try:
+        from core.persistent_store import PersistentStore
+
+        store = PersistentStore("security_console", "command_check_history", tenant_id="default")
+        record_id = f"cck-{uuid.uuid4().hex[:12]}"
+        store[record_id] = {
+            "id": record_id,
+            "command": req.command,
+            "riskLevel": risk_level,
+            "riskScore": 100
+            - {
+                "safe": 0,
+                "low": 25,
+                "medium": 50,
+                "high": 75,
+                "critical": 95,
+            }.get(risk_level, 50),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "userId": request.headers.get("x-user", "admin"),
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as exc:  # pragma: no cover - 历史登记失败不应影响检查响应
+        logger.warning("记录命令检查历史失败: %s", exc)
     return {
         "command": req.command,
-        "risk_level": result["risk_level"].value,
+        "riskLevel": risk_level,
+        "risk_level": risk_level,
+        "riskScore": 100
+        - {
+            "safe": 0,
+            "low": 25,
+            "medium": 50,
+            "high": 75,
+            "critical": 95,
+        }.get(risk_level, 50),
+        "issues": [result.get("reason", "")] if result.get("reason") else [],
+        "suggestions": [result.get("safe_alternative", "")] if result.get("safe_alternative") else [],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "risk_name": result.get("risk_name", ""),
         "reason": result.get("reason", ""),
         "action": result.get("action", ""),

@@ -81,7 +81,7 @@ export default function SecurityAdvancedPage() {
     queryKey: ['security-keys'],
     queryFn: async () => {
       const resp = await api.get('/api/v1/security/key-management/keys')
-      return resp.data as SecurityKey[]
+      return (resp.data?.keys ?? []) as SecurityKey[]
     }
   })
 
@@ -90,7 +90,7 @@ export default function SecurityAdvancedPage() {
     queryKey: ['security-roles'],
     queryFn: async () => {
       const resp = await api.get('/api/v1/security/rbac/roles')
-      return resp.data as RBACRole[]
+      return (resp.data?.roles ?? []) as RBACRole[]
     }
   })
 
@@ -99,7 +99,7 @@ export default function SecurityAdvancedPage() {
     queryKey: ['security-policies'],
     queryFn: async () => {
       const resp = await api.get('/api/v1/security/abac/policies')
-      return resp.data as ABACPolicy[]
+      return (resp.data?.policies ?? []) as ABACPolicy[]
     }
   })
 
@@ -108,7 +108,7 @@ export default function SecurityAdvancedPage() {
     queryKey: ['security-rate-limits'],
     queryFn: async () => {
       const resp = await api.get('/api/v1/security/rate-limit/rules')
-      return resp.data as RateLimitRule[]
+      return (resp.data?.rules ?? []) as RateLimitRule[]
     }
   })
 
@@ -117,7 +117,7 @@ export default function SecurityAdvancedPage() {
     queryKey: ['security-certificates'],
     queryFn: async () => {
       const resp = await api.get('/api/v1/security/https/certificates')
-      return resp.data as SecurityCertificate[]
+      return (resp.data?.certificates ?? []) as SecurityCertificate[]
     }
   })
 

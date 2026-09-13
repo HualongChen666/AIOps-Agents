@@ -456,6 +456,7 @@ from api.performance_router import router as performance_router
 from api.guard_router import router as guard_router
 from api.guard_router import security_router as security_router
 from api.security_advanced_router import router as security_advanced_router
+from api.security_console_router import router as security_console_router
 from api.health_router import router as health_router
 from api.hitl_approval_router import router as hitl_approval_router
 from api.incident_management_router import router as incident_management_router
@@ -1165,6 +1166,7 @@ CORE_ROUTERS = [
     guard_router,
     security_router,
     security_advanced_router,
+    security_console_router,
     api_performance_router,
     cost_router,
     cost_advanced_router,

@@ -128,6 +128,29 @@ class SecurityRepository:
         logger.info(f"Deleted security key: {key_id}")
         return True
 
+    def rotate_key(
+        self,
+        key_id: str,
+        encrypted_key_value: str,
+        encrypted_key_iv: str,
+        expires_at: Optional[datetime] = None,
+    ) -> Optional[SecurityKey]:
+        """轮换密钥：替换密文材料并刷新轮换/过期时间。"""
+        key = self.get_key(key_id)
+        if not key:
+            return None
+        key.encrypted_key_value = encrypted_key_value
+        key.encrypted_key_iv = encrypted_key_iv
+        key.last_rotated_at = datetime.now()
+        if expires_at is not None:
+            key.expires_at = expires_at
+        if key.status != "active":
+            key.status = "active"
+        self.db.commit()
+        self.db.refresh(key)
+        logger.info(f"Rotated security key: {key_id}")
+        return key
+
     # ==================== MFA Methods ====================
 
     def create_mfa_method(
@@ -461,6 +484,34 @@ class SecurityRepository:
         logger.info(f"Updated HTTPS certificate: {cert_id}")
         return cert
 
+    def renew_https_certificate(
+        self,
+        cert_id: str,
+        certificate_pem: str,
+        private_key_encrypted: str,
+        private_key_iv: str,
+        issued_at: Optional[datetime] = None,
+        expires_at: Optional[datetime] = None,
+        algorithm: Optional[str] = None,
+    ) -> Optional[HttpsCertificate]:
+        """续期 HTTPS 证书：替换 pem/私钥材料并刷新有效期。"""
+        cert = self.get_https_certificate(cert_id)
+        if not cert:
+            return None
+        cert.certificate_pem = certificate_pem
+        cert.private_key_encrypted = private_key_encrypted
+        cert.private_key_iv = private_key_iv
+        cert.issued_at = issued_at or datetime.now()
+        cert.expires_at = expires_at or (datetime.now() + timedelta(days=365))
+        if algorithm:
+            cert.algorithm = algorithm
+        cert.status = "valid"
+        cert.updated_at = datetime.now()
+        self.db.commit()
+        self.db.refresh(cert)
+        logger.info(f"Renewed HTTPS certificate: {cert_id}")
+        return cert
+
     # ==================== Snapshot Encryption ====================
 
     def create_snapshot_encryption(
@@ -516,6 +567,34 @@ class SecurityRepository:
         self.db.commit()
         self.db.refresh(snapshot)
         logger.info(f"Updated snapshot encryption: {snapshot_id}")
+        return snapshot
+
+    def set_snapshot_encryption_key(
+        self,
+        snapshot_id: str,
+        key_id: Optional[str] = None,
+        encryption_algorithm: Optional[str] = None,
+        post_state_encrypted: Optional[str] = None,
+        post_state_iv: Optional[str] = None,
+        completed: bool = False,
+    ) -> Optional[SnapshotEncryption]:
+        """记录快照加密/解密/重置密钥后的真实状态。"""
+        snapshot = self.get_snapshot_encryption(snapshot_id)
+        if not snapshot:
+            return None
+        if key_id is not None:
+            snapshot.key_id = key_id
+        if encryption_algorithm is not None:
+            snapshot.encryption_algorithm = encryption_algorithm
+        if post_state_encrypted is not None:
+            snapshot.post_state_encrypted = post_state_encrypted
+        if post_state_iv is not None:
+            snapshot.post_state_iv = post_state_iv
+        if completed:
+            snapshot.completed_at = datetime.now()
+        self.db.commit()
+        self.db.refresh(snapshot)
+        logger.info(f"Set snapshot encryption state: {snapshot_id}")
         return snapshot
 
     # ==================== Data Encryption Keys ====================
@@ -578,6 +657,38 @@ class SecurityRepository:
         self.db.refresh(key)
         logger.info(f"Updated data encryption key: {key_id}")
         return key
+
+    def rotate_data_encryption_key(
+        self,
+        key_id: str,
+        key_encrypted: str,
+        key_iv: str,
+        algorithm: Optional[str] = None,
+        key_size: Optional[int] = None,
+    ) -> Optional[DataEncryptionKey]:
+        """轮换数据加密密钥：替换密文材料并记录轮换时间。"""
+        key = self.get_data_encryption_key(key_id)
+        if not key:
+            return None
+        key.key_encrypted = key_encrypted
+        key.key_iv = key_iv
+        if algorithm:
+            key.algorithm = algorithm
+        if key_size:
+            key.key_size = key_size
+        key.last_rotated_at = datetime.now()
+        key.status = "active"
+        if key.rotation_interval_days:
+            key.next_rotation_at = datetime.now() + timedelta(days=key.rotation_interval_days)
+        key.updated_at = datetime.now()
+        self.db.commit()
+        self.db.refresh(key)
+        logger.info(f"Rotated data encryption key: {key_id}")
+        return key
+
+    def set_data_encryption_key_status(self, key_id: str, status: str) -> Optional[DataEncryptionKey]:
+        """设置数据加密密钥状态（如 revoked）。"""
+        return self.update_data_encryption_key(key_id, status=status)
 
     # ==================== Privacy Subjects ====================
 
@@ -813,6 +924,7 @@ class SecurityRepository:
         method: str,
         authentication_required: bool = True,
         authorization_required: bool = True,
+        meta_data: Optional[Dict[str, Any]] = None,
     ) -> ApiSecurityEndpoint:
         """创建API安全端点"""
         endpoint = ApiSecurityEndpoint(
@@ -825,6 +937,7 @@ class SecurityRepository:
             status="active",
             created_at=datetime.now(),
             updated_at=datetime.now(),
+            meta_data=meta_data or {},
         )
         self.db.add(endpoint)
         self.db.commit()
@@ -1272,6 +1385,9 @@ class SecurityRepository:
         pattern: str,
         replacement: str,
         description: Optional[str] = None,
+        name: Optional[str] = None,
+        category: Optional[str] = None,
+        priority: int = 0,
     ) -> CommandRewriteRule:
         """创建命令改写规则"""
         rule = CommandRewriteRule(
@@ -1280,10 +1396,11 @@ class SecurityRepository:
             replacement=replacement,
             description=description,
             enabled=True,
-            priority=0,
+            priority=priority,
             usage_count=0,
             created_at=datetime.now(),
             updated_at=datetime.now(),
+            meta_data={"name": name or pattern, "category": category or "system"},
         )
         self.db.add(rule)
         self.db.commit()
