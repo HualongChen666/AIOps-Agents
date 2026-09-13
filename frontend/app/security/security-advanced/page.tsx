@@ -107,7 +107,7 @@ export default function SecurityAdvancedPage() {
   const { data: rateLimits, isLoading: rateLimitsLoading, refetch: refetchRateLimits } = useQuery({
     queryKey: ['security-rate-limits'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/security/rate-limiting/rules')
+      const resp = await api.get('/api/v1/security/rate-limit/rules')
       return resp.data as RateLimitRule[]
     }
   })
@@ -116,7 +116,7 @@ export default function SecurityAdvancedPage() {
   const { data: certificates, isLoading: certificatesLoading, refetch: refetchCertificates } = useQuery({
     queryKey: ['security-certificates'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/security/certificates')
+      const resp = await api.get('/api/v1/security/https/certificates')
       return resp.data as SecurityCertificate[]
     }
   })
@@ -156,7 +156,7 @@ export default function SecurityAdvancedPage() {
   // 切换速率限制
   const toggleRateLimitMutation = useMutation({
     mutationFn: async ({ ruleId, enabled }: { ruleId: string; enabled: boolean }) => {
-      const resp = await api.patch(`/api/v1/security/rate-limiting/rules/${ruleId}`, { enabled })
+      const resp = await api.patch(`/api/v1/security/rate-limit/rules/${ruleId}`, { enabled })
       return resp.data
     },
     onSuccess: () => {
