@@ -126,6 +126,9 @@ class Service:
             async def _op_handler(request: Optional[Any] = None) -> Dict[str, Any]:
                 payload = self._params(request) if request else {}
                 result = self.execute_operation(name, payload)
+                if not isinstance(result, dict):
+                    # FeatureResponse.result is a mapping; wrap scalar/list results.
+                    result = {"rows": result}
                 is_error = isinstance(result, dict) and "error" in result
                 return {
                     "feature": name,
