@@ -40,21 +40,36 @@ def _now() -> str:
 
 
 def resolve_operation(name: str) -> str:
-    """Map an addon operation name to a ``MonitoringProvider`` engine method."""
+    """Map an addon operation name to a ``MonitoringProvider`` engine method.
+
+    Alert-rule operations are mapped to *distinct* methods so their semantics are
+    preserved (previously every alert/rule/silence/notify operation collapsed to
+    ``push_alert``).
+    """
     normalized = name.lower().replace("_", " ")
+
+    # --- alert-rule lifecycle (most specific first) ---
+    if "validat" in normalized:
+        return "validate_alert_rules"
+    if any(keyword in normalized for keyword in ("test", "simulate", "dry run")):
+        return "test_alert_rules"
+    if any(keyword in normalized for keyword in ("silence", "silencing", "suppress")):
+        return "configure_alert_silence"
+    if "escalat" in normalized:
+        return "configure_alert_escalation"
+    if any(keyword in normalized for keyword in ("aggregat", "group")):
+        return "configure_alert_aggregation"
+    if any(keyword in normalized for keyword in ("routing", "route")):
+        return "configure_alert_routing"
     if any(
         keyword in normalized
-        for keyword in (
-            "alert",
-            "rule",
-            "silence",
-            "suppress",
-            "escalate",
-            "notify",
-            "pagerduty",
-        )
+        for keyword in ("notify", "notification", "slack", "email", "pagerduty", "webhook")
     ):
-        return "push_alert"
+        return "configure_alert_notification"
+    if any(keyword in normalized for keyword in ("alert", "rule", "prometheus", "monitor")):
+        return "configure_alert_rule"
+
+    # --- other observability domains ---
     if any(
         keyword in normalized
         for keyword in ("topology", "discovery", "cmdb", "dependency", "service discovery")
@@ -366,6 +381,223 @@ class MonitoringProvider:
             }
         except Exception as exc:
             return {"status": "error", "message": str(exc), "data": {}}
+
+    # ------------------------------------------------------------------
+    # Alert-rule operations (each with distinct, real semantics)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _coerce_severity(value: Any):
+        from modules.observability.smart_alerting import AlertSeverity
+
+        try:
+            return AlertSeverity(str(value or "warning").lower())
+        except ValueError:
+            return AlertSeverity.WARNING
+
+    def _build_rule(self, item: Dict[str, Any]):
+        from modules.observability.smart_alerting import AlertRule
+
+        name = item.get("name") or item.get("rule_name") or "rule"
+        condition = item.get("condition") or item.get("expr") or "up == 1"
+        return AlertRule(
+            id=str(item.get("id") or name),
+            name=str(name),
+            condition=str(condition),
+            severity=self._coerce_severity(item.get("severity")),
+            duration=int(item.get("duration", 60)),
+            labels={str(k): str(v) for k, v in (item.get("labels") or {}).items()},
+            annotations={str(k): str(v) for k, v in (item.get("annotations") or {}).items()},
+        )
+
+    @staticmethod
+    def _rule_to_dict(rule: Any) -> Dict[str, Any]:
+        return {
+            "id": rule.id,
+            "name": rule.name,
+            "condition": rule.condition,
+            "severity": rule.severity.value,
+            "duration": rule.duration,
+            "labels": dict(rule.labels),
+            "annotations": dict(rule.annotations),
+            "enabled": rule.enabled,
+        }
+
+    def configure_alert_rule(
+        self,
+        rule_name: Optional[str] = None,
+        expr: Optional[str] = None,
+        severity: str = "warning",
+        duration: Optional[int] = None,
+        labels: Optional[Dict[str, Any]] = None,
+        annotations: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Define/normalise a concrete alert rule as a real ``AlertRule`` object."""
+        rule = self._build_rule(
+            {
+                "id": kwargs.get("id"),
+                "name": rule_name or kwargs.get("name"),
+                "condition": expr or kwargs.get("condition"),
+                "severity": severity,
+                "duration": duration if duration is not None else kwargs.get("duration", 60),
+                "labels": labels,
+                "annotations": annotations,
+            }
+        )
+        return {
+            "status": "ok",
+            "data": {
+                "rule": self._rule_to_dict(rule),
+                "group": kwargs.get("group", "aiops"),
+            },
+        }
+
+    def configure_alert_notification(self, channel: Optional[str] = None, **kwargs: Any) -> Dict[str, Any]:
+        """Build a notification receiver definition for the requested channel."""
+        selected = str(channel or kwargs.get("receiver") or "webhook").lower()
+        receivers: Dict[str, Dict[str, Any]] = {
+            "slack": {
+                "type": "slack",
+                "config": {
+                    "channel": kwargs.get("channel_name", "#aiops-alerts"),
+                    "webhook_url_env": "SLACK_WEBHOOK_URL",
+                },
+            },
+            "email": {
+                "type": "email",
+                "config": {
+                    "to": kwargs.get("to", []),
+                    "smtp_smarthost_env": "SMTP_SERVER",
+                    "smtp_from_env": "SMTP_FROM",
+                },
+            },
+            "pagerduty": {
+                "type": "pagerduty",
+                "config": {
+                    "service_key_env": "PAGERDUTY_SERVICE_KEY",
+                    "severity_map": {"critical": "critical", "warning": "warning"},
+                },
+            },
+            "webhook": {
+                "type": "webhook",
+                "config": {
+                    "url": kwargs.get(
+                        "url", "http://aiops-agent:8000/api/v1/alerts/webhook/prometheus"
+                    ),
+                    "send_resolved": True,
+                },
+            },
+        }
+        if selected not in receivers:
+            return {"status": "error", "message": f"unsupported channel: {selected}", "data": {}}
+        return {"status": "ok", "data": {"receiver": selected, **receivers[selected]}}
+
+    def configure_alert_routing(
+        self,
+        group_by: Optional[List[str]] = None,
+        routes: Optional[List[Dict[str, Any]]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Build an Alertmanager route tree."""
+        route: Dict[str, Any] = {
+            "receiver": kwargs.get("receiver", "default"),
+            "group_by": group_by or ["alertname", "severity"],
+            "group_wait": kwargs.get("group_wait", "10s"),
+            "group_interval": kwargs.get("group_interval", "10s"),
+            "repeat_interval": kwargs.get("repeat_interval", "12h"),
+        }
+        if routes:
+            route["routes"] = routes
+        return {"status": "ok", "data": {"route": route}}
+
+    def configure_alert_silence(
+        self,
+        matchers: Optional[List[Dict[str, Any]]] = None,
+        duration: Optional[str] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Build an Alertmanager silence specification."""
+        silence = {
+            "matchers": matchers or kwargs.get("matchers", []),
+            "startsAt": kwargs.get("starts_at", _now()),
+            "endsAt": kwargs.get("ends_at", ""),
+            "duration": duration or kwargs.get("duration", "2h"),
+            "createdBy": kwargs.get("created_by", "aiops-agent"),
+            "comment": kwargs.get("comment", "silence created by AIOps agent"),
+        }
+        return {"status": "ok", "data": {"silence": silence}}
+
+    def configure_alert_escalation(
+        self,
+        levels: Optional[List[Dict[str, Any]]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Build an alert escalation policy."""
+        policy = levels or kwargs.get("levels") or [
+            {"after": "0m", "notify": ["oncall"]},
+            {"after": "15m", "notify": ["oncall", "secondary"]},
+            {"after": "30m", "notify": ["manager"]},
+        ]
+        return {
+            "status": "ok",
+            "data": {
+                "escalation": policy,
+                "repeat_interval": kwargs.get("repeat_interval", "15m"),
+            },
+        }
+
+    def configure_alert_aggregation(self, group_by: Optional[List[str]] = None, **kwargs: Any) -> Dict[str, Any]:
+        """Build an alert aggregation/grouping configuration."""
+        return {
+            "status": "ok",
+            "data": {
+                "aggregation": {
+                    "group_by": group_by or kwargs.get("group_by") or ["alertname", "service"],
+                    "group_wait": kwargs.get("group_wait", "10s"),
+                    "group_interval": kwargs.get("group_interval", "5m"),
+                    "repeat_interval": kwargs.get("repeat_interval", "12h"),
+                }
+            },
+        }
+
+    def validate_alert_rules(self, rules: Optional[List[Dict[str, Any]]] = None, **kwargs: Any) -> Dict[str, Any]:
+        """Validate alert rule definitions by constructing and evaluating them."""
+        items = rules or kwargs.get("alert_rules") or kwargs.get("rules") or []
+        if isinstance(items, dict):
+            items = [items]
+        checked, invalid = 0, []
+        for item in items:
+            try:
+                rule = self._build_rule(item)
+                if not rule.condition.strip():
+                    raise ValueError("empty condition")
+                rule.evaluate({})  # parse/evaluate the expression without raising
+                checked += 1
+            except Exception as exc:  # noqa: BLE001 - report every invalid rule
+                invalid.append({"rule": (item or {}).get("name", "rule"), "error": str(exc)})
+        return {
+            "status": "ok",
+            "data": {"checked": checked, "invalid": invalid, "valid": not invalid},
+        }
+
+    def test_alert_rules(
+        self,
+        rules: Optional[List[Dict[str, Any]]] = None,
+        metrics: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """Evaluate the given rules against the provided metrics (real evaluation)."""
+        from modules.observability.smart_alerting import SmartAlertingEngine
+
+        items = rules or kwargs.get("alert_rules") or kwargs.get("rules") or []
+        if isinstance(items, dict):
+            items = [items]
+        metrics = metrics or kwargs.get("metrics") or {}
+        engine = SmartAlertingEngine()
+        for item in items:
+            engine.add_rule(self._build_rule(item))
+        fired = [alert.to_dict() for alert in engine.evaluate_metrics(metrics)]
+        return {"status": "ok", "data": {"fired": fired, "count": len(fired)}}
 
     def get_topology(
         self,
