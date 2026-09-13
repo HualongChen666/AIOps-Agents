@@ -408,7 +408,9 @@ def test_derive_key_from_seed(crypto_reset, monkeypatch):
 
 def test_invalid_encryption_key(crypto_reset, monkeypatch):
     monkeypatch.setenv("SNAPSHOT_ENCRYPTION_KEY", "not-a-valid-key")
-    assert crypto.encrypt_snapshot("plain") == "PLAINTEXT::plain"
+    # Encryption is enabled but the key is unusable -> fail loudly, no plaintext.
+    with pytest.raises(RuntimeError):
+        crypto.encrypt_snapshot("plain")
 
 
 def test_production_requires_key(crypto_reset, monkeypatch):

@@ -714,15 +714,34 @@ async def async_update_approval_status_by_alert(
 
 
 # -----------------------------------------------------------------
-# 🔧 P0-2: 同步API包装器（使用asyncio.run调用异步实现）
-# 为了向后兼容，保留同步API，但内部调用真正的异步实现
+# 🔧 P0-2: 同步API包装器（调用真正的异步实现）
+# 为了向后兼容，保留同步API，但内部调用真正的异步实现。
+# 使用事件循环安全的 _run_coro_sync：已有运行中的事件循环（FastAPI/异步
+# 调用方）时不再抛 RuntimeError，而是在独立线程内运行协程。
 # -----------------------------------------------------------------
+
+
+def _run_coro_sync(coro):
+    """在同步上下文中把协程运行到完成（事件循环安全）。
+
+    若当前线程已有运行中的事件循环，则在一个独立线程里用 ``asyncio.run``
+    执行，避免 ``asyncio.run() cannot be called from a running event loop``。
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
 
 
 def insert_alert(alert: dict) -> None:
     """同步API包装器 - 调用异步实现"""
     try:
-        asyncio.run(async_insert_alert(alert))
+        _run_coro_sync(async_insert_alert(alert))
     except Exception as e:
         logger.error(f"同步insert_alert失败: {e}")
 
@@ -730,7 +749,7 @@ def insert_alert(alert: dict) -> None:
 def query_alerts(limit: int = 20, **kwargs) -> list[dict]:
     """同步API包装器 - 调用异步实现"""
     try:
-        return asyncio.run(async_query_alerts(limit, **kwargs))
+        return _run_coro_sync(async_query_alerts(limit, **kwargs))
     except Exception as e:
         logger.error(f"同步query_alerts失败: {e}")
         return []
@@ -739,7 +758,7 @@ def query_alerts(limit: int = 20, **kwargs) -> list[dict]:
 def count_alerts(**kwargs) -> int:
     """同步API包装器 - 调用异步实现"""
     try:
-        return asyncio.run(async_count_alerts(**kwargs))
+        return _run_coro_sync(async_count_alerts(**kwargs))
     except Exception as e:
         logger.error(f"同步count_alerts失败: {e}")
         return 0
@@ -748,7 +767,7 @@ def count_alerts(**kwargs) -> int:
 def clear_alerts() -> int:
     """同步API包装器 - 调用异步实现"""
     try:
-        return asyncio.run(async_clear_alerts())
+        return _run_coro_sync(async_clear_alerts())
     except Exception as e:
         logger.error(f"同步clear_alerts失败: {e}")
         return 0
@@ -766,7 +785,7 @@ def insert_repair_record(
 ) -> int:
     """同步API包装器 - 调用异步实现"""
     try:
-        repair_id = asyncio.run(
+        repair_id = _run_coro_sync(
             async_insert_repair_record(
                 success=success,
                 alert_time=alert_time,
@@ -787,7 +806,7 @@ def insert_repair_record(
 def query_repairs(today_only: bool = False, limit: int = 10) -> list[dict[str, Any]]:
     """同步API包装器 - 调用异步实现"""
     try:
-        return asyncio.run(async_query_repairs(today_only=today_only, limit=limit))
+        return _run_coro_sync(async_query_repairs(today_only=today_only, limit=limit))
     except Exception as e:
         logger.error(f"同步query_repairs失败: {e}")
         return []
@@ -798,7 +817,7 @@ def upsert_pending_approval(
 ) -> int:
     """同步API包装器 - 调用异步实现"""
     try:
-        approval_id = asyncio.run(
+        approval_id = _run_coro_sync(
             async_upsert_pending_approval(
                 alert_id=alert_id,
                 rule_name=rule_name,
@@ -816,7 +835,7 @@ def upsert_pending_approval(
 def get_pending_approval(alert_id: str) -> dict[str, Any] | None:
     """同步API包装器 - 调用异步实现"""
     try:
-        return asyncio.run(async_get_pending_approval(alert_id))
+        return _run_coro_sync(async_get_pending_approval(alert_id))
     except Exception as e:
         logger.error(f"同步get_pending_approval失败: {e}")
         return None
@@ -825,7 +844,7 @@ def get_pending_approval(alert_id: str) -> dict[str, Any] | None:
 def get_all_pending_approvals() -> list[dict[str, Any]]:
     """同步API包装器 - 调用异步实现"""
     try:
-        return asyncio.run(async_get_all_pending_approvals())
+        return _run_coro_sync(async_get_all_pending_approvals())
     except Exception as e:
         logger.error(f"同步get_all_pending_approvals失败: {e}")
         return []
@@ -834,7 +853,7 @@ def get_all_pending_approvals() -> list[dict[str, Any]]:
 def update_approval_status(alert_id: str, status: str) -> None:
     """同步API包装器 - 调用异步实现(按 approval_id)"""
     try:
-        asyncio.run(async_update_approval_status(alert_id, status))
+        _run_coro_sync(async_update_approval_status(alert_id, status))
     except Exception as e:
         logger.error(f"同步update_approval_status失败: {e}")
 
@@ -842,7 +861,7 @@ def update_approval_status(alert_id: str, status: str) -> None:
 def update_approval_status_by_alert(alert_id: str, status: str) -> None:
     """同步API包装器 - 按 alert_id 更新最新审批状态"""
     try:
-        asyncio.run(async_update_approval_status_by_alert(alert_id, status))
+        _run_coro_sync(async_update_approval_status_by_alert(alert_id, status))
     except Exception as e:
         logger.error(f"同步update_approval_status_by_alert失败: {e}")
 

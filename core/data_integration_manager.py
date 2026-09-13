@@ -6,6 +6,7 @@ Enterprise-grade data integration with secure data management and privacy contro
 
 import asyncio
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -317,7 +318,13 @@ class DataIntegrationManager:
         self, content: Dict[str, Any], sensitivity: DataSensitivity
     ) -> Dict[str, Any]:
         """
-        Apply data masking
+        Apply field-aware data masking (real masking rules).
+
+        Masking is applied per field so that identifiers keep their expected
+        shape (e.g. emails keep their domain, card numbers keep the last 4
+        digits), instead of blindly keeping the first/last two characters of
+        every string. Secret-bearing fields are fully redacted. Nested dicts
+        and lists are traversed recursively.
 
         Args:
             content: Data content
@@ -326,25 +333,83 @@ class DataIntegrationManager:
         Returns:
             Masked content
         """
-        # Mask sensitive string fields by keeping the leading/trailing characters.
-        masked_content = content.copy()
-
-        if sensitivity in (
+        if sensitivity not in (
             DataSensitivity.CONFIDENTIAL,
             DataSensitivity.RESTRICTED,
             DataSensitivity.CRITICAL,
         ):
-            # Mask sensitive fields
-            for key in masked_content:
-                if isinstance(masked_content[key], str):
-                    if len(masked_content[key]) > 4:
-                        masked_content[key] = (
-                            masked_content[key][:2]
-                            + "*" * (len(masked_content[key]) - 4)
-                            + masked_content[key][-2:]
-                        )
+            return dict(content)
 
-        return masked_content
+        return {key: self._mask_field(key, value) for key, value in content.items()}
+
+    # -- masking helpers ---------------------------------------------------
+    _EMAIL_RE = re.compile(r"^([^@\s]+)@([^@\s]+)$")
+    _SECRET_KEY_HINTS = (
+        "password",
+        "passwd",
+        "secret",
+        "token",
+        "api_key",
+        "apikey",
+        "private_key",
+        "credential",
+        "authorization",
+        "cookie",
+        "session",
+    )
+    _EMAIL_KEY_HINTS = ("email", "mail")
+    _CARD_KEY_HINTS = ("card", "credit", "pan", "iban", "account_number")
+    _PHONE_KEY_HINTS = ("phone", "mobile", "tel")
+    _SSN_KEY_HINTS = ("ssn", "social_security", "national_id", "id_number")
+
+    def _mask_field(self, key: Any, value: Any) -> Any:
+        """Mask a single field according to its name and value shape."""
+        if isinstance(value, dict):
+            return {k: self._mask_field(k, v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._mask_field(key, item) for item in value]
+        if not isinstance(value, str) or not value:
+            return value
+
+        name = str(key).lower()
+        if any(hint in name for hint in self._SECRET_KEY_HINTS):
+            return "*" * len(value)
+
+        match = self._EMAIL_RE.match(value)
+        if match or any(hint in name for hint in self._EMAIL_KEY_HINTS):
+            return self._mask_email(value)
+
+        if any(hint in name for hint in self._CARD_KEY_HINTS):
+            return self._keep_tail(value, 4)
+        if any(hint in name for hint in self._PHONE_KEY_HINTS):
+            return self._keep_tail(value, 4)
+        if any(hint in name for hint in self._SSN_KEY_HINTS):
+            return self._keep_head_tail(value, 1, 1)
+        # 未知字段：与既有行为一致，仅对足够长的字符串做部分掩码，避免把
+        # 正常短值（如城市名）整体打码。
+        if len(value) <= 4:
+            return value
+        return self._keep_head_tail(value, 2, 2)
+
+    @staticmethod
+    def _keep_tail(value: str, tail: int) -> str:
+        if len(value) <= tail:
+            return "*" * len(value)
+        return "*" * (len(value) - tail) + value[-tail:]
+
+    @staticmethod
+    def _keep_head_tail(value: str, head: int, tail: int) -> str:
+        if len(value) <= head + tail:
+            return "*" * len(value)
+        return value[:head] + "*" * (len(value) - head - tail) + value[-tail:]
+
+    @staticmethod
+    def _mask_email(value: str) -> str:
+        if "@" not in value:
+            return "*" * len(value)
+        local, _, domain = value.partition("@")
+        masked_local = (local[:1] + "*" * max(len(local) - 1, 0)) if local else "*"
+        return f"{masked_local}@{domain}"
 
     async def _store_record(self, record: DataRecord) -> None:
         """

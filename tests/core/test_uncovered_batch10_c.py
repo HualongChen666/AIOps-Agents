@@ -225,7 +225,7 @@ async def test_dual_write_vm_async_and_sync(
     await strategy.initialize()
     ok = await strategy.write_metric("cpu", 0.5, {"service": "web"})
     assert ok is True
-    await asyncio.sleep(0)  # allow background VM task to be processed
+    await strategy.flush()  # wait for the background VM write + accounting
 
     stats = strategy.get_stats()
     assert stats["sqlite_writes"] == 1

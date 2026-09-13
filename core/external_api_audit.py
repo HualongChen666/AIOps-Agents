@@ -98,9 +98,34 @@ class ExternalAPIAuditLogger:
         # 存储到内存审计日志
         self._audit_logs.append(audit_record)
 
+    _SENSITIVE_QUERY_KEYS = (
+        "token",
+        "access_token",
+        "refresh_token",
+        "api_key",
+        "apikey",
+        "key",
+        "secret",
+        "client_secret",
+        "password",
+        "passwd",
+        "pwd",
+        "signature",
+        "sig",
+        "auth",
+        "authorization",
+        "credential",
+        "session",
+        "sessionid",
+        "cookie",
+    )
+
     def _sanitize_url(self, url: str) -> str:
         """
         清理URL中的敏感信息
+
+        仅对敏感查询参数的值做脱敏，保留其余参数的键与值（此前实现把整个
+        query 替换为 ``?***``，过度脱敏导致审计日志失去可用性）。
 
         Args:
             url: 原始URL
@@ -108,12 +133,22 @@ class ExternalAPIAuditLogger:
         Returns:
             清理后的URL
         """
-        # 移除URL中的查询参数中的敏感信息
-        if "?" in url:
-            base, query = url.split("?", 1)
-            # 简单的查询参数清理（可以根据需要扩展）
-            return base + "?***"
-        return url
+        if "?" not in url:
+            return url
+
+        base, _, query = url.partition("?")
+        sanitized_pairs = []
+        for pair in query.split("&"):
+            if not pair:
+                continue
+            key, sep, _value = pair.partition("=")
+            if key.lower() in self._SENSITIVE_QUERY_KEYS:
+                sanitized_pairs.append(f"{key}=***")
+            else:
+                sanitized_pairs.append(pair)
+        if not sanitized_pairs:
+            return base
+        return f"{base}?{'&'.join(sanitized_pairs)}"
 
     def enable_audit(self):
         """启用审计日志"""

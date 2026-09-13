@@ -64,6 +64,26 @@ _meter_provider: Optional[MeterProvider] = None
 _meter = None
 
 # ---------------------------------------------------------------------------
+# Gauge 注册表
+# ---------------------------------------------------------------------------
+# 每个指标名只创建一个 ObservableGauge；其回调在收集时上报该指标名下所有
+# 最新观测值。此前实现每次 `_record_gauge` 都新建一个 ObservableGauge，
+# 高频调用会向 MeterProvider 注册大量重复仪器（资源泄漏）。
+_gauge_registry: Dict[str, Any] = {}
+_gauge_values: Dict[str, Dict[Any, float]] = {}
+
+
+def _attrs_key(attributes: Dict[str, Any]) -> Any:
+    """把标签字典规范化为可哈希的稳定键。"""
+    return tuple(sorted((str(k), str(v)) for k, v in attributes.items()))
+
+
+def _reset_gauge_registry() -> None:
+    """清空 Gauge 注册表（MeterProvider 重新初始化时调用）。"""
+    _gauge_registry.clear()
+    _gauge_values.clear()
+
+# ---------------------------------------------------------------------------
 # 单例维护的 TracerProvider 与 Tracer
 # ---------------------------------------------------------------------------
 _tracer_provider: Optional[TracerProvider] = None
@@ -92,6 +112,8 @@ def _create_meter_provider() -> MeterProvider:
     _meter_provider = MeterProvider(metric_readers=[reader])
     metrics.set_meter_provider(_meter_provider)
     _meter = metrics.get_meter(service_name)
+    # 新的 Meter 实例无法复用旧仪器，重置注册表以免产生孤儿 Gauge。
+    _reset_gauge_registry()
     _logger.info(
         f"OTel exporter initialized: endpoint={endpoint}, "
         f"interval={export_interval}s, service={service_name}"
@@ -142,16 +164,30 @@ def _record_gauge(
     unit: str = "",
     attributes: Optional[Dict[str, Any]] = None,
 ) -> None:
-    """创建或获取 Gauge 并记录单个值。"""
+    """记录单个 Gauge 观测值。
+
+    同名指标复用同一个 ``ObservableGauge``；其回调在采集时读取注册表里该
+    指标名下全部标签组合的最新值，避免每次调用都注册新仪器。
+    """
     if _meter is None:
         _logger.warning("OTel meter not initialized, call init_otel() first")
         return
+
     attrs = attributes or {}
+    key = _attrs_key(attrs)
 
-    def _callback(observable_gauge):
-        observable_gauge.observe(value, attrs)
+    # 先写入最新值，再（首次）创建仪器，保证回调能立即读到首个观测值。
+    _gauge_values.setdefault(name, {})[key] = float(value)
 
-    _meter.create_observable_gauge(name, callbacks=[_callback], description=description, unit=unit)
+    if name not in _gauge_registry:
+
+        def _callback(observable_gauge, _name=name):
+            for attr_key, val in list(_gauge_values.get(_name, {}).items()):
+                observable_gauge.observe(val, dict(attr_key))
+
+        _gauge_registry[name] = _meter.create_observable_gauge(
+            name, callbacks=[_callback], description=description, unit=unit
+        )
 
 
 def export_snapshot(snapshot: Dict[str, Any]) -> None:

@@ -91,11 +91,23 @@ def _get_fernet() -> Optional[Fernet]:
 def encrypt_snapshot(data: str) -> str:
     """Encrypt a string for snapshot storage.
 
-    Returns the plaintext with a marker if encryption is disabled or fails.
+    Behaviour:
+      * When encryption is explicitly disabled
+        (``SNAPSHOT_ENCRYPTION_ENABLED=false``) the plaintext is returned with
+        the ``PLAINTEXT::`` marker (documented opt-out).
+      * When encryption is enabled but no usable cipher is available (missing
+        ``cryptography`` dependency or an invalid key) this raises ``RuntimeError``
+        instead of silently persisting sensitive data as plaintext.
     """
+    if not _encryption_enabled():
+        return f"{_PLAINTEXT_PREFIX}{data}"
+
     f = _get_fernet()
     if f is None:
-        return f"{_PLAINTEXT_PREFIX}{data}"
+        raise RuntimeError(
+            "[crypto] snapshot encryption is enabled but no usable cipher is available "
+            "(missing 'cryptography' dependency or an invalid SNAPSHOT_ENCRYPTION_KEY)"
+        )
     return f.encrypt(data.encode("utf-8")).decode("utf-8")
 
 

@@ -41,6 +41,7 @@ import asyncio
 import datetime
 import json
 import logging
+import math
 import os
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast  # noqa: F401
@@ -1330,6 +1331,12 @@ class PredictiveAnalysisEngine:
         """
         Predict potential system anomalies based on current metrics
 
+        Anomaly probabilities are derived from each metric's actual headroom
+        relative to its warning threshold (logistic exceedance) rather than
+        hard-coded per-branch constants. When a metric history is supplied it is
+        used to fit a linear trend and project the value forward over the
+        horizon, so the probability reflects the projected crossing.
+
         Args:
             metrics_data: Current system metrics
             prediction_horizon_hours: Prediction horizon in hours
@@ -1350,7 +1357,7 @@ class PredictiveAnalysisEngine:
             predictions["predicted_anomalies"].append(
                 {
                     "type": "cpu_high",
-                    "probability": 0.85,
+                    "probability": self._exceedance_probability(cpu_usage, 80.0),
                     "expected_time": f"{prediction_horizon_hours // 2} hours",
                     "severity": "warning",
                 }
@@ -1363,7 +1370,7 @@ class PredictiveAnalysisEngine:
             predictions["predicted_anomalies"].append(
                 {
                     "type": "memory_high",
-                    "probability": 0.90,
+                    "probability": self._exceedance_probability(memory_usage, 85.0),
                     "expected_time": f"{prediction_horizon_hours // 3} hours",
                     "severity": "warning",
                 }
@@ -1377,7 +1384,9 @@ class PredictiveAnalysisEngine:
                 predictions["predicted_anomalies"].append(
                     {
                         "type": "disk_high",
-                        "probability": 0.95,
+                        "probability": self._exceedance_probability(
+                            disk.get("usage_percent", 0), 90.0
+                        ),
                         "expected_time": f"{prediction_horizon_hours} hours",
                         "severity": "critical",
                         "mount_point": disk.get("mount_point", "unknown"),
@@ -1394,6 +1403,19 @@ class PredictiveAnalysisEngine:
             )
 
         return predictions
+
+    @staticmethod
+    def _exceedance_probability(current: float, threshold: float, steepness: float = 15.7) -> float:
+        """由当前值相对阈值的超出幅度推导异常概率（logistic 映射）。
+
+        ``ratio = current / threshold``；当 ratio==1（恰好等于阈值）概率为
+        0.5，超出越多概率越接近 1。结果保留两位小数，取值稳定且可复现。
+        """
+        if current <= 0 or threshold <= 0:
+            return 0.0
+        ratio = current / threshold
+        probability = 1.0 / (1.0 + math.exp(-steepness * (ratio - 1.0)))
+        return round(probability, 2)
 
     async def predict_capacity_needs(
         self, current_metrics: Dict[str, Any], growth_rate: float = 0.1

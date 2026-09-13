@@ -454,39 +454,86 @@ def get_resource_costs() -> List[Dict[str, Any]]:
         return []
 
 
+def _read_llm_usage_from_metrics() -> Tuple[Dict[str, float], Dict[str, float]]:
+    """从 Prometheus 默认注册表读取真实 LLM token / 成本计数。
+
+    ``core.prometheus_metrics`` 在 LLM 推理链路的单一收口处累加
+    ``aiops_ai_tokens_total`` 与 ``aiops_ai_cost_usd_total``；这里读取实际
+    样本值，而不是按固定比例拆分（旧实现 0.6/0.4 为凭空推算）。
+
+    Returns:
+        (tokens_by_model, cost_by_model)；无样本时返回两个空字典。
+    """
+    tokens: Dict[str, float] = {}
+    cost: Dict[str, float] = {}
+    try:
+        from prometheus_client import REGISTRY
+
+        for metric in REGISTRY.collect():
+            # prometheus_client strips the ``_total`` suffix from Counter names,
+            # so accept both spellings.
+            if metric.name in ("aiops_ai_tokens_total", "aiops_ai_tokens"):
+                for sample in metric.samples:
+                    if not sample.name.endswith("_total"):
+                        continue
+                    model = sample.labels.get("model", "unknown")
+                    tokens[model] = tokens.get(model, 0.0) + float(sample.value)
+            elif metric.name in ("aiops_ai_cost_usd_total", "aiops_ai_cost_usd"):
+                for sample in metric.samples:
+                    if not sample.name.endswith("_total"):
+                        continue
+                    model = sample.labels.get("model", "unknown")
+                    cost[model] = cost.get(model, 0.0) + float(sample.value)
+    except Exception as e:  # noqa: BLE001 - 指标注册表不可用则如实返回空
+        logger.debug(f"LLM usage metric read failed: {e}")
+    return tokens, cost
+
+
 def get_llm_costs() -> Dict[str, Any]:
     """
-    Get LLM-related costs from usage data
-    
+    Get LLM-related costs from the real process metric registry.
+
     Returns:
-        LLM cost breakdown by model and usage
+        LLM cost breakdown by model plus total tokens/cost actually recorded
+        via ``core.prometheus_metrics``. Returns zeroed/empty structures when
+        no inference has been recorded yet (no synthetic breakdown).
     """
     try:
-        # In production, this would query actual LLM usage metrics
-        # For now, return a structured response based on available cost data
-        cost_data = collect_costs()
-        
-        # Filter for AI/ML related services
-        ai_services = ["SageMaker", "Bedrock", "Lambda"]
-        ai_costs = sum(r["cost"] for r in cost_data if r.get("service") in ai_services)
-        
-        result = {
-            "total_tokens": 0,  # Would be populated from actual usage metrics
-            "total_cost": ai_costs,
-            "models": {
-                "gpt-4": ai_costs * 0.6 if ai_costs > 0 else 0,
-                "gpt-3.5": ai_costs * 0.4 if ai_costs > 0 else 0,
-            },
-            "cost_per_1k_tokens": ai_costs / 1000 if ai_costs > 0 else 0,
-            "period": "current_month"
+        tokens_by_model, cost_by_model = _read_llm_usage_from_metrics()
+
+        total_tokens = int(sum(tokens_by_model.values()))
+        total_cost = sum(cost_by_model.values())
+
+        models = {
+            model: {
+                "tokens": int(tokens_by_model.get(model, 0)),
+                "cost": round(cost_by_model.get(model, 0.0), 6),
+            }
+            for model in sorted(set(tokens_by_model) | set(cost_by_model))
         }
-        
-        logger.info(f"Retrieved LLM costs: ${ai_costs:.2f}")
+
+        result = {
+            "total_tokens": total_tokens,
+            "total_cost": round(total_cost, 6),
+            "models": models,
+            "cost_per_1k_tokens": (total_cost / total_tokens * 1000) if total_tokens else 0.0,
+            "period": "process_lifetime",
+            "source": "prometheus_metrics_registry",
+        }
+
+        logger.info(f"Retrieved LLM costs: ${total_cost:.4f} over {total_tokens} tokens")
         return result
-        
+
     except Exception as e:
         logger.error(f"Error getting LLM costs: {e}")
-        return {"total_tokens": 0, "total_cost": 0, "models": {}, "cost_per_1k_tokens": 0}
+        return {
+            "total_tokens": 0,
+            "total_cost": 0.0,
+            "models": {},
+            "cost_per_1k_tokens": 0.0,
+            "period": "process_lifetime",
+            "source": "prometheus_metrics_registry",
+        }
 
 
 def get_budget_management() -> List[Dict[str, Any]]:

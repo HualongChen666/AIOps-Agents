@@ -380,43 +380,31 @@ class CPUUsageOptimizer:
 
                 if action == CPUOptimizationAction.REDUCE_PRIORITY:
                     result["actions_taken"].append("reduce_priority")
-                    result["optimization_details"].append(
-                        {
-                            "action": "reduce_priority",
-                            "description": "Reduced task priorities for component",
-                        }
-                    )
-                    self.total_optimizations_applied += 1
+                    detail = self._apply_reduce_priority(component)
+                    result["optimization_details"].append(detail)
+                    if detail["applied"]:
+                        self.total_optimizations_applied += 1
 
                 elif action == CPUOptimizationAction.THROTTLE_PROCESSES:
                     result["actions_taken"].append("throttle_processes")
-                    result["optimization_details"].append(
-                        {
-                            "action": "throttle_processes",
-                            "description": "Throttled processes for component",
-                        }
-                    )
-                    self.total_optimizations_applied += 1
+                    detail = self._apply_throttle_processes(component)
+                    result["optimization_details"].append(detail)
+                    if detail["applied"]:
+                        self.total_optimizations_applied += 1
 
                 elif action == CPUOptimizationAction.DISTRIBUTE_LOAD:
                     result["actions_taken"].append("distribute_load")
-                    result["optimization_details"].append(
-                        {
-                            "action": "distribute_load",
-                            "description": "Distributed load across available CPUs",
-                        }
-                    )
-                    self.total_optimizations_applied += 1
+                    detail = self._apply_distribute_load(component)
+                    result["optimization_details"].append(detail)
+                    if detail["applied"]:
+                        self.total_optimizations_applied += 1
 
                 elif action == CPUOptimizationAction.SCALE_WORKERS:
                     result["actions_taken"].append("scale_workers")
-                    result["optimization_details"].append(
-                        {
-                            "action": "scale_workers",
-                            "description": "Scaled worker pool based on CPU availability",
-                        }
-                    )
-                    self.total_optimizations_applied += 1
+                    detail = self._apply_scale_workers(component)
+                    result["optimization_details"].append(detail)
+                    if detail["applied"]:
+                        self.total_optimizations_applied += 1
 
                 # Log event
                 self.cpu_events.append(
@@ -429,6 +417,128 @@ class CPUUsageOptimizer:
                 )
 
         return result
+
+    # -- 真实系统级动作实现 ------------------------------------------------
+    def _target_processes(self, component: str) -> List[psutil.Process]:
+        """解析组件对应的目标进程。
+
+        通过 ``component_processes`` 配置映射到具体 PID；未配置时作用于
+        当前进程（AIOps 服务自优化），而不是仅仅记账。
+        """
+        processes: List[psutil.Process] = []
+        pid_map = self.config.get("component_processes") or {}
+        for pid in pid_map.get(component, []) if isinstance(pid_map, dict) else []:
+            try:
+                processes.append(psutil.Process(int(pid)))
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Invalid target pid {pid} for {component}: {e}")
+        if not processes:
+            processes.append(psutil.Process())
+        return processes
+
+    def _apply_reduce_priority(self, component: str) -> Dict[str, Any]:
+        """降低目标进程调度优先级（真实调用 ``nice``）。"""
+        step = int(self.config.get("priority_step", 5))
+        applied_nice: Dict[str, int] = {}
+        try:
+            for proc in self._target_processes(component):
+                current = proc.nice()
+                new_nice = min(19, current + step)
+                proc.nice(new_nice)
+                applied_nice[str(proc.pid)] = proc.nice()
+            return {
+                "action": "reduce_priority",
+                "description": "Lowered OS scheduling priority of target processes",
+                "applied": bool(applied_nice),
+                "nice_values": applied_nice,
+            }
+        except Exception as e:  # noqa: BLE001 - 权限不足等
+            logger.warning(f"reduce_priority failed for {component}: {e}")
+            return {
+                "action": "reduce_priority",
+                "description": "Failed to change OS scheduling priority",
+                "applied": False,
+                "error": str(e),
+            }
+
+    def _apply_throttle_processes(self, component: str) -> Dict[str, Any]:
+        """把目标进程绑定到单个 CPU 以减少其可用的 CPU 资源（真实 ``cpu_affinity``）。"""
+        cpus = list(range(psutil.cpu_count() or 1))
+        applied: Dict[str, List[int]] = {}
+        try:
+            for proc in self._target_processes(component):
+                proc.cpu_affinity([cpus[0]])
+                applied[str(proc.pid)] = proc.cpu_affinity()
+            return {
+                "action": "throttle_processes",
+                "description": "Restricted target processes to a single CPU",
+                "applied": bool(applied),
+                "cpu_affinity": applied,
+            }
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"throttle_processes failed for {component}: {e}")
+            return {
+                "action": "throttle_processes",
+                "description": "Failed to restrict CPU affinity",
+                "applied": False,
+                "error": str(e),
+            }
+
+    def _apply_distribute_load(self, component: str) -> Dict[str, Any]:
+        """放开目标进程到全部 CPU，让调度器均衡分配负载。"""
+        cpus = list(range(psutil.cpu_count() or 1))
+        applied: Dict[str, List[int]] = {}
+        try:
+            for proc in self._target_processes(component):
+                proc.cpu_affinity(cpus)
+                applied[str(proc.pid)] = proc.cpu_affinity()
+            return {
+                "action": "distribute_load",
+                "description": "Spread target processes across all available CPUs",
+                "applied": bool(applied),
+                "cpu_affinity": applied,
+            }
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"distribute_load failed for {component}: {e}")
+            return {
+                "action": "distribute_load",
+                "description": "Failed to adjust CPU affinity",
+                "applied": False,
+                "error": str(e),
+            }
+
+    def _apply_scale_workers(self, component: str) -> Dict[str, Any]:
+        """按当前 CPU 余量调整已注册的 worker 池大小。
+
+        仅当配置中提供了具备 ``resize`` 的 ``worker_pool`` 时才执行，否则如实
+        报告未应用（不虚构伸缩结果）。
+        """
+        pool = self.config.get("worker_pool")
+        if pool is None or not hasattr(pool, "resize"):
+            return {
+                "action": "scale_workers",
+                "description": "No configurable worker pool registered (worker_pool)",
+                "applied": False,
+            }
+        try:
+            cpu_count = psutil.cpu_count() or 1
+            load = self.component_cpu.get(component, 0.0) / 100.0
+            target = max(1, min(cpu_count, int(round(cpu_count * (1.0 - load))) or 1))
+            pool.resize(target)
+            return {
+                "action": "scale_workers",
+                "description": f"Resized worker pool to {target}",
+                "applied": True,
+                "worker_count": target,
+            }
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"scale_workers failed for {component}: {e}")
+            return {
+                "action": "scale_workers",
+                "description": "Failed to resize worker pool",
+                "applied": False,
+                "error": str(e),
+            }
 
     def get_cpu_statistics(self) -> Dict[str, Any]:
         """Get CPU statistics"""

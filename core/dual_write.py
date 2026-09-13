@@ -38,6 +38,9 @@ class DualWriteStrategy:
 
         self._vm_storage: Any = None
         self._stats = {"sqlite_writes": 0, "vm_writes": 0, "vm_errors": 0, "fallbacks": 0}
+        # 异步（fire-and-forget）VM 写入的在飞任务；其成败通过 done 回调记账，
+        # 避免此前「立即记 vm_writes、失败既不计数也不触发 fallback」的失真。
+        self._pending_vm_tasks: set = set()
 
     async def initialize(self) -> None:
         """Initialize VictoriaMetrics storage if enabled"""
@@ -153,11 +156,13 @@ class DualWriteStrategy:
             vm_labels = {**labels, "__name__": metric_name}
 
             if self.async_write:
-                # Async write - don't block
-                asyncio.create_task(
-                    self._vm_storage.store(metric_name, value, {"labels": vm_labels})
+                # 异步写：立即返回，但把任务登记在册并由回调真实记账
+                # （成功计 vm_writes，失败计 vm_errors 并按需计 fallbacks）。
+                task = asyncio.create_task(
+                    self._store_vm_and_account(metric_name, value, vm_labels)
                 )
-                self._stats["vm_writes"] += 1
+                self._pending_vm_tasks.add(task)
+                task.add_done_callback(self._pending_vm_tasks.discard)
                 return True
             else:
                 # Synchronous write
@@ -176,6 +181,35 @@ class DualWriteStrategy:
             if self.fallback_on_error:
                 self._stats["fallbacks"] += 1
             return False
+
+    async def _store_vm_and_account(
+        self, metric_name: str, value: float, vm_labels: Dict[str, Any]
+    ) -> bool:
+        """执行一次异步 VM 写入并按真实结果记账。"""
+        try:
+            result = await self._vm_storage.store(
+                metric_name, value, {"labels": vm_labels}
+            )
+        except Exception as e:
+            logger.error(f"VictoriaMetrics async write failed for {metric_name}: {e}")
+            self._stats["vm_errors"] += 1
+            if self.fallback_on_error:
+                self._stats["fallbacks"] += 1
+            return False
+
+        if result:
+            self._stats["vm_writes"] += 1
+        else:
+            self._stats["vm_errors"] += 1
+            if self.fallback_on_error:
+                self._stats["fallbacks"] += 1
+        return bool(result)
+
+    async def flush(self) -> None:
+        """等待所有在飞的异步 VM 写入完成（保证记账/落盘可见）。"""
+        if not self._pending_vm_tasks:
+            return
+        await asyncio.gather(*list(self._pending_vm_tasks), return_exceptions=True)
 
     async def write_batch_metrics(self, metrics: list[Dict[str, Any]]) -> bool:
         """

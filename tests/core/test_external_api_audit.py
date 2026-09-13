@@ -27,7 +27,8 @@ def test_log_and_query():
     )
     assert len(logger._audit_logs) == 1
     record = logger._audit_logs[0]
-    assert "?***" in record["url"]
+    assert "token=***" in record["url"]
+    assert "secret" not in record["url"]
     assert record["headers"]["authorization"] == "***REDACTED***"
 
     results = logger.query_audit_logs(method="GET")

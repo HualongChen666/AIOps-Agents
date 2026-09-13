@@ -15,6 +15,7 @@ Provides advanced root cause analysis capabilities:
 import asyncio
 import hashlib
 import json
+import re
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -32,6 +33,11 @@ try:
 except ImportError:
     ML_AVAILABLE = False
     logger.warning("ML libraries not available for enhanced RCA")
+
+
+# 特征中易变的字段（时间戳等），不应参与相似度哈希/模式比较，否则同一模式
+# 每次都会得到不同的指纹，历史匹配永远无法命中。
+_VOLATILE_FEATURE_KEYS = {"timestamp", "time", "generated_at", "updated_at"}
 
 
 class RCASeverity(Enum):
@@ -96,6 +102,7 @@ class HistoricalIncident:
     resolution: str
     similarity_hash: str
     metadata: Dict[str, Any] = field(default_factory=dict)
+    pattern: str = ""
 
 
 @dataclass
@@ -725,13 +732,16 @@ class EnhancedRootCauseAnalyzer:
         # 生成当前症状的特征
         current_features = self._extract_features(anomaly_nodes, context)
         similarity_hash = self._generate_similarity_hash(current_features)
+        current_pattern = self._features_to_pattern(current_features)
 
         # 查找相似的历史事故
         similar_incidents = []
         for incident in self.historical_incidents:
-            similarity = self._calculate_pattern_similarity(
-                similarity_hash, incident.similarity_hash
-            )
+            if incident.pattern:
+                similarity = self._calculate_pattern_similarity(current_pattern, incident.pattern)
+            else:
+                # 旧记录仅有哈希可比较（无语义特征）。
+                similarity = 1.0 if similarity_hash == incident.similarity_hash else 0.0
             if similarity >= self.pattern_similarity_threshold:
                 similar_incidents.append((incident, similarity))
 
@@ -1012,6 +1022,10 @@ class EnhancedRootCauseAnalyzer:
 
     async def record_incident(self, incident: HistoricalIncident):
         """记录新事故"""
+        if not incident.pattern and (incident.symptoms or incident.root_causes):
+            # 记录可比较的模式文本，供后续按真实相似度匹配（而非哈希精确相等）。
+            incident.pattern = self._incident_pattern(incident)
+
         self.historical_incidents.append(incident)
 
         # 更新模式索引
@@ -1035,15 +1049,52 @@ class EnhancedRootCauseAnalyzer:
         return features
 
     def _generate_similarity_hash(self, features: Dict[str, Any]) -> str:
-        """生成相似度哈希"""
-        feature_str = json.dumps(features, sort_keys=True)
+        """生成相似度哈希（忽略易变字段，保证同模式稳定命中）。"""
+        stable = {k: v for k, v in features.items() if k not in _VOLATILE_FEATURE_KEYS}
+        feature_str = json.dumps(stable, sort_keys=True)
         return hashlib.sha256(feature_str.encode()).hexdigest()
 
-    def _calculate_pattern_similarity(self, hash1: str, hash2: str) -> float:
-        """计算模式相似度"""
-        # 简单实现：哈希相同则为1.0，否则为0
-        # 实际可以使用更复杂的相似度计算
-        return 1.0 if hash1 == hash2 else 0.0
+    @staticmethod
+    def _tokenize(text: str) -> Set[str]:
+        """把文本切分为小写 token 集合（非字母数字字符作为分隔）。"""
+        return {tok for tok in re.split(r"[^0-9a-z]+", text.lower()) if tok}
+
+    def _incident_pattern(self, incident: HistoricalIncident) -> str:
+        """由事故的症状/根因/处置构造可比较的模式文本。"""
+        parts = list(incident.symptoms) + list(incident.root_causes)
+        if incident.resolution:
+            parts.append(incident.resolution)
+        return " ".join(str(p) for p in parts)
+
+    def _features_to_pattern(self, features: Dict[str, Any]) -> str:
+        """由特征字典构造可比较的模式文本（排除易变字段）。"""
+        parts: List[str] = []
+        for key, value in features.items():
+            if key in _VOLATILE_FEATURE_KEYS:
+                continue
+            if isinstance(value, (list, tuple, set)):
+                parts.extend(str(v) for v in value)
+            else:
+                parts.append(f"{key}_{value}")
+        return " ".join(parts)
+
+    def _calculate_pattern_similarity(self, pattern1: str, pattern2: str) -> float:
+        """计算两个模式文本的相似度（token 集合 Jaccard 系数）。
+
+        完全相同的模式返回 1.0，无公共 token 返回 0.0；不再退化为仅比较
+        哈希值是否相等。
+        """
+        if pattern1 == pattern2:
+            return 1.0
+        tokens1 = self._tokenize(pattern1)
+        tokens2 = self._tokenize(pattern2)
+        if not tokens1 or not tokens2:
+            return 0.0
+        intersection = tokens1 & tokens2
+        union = tokens1 | tokens2
+        if not union:
+            return 0.0
+        return len(intersection) / len(union)
 
     def _find_upstream_causes(self, node: str) -> List[str]:
         """查找上游原因"""

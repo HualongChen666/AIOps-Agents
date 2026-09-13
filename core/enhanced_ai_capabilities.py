@@ -209,6 +209,10 @@ class EnhancedAICapabilities:
         self.learning_history: List[LearningUpdate] = []
         self.performance_metrics: Dict[str, List[float]] = defaultdict(list)
 
+        # 已观测样本缓冲：供学习循环在性能下降时真实重训（滚动上限）。
+        self.learning_samples: Dict[str, List[Tuple[Dict[str, Any], Any]]] = defaultdict(list)
+        self.max_learning_samples = 1000
+
         # 自然语言处理
         self.intent_classifier = None
         self.entity_extractor = None
@@ -479,6 +483,12 @@ class EnhancedAICapabilities:
                 return None
 
             model = self.prediction_models[model_id]
+
+            # 记录本次学习样本，供学习循环按需重训（滚动缓冲）。
+            buffer = self.learning_samples[model_id]
+            buffer.extend(new_samples)
+            if len(buffer) > self.max_learning_samples:
+                del buffer[: len(buffer) - self.max_learning_samples]
 
             # 记录学习前的性能
             accuracy_before = await self._evaluate_model_performance(model_id)
@@ -817,14 +827,27 @@ class EnhancedAICapabilities:
                 await asyncio.sleep(self.learning_interval.total_seconds())
 
                 # 检查是否需要重新学习
-                for model_id in self.prediction_models:
+                for model_id in list(self.prediction_models):
                     if await self._should_relearn(model_id):
                         logger.info(f"Triggering relearning for {model_id}")
-                        # 触发重新学习
-                        # await self._retrain_model(model_id)
+                        await self._retrain_model(model_id)
 
+            except asyncio.CancelledError:
+                logger.info("Learning loop cancelled")
+                raise
             except Exception as e:
                 logger.error(f"Learning loop error: {e}")
+
+    async def _retrain_model(self, model_id: str) -> Optional[LearningUpdate]:
+        """使用累积样本对 ``model_id`` 执行真实的批量重训。
+
+        无累积样本时不伪造结果，仅记录并跳过。
+        """
+        samples = self.learning_samples.get(model_id) or []
+        if not samples:
+            logger.info(f"No accumulated samples for {model_id}; skipping retrain")
+            return None
+        return await self.adaptive_learn(model_id, samples, LearningMode.BATCH)
 
     async def _should_relearn(self, model_id: str) -> bool:
         """检查是否需要重新学习"""

@@ -349,19 +349,18 @@ class TestEncryptSnapshot:
         assert not encrypted.startswith(_PLAINTEXT_PREFIX)
 
     def test_encrypt_snapshot_no_fernet(self, monkeypatch):
-        """Test encrypt_snapshot when Fernet is not available"""
+        """Encryption enabled but unusable key must fail loudly (no silent plaintext)."""
         monkeypatch.setenv("SNAPSHOT_ENCRYPTION_ENABLED", "true")
         monkeypatch.setenv("SNAPSHOT_ENCRYPTION_KEY", "invalid_key")
         monkeypatch.setenv("ENVIRONMENT", "development")
-        
+
         # Reset global _fernet to None to force re-initialization
         import core.crypto
+
         core.crypto._fernet = None
-        
-        plaintext = "sensitive_data_123"
-        encrypted = encrypt_snapshot(plaintext)
-        
-        assert encrypted == f"{_PLAINTEXT_PREFIX}{plaintext}"
+
+        with pytest.raises(RuntimeError):
+            encrypt_snapshot("sensitive_data_123")
 
 
 class TestDecryptSnapshot:
@@ -753,13 +752,24 @@ class TestEnvironmentVariables:
 
     def test_environment_production_detection(self, monkeypatch):
         """Test production environment detection"""
-        monkeypatch.setenv("ENVIRONMENT", "production")
         import core.crypto
-        core.crypto._ENV_PROD = os.getenv("ENVIRONMENT", "development").lower() == "production"
+
+        # Derive the flag from the env exactly like the module does, but patch it
+        # on the module so the change is automatically reverted (no leakage).
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setattr(
+            core.crypto,
+            "_ENV_PROD",
+            os.getenv("ENVIRONMENT", "development").lower() == "production",
+        )
         assert core.crypto._ENV_PROD is True
-        
+
         monkeypatch.setenv("ENVIRONMENT", "development")
-        core.crypto._ENV_PROD = os.getenv("ENVIRONMENT", "development").lower() == "production"
+        monkeypatch.setattr(
+            core.crypto,
+            "_ENV_PROD",
+            os.getenv("ENVIRONMENT", "development").lower() == "production",
+        )
         assert core.crypto._ENV_PROD is False
 
     def test_default_encryption_key_env(self, monkeypatch):
@@ -767,7 +777,11 @@ class TestEnvironmentVariables:
         test_key = "test_default_key"
         monkeypatch.setenv("SNAPSHOT_ENCRYPTION_KEY", test_key)
         import core.crypto
-        core.crypto._DEFAULT_ENCRYPTION_KEY = os.getenv("SNAPSHOT_ENCRYPTION_KEY", "").strip()
+
+        # Patch (not raw-assign) so this does not leak into later tests.
+        monkeypatch.setattr(
+            core.crypto, "_DEFAULT_ENCRYPTION_KEY", os.getenv("SNAPSHOT_ENCRYPTION_KEY", "").strip()
+        )
         assert core.crypto._DEFAULT_ENCRYPTION_KEY == test_key
 
     def test_encryption_key_priority(self, monkeypatch):

@@ -5,7 +5,7 @@ Enterprise-grade cross-service tracing with context propagation
 """
 
 from contextlib import contextmanager
-from typing import Any, Dict, Optional, cast
+from typing import Any, Callable, Dict, Optional, cast
 
 from loguru import logger
 from opentelemetry import propagate, trace
@@ -52,15 +52,21 @@ class TracingContext:
 class HTTPTracingInterceptor:
     """HTTP tracing interceptor for cross-service calls"""
 
-    def __init__(self, tracing_manager):
+    def __init__(self, tracing_manager, on_request: Optional[Callable[[], None]] = None):
         """
         Initialize HTTP tracing interceptor
 
         Args:
             tracing_manager: OpenTelemetry tracing manager
+            on_request: Optional callback invoked for each traced HTTP request
         """
         self.tracing_manager = tracing_manager
         self.tracing_context = TracingContext()
+        self._on_request = on_request
+
+    def _count(self) -> None:
+        if self._on_request is not None:
+            self._on_request()
 
     @contextmanager
     def trace_http_request(
@@ -88,6 +94,8 @@ class HTTPTracingInterceptor:
             kind=SpanKind.CLIENT,
             attributes={"http.method": method, "http.url": url, **(attributes or {})},
         )
+
+        self._count()
 
         # Inject tracing context into headers
         if headers is None:
@@ -129,6 +137,8 @@ class HTTPTracingInterceptor:
             attributes={"http.method": method, "http.url": url, **(attributes or {})},
         )
 
+        self._count()
+
         # Inject tracing context into headers
         if headers is None:
             headers = {}
@@ -140,14 +150,20 @@ class HTTPTracingInterceptor:
 class DatabaseTracingInterceptor:
     """Database tracing interceptor for database operations"""
 
-    def __init__(self, tracing_manager):
+    def __init__(self, tracing_manager, on_query: Optional[Callable[[], None]] = None):
         """
         Initialize database tracing interceptor
 
         Args:
             tracing_manager: OpenTelemetry tracing manager
+            on_query: Optional callback invoked for each traced database query
         """
         self.tracing_manager = tracing_manager
+        self._on_query = on_query
+
+    def _count(self) -> None:
+        if self._on_query is not None:
+            self._on_query()
 
     @contextmanager
     def trace_database_query(
@@ -183,6 +199,8 @@ class DatabaseTracingInterceptor:
                 **(attributes or {}),
             },
         )
+
+        self._count()
 
         try:
             yield span
@@ -227,21 +245,29 @@ class DatabaseTracingInterceptor:
             },
         )
 
+        self._count()
+
         return cast(Span, span)
 
 
 class MessageQueueTracingInterceptor:
     """Message queue tracing interceptor for message operations"""
 
-    def __init__(self, tracing_manager):
+    def __init__(self, tracing_manager, on_message: Optional[Callable[[], None]] = None):
         """
         Initialize message queue tracing interceptor
 
         Args:
             tracing_manager: OpenTelemetry tracing manager
+            on_message: Optional callback invoked for each traced message operation
         """
         self.tracing_manager = tracing_manager
         self.tracing_context = TracingContext()
+        self._on_message = on_message
+
+    def _count(self) -> None:
+        if self._on_message is not None:
+            self._on_message()
 
     @contextmanager
     def trace_message_publish(
@@ -284,6 +310,8 @@ class MessageQueueTracingInterceptor:
         if headers is None:
             headers = {}
         self.tracing_context.inject(headers)
+
+        self._count()
 
         try:
             yield span
@@ -336,6 +364,8 @@ class MessageQueueTracingInterceptor:
             },
         )
 
+        self._count()
+
         try:
             yield span
         except Exception as e:
@@ -357,9 +387,13 @@ class CrossServiceTracingManager:
             tracing_manager: OpenTelemetry tracing manager
         """
         self.tracing_manager = tracing_manager
-        self.http_interceptor = HTTPTracingInterceptor(tracing_manager)
-        self.database_interceptor = DatabaseTracingInterceptor(tracing_manager)
-        self.message_queue_interceptor = MessageQueueTracingInterceptor(tracing_manager)
+        self.http_interceptor = HTTPTracingInterceptor(tracing_manager, on_request=self._count_http)
+        self.database_interceptor = DatabaseTracingInterceptor(
+            tracing_manager, on_query=self._count_database
+        )
+        self.message_queue_interceptor = MessageQueueTracingInterceptor(
+            tracing_manager, on_message=self._count_message
+        )
 
         # Statistics
         self.http_requests = 0
@@ -367,6 +401,15 @@ class CrossServiceTracingManager:
         self.message_operations = 0
 
         logger.info("Cross-service tracing manager initialized")
+
+    def _count_http(self) -> None:
+        self.http_requests += 1
+
+    def _count_database(self) -> None:
+        self.database_queries += 1
+
+    def _count_message(self) -> None:
+        self.message_operations += 1
 
     def get_http_interceptor(self) -> HTTPTracingInterceptor:
         """Get HTTP tracing interceptor"""
