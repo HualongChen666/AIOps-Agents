@@ -157,15 +157,17 @@ def get_cached_or_execute(
     return result
 
 
-def generate_cache_key(*parts: Any, separator: str = "_") -> str:
+def generate_cache_key(*parts: Any, separator: str = "_", **kwargs: Any) -> str:
     """
     Generate a cache key from multiple parts.
 
     This function reduces duplication of cache key generation logic.
 
     Args:
-        *parts: Parts to combine into cache key
+        *parts: Positional parts to combine into the cache key
         separator: Separator between parts
+        **kwargs: Extra key/value parts; only the values are appended, in
+            sorted-key order so the resulting key is order-independent
 
     Returns:
         Generated cache key string
@@ -175,6 +177,8 @@ def generate_cache_key(*parts: Any, separator: str = "_") -> str:
         # Returns: "system_errors_10"
     """
     str_parts = [str(part) for part in parts]
+    for name in sorted(kwargs):
+        str_parts.append(str(kwargs[name]))
     return separator.join(str_parts)
 
 

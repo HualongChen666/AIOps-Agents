@@ -7,10 +7,11 @@
 - POST /api/teams/events           -> Teams 连接器回调（占位）
 """
 
+import hmac
 import re
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from loguru import logger as _logger
 from pydantic import BaseModel, Field
 
@@ -19,6 +20,21 @@ from core.chat_command_handler import handle_instruction
 from core.teams_adapter import post_interactive_message, post_message
 
 router = APIRouter(prefix="/api/teams", tags=["Microsoft Teams Integration"])
+
+
+def _verify_teams_callback(provided_secret: Optional[str]) -> bool:
+    """Authenticate an inbound Teams/Power-Automate callback.
+
+    Microsoft Teams outgoing webhooks / connectors cannot sign the payload the
+    way Slack does, so a shared secret is compared in constant time.  When no
+    secret is configured the callback is treated as unverified (fail-closed)
+    and the parsed instruction is rejected by ``handle_instruction``.
+    """
+    from config import TEAMS_CALLBACK_SECRET
+
+    if not TEAMS_CALLBACK_SECRET or not provided_secret:
+        return False
+    return hmac.compare_digest(str(provided_secret), str(TEAMS_CALLBACK_SECRET))
 
 
 class TeamsMessageRequest(BaseModel):
@@ -161,9 +177,15 @@ async def send_teams_interactive_message(
         500: {"description": "处理失败"},
     },
 )
-async def teams_events_callback(payload: Dict[str, Any]) -> Dict[str, Any]:
+async def teams_events_callback(
+    payload: Dict[str, Any],
+    x_teams_secret: Optional[str] = Header(None, alias="X-Teams-Secret"),
+    secret: Optional[str] = Query(None),
+) -> Dict[str, Any]:
     """接收 Teams 连接器 / Power Automate 回传的 JSON 载荷,解析工程师命令/按钮"""
     _logger.info(f"Received Teams callback payload with keys: {list(payload.keys())}")
+
+    verified = _verify_teams_callback(x_teams_secret or secret)
 
     # 处理 Adaptive Card 按钮提交
     action_data = payload.get("value") or payload.get("action") or {}
@@ -187,7 +209,7 @@ async def teams_events_callback(payload: Dict[str, Any]) -> Dict[str, Any]:
             user_id=user_id,
             user_name=user_id,
             channel=f"teams:{channel}",
-            verified=True,
+            verified=verified,
         )
         _logger.info(f"Teams command parsed: {parsed}")
         return {"success": True, "action": parsed}

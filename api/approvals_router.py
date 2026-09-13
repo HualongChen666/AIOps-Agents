@@ -9,19 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-try:
-    from core.authentication import get_current_active_user
-except ImportError:
-    async def get_current_active_user():
-        return None
-
-try:
-    from core.rbac import role_required
-except ImportError:
-    def role_required(role):
-        def decorator(func):
-            return func
-        return decorator
+from core.authentication import get_current_active_user
+from core.rbac import role_required
 
 logger = logging.getLogger(__name__)
 

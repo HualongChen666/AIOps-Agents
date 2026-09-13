@@ -24,6 +24,8 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from core.backend_requirements import requires_backend
+from core.metrics_history import get_metrics_history
+from core.persistent_store import PersistentStore
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/monitoring", tags=["监控配置"])
@@ -88,10 +90,21 @@ class AlertThresholdsConfig(BaseModel):
 
 
 # ============================================================================
-# In-Memory Configuration Storage
+# Configuration Storage (durable)
 # ============================================================================
+#
+# The four configuration documents are persisted through ``PersistentStore``
+# (the ``persistent_records`` table) so they survive process restarts and are
+# shared across workers, instead of living only in module-level dicts.
 
-_monitoring_config = {
+_CONFIG_STORE: PersistentStore = PersistentStore("monitoring", "config")
+
+_MONITORING_CONFIG_KEY = "monitoring"
+_METRICS_CONFIG_KEY = "metrics"
+_LOGGING_CONFIG_KEY = "logging"
+_ALERT_THRESHOLDS_KEY = "alert_thresholds"
+
+_DEFAULT_MONITORING_CONFIG = {
     "enabled": True,
     "data_retention_days": 30,
     "sampling_rate": 1.0,
@@ -100,7 +113,7 @@ _monitoring_config = {
     "dashboard_refresh_interval": 30,
 }
 
-_metrics_config = {
+_DEFAULT_METRICS_CONFIG = {
     "cpu_enabled": True,
     "memory_enabled": True,
     "disk_enabled": True,
@@ -110,7 +123,7 @@ _metrics_config = {
     "storage_backend": "victoriametrics",
 }
 
-_logging_config = {
+_DEFAULT_LOGGING_CONFIG = {
     "level": "INFO",
     "format": "json",
     "enable_file_logging": True,
@@ -120,7 +133,7 @@ _logging_config = {
     "storage_backend": "loki",
 }
 
-_alert_thresholds = {
+_DEFAULT_ALERT_THRESHOLDS = {
     "thresholds": [
         {
             "metric_name": "cpu_usage",
@@ -156,6 +169,34 @@ _alert_thresholds = {
 }
 
 
+def _load_config(key: str, default: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the persisted config for *key*, seeding it on first access."""
+    stored = _CONFIG_STORE.get(key)
+    if stored is None:
+        _CONFIG_STORE[key] = dict(default)
+        return dict(default)
+    return dict(stored)
+
+
+def _save_config(key: str, value: Dict[str, Any]) -> Dict[str, Any]:
+    """Persist *value* under *key* and return a plain copy."""
+    _CONFIG_STORE[key] = dict(value)
+    return dict(value)
+
+
+def _last_metrics_collection() -> Optional[str]:
+    """Timestamp of the most recent real metrics sample, or ``None``.
+
+    Derived from the live ``METRICS_HISTORY`` ring buffer — never a fixed
+    constant.  Returns ``None`` when no metric has been collected yet.
+    """
+    history = get_metrics_history(1)
+    if not history:
+        return None
+    timestamp = history[-1].get("timestamp")
+    return str(timestamp) if timestamp else None
+
+
 # ============================================================================
 # API Endpoints
 # ============================================================================
@@ -164,84 +205,85 @@ _alert_thresholds = {
 @router.get("/config", summary="获取监控配置")
 async def get_monitoring_config() -> Dict[str, Any]:
     """获取监控配置"""
-    return _monitoring_config.copy()
+    return _load_config(_MONITORING_CONFIG_KEY, _DEFAULT_MONITORING_CONFIG)
 
 
 @router.put("/config", summary="更新监控配置")
 async def update_monitoring_config(config: MonitoringConfigMonitoringConfig) -> Dict[str, Any]:
     """更新监控配置"""
-    global _monitoring_config
-    _monitoring_config = config.dict()
-    return {"status": "success", "config": _monitoring_config}
+    saved = _save_config(_MONITORING_CONFIG_KEY, config.model_dump())
+    return {"status": "success", "config": saved}
 
 
 @router.get("/metrics-config", summary="获取指标收集配置")
 async def get_metrics_config() -> Dict[str, Any]:
     """获取指标收集配置"""
-    return _metrics_config.copy()
+    return _load_config(_METRICS_CONFIG_KEY, _DEFAULT_METRICS_CONFIG)
 
 
 @router.put("/metrics-config", summary="更新指标收集配置")
 async def update_metrics_config(config: MetricsConfig) -> Dict[str, Any]:
     """更新指标收集配置"""
-    global _metrics_config
-    _metrics_config = config.dict()
-    return {"status": "success", "config": _metrics_config}
+    saved = _save_config(_METRICS_CONFIG_KEY, config.model_dump())
+    return {"status": "success", "config": saved}
 
 
 @router.get("/logging-config", summary="获取日志配置")
 async def get_logging_config() -> Dict[str, Any]:
     """获取日志配置"""
-    return _logging_config.copy()
+    return _load_config(_LOGGING_CONFIG_KEY, _DEFAULT_LOGGING_CONFIG)
 
 
 @router.put("/logging-config", summary="更新日志配置")
 async def update_logging_config(config: LoggingConfig) -> Dict[str, Any]:
     """更新日志配置"""
-    global _logging_config
-    _logging_config = config.dict()
-    return {"status": "success", "config": _logging_config}
+    saved = _save_config(_LOGGING_CONFIG_KEY, config.model_dump())
+    return {"status": "success", "config": saved}
 
 
 @router.get("/alert-thresholds", summary="获取告警阈值")
 async def get_alert_thresholds() -> Dict[str, Any]:
     """获取告警阈值"""
-    return _alert_thresholds.copy()
+    return _load_config(_ALERT_THRESHOLDS_KEY, _DEFAULT_ALERT_THRESHOLDS)
 
 
 @router.put("/alert-thresholds", summary="更新告警阈值")
 async def update_alert_thresholds(config: AlertThresholdsConfig) -> Dict[str, Any]:
     """更新告警阈值"""
-    global _alert_thresholds
-    _alert_thresholds = config.dict()
-    return {"status": "success", "config": _alert_thresholds}
+    saved = _save_config(_ALERT_THRESHOLDS_KEY, config.model_dump())
+    return {"status": "success", "config": saved}
 
 
 @router.get("/status", summary="获取监控状态")
 async def get_monitoring_status() -> Dict[str, Any]:
     """获取监控状态"""
     try:
+        monitoring_config = _load_config(_MONITORING_CONFIG_KEY, _DEFAULT_MONITORING_CONFIG)
+        metrics_config = _load_config(_METRICS_CONFIG_KEY, _DEFAULT_METRICS_CONFIG)
+        logging_config = _load_config(_LOGGING_CONFIG_KEY, _DEFAULT_LOGGING_CONFIG)
+        alert_thresholds = _load_config(_ALERT_THRESHOLDS_KEY, _DEFAULT_ALERT_THRESHOLDS)
+
         # 检查各个监控组件的状态
         status = {
-            "monitoring_enabled": _monitoring_config.get("enabled", False),
+            "monitoring_enabled": monitoring_config.get("enabled", False),
             "metrics_collection": {
-                "status": "running" if _metrics_config.get("cpu_enabled") else "stopped",
-                "last_collection": "2026-08-26T09:00:00Z",
-                "collection_interval": _metrics_config.get("collection_interval", 60),
+                "status": "running" if metrics_config.get("cpu_enabled") else "stopped",
+                "last_collection": _last_metrics_collection(),
+                "collection_interval": metrics_config.get("collection_interval", 60),
             },
             "logging": {
-                "status": "running" if _logging_config.get("enable_file_logging") else "stopped",
-                "level": _logging_config.get("level", "INFO"),
-                "storage_backend": _logging_config.get("storage_backend", "loki"),
+                "status": "running" if logging_config.get("enable_file_logging") else "stopped",
+                "level": logging_config.get("level", "INFO"),
+                "storage_backend": logging_config.get("storage_backend", "loki"),
             },
             "alerting": {
                 "status": "active",
-                "active_thresholds": len([t for t in _alert_thresholds.get("thresholds", []) if t.get("enabled")]),
-                "total_thresholds": len(_alert_thresholds.get("thresholds", [])),
+                "active_thresholds": len([t for t in alert_thresholds.get("thresholds", []) if t.get("enabled")]),
+                "total_thresholds": len(alert_thresholds.get("thresholds", [])),
             },
             "storage": {
-                "metrics_backend": _metrics_config.get("storage_backend", "victoriametrics"),
-                "logs_backend": _logging_config.get("storage_backend", "loki"),
+                "metrics_backend": metrics_config.get("storage_backend", "victoriametrics"),
+                "logs_backend": logging_config.get("storage_backend", "loki"),
                 "traces_backend": "tempo",
             },
         }

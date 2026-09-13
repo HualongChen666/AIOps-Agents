@@ -205,6 +205,51 @@ class SystemResourceOptimizer:
             logger.error(f"Error optimizing CPU: {e}")
             return {"error": str(e)}
 
+    def analyze_network_usage(self) -> Dict[str, Any]:
+        """
+        Analyse network usage (read-only measurement).
+
+        Unlike :meth:`optimize_network` this performs **no** optimisation and
+        produces no recommendations — it only reports the observed system
+        state (per-interface I/O counters and TCP connection state
+        distribution) so that the analysis endpoint does not trigger the
+        optimisation path.
+
+        Returns:
+            Network usage analysis
+        """
+        try:
+            import psutil
+        except Exception as e:
+            logger.error(f"psutil unavailable for network analysis: {e}")
+            return {"error": str(e)}
+
+        try:
+            net_io = psutil.net_io_counters()
+            connections = psutil.net_connections()
+        except Exception as e:
+            logger.error(f"Error analysing network usage: {e}")
+            return {"error": str(e)}
+
+        state_counts: Dict[str, int] = {}
+        for conn in connections:
+            state = getattr(conn, "status", "UNKNOWN")
+            state_counts[state] = state_counts.get(state, 0) + 1
+
+        return {
+            "bytes_sent": net_io.bytes_sent,
+            "bytes_recv": net_io.bytes_recv,
+            "packets_sent": net_io.packets_sent,
+            "packets_recv": net_io.packets_recv,
+            "errors_in": getattr(net_io, "errin", 0),
+            "errors_out": getattr(net_io, "errout", 0),
+            "drops_in": getattr(net_io, "dropin", 0),
+            "drops_out": getattr(net_io, "dropout", 0),
+            "total_connections": len(connections),
+            "established_connections": state_counts.get("ESTABLISHED", 0),
+            "connection_states": state_counts,
+        }
+
     def optimize_network(self) -> Dict[str, Any]:
         """
         Optimize network usage

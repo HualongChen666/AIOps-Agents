@@ -16,19 +16,16 @@ from core.alert_engine import alert_history
 from core.alert_providers import get_alert_provider, list_alert_providers
 
 process_alert: Any = None
-try_auto_heal: Any = None
 
 try:
     from gateway.services_client import process_alert
 
     PROCESS_AVAILABLE = True
     AUTO_HEAL_AVAILABLE = True
-    try_auto_heal = process_alert
 except Exception as e:
     logging.exception("Unexpected exception: %s", e)
     PROCESS_AVAILABLE = False
     process_alert = None
-    try_auto_heal = None
     AUTO_HEAL_AVAILABLE = False
 
 try:
@@ -70,7 +67,7 @@ async def receive_alert(
             detail=f"Unknown alert provider: {provider}. Available: {available_providers}",
         )
 
-    if not AUTO_HEAL_AVAILABLE or try_auto_heal is None:
+    if not AUTO_HEAL_AVAILABLE or process_alert is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Auto-heal engine is not available",
@@ -113,7 +110,7 @@ async def receive_alert(
                 logging.exception("Unexpected exception: %s", e)
 
         try:
-            result = await try_auto_heal(alert)
+            result = await process_alert(alert)
             results.append(
                 WebhookResult(
                     alert_id=result.get("alert_id", alert_id),
@@ -121,7 +118,7 @@ async def receive_alert(
                 )
             )
         except Exception as exc:
-            logger.error("try_auto_heal failed for alert %s", alert_id)
+            logger.error("process_alert failed for alert %s", alert_id)
             results.append(WebhookResult(alert_id=alert_id, status="error", error=str(exc)[:200]))
 
     return WebhookResponse(

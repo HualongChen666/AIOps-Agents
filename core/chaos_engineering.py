@@ -559,6 +559,18 @@ class ChaosEngine:
             f"service '{service_name}' did not recover within {timeout}s"
         )
 
+    def get_active_experiments(self) -> int:
+        """当前正在运行的混沌实验数量。
+
+        The engine enforces a single concurrent experiment, so this returns
+        ``1`` while an experiment is in flight and ``0`` otherwise.  The value
+        is derived from the live engine state (not a hard-coded constant).
+        """
+        current = self._current_experiment
+        if current is not None and current.status == ExperimentStatus.RUNNING:
+            return 1
+        return 0
+
     def get_experiment_history(self, limit: int = 10) -> List[ExperimentResult]:
         """
         获取实验历史

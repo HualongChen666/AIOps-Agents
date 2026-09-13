@@ -29,6 +29,7 @@ def _fake_sysres_optimizer(fail=False):
         "optimize_memory",
         "analyze_cpu_usage",
         "optimize_cpu",
+        "analyze_network_usage",
         "optimize_network",
         "run_comprehensive_optimization",
     ]:

@@ -54,9 +54,9 @@ async def get_chaos_dashboard(user=Depends(get_current_active_user)):
     return {
         "status": "success",
         "dashboard": {
-            "active_experiments": 0,
-            "success_rate": stats.get("success_rate", 0.9),
-            "total_experiments": stats.get("total", 0)
+            "active_experiments": chaos_engine.get_active_experiments(),
+            "success_rate": stats.get("success_rate", 0.0),
+            "total_experiments": stats.get("total_experiments", 0)
         }
     }
 
@@ -97,14 +97,26 @@ async def get_chaos_experiments(user=Depends(get_current_active_user)):
 
 @router.get("/chaos-mesh")
 async def get_chaos_mesh(user=Depends(get_current_active_user)):
-    """获取混沌网格"""
+    """获取混沌网格（真实的注入后端能力，非硬编码）"""
+    injector = chaos_engine.injector
+    try:
+        import kubernetes  # noqa: F401
+
+        kubernetes_client_available = True
+    except Exception:
+        kubernetes_client_available = False
+
     return {
         "status": "success",
         "mesh": {
-            "enabled": False,
-            "chaos_mesh_version": "1.0",
-            "installed": False
-        }
+            "enabled": chaos_engine.is_enabled(),
+            "injector": type(injector).__name__,
+            "api_group": getattr(injector, "group", None),
+            "chaos_mesh_version": getattr(injector, "version", None),
+            "namespace": getattr(injector, "namespace", None),
+            "kubernetes_client_available": kubernetes_client_available,
+            "installed": kubernetes_client_available,
+        },
     }
 
 

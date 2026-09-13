@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from api.common import create_success_response, create_list_response, handle_service_error
+from core.authentication import get_current_active_user
 from core.database import get_db
 from core.models import ComplianceAudit
 
@@ -84,6 +85,7 @@ async def get_audits(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     db: Session = Depends(get_db),
+    user=Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """获取所有合规审计"""
     try:
@@ -127,7 +129,9 @@ async def get_audits(
 
 @router.post("/audits", summary="创建合规审计")
 async def create_audit(
-    audit: ComplianceAuditCreate, db: Session = Depends(get_db)
+    audit: ComplianceAuditCreate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """创建新的合规审计"""
     try:
@@ -171,7 +175,9 @@ async def create_audit(
 
 @router.get("/audits/{audit_id}", summary="获取单个合规审计")
 async def get_audit(
-    audit_id: str, db: Session = Depends(get_db)
+    audit_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """获取单个合规审计"""
     try:
@@ -204,7 +210,10 @@ async def get_audit(
 
 @router.put("/audits/{audit_id}", summary="更新合规审计")
 async def update_audit(
-    audit_id: str, audit: ComplianceAuditUpdate, db: Session = Depends(get_db)
+    audit_id: str,
+    audit: ComplianceAuditUpdate,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """更新合规审计"""
     try:
@@ -256,7 +265,9 @@ async def update_audit(
 
 @router.delete("/audits/{audit_id}", summary="删除合规审计")
 async def delete_audit(
-    audit_id: str, db: Session = Depends(get_db)
+    audit_id: str,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """删除合规审计"""
     try:

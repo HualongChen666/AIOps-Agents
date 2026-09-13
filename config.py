@@ -798,6 +798,11 @@ SLACK_CHANNEL: str = os.getenv("SLACK_CHANNEL", "#aiops-alerts").strip()
 TEAMS_ENABLED: bool = _safe_bool("TEAMS_ENABLED", default=False)
 TEAMS_WEBHOOK: str = os.getenv("TEAMS_WEBHOOK", "").strip()
 TEAMS_CHANNEL: str = os.getenv("TEAMS_CHANNEL", "aiops-alerts").strip()
+# Shared secret that Microsoft Teams / Power Automate must present on the
+# inbound connector callback (``X-Teams-Secret`` header or ``secret`` query
+# param). Empty means callbacks cannot be authenticated and inbound commands
+# are treated as unverified (fail-closed).
+TEAMS_CALLBACK_SECRET: str = os.getenv("TEAMS_CALLBACK_SECRET", "").strip()
 
 L7_INTEGRATION_CONFIG: dict[str, Any] = {
     "itsm": {

@@ -1021,7 +1021,7 @@ def test_alert_webhook_router_endpoints(client, monkeypatch):
     async def fake_try_auto_heal(alert):
         return {"alert_id": alert.get("id"), "status": "healed"}
 
-    monkeypatch.setattr(awr, "try_auto_heal", fake_try_auto_heal)
+    monkeypatch.setattr(awr, "process_alert", fake_try_auto_heal)
     monkeypatch.setattr(awr, "record_audit", lambda **kwargs: None)
 
     payload = {"alerts": [{"labels": {"alertname": "HighCPU"}}]}
@@ -1586,7 +1586,7 @@ def test_alert_webhook_router_error_paths(client, monkeypatch):
     async def failing_auto_heal(alert):
         raise RuntimeError("heal failed")
 
-    monkeypatch.setattr(awr, "try_auto_heal", failing_auto_heal)
+    monkeypatch.setattr(awr, "process_alert", failing_auto_heal)
 
     audit_calls = []
 

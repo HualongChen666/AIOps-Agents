@@ -12,21 +12,8 @@
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-try:
-    from core.authentication import get_current_active_user
-except ImportError:
-    # Fallback for testing
-    async def get_current_active_user():
-        return None
-
-try:
-    from core.rbac import role_required
-except ImportError:
-    # Fallback for testing
-    def role_required(role):
-        def decorator(func):
-            return func
-        return decorator
+from core.authentication import get_current_active_user
+from core.rbac import role_required
 from core.cost_monitor import (
     budget_status,
     collect_costs,
@@ -34,12 +21,12 @@ from core.cost_monitor import (
     get_optimization_suggestions,
     get_resource_costs,
     get_llm_costs,
-    get_budget_management,
     create_budget,
     predict_costs,
     get_cost_collection_status,
     sync_cost_collection,
-    get_cost_monitoring,
+    get_cost_monitoring as _collect_cost_monitoring,
+    get_budget_management as _collect_budget_management,
     generate_cost_report,
 )
 
@@ -200,7 +187,7 @@ async def get_llm_cost(user=Depends(get_current_active_user) if get_current_acti
 )
 async def get_budget_management(user=Depends(get_current_active_user) if get_current_active_user else None):
     """获取预算管理数据"""
-    budgets = get_budget_management()
+    budgets = _collect_budget_management()
     return {"status": "success", "budgets": budgets}
 
 
@@ -271,7 +258,7 @@ async def sync_cost_collection_endpoint(id: str, user=Depends(role_required("adm
 )
 async def get_cost_monitoring(user=Depends(get_current_active_user) if get_current_active_user else None):
     """获取成本监控数据"""
-    monitoring = get_cost_monitoring()
+    monitoring = _collect_cost_monitoring()
     return {"status": "success", "monitoring": monitoring}
 
 

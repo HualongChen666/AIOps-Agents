@@ -189,7 +189,7 @@ async def analyze_network_usage(user=Depends(get_current_active_user)):
         from core.system_resource_optimizer import get_system_resource_optimizer
 
         optimizer = get_system_resource_optimizer()
-        analysis = optimizer.optimize_network()
+        analysis = optimizer.analyze_network_usage()
         return {"status": "success", "data": analysis, "timestamp": datetime.utcnow().isoformat()}
     except Exception as e:
         logger.error(f"Error analyzing network usage: {e}")
