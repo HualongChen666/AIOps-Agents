@@ -52,7 +52,7 @@ groups:
 
       # 磁盘使用率告警
       - alert: HighDiskUsage
-        expr: (1 - (node_filesystem_avail_bytes{fstype!~"ext[234]|xfs"} / node_filesystem_size_bytes{fstype!~"ext[234]|xfs"})) * 100 > 85
+        expr: (1 - (node_filesystem_avail_bytes{fstype=~"ext[0-9]|xfs|btrfs|zfs"} / node_filesystem_size_bytes{fstype=~"ext[0-9]|xfs|btrfs|zfs"})) * 100 > 85
         for: 5m
         labels:
           severity: warning
@@ -62,7 +62,7 @@ groups:
           description: "Disk {{ $labels.mountpoint }} usage is {{ $value }}%"
 
       - alert: CriticalDiskUsage
-        expr: (1 - (node_filesystem_avail_bytes{fstype!~"ext[234]|xfs"} / node_filesystem_size_bytes{fstype!~"ext[234]|xfs"})) * 100 > 95
+        expr: (1 - (node_filesystem_avail_bytes{fstype=~"ext[0-9]|xfs|btrfs|zfs"} / node_filesystem_size_bytes{fstype=~"ext[0-9]|xfs|btrfs|zfs"})) * 100 > 95
         for: 2m
         labels:
           severity: critical
@@ -73,7 +73,7 @@ groups:
 
       # 磁盘I/O告警
       - alert: HighDiskIOWait
-        expr: rate(node_cpu_seconds_total{mode="iowait"}[5m]) > 0.1
+        expr: avg by (instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 10
         for: 10m
         labels:
           severity: warning

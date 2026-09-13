@@ -1366,6 +1366,22 @@ except Exception as e:
     _logger.info(f"API route documentation enhancement failed: {e}")
 
 
+@app.get("/metrics", include_in_schema=False)
+async def prometheus_metrics_root():
+    """Expose the process Prometheus registry in text exposition format.
+
+    历史问题（已修复）：prometheus.yml 抓取根级 ``/metrics``，而应用**无根级
+    ``/metrics`` 路由**（仅 /api/v1/metrics/*），且该路径已被响应中间件列入排除表
+    → 抓取恒 404。此处暴露进程默认注册表（``core.prometheus_metrics`` 使用的
+    ``prometheus_client`` 默认 REGISTRY，含生产组件真实写入的 aiops_* 指标）。
+    """
+    from fastapi.responses import Response  # noqa: E402
+
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest  # noqa: E402
+
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 @app.get("/sw.js")
 async def service_worker():
     from fastapi.responses import Response  # noqa: E402

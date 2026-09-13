@@ -37,13 +37,13 @@ scrape_configs:
   - job_name: 'aiops-application'
     static_configs:
       - targets: ['host.docker.internal:8000']
-    metrics_path: '/api/v1/apm/metrics'
+    metrics_path: '/metrics'
     scrape_interval: 10s
     scrape_timeout: 5s
 
   - job_name: 'aiops-health'
     static_configs:
       - targets: ['host.docker.internal:8000']
-    metrics_path: '/api/v1/apm/health'
+    metrics_path: '/metrics'
     scrape_interval: 30s
     scrape_timeout: 5s
