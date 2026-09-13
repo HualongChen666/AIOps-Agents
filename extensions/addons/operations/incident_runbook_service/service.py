@@ -5,12 +5,13 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from extensions.addons.engines.service_contract import ServiceStateContract
 from extensions.addons.engines.workflow_engine import RunbookRunner
 
 OPERATIONS = ["run_runbook"]
 
 
-class Service:
+class Service(ServiceStateContract):
     """Incident Runbook service wrapper."""
 
     _engine: RunbookRunner | None = None

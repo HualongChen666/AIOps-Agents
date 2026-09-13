@@ -56,7 +56,10 @@ def test_sphinx_list_methods_returns_expected_result(sphinx_service):
     assert result["success"] is True
     assert result["operation"] == "list_methods"
     assert "result" in result
-    assert result["result"]["message"] == "not implemented"
+    # The engine returns the real, callable method list (previously a stub
+    # ``{"message": "not implemented"}``).
+    assert isinstance(result["result"], list)
+    assert "build_docs" in result["result"]
 
 
 def test_sphinx_get_stats_returns_valid_dict(sphinx_service):

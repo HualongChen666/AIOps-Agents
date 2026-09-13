@@ -6,9 +6,10 @@ from __future__ import annotations
 from typing import List
 
 from extensions.addons.engines.security_scanner import BaseSecurityService
+from extensions.addons.engines.service_contract import ServiceStateContract
 
 
-class Service(BaseSecurityService):
+class Service(BaseSecurityService, ServiceStateContract):
     """OpenSourceLicense service delegating all operations to SecurityScanner."""
 
     OPERATIONS: List[str] = [

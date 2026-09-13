@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 import json
 import os
 import shlex
@@ -293,6 +294,11 @@ class BaseInfraService:
     Subclasses define ``OPERATIONS`` (used for API discovery) and a
     ``COMMAND_MAP`` mapping each operation name to a callable returning a
     command spec dict.
+
+    The FastAPI service contract (``_state`` + async lifecycle endpoints +
+    per-operation handlers + ``call``) is mixed in at the concrete wrapper level
+    via :class:`extensions.addons.engines.service_contract.ServiceStateContract`,
+    so this engine module stays free of intra-package imports.
     """
 
     OPERATIONS: List[str] = []
@@ -306,15 +312,24 @@ class BaseInfraService:
     ]
     display_name: str = "infra"
 
-    def __init__(self, dry_run: Optional[bool] = None) -> None:
+    def __init__(self, dry_run: Optional[bool] = None, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         if dry_run is None:
             dry_run = not (os.environ.get("INFRA_EXECUTE_ENABLED") == "true")
         self.dry_run = dry_run
+        # State layer consumed by the lifecycle operations below. Re-initialised
+        # here so the base class also works when used without the mixin.
+        self._state: Dict[str, Any] = {}
+        self._backups: Dict[str, Any] = {}
+        self._operations: Dict[str, int] = {}
         self.cli = CliExecutor(dry_run=dry_run)
         self.k8s = K8sExecutor(dry_run=dry_run)
         self.ansible = AnsibleExecutor(dry_run=dry_run)
         self.terraform = TerraformExecutor(dry_run=dry_run)
         self.helm = HelmExecutor(dry_run=dry_run)
+
+    def _touch(self, name: str) -> None:
+        self._operations[name] = self._operations.get(name, 0) + 1
 
     def _executor(self, executor_type: str) -> CliExecutor:
         return getattr(self, executor_type, self.cli)
@@ -333,7 +348,7 @@ class BaseInfraService:
                 "success": True,
                 "status": "ok",
                 "config": {},
-                "result": {"methods": self.OPERATIONS + self.BASE_METHODS},
+                "result": {"methods": list(self.OPERATIONS) + list(self.BASE_METHODS)},
                 "message": "Methods listed",
             }
         if name == "get_state":
@@ -342,7 +357,7 @@ class BaseInfraService:
                 "success": True,
                 "status": "ok",
                 "config": params,
-                "result": {"state": {}},
+                "result": {"state": copy.deepcopy(self._state)},
                 "message": "State",
             }
         if name == "get_stats":
@@ -351,16 +366,46 @@ class BaseInfraService:
                 "success": True,
                 "status": "ok",
                 "config": {},
-                "result": {"operations": {}, "feature_count": len(self.OPERATIONS)},
+                "result": {
+                    "total_requests": sum(self._operations.values()),
+                    "cache_hits": 0,
+                    "cache_misses": 0,
+                    "operations": dict(self._operations),
+                    "index_size": len(self._state),
+                    "feature_count": len(self.OPERATIONS),
+                },
                 "message": "Statistics",
             }
-        if name in ("backup_state", "restore_state"):
+        if name == "backup_state":
+            label = params.get("name", "default")
+            self._backups[label] = copy.deepcopy(self._state)
             return {
                 "feature": name,
                 "success": True,
                 "status": "ok",
                 "config": params,
-                "result": {"snapshot": params.get("name", "default")},
+                "result": {"snapshot": label, "backup_id": label},
+                "message": f"{name} completed",
+            }
+        if name == "restore_state":
+            label = params.get("name", "default")
+            snapshot = self._backups.get(label)
+            if snapshot is None:
+                return {
+                    "feature": name,
+                    "success": False,
+                    "status": "not_found",
+                    "config": params,
+                    "result": {},
+                    "message": f"Backup {label} not found",
+                }
+            self._state = copy.deepcopy(snapshot)
+            return {
+                "feature": name,
+                "success": True,
+                "status": "ok",
+                "config": params,
+                "result": {"snapshot": label, "restored": True},
                 "message": f"{name} completed",
             }
 
@@ -406,6 +451,8 @@ class BaseInfraService:
                 }
             result = self.cli.run(command[0], command[1:])
 
+        self._touch(name)
+        self._state[name] = {"status": result.get("status", "ok"), "command": result.get("command")}
         return {
             "feature": name,
             "success": result.get("status") == "ok",

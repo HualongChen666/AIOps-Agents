@@ -5,10 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List
 
-from extensions.addons.engines.doc_policy_engine import (
-    PolicyEngine,
-    base_method_handlers,
-)
+from extensions.addons.engines.doc_policy_engine import PolicyEngine
+from extensions.addons.engines.service_contract import BasePolicyService
 
 BASE_METHODS: List[str] = [
     "get_state",
@@ -22,37 +20,15 @@ OPERATIONS: List[str] = [
     "user_lookup",
 ]
 
-_OP_MAP: Dict[str, Callable[[PolicyEngine, Dict[str, Any]], Any]] = {
-    **base_method_handlers(),
-    "user_lookup": lambda engine, params: engine.user_lookup(params.get("user_id", "")),
-}
 
-
-class UserService:
+class UserService(BasePolicyService):
     """Service wrapper delegating user operations to PolicyEngine."""
 
-    _engine = PolicyEngine(dry_run=True)
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        pass
-
-    @classmethod
-    def execute_operation(cls, name: str, params: Any = None) -> Dict[str, Any]:
-        params = params or {}
-        if name not in OPERATIONS and name not in BASE_METHODS:
-            raise ValueError(f"Unknown operation: {name}")
-
-        handler = _OP_MAP.get(name)
-        if handler is None:  # pragma: no cover - guarded by the OPERATIONS check above
-            raise NotImplementedError(f"{cls.__name__}: no handler for operation {name!r}")
-
-        cls._engine.record(name)
-        return {
-            "success": True,
-            "operation": name,
-            "dry_run": cls._engine.dry_run,
-            "result": handler(cls._engine, params),
-        }
+    ENGINE = PolicyEngine
+    OPERATIONS = OPERATIONS
+    OP_MAP: Dict[str, Callable[[PolicyEngine, Dict[str, Any]], Any]] = {
+        "user_lookup": lambda engine, params: engine.user_lookup(params.get("user_id", "")),
+    }
 
 
 Service = UserService

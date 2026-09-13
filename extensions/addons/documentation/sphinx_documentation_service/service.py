@@ -5,10 +5,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List
 
-from extensions.addons.engines.doc_policy_engine import (
-    DocEngine,
-    base_method_handlers,
-)
+from extensions.addons.engines.doc_policy_engine import DocEngine
+from extensions.addons.engines.service_contract import BasePolicyService
 
 BASE_METHODS: List[str] = [
     "get_state",
@@ -25,45 +23,26 @@ OPERATIONS: List[str] = [
     "test_and_optimize_sphinx",
 ]
 
-_OP_MAP: Dict[str, Callable[[DocEngine, Dict[str, Any]], Any]] = {
-    **base_method_handlers(),
-    "build_docs": lambda engine, params: engine.build_docs(
-        params.get("source", "docs"), params.get("output", "_build")
-    ),
-    "configure_sphinx": lambda engine, params: engine.build_docs(
-        params.get("source", "docs"), params.get("output", "_build")
-    ),
-    "deploy_doc_site": lambda engine, params: engine.build_docs(
-        params.get("source", "docs"), params.get("output", "site")
-    ),
-    "test_and_optimize_sphinx": lambda engine, params: engine.build_docs(
-        params.get("source", "docs"), params.get("output", "_build")
-    ),
-}
 
-
-class SphinxDocumentationService:
+class SphinxDocumentationService(BasePolicyService):
     """Service wrapper delegating Sphinx documentation operations to DocEngine."""
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        self._engine = DocEngine(dry_run=kwargs.get("dry_run", True))
-
-    def execute_operation(self, name: str, params: Any = None) -> Dict[str, Any]:
-        params = params or {}
-        if name not in OPERATIONS and name not in BASE_METHODS:
-            raise ValueError(f"Unknown operation: {name}")
-
-        handler = _OP_MAP.get(name)
-        if handler is None:  # pragma: no cover - guarded by the OPERATIONS check above
-            raise NotImplementedError(f"{type(self).__name__}: no handler for operation {name!r}")
-
-        self._engine.record(name)
-        return {
-            "success": True,
-            "operation": name,
-            "dry_run": self._engine.dry_run,
-            "result": handler(self._engine, params),
-        }
+    ENGINE = DocEngine
+    OPERATIONS = OPERATIONS
+    OP_MAP: Dict[str, Callable[[DocEngine, Dict[str, Any]], Any]] = {
+        "build_docs": lambda engine, params: engine.build_docs(
+            params.get("source", "docs"), params.get("output", "_build")
+        ),
+        "configure_sphinx": lambda engine, params: engine.build_docs(
+            params.get("source", "docs"), params.get("output", "_build")
+        ),
+        "deploy_doc_site": lambda engine, params: engine.build_docs(
+            params.get("source", "docs"), params.get("output", "site")
+        ),
+        "test_and_optimize_sphinx": lambda engine, params: engine.build_docs(
+            params.get("source", "docs"), params.get("output", "_build")
+        ),
+    }
 
 
 Service = SphinxDocumentationService

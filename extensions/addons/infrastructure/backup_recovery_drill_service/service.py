@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List
 
 from extensions.addons.engines.infra_executor import BaseInfraService
+from extensions.addons.engines.service_contract import ServiceStateContract
 
 BASE_METHODS: List[str] = [
     "get_state",
@@ -58,7 +59,7 @@ COMMAND_MAP: Dict[str, Callable[[Dict[str, Any]], Dict[str, Any]]] = {
 }
 
 
-class Service(BaseInfraService):
+class Service(BaseInfraService, ServiceStateContract):
     """Domain service for Backup Recovery Drill."""
 
     OPERATIONS = OPERATIONS

@@ -5,13 +5,14 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from extensions.addons.engines.service_contract import ServiceStateContract
 from extensions.addons.engines.workflow_engine import WorkflowEngine
 
 OPERATIONS = ["execute_workflow"]
 _DISPATCH = {"execute_workflow": "run_workflow"}
 
 
-class Service:
+class Service(ServiceStateContract):
     """Workflow Engine service wrapper."""
 
     _engine: WorkflowEngine | None = None

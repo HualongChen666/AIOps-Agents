@@ -943,6 +943,7 @@ def test_base_infra_service_backup_state():
 def test_base_infra_service_restore_state():
     """Test BaseInfraService restore_state operation."""
     service = BaseInfraService()
+    service.execute_operation("backup_state", {"name": "snapshot1"})
     result = service.execute_operation(
         "restore_state", {"name": "snapshot1"}
     )  # noqa: F841  # Variable for test verification

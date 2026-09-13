@@ -5,12 +5,13 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from extensions.addons.engines.service_contract import ServiceStateContract
 from extensions.addons.engines.workflow_engine import WorkflowEngine
 
 OPERATIONS = ["capacity_analysis"]
 
 
-class Service:
+class Service(ServiceStateContract):
     """Capacity Planning service wrapper."""
 
     _engine: WorkflowEngine | None = None

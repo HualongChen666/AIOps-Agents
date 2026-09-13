@@ -844,7 +844,10 @@ class BaseSecurityService:
 
     Provides the standard lifecycle methods (state, backup, stats) and a
     single ``execute_operation`` dispatch point so each addon ``service.py``
-    becomes a pure configuration of ``OPERATIONS``.
+    becomes a pure configuration of ``OPERATIONS``.  The FastAPI service
+    contract (``_state`` + async lifecycle endpoints + per-operation handlers +
+    ``call``) is mixed in at the concrete wrapper level via
+    :class:`extensions.addons.engines.service_contract.ServiceStateContract`.
     """
 
     ENGINE = SecurityScanner
@@ -861,9 +864,15 @@ class BaseSecurityService:
     _backups: Dict[str, Dict[str, Any]] = {}
     _request_count: int = 0
 
-    def __init__(self, dry_run: bool = True, **kwargs: Any) -> None:
+    def __init__(self, dry_run: Optional[bool] = None, **kwargs: Any) -> None:
+        # The FastAPI templates pass (redis_url, metrics, cache, ...); only the
+        # dry-run flag is relevant to the scanner engine. ``super()`` reaches
+        # the mixed-in ServiceStateContract when the wrapper adds it.
+        super().__init__(**kwargs)
+        if dry_run is None:
+            dry_run = os.environ.get("INFRA_EXECUTE_ENABLED") != "true"
         self.dry_run = dry_run
-        self.engine = self.ENGINE(dry_run=dry_run, **kwargs)
+        self.engine = self.ENGINE(dry_run=dry_run)
 
     @classmethod
     def execute_operation(cls, name: str, params: Any = None) -> Dict[str, Any]:

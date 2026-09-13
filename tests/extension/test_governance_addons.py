@@ -54,6 +54,7 @@ def test_sphinx_documentation_service_build_docs(monkeypatch):
         capture_output=True,
         text=True,
         check=False,
+        shell=False,
     )
 
 

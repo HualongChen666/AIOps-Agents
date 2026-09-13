@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+from extensions.addons.engines.service_contract import ServiceStateContract
 from extensions.addons.engines.connector_bus import ConnectorBus
 
 OPERATIONS = [
@@ -18,7 +19,7 @@ _DISPATCH = {
 }
 
 
-class Service:
+class Service(ServiceStateContract):
     OPERATIONS = OPERATIONS
 
     @staticmethod
