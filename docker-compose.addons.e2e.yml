@@ -55,6 +55,21 @@ services:
     - aiops
     networks:
     - aiops-network
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: aiops-node-exporter
+    ports:
+    - 9100:9100
+    command:
+    - --path.procfs=/host/proc
+    - --path.sysfs=/host/sys
+    - --path.rootfs=/host
+    volumes:
+    - /proc:/host/proc:ro
+    - /sys:/host/sys:ro
+    - /:/host:ro,rslave
+    networks:
+    - aiops-network
   rag-service:
     build:
       context: .

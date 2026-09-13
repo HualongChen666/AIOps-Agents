@@ -23,6 +23,11 @@ scrape_configs:
     static_configs:
       - targets: ['alertmanager:9093']
 
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 10s
+
   - job_name: 'aiops-health'
     static_configs:
       - targets: ['aiops:8000']

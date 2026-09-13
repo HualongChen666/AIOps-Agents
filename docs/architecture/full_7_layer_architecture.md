@@ -317,7 +317,7 @@ graph TB
 | 日志 | `core/structured_logging.py`, `core/log_router.py`, `core/log_collector.py`, `core/loki_sink.py`, `core/logging/*`, `api/log_router.py`, `infrastructure/logging/` | 结构化日志、分级、过滤、聚合、ELK/Loki |
 | 链路追踪 | `core/opentelemetry_tracing.py`, `core/otel_exporter.py`, `core/cross_service_tracing.py`, `core/tracing_visualization.py`, `api/tracing_router.py`, `infrastructure/otel_collector/` | Trace/Span、调用链、依赖分析 |
 | APM/性能 | `core/api_performance_optimizer.py`, `core/api_resource_optimizer.py`, `core/api_response_time_optimizer.py`, `core/api_throughput_optimizer.py`, `core/performance_optimizer.py`, `core/performance_*`, `api/apm_router.py` | 响应时间、吞吐量、资源、回归检测 |
-| 告警管理 | `alertmanager/alertmanager.yml`, `alerts/`, `prometheus/alerts/`, `modules/observability/smart_alerting.py` | 告警规则、聚合、路由、升级 |
+| 告警管理 | `monitoring/alertmanager/alertmanager.yml`, `alertmanager/alertmanager-e2e.yml`, `monitoring/prometheus/alerts/`, `modules/observability/smart_alerting.py` | 告警规则、聚合、路由、升级 |
 | 安全审计 | `core/security_audit_system.py`, `audit_logs/`, `security_reports/` | 安全事件、审计、合规 |
 | 健康检查 | `api/health_router.py`, `core/health_check.py`, `core/heartbeat.py`, `core/module_health_check.py` | 健康探测、就绪/存活检查 |
 

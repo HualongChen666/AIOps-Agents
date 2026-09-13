@@ -116,6 +116,20 @@ services:
     ports:
       - "6379:6379"
 
+  node-exporter:
+    image: prom/node-exporter:v1.7.0
+    container_name: aiops-e2e-node-exporter
+    ports:
+      - "9100:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/host'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: aiops-e2e-alertmanager
