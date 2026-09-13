@@ -743,6 +743,15 @@ class EvaluationTaskResponse(BaseModel):
     completed_at: Optional[str] = None
 
 
+class EvaluationTaskCreateRequest(BaseModel):
+    """Payload used by the capability-evaluator page to queue an evaluation task."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str = Field(default="", max_length=2000)
+    category: str = Field(default="general", max_length=50)
+    model_id: str = Field(default="default", max_length=255)
+
+
 # Cost Optimizer Models
 class CostSuggestionCreate(BaseModel):
     type: str = Field(..., description="Suggestion type")
@@ -3807,6 +3816,54 @@ async def get_evaluation_tasks(
         raise
     except Exception as e:
         logger.error(f"Failed to get evaluation tasks: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+
+@router.post("/capability-evaluator/tasks", response_model=EvaluationTaskResponse)
+async def create_evaluation_task(
+    req: EvaluationTaskCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: UserInDB = Depends(get_current_user),
+) -> Any:
+    """Queue a new AI capability evaluation task."""
+    if current_user.role not in ["admin", "operator"]:
+        raise HTTPException(
+            status_code=403, detail="Insufficient permissions: admin or operator role required"
+        )
+    try:
+        task = AIEvaluationTaskDB(
+            id=generate_id(),
+            task_name=req.name,
+            task_type=req.category,
+            model_id=req.model_id,
+            status="pending",
+            progress=0.0,
+            task_metadata={
+                "description": req.description,
+                "created_by": current_user.username,
+            },
+        )
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        logger.info(f"Created evaluation task {task.id} for user {current_user.username}")
+        return EvaluationTaskResponse(
+            id=task.id,
+            task_name=task.task_name,
+            task_type=task.task_type,
+            model_id=task.model_id,
+            status=task.status,
+            progress=task.progress,
+            results=task.results,
+            error_message=task.error_message,
+            created_at=task.created_at.isoformat() if task.created_at else "",
+            started_at=None,
+            completed_at=None,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create evaluation task: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 

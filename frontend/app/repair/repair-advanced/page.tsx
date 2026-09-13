@@ -131,7 +131,7 @@ export default function RepairAdvancedPage() {
   // 更新配置
   const updateConfigMutation = useMutation({
     mutationFn: async ({ configId, data }: { configId: string; data: any }) => {
-      const resp = await api.put(`/api/v1/repair/configuration/${configId}`, data)
+      const resp = await api.patch(`/api/v1/repair/configuration/${configId}`, data)
       return resp.data
     },
     onSuccess: () => {

@@ -1623,6 +1623,48 @@ async def run_intelligent_analysis(db: Session = Depends(get_db)) -> Dict[str, A
     return {"status": "success", "analysis": analysis}
 
 
+@router.get("/intelligent-analysis", summary="获取智能分析历史")
+async def list_intelligent_analyses() -> Dict[str, Any]:
+    """Return the intelligent-analysis runs recorded in this process (newest first)."""
+    return {
+        "analyses": list(reversed(_intelligent_analyses)),
+        "total": len(_intelligent_analyses),
+    }
+
+
+@router.get("/intelligent-analysis/stats", summary="获取智能分析统计")
+async def get_intelligent_analysis_stats(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Aggregate real alert statistics for the intelligent-analysis dashboard."""
+    try:
+        alerts = db.query(Alert).all()
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Failed to load alerts for statistics: {e}")
+        alerts = []
+
+    severity_counts: Dict[str, int] = Counter(str(a.level).lower() for a in alerts)
+    status_counts: Dict[str, int] = Counter(str(a.status).lower() for a in alerts)
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    recent = sum(1 for a in alerts if a.detected_at and a.detected_at >= cutoff)
+    resolved = status_counts.get("resolved", 0)
+
+    return {
+        "total_alerts": len(alerts),
+        "recent_alerts_24h": recent,
+        "resolved_alerts": resolved,
+        "pending_alerts": max(0, len(alerts) - resolved),
+        "resolution_rate": round(resolved / len(alerts), 4) if alerts else 0.0,
+        "by_severity": dict(severity_counts),
+        "by_status": dict(status_counts),
+        "analyses_run": len(_intelligent_analyses),
+    }
+
+
+@router.post("/intelligent-analysis/run", summary="运行智能分析")
+async def run_intelligent_analysis_alias(db: Session = Depends(get_db)) -> Dict[str, Any]:
+    """Alias for :func:`run_intelligent_analysis` used by the alert dashboard."""
+    return await run_intelligent_analysis(db)
+
+
 @router.get("/dynamic-threshold/rules", summary="获取动态阈值规则列表")
 async def get_dynamic_threshold_rules(db: Session = Depends(get_db)) -> Dict[str, Any]:
     """获取所有动态阈值规则"""

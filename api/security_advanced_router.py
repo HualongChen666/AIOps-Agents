@@ -161,6 +161,18 @@ async def update_key(
     }
 
 
+@router.delete("/key-management/keys/{key_id}")
+async def delete_key(
+    key_id: str,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    repo = _get_repository(db)
+    if not repo.delete_key(key_id):
+        raise HTTPException(status_code=404, detail="密钥不存在")
+    logger.info(f"删除密钥: {key_id}")
+    return {"status": "ok", "id": key_id}
+
+
 # 2. MFA
 class MfaMethodCreateRequest(BaseModel):
     type: Literal["totp", "sms", "email", "hardware_token", "biometric"]

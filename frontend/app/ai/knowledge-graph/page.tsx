@@ -62,7 +62,7 @@ export default function KnowledgeGraphPage() {
   const handleSearch = async () => {
     if (!query.trim()) return;
     try {
-      const res = await api.get(`/api/ai/knowledge-graph/search?q=${encodeURIComponent(query)}`);
+      const res = await api.post('/api/ai/knowledge-graph/search', { query });
       setNodes(res.data.nodes || []);
       setEdges(res.data.edges || []);
     } catch (err: any) {
