@@ -111,6 +111,61 @@ except Exception as e:
     _get_full_link_topology = None  # type: ignore[assignment]
 
 
+def trigger_auto_heal(
+    alert_id: str = "",
+    alert: Optional[Dict[str, Any]] = None,
+    tenant_id: str = "",
+    operator_ip: str = "",
+    **kwargs: Any,
+) -> Dict[str, Any]:
+    """Trigger the auto-heal workflow for a hardware alert.
+
+    历史问题（已修复）：本函数此前**不存在**，``api/hardware_log_router.py`` 的
+    ``from gateway.services_client import trigger_auto_heal`` 因此恒 ImportError，
+    只能走 ``_execute_repair_direct`` 兜底——"经 gateway 触发 auto-heal" 链路不可达。
+    现提供真实实现：remote 模式经 ``AUTO_HEAL_SERVICE_URL`` 转发到独立服务；否则
+    在进程内调用真实的 ``core.auto_heal.trigger_auto_heal``。
+
+    Args:
+        alert_id: 告警 ID（若 ``alert`` 未携带则补入）
+        alert: 告警字典
+        tenant_id: 租户标识（用于审计/多租户）
+        operator_ip: 操作者 IP（用于审计）
+
+    Returns:
+        auto-heal 触发结果（真实返回值）
+    """
+    payload_alert: Dict[str, Any] = dict(alert or {})
+    if alert_id:
+        payload_alert.setdefault("id", alert_id)
+    if tenant_id:
+        payload_alert["tenant_id"] = tenant_id
+    if operator_ip:
+        payload_alert["operator_ip"] = operator_ip
+    payload_alert.update(kwargs)
+
+    service_url = os.getenv("AUTO_HEAL_SERVICE_URL") or _DEFAULT_SERVICE_URLS.get(
+        "AUTO_HEAL_SERVICE_URL"
+    )
+    if _is_remote() and service_url:
+        # Synchronous dispatch: this function is invoked from sync router code.
+        import httpx
+
+        resp = httpx.post(
+            service_url.rstrip("/") + "/auto-heal/trigger",
+            json={"alert_id": alert_id, "alert": payload_alert, "tenant_id": tenant_id,
+                  "operator_ip": operator_ip},
+            timeout=float(os.getenv("MICROSERVICE_TIMEOUT", "15.0")),
+        )
+        resp.raise_for_status()
+        return cast(Dict[str, Any], resp.json())
+
+    # In-process fallback: call the real auto-heal workflow.
+    from core.auto_heal import trigger_auto_heal as _local_trigger_auto_heal
+
+    return cast(Dict[str, Any], _local_trigger_auto_heal(payload_alert))
+
+
 async def process_alert(alert: Dict[str, Any]) -> Any:
     """Process an alert through the alert_service (remote) or core.try_auto_heal (local)."""
     if _is_remote() and os.getenv("ALERT_SERVICE_URL"):
