@@ -15,6 +15,7 @@ Endpoints:
 Provides APM metrics and performance monitoring endpoints
 """
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
@@ -23,6 +24,11 @@ from loguru import logger
 from core import telemetry_core as telemetry
 
 router = APIRouter(prefix="/api/v1/apm", tags=["APM监控"])
+
+
+def _utc_now_iso() -> str:
+    """Live UTC timestamp for responses (previously a hardcoded constant)."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 @router.get(
@@ -77,7 +83,7 @@ async def get_apm_metrics() -> Dict[str, Any]:
             "overall_status": (
                 "healthy" if system_resources.get("status") == "healthy" else "degraded"
             ),
-            "timestamp": "2026-06-12T00:00:00Z",
+            "timestamp": _utc_now_iso(),
         }
     except Exception as e:
         logger.error(f"获取APM指标失败: {e}", exc_info=True)
@@ -120,7 +126,7 @@ async def get_application_health() -> Dict[str, Any]:
             "application": "aiops-agent",
             "version": "1.0.0",
             "health_status": health_status,
-            "timestamp": "2026-06-12T00:00:00Z",
+            "timestamp": _utc_now_iso(),
         }
     except Exception as e:
         logger.error(f"获取应用健康状态失败: {e}", exc_info=True)
@@ -159,7 +165,7 @@ async def reset_apm_metrics() -> Dict[str, Any]:
         return {
             "status": "success",
             "message": "APM指标已重置",
-            "timestamp": "2026-06-12T00:00:00Z",
+            "timestamp": _utc_now_iso(),
         }
     except Exception as e:
         logger.error(f"重置APM指标失败: {e}", exc_info=True)

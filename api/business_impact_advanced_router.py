@@ -340,9 +340,6 @@ async def create_analysis(request: CreateAnalysisRequest) -> Dict[str, Any]:
             cache_manager.delete_pattern("business_impact_analysis_list:*")
 
             return create_success_response(analysis, "分析创建成功")
-            cache_manager.delete_pattern("business_impact_analysis_list:*")
-
-            return create_success_response(analysis, "分析创建成功")
         except Exception as e:
             # 更新分析状态为失败
             db = get_session()

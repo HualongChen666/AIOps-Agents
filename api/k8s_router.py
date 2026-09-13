@@ -57,6 +57,8 @@ router = APIRouter(
     },
 )
 async def get_k8s_metrics() -> List[Dict[str, Any]]:
+    if collect_all_k8s is None:
+        raise HTTPException(status_code=503, detail="Kubernetes 采集模块不可用")
     try:
         return collect_all_k8s()
     except Exception as e:
@@ -70,6 +72,8 @@ async def get_k8s_metrics() -> List[Dict[str, Any]]:
     responses={(200): {"description": "采集历史记录"}, (401): {"description": "未授权"}},
 )
 async def get_k8s_history(limit: int = 20) -> List[Dict[str, Any]]:
+    if get_k8s_collect_history is None:
+        raise HTTPException(status_code=503, detail="Kubernetes 采集模块不可用")
     return get_k8s_collect_history(limit)
 
 

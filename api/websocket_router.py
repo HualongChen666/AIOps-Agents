@@ -64,8 +64,6 @@ async def websocket_metrics(websocket: WebSocket):
             # 推送指标数据
             from core.collector import collect_all
 
-            metrics = collect_all()
-
             try:
                 metrics = collect_all()
             except Exception as exc:
