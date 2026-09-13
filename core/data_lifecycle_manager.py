@@ -194,7 +194,7 @@ class DataLifecycleManager:
         logger.info(f"Archiving {category} data older than {cutoff_date}")
 
         try:
-            archived_count = await self._archive_expired_rows(category, cutoff_date)
+            archived_count, archive_file = await self._archive_expired_rows(category, cutoff_date)
         except Exception as exc:
             logger.error(f"Archiving {category} failed: {exc}")
             return {"status": "error", "category": category, "error": str(exc)}
@@ -208,7 +208,7 @@ class DataLifecycleManager:
             "archived_count": archived_count,
             "cutoff_date": cutoff_date.isoformat(),
             "archive_location": rule.archive_location,
-            "archive_file": self._cleanup_stats.get("last_archive_file"),
+            "archive_file": archive_file,
         }
 
     # ------------------------------------------------------------------
@@ -231,28 +231,32 @@ class DataLifecycleManager:
             return os.getenv("BACKUP_LOCATION", "/backups")
         return None
 
-    async def _archive_expired_rows(self, category: DataCategory, cutoff_date: datetime) -> int:
+    async def _archive_expired_rows(
+        self, category: DataCategory, cutoff_date: datetime
+    ) -> tuple:
         """Move every row/file older than ``cutoff_date`` into the archive store.
 
         Database backed categories are exported to a gzip-compressed JSONL file
         under ``<archive_root>/<category>/`` and then removed from the primary
         table (move semantics).  Filesystem backed categories (temporary data,
         backups) simply have their expired files removed.
+
+        Returns:
+            ``(archived_count, archive_file)``；``archive_file`` 仅在本类别实际
+            写出归档文件时非空——按调用局返回，避免并发归档不同类别时互相串台。
         """
         db_target = _DB_BACKED_CATEGORIES.get(category)
         if db_target is None:
-            return self._cleanup_directory_for(category, cutoff_date)
+            return self._cleanup_directory_for(category, cutoff_date), None
 
         table, timestamp_column = db_target
         rows = await self._fetch_expired_rows(table, timestamp_column, cutoff_date)
+        archive_file: Optional[str] = None
         if rows:
             archive_file = self._write_archive_file(category, table, rows)
-            self._cleanup_stats["last_archive_file"] = archive_file
             logger.info(f"Archived {len(rows)} {category.value} rows to {archive_file}")
-        else:
-            self._cleanup_stats.pop("last_archive_file", None)
         await self._delete_expired_rows(category, cutoff_date)
-        return len(rows)
+        return len(rows), archive_file
 
     async def _fetch_expired_rows(
         self, table: str, timestamp_column: str, cutoff_date: datetime

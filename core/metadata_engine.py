@@ -151,11 +151,43 @@ def register_lineage(
 # installed, so we expose a no‑op API that logs calls.
 # -----------------------------------------------------------------
 def amundsen_register_table(table_name: str, schema: str = "public") -> bool:
+    """Register a table in Amundsen through the ``amundsen_rds`` ORM.
+
+    Returns ``True`` only when the record was actually persisted; returns
+    ``False`` when the client library is missing or no metadata session is
+    available (never reports success for a no-op).
+    """
     if AmundsenTable is None:
         logger.warning(
-            "Amundsen client not available, skipping table registration for %s.%s",
+            "Amundsen client not available, cannot register table %s.%s",
             schema,
             table_name,
         )
+        return False
+
+    try:
+        from amundsen_rds import models as _amundsen_models  # type: ignore
+
+        session_factory = getattr(_amundsen_models, "SessionLocal", None)
+        if session_factory is None:
+            logger.error(
+                "Amundsen ORM exposes no session factory; cannot persist %s.%s",
+                schema,
+                table_name,
+            )
+            return False
+
+        with session_factory() as session:
+            existing = (
+                session.query(AmundsenTable)
+                .filter_by(name=table_name, schema=schema)
+                .first()
+            )
+            if existing is None:
+                session.add(AmundsenTable(name=table_name, schema=schema))
+                session.commit()
+        logger.info("Amundsen table registered: %s.%s", schema, table_name)
         return True
-    return True
+    except Exception as exc:  # pragma: no cover - depends on optional client
+        logger.error("Failed to register table %s.%s in Amundsen: %s", schema, table_name, exc)
+        return False

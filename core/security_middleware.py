@@ -147,8 +147,9 @@ class MFAManager:
             totp = pyotp.TOTP(secret)
             return totp.verify(token, valid_window=1)
         except ImportError:
-            logger.warning("pyotp not installed, MFA verification skipped")
-            return True
+            # MFA 已启用但缺少验证库时必须拒绝（fail-closed），否则等于绕过 MFA
+            logger.error("pyotp not installed; cannot verify TOTP token — denying")
+            return False
 
     def get_totp_qr_code(self, user_id: str, secret: str) -> Optional[str]:
         """Generate QR code for TOTP setup"""

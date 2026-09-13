@@ -16,6 +16,14 @@ import core.monitoring_infrastructure as mi
 pytestmark = [pytest.mark.core]
 
 
+@pytest.fixture(autouse=True)
+def _isolate_docker_history(tmp_path, monkeypatch):
+    """Keep docker repair history out of the version-controlled data/ directory."""
+    monkeypatch.setattr(
+        "core.docker_repair._HISTORY_FILE", tmp_path / "docker_repair_history.json"
+    )
+
+
 # ---------------------------------------------------------------------------
 # core.docker_repair
 # ---------------------------------------------------------------------------

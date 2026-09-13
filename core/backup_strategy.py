@@ -823,32 +823,6 @@ async def restore_database_backup(backup_id: str) -> Dict[str, Any]:
             "error": str(e),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
-    if not _backup_history:
-        return {
-            "total_backups": 0,
-            "successful_backups": 0,
-            "failed_backups": 0,
-            "last_backup": None,
-            "backup_types": {},
-        }
-
-    successful = len([b for b in _backup_history if b.get("status") == "success"])
-    failed = len([b for b in _backup_history if b.get("status") == "failed"])
-
-    # Count by type
-    type_counts = {}
-    for backup in _backup_history:
-        backup_type = backup.get("type", "unknown")
-        type_counts[backup_type] = type_counts.get(backup_type, 0) + 1
-
-    return {
-        "total_backups": len(_backup_history),
-        "successful_backups": successful,
-        "failed_backups": failed,
-        "success_rate": successful / len(_backup_history) * 100 if _backup_history else 0,
-        "last_backup": _backup_history[-1] if _backup_history else None,
-        "backup_types": type_counts,
-    }
 
 
 async def restore_backup(backup_id: str) -> Dict[str, Any]:
@@ -937,9 +911,14 @@ async def restore_backup(backup_id: str) -> Dict[str, Any]:
             }
 
         elif backup_type == "config":
-            restore_dir = f"restored_config_{backup_id}_{
-                datetime.now(
-                    timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+            # 恢复到可配置目录（默认 ./restore），不再把 restored_* 目录散落在进程 CWD
+            restore_root = os.getenv("RESTORE_DIR", "restore")
+            os.makedirs(restore_root, exist_ok=True)
+            restore_dir = os.path.join(
+                restore_root,
+                f"restored_config_{backup_id}_"
+                f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
+            )
             shutil.unpack_archive(backup_path, restore_dir)
             return {
                 "backup_id": backup_id,

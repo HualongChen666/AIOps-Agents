@@ -1,12 +1,20 @@
 # -*- coding: utf-8 -*-
 
-import pytest
+import pytest  # noqa: F401  # Imported for test setup
 
 from core.docker_repair import (
     execute_repair_sync,
     get_docker_repair_history,
     get_docker_repair_scripts,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_docker_history(tmp_path, monkeypatch):
+    """Keep docker repair history out of the version-controlled data/ directory."""
+    monkeypatch.setattr(
+        "core.docker_repair._HISTORY_FILE", tmp_path / "docker_repair_history.json"
+    )
 
 
 def test_get_repair_scripts():

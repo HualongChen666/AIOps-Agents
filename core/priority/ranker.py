@@ -5,7 +5,7 @@ Automatically ranks alerts based on business impact
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
@@ -30,6 +30,7 @@ class PriorityRank:
     priority_level: str
     business_impact: BusinessImpact
     rank: int = 0
+    created_at: Optional[Any] = None
 
 
 class PriorityRanker:
@@ -81,6 +82,7 @@ class PriorityRanker:
                 priority_score=priority_score,
                 priority_level=priority_level,
                 business_impact=impact,
+                created_at=alert.get("created_at"),
             )
             ranks.append(rank)
 

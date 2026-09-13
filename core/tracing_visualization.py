@@ -4,12 +4,30 @@ Tracing Data Visualization
 Enterprise-grade tracing data visualization with dashboards and analytics
 """
 
+import math
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
+
+
+def _percentile(sorted_values: List[float], quantile: float) -> float:
+    """Nearest-rank percentile over an already-sorted sequence.
+
+    使用 nearest-rank（``ceil(q*n)``）而非直接索引 ``int(n*q)``：后者在小样本时
+    会明显低估分位（例如 n=20 时取到第 19 个值当作 p95）。
+    """
+    if not sorted_values:
+        return 0.0
+    if quantile <= 0:
+        return sorted_values[0]
+    if quantile >= 1:
+        return sorted_values[-1]
+    rank = math.ceil(quantile * len(sorted_values))
+    index = min(max(rank - 1, 0), len(sorted_values) - 1)
+    return sorted_values[index]
 
 
 class VisualizationType(Enum):
@@ -158,8 +176,8 @@ class TracingVisualizationManager:
             if durations:
                 node.avg_duration_ms = sum(durations) / len(durations)
                 sorted_durations = sorted(durations)
-                node.p95_duration_ms = sorted_durations[int(len(sorted_durations) * 0.95)]
-                node.p99_duration_ms = sorted_durations[int(len(sorted_durations) * 0.99)]
+                node.p95_duration_ms = _percentile(sorted_durations, 0.95)
+                node.p99_duration_ms = _percentile(sorted_durations, 0.99)
 
     def generate_trace_view(self, trace_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -270,8 +288,8 @@ class TracingVisualizationManager:
             "max_duration_ms": max(durations),
             "avg_duration_ms": sum(durations) / total_spans,
             "median_duration_ms": sorted_durations[total_spans // 2],
-            "p95_duration_ms": sorted_durations[int(total_spans * 0.95)],
-            "p99_duration_ms": sorted_durations[int(total_spans * 0.99)],
+            "p95_duration_ms": _percentile(sorted_durations, 0.95),
+            "p99_duration_ms": _percentile(sorted_durations, 0.99),
         }
 
     def generate_service_map(self) -> Dict[str, Any]:
@@ -480,7 +498,7 @@ class TracingVisualizationManager:
             "error_rate": error_traces / total_traces if total_traces > 0 else 0,
             "avg_duration_ms": sum(durations) / len(durations) if durations else 0,
             "p95_duration_ms": (
-                sorted(durations)[int(len(durations) * 0.95)] if len(durations) > 0 else 0
+                _percentile(sorted(durations), 0.95) if len(durations) > 0 else 0
             ),
             "service_metrics": service_metrics,
             "total_services": len(service_metrics),

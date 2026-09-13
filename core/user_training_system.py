@@ -246,17 +246,23 @@ class UserTrainingSystem:
             return False
 
         enrollment = self.user_enrollments[enrollment_id]
+        previous_status = enrollment.status
         enrollment.progress = progress
 
         if score is not None:
             enrollment.score = score
 
-        # Update status based on progress
-        if progress == 100.0:
+        # Update status based on progress（完成计数幂等：仅在状态真正变为 COMPLETED 时 +1）
+        if progress >= 100.0:
+            if previous_status != EnrollmentStatus.COMPLETED:
+                self.completed_enrollments += 1
             enrollment.status = EnrollmentStatus.COMPLETED
             enrollment.completed_at = datetime.now(timezone.utc)
-            self.completed_enrollments += 1
         elif progress > 0:
+            if previous_status == EnrollmentStatus.COMPLETED:
+                # 从已完成退回进行中，保持计数一致
+                self.completed_enrollments = max(0, self.completed_enrollments - 1)
+                enrollment.completed_at = None
             enrollment.status = EnrollmentStatus.IN_PROGRESS
 
         logger.info(f"Updated progress for enrollment {enrollment_id}: {progress}%")

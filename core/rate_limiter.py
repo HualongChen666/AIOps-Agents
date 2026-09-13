@@ -9,6 +9,7 @@ and ensure fair usage across all users with advanced features.
 import asyncio
 import logging
 import os
+import threading
 import time
 from collections import defaultdict
 from typing import Any, Dict, Optional
@@ -209,6 +210,9 @@ def get_advanced_rate_limiter() -> AdvancedRateLimiter:
 def check_rate_limit(request: Request, limit: Optional[str] = None) -> bool:
     """Check if the request should be rate limited.
 
+    Performs a real in-memory sliding-window check keyed by the client address
+    against the configured (or endpoint-specific) limit.
+
     Args:
         request: The FastAPI request object
         limit: Optional custom rate limit string
@@ -223,16 +227,64 @@ def check_rate_limit(request: Request, limit: Optional[str] = None) -> bool:
     if limit is None:
         limit = get_rate_limit_for_endpoint(request.url.path)
 
-    try:
-        limiter = get_limiter()
-        if limiter is None:
-            return True
-        # The actual rate limiting is handled by the limiter decorator
-        # This is a helper function for custom checks
+    max_requests, window = _parse_rate_limit(limit)
+    if max_requests <= 0:
         return True
+
+    try:
+        client = getattr(request, "client", None)
+        key = getattr(client, "host", None) or "unknown"
+    except Exception:
+        key = "unknown"
+
+    try:
+        return _check_in_memory_limit(str(key), max_requests, window)
     except Exception as e:
         logger.error(f"Rate limit check error: {e}")
         # Fail open: allow request if rate limiting fails
+        return True
+
+
+_rate_limit_lock = threading.Lock()
+
+
+def _parse_rate_limit(limit: str) -> tuple:
+    """Parse a limit string like ``"60/minute"`` into ``(max_requests, window_seconds)``."""
+    try:
+        count_str, period = str(limit).split("/", 1)
+        max_requests = int(count_str.strip())
+    except (ValueError, TypeError):
+        return 0, 60
+
+    window = {
+        "second": 1,
+        "seconds": 1,
+        "minute": 60,
+        "minutes": 60,
+        "hour": 3600,
+        "hours": 3600,
+        "day": 86400,
+        "days": 86400,
+    }.get(period.strip().lower(), 60)
+    return max_requests, window
+
+
+def _check_in_memory_limit(key: str, max_requests: int, window: int) -> bool:
+    """Sliding-window admission check backed by ``_in_memory_rate_limits``."""
+    now = time.time()
+    with _rate_limit_lock:
+        entry = _in_memory_rate_limits[key]
+        recent = [t for t in entry.get("requests", []) if now - t < window]
+        if len(recent) >= max_requests:
+            entry["requests"] = recent
+            if callable(get_metrics_exporter):
+                try:
+                    get_metrics_exporter().rate_limit_exceeded_total.inc()
+                except Exception:  # pragma: no cover - metrics must never break limiting
+                    pass
+            return False
+        recent.append(now)
+        entry["requests"] = recent
         return True
 
 

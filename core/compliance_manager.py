@@ -666,4 +666,7 @@ def get_compliance_manager() -> ComplianceManager:
     if _compliance_manager_instance is None:
         _compliance_manager_instance = ComplianceManager()
     return _compliance_manager_instance
-compliance_manager = ComplianceManager()
+
+
+# 模块级别名必须与懒加载单例指向同一实例，否则两套全局实例状态互不可见
+compliance_manager = get_compliance_manager()

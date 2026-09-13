@@ -127,3 +127,6 @@ frontend/tsconfig.tsbuildinfo
 # SQLite WAL sidecar files (runtime/test artifacts)
 *.db-wal
 *.db-shm
+
+# Config-restore output (written to <cwd>/restore at runtime unless RESTORE_DIR set)
+/restore/

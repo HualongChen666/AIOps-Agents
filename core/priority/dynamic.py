@@ -6,7 +6,7 @@ Implements dynamic priority adjustment based on real-time conditions
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
@@ -138,14 +138,13 @@ class DynamicPriorityAdjuster:
                 # Low system load - can handle more alerts
                 multiplier *= 1.1
 
-        # Adjust based on alert age
-        if "created_at" in rank.business_impact.factors:
-            created_at = rank.business_impact.factors["created_at"]
-            if isinstance(created_at, (int, float)):
-                # Convert timestamp to datetime
-                created_at_dt = datetime.fromtimestamp(created_at)
-            else:
-                created_at_dt = created_at
+        # Adjust based on alert age（创建时间来自 rank.created_at，由 ranker 从告警真实字段带入）
+        created_at = getattr(rank, "created_at", None)
+        if created_at is None:
+            # 兼容旧调用：仅在缺失显式字段时才回退到影响因子
+            created_at = rank.business_impact.factors.get("created_at")
+        created_at_dt = self._coerce_datetime(created_at)
+        if created_at_dt is not None:
             age_hours = (datetime.now() - created_at_dt).total_seconds() / 3600
             if age_hours > 24:
                 # Old alert - deprioritize
@@ -162,6 +161,22 @@ class DynamicPriorityAdjuster:
                 multiplier *= 1.2
 
         return min(1.0, base_score * multiplier)
+
+    @staticmethod
+    def _coerce_datetime(value: Any) -> Optional[datetime]:
+        """把告警创建时间（datetime / ISO 字符串 / Unix 时间戳）统一为 naive datetime。"""
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.replace(tzinfo=None) if value.tzinfo else value
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(value)
+        if isinstance(value, str):
+            try:
+                return datetime.fromisoformat(value.replace("Z", "+00:00")).replace(tzinfo=None)
+            except ValueError:
+                return None
+        return None
 
     def _map_score_to_level(self, score: float) -> str:
         """Map score to priority level"""

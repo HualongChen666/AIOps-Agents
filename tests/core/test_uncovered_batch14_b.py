@@ -104,6 +104,19 @@ def test_check_rate_limit(monkeypatch):
     assert check_rate_limit(request) is True
 
 
+def test_check_rate_limit_enforces_window(monkeypatch):
+    rate_limiter._in_memory_rate_limits.clear()
+    monkeypatch.setattr("config.RATE_LIMIT_ENABLED", True, raising=False)
+    request = MagicMock()
+    request.url.path = "/api/health"
+    request.client.host = "10.0.0.9"
+    limit = "2/minute"
+    assert check_rate_limit(request, limit=limit) is True
+    assert check_rate_limit(request, limit=limit) is True
+    # 超过窗口内允许次数后应真实拒绝
+    assert check_rate_limit(request, limit=limit) is False
+
+
 @pytest.mark.asyncio
 async def test_advanced_rate_limiter_algorithms():
     limiter = AdvancedRateLimiter()

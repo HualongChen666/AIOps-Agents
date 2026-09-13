@@ -223,7 +223,8 @@ def test_mfa_pyotp_import_error(monkeypatch):
     manager = sm.MFAManager()
     manager._totp_secret_cache["user1"] = "SECRET"
     manager.enable_mfa()
-    assert manager.verify_totp("user1", "123456") is True
+    # MFA 已启用却无法加载 pyotp：必须 fail-closed（拒绝），否则等于绕过二次验证
+    assert manager.verify_totp("user1", "123456") is False
     assert manager.get_totp_qr_code("user2", "SECRET") is None
 
 

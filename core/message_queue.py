@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -72,6 +73,7 @@ class MessageQueue:
         self._dead_letter_queue: List[Dict[str, Any]] = []
         self._subscriptions: Dict[str, List[Callable]] = {}
         self._transaction_states: Dict[str, Dict[str, Any]] = {}
+        self._active_transaction: Optional[str] = None
         self._consumers_target: Dict[str, int] = {}
         self._persistence_enabled = False
         self._persistence_file = persistence_file or _PERSISTENCE_FILE
@@ -118,10 +120,15 @@ class MessageQueue:
             return True
         if queue_name not in self._queues:
             self._queues[queue_name] = []
-        self._queues[queue_name].append(
-            {"message": message, "timestamp": time.time(), "status": "pending"}
-        )
+        message_data = {
+            "message": message,
+            "timestamp": time.time(),
+            "status": "pending",
+            "message_id": f"msg_{uuid.uuid4().hex}",
+        }
+        self._queues[queue_name].append(message_data)
         _record_queue_depth(queue_name, len(self._queues[queue_name]))
+        self._record_publish_op(queue_name, message_data)
         self._save()
         return True
 
@@ -149,6 +156,7 @@ class MessageQueue:
             "timestamp": time.time(),
             "status": "pending",
             "priority": priority,
+            "message_id": f"msg_{uuid.uuid4().hex}",
         }
         inserted = False
         for i, msg in enumerate(self._queues[queue_name]):
@@ -160,6 +168,7 @@ class MessageQueue:
             self._queues[queue_name].append(message_data)
 
         _record_queue_depth(queue_name, len(self._queues[queue_name]))
+        self._record_publish_op(queue_name, message_data)
         self._save()
         return True
 
@@ -206,21 +215,59 @@ class MessageQueue:
     def begin_transaction(self) -> str:
         txn_id = f"txn_{int(time.time() * 1000)}"
         self._transaction_states[txn_id] = {"status": "active", "operations": []}
+        self._active_transaction = txn_id
         return txn_id
+
+    def _record_publish_op(self, queue_name: str, message_data: Dict[str, Any]) -> None:
+        """Record a publish inside the active transaction so it can be undone."""
+        txn_id = getattr(self, "_active_transaction", None)
+        if not txn_id:
+            return
+        state = self._transaction_states.get(txn_id)
+        if state and state.get("status") == "active":
+            state["operations"].append(
+                {
+                    "type": "publish",
+                    "queue_name": queue_name,
+                    "message_id": message_data.get("message_id"),
+                }
+            )
 
     def commit_transaction(self, txn_id: str) -> bool:
         if txn_id in self._transaction_states:
             self._transaction_states[txn_id]["status"] = "committed"
+            self._transaction_states[txn_id]["operations"] = []
+            if getattr(self, "_active_transaction", None) == txn_id:
+                self._active_transaction = None
             self._save()
             return True
         return False
 
     def rollback_transaction(self, txn_id: str) -> bool:
-        if txn_id in self._transaction_states:
-            self._transaction_states[txn_id]["status"] = "rolled_back"
-            # naive rollback: replay recorded operations is not implemented; this is best-effort
-            return True
-        return False
+        """Roll back a transaction by undoing its recorded publishes。
+
+        逆序移除事务期间发布的消息，使队列恢复到事务开始前的状态。
+        """
+        state = self._transaction_states.get(txn_id)
+        if state is None:
+            return False
+
+        for op in reversed(state.get("operations", [])):
+            if op.get("type") != "publish":
+                continue
+            queue = self._queues.get(op["queue_name"], [])
+            for i, msg in enumerate(queue):
+                if msg.get("message_id") == op["message_id"]:
+                    queue.pop(i)
+                    break
+            _record_queue_depth(op["queue_name"], len(queue))
+
+        state["status"] = "rolled_back"
+        state["operations"] = []
+        if getattr(self, "_active_transaction", None) == txn_id:
+            self._active_transaction = None
+        self._save()
+        return True
 
     # ------------------------------------------------------------------
     # Monitoring / scaling

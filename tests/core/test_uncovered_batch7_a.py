@@ -802,12 +802,12 @@ def test_register_lineage_emit_error(datahub_fakes, monkeypatch):
 
 
 def test_amundsen_register_table():
-    # default branch: AmundsenTable is None
-    assert me.amundsen_register_table("users") is True
-    # force non-None branch
+    # client 不可用时必须如实返回 False（不得谎报注册成功）
+    assert me.amundsen_register_table("users") is False
+    # force non-None branch: 库存在但无可用 metadata session → 同样返回 False
     old = me.AmundsenTable
     me.AmundsenTable = object
     try:
-        assert me.amundsen_register_table("orders") is True
+        assert me.amundsen_register_table("orders") is False
     finally:
         me.AmundsenTable = old
