@@ -600,7 +600,13 @@ def test_localization_formatting():
     assert adapter.format_currency(99.9, currency_code="EUR") == "EUR99.90"
 
     # unit
-    assert adapter.format_unit(5.0, "kg") == "5.0 kg"
+    assert adapter.format_unit(5.0, "kg", UnitSystem.METRIC) == "5.0 kg"
+    # en-US 使用英制，kg 应换算为 lb（1 kg = 2.2046226218487757 lb）
+    assert adapter.format_unit(5.0, "kg") == f"{5.0 / 0.45359237} lb"
+    # 长度换算：10 ft -> m（10 * 0.3048 = 3.048）
+    assert adapter.format_unit(10.0, "ft", UnitSystem.METRIC) == f"{10.0 * 0.3048} m"
+    # 未知单位原样返回
+    assert adapter.format_unit(3.0, "widgets", UnitSystem.METRIC) == "3.0 widgets"
 
 
 def test_localization_locale_management():

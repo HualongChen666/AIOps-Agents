@@ -9,6 +9,7 @@ and intelligent cache invalidation for the AIOps Agent system.
 
 import hashlib
 import json
+import time
 from functools import wraps
 from typing import Any, Callable, Dict, List, Optional
 
@@ -18,6 +19,9 @@ from loguru import logger
 
 class RedisCacheBackend:
     """Redis-based cache backend for distributed caching"""
+
+    # 记录各缓存键的创建时间（有序集合），用于按时间失效
+    _CREATED_INDEX = "cache:__created__"
 
     def __init__(
         self,
@@ -105,10 +109,53 @@ class RedisCacheBackend:
             ttl = ttl or self.default_ttl
             serialized = json.dumps(value)
             self.client.setex(key, ttl, serialized)
+            self._index_created(key)
             return True
         except Exception as e:
             logger.error(f"Redis set failed: {e}")
             return False
+
+    def _index_created(self, *keys: str) -> None:
+        """在有序集合中记录键的创建时间（后端不支持时静默跳过）。"""
+        if not keys:
+            return
+        try:
+            now = time.time()
+            self.client.zadd(self._CREATED_INDEX, {k: now for k in keys})
+        except Exception as e:
+            logger.debug(f"Cache creation index unavailable: {e}")
+
+    def _unindex_created(self, *keys: str) -> None:
+        """从创建时间索引中移除键（后端不支持时静默跳过）。"""
+        if not keys:
+            return
+        try:
+            self.client.zrem(self._CREATED_INDEX, *keys)
+        except Exception as e:
+            logger.debug(f"Cache creation index cleanup skipped: {e}")
+
+    def invalidate_by_time(self, older_than_seconds: int) -> int:
+        """删除创建时间早于 ``older_than_seconds`` 的缓存条目。
+
+        Returns:
+            实际删除的条目数量。
+        """
+        if not self.client:
+            return 0
+        if older_than_seconds < 0:
+            raise ValueError("older_than_seconds must be non-negative")
+
+        cutoff = time.time() - older_than_seconds
+        try:
+            stale = self.client.zrangebyscore(self._CREATED_INDEX, 0, cutoff)
+        except Exception as e:
+            logger.error(f"Time-based invalidation index unavailable: {e}")
+            return 0
+        if not stale:
+            return 0
+        deleted = self.client.delete(*stale) or 0
+        self._unindex_created(*stale)
+        return deleted
 
     def delete(self, key: str) -> bool:
         """
@@ -125,6 +172,7 @@ class RedisCacheBackend:
 
         try:
             self.client.delete(key)
+            self._unindex_created(key)
             return True
         except Exception as e:
             logger.error(f"Redis delete failed: {e}")
@@ -146,7 +194,9 @@ class RedisCacheBackend:
         try:
             keys = self.client.keys(pattern)
             if keys:
-                return self.client.delete(*keys)
+                deleted = self.client.delete(*keys)
+                self._unindex_created(*keys)
+                return deleted
             return 0
         except Exception as e:
             logger.error(f"Redis flush pattern failed: {e}")
@@ -264,8 +314,18 @@ class CacheInvalidationStrategy:
         Args:
             cache_backend: Cache backend instance
             older_than_seconds: Age threshold in seconds
+
+        Returns:
+            Number of entries invalidated (Redis backend only).
         """
-        logger.warning("Time-based invalidation not yet implemented")
+        if isinstance(cache_backend, RedisCacheBackend):
+            count = cache_backend.invalidate_by_time(older_than_seconds)
+            logger.info(
+                f"Invalidated {count} cache entries older than {older_than_seconds}s"
+            )
+            return count
+        logger.warning("Time-based invalidation only supported for Redis backend")
+        return 0
 
 
 def smart_cache(

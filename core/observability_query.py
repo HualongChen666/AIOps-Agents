@@ -86,7 +86,8 @@ class QueryCache:
     def __init__(self, ttl: float = DEFAULT_CACHE_TTL_SECONDS, max_size: int = 1000):
         self.ttl = ttl
         self.max_size = max_size
-        self._store: Dict[str, Tuple[Any, float]] = {}
+        # 每条记录保存 (value, 写入时间, 该条自身的 TTL)，支持 per-call TTL 覆盖
+        self._store: Dict[str, Tuple[Any, float, float]] = {}
         self._order: List[str] = []
 
     def _delete(self, key: str) -> None:
@@ -97,20 +98,22 @@ class QueryCache:
     def get(self, key: str) -> Tuple[Optional[Any], bool]:
         if key not in self._store:
             return None, False
-        value, ts = self._store[key]
-        if time.monotonic() - ts > self.ttl:
+        value, ts, entry_ttl = self._store[key]
+        if time.monotonic() - ts > entry_ttl:
             self._delete(key)
             return None, False
         return value, True
 
-    def set(self, key: str, value: Any) -> None:
+    def set(self, key: str, value: Any, ttl: Optional[float] = None) -> None:
         now = time.monotonic()
+        if ttl is None:
+            ttl = self.ttl
         if key in self._store:
             self._delete(key)
         while len(self._order) >= self.max_size:
             oldest = self._order.pop(0)
             self._delete(oldest)
-        self._store[key] = (value, now)
+        self._store[key] = (value, now, ttl)
         self._order.append(key)
 
     def clear(self) -> None:
@@ -171,7 +174,8 @@ async def cached_query(
 
     if ttl is None:
         ttl = cache.ttl
-    cache.set(key, result)
+    # 使用本次调用的 TTL（per-call 覆盖），而非恒用缓存全局 TTL
+    cache.set(key, result, ttl=ttl)
     return result
 
 

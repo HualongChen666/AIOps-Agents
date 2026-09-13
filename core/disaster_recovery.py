@@ -231,26 +231,38 @@ class DisasterRecovery:
         try:
             backup_path = Path(backup_file)
             if not backup_path.exists():
+                print(f"Backup file not found: {backup_path}")
                 return False
 
-            # For SQLite, restore by executing SQL
-            db_path = Path("aiops_agent.db")
-            if db_path.exists():
-                try:
-                    with open(backup_path, "r") as f:
-                        sql_script = f.read()
-                except OSError as exc:
-                    print(f"Failed to read backup file {backup_path}: {exc}")
-                    return False
+            url = self._database_url()
+            if not url.startswith("sqlite"):
+                print(
+                    "restore_database only supports SQLite backups; use pg_restore "
+                    "for PostgreSQL targets"
+                )
+                return False
 
-                conn = sqlite3.connect(str(db_path))
-                try:
-                    conn.executescript(sql_script)
-                except sqlite3.Error as exc:
-                    print(f"Failed to execute SQL script: {exc}")
-                    conn.close()
-                    return False
+            # 与 backup_database 使用同一 DATABASE_URL 推导的路径，避免恢复写入错误库
+            db_path = Path(url.split("///", 1)[-1] or "aiops_agent.db")
+            if not db_path.exists():
+                print(f"Target SQLite database not found: {db_path}")
+                return False
+
+            try:
+                with open(backup_path, "r") as f:
+                    sql_script = f.read()
+            except OSError as exc:
+                print(f"Failed to read backup file {backup_path}: {exc}")
+                return False
+
+            conn = sqlite3.connect(str(db_path))
+            try:
+                conn.executescript(sql_script)
+            except sqlite3.Error as exc:
+                print(f"Failed to execute SQL script: {exc}")
                 conn.close()
+                return False
+            conn.close()
 
             return True
         except Exception as e:

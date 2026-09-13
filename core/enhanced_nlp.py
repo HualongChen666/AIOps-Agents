@@ -160,12 +160,24 @@ class EnhancedNLPProcessor:
         }
 
         for action, keywords in action_keywords.items():
-            if any(keyword in text_lower for keyword in keywords):
+            matched = [kw for kw in keywords if kw in text_lower]
+            if matched:
+                # 置信度按真实匹配质量推导：命中越多、输入越聚焦，判定越可信
+                hit_ratio = len(matched) / len(keywords)
+                matched_chars = sum(len(kw) for kw in matched)
+                density = matched_chars / max(len(text_lower), 1)
+                confidence = min(
+                    0.95,
+                    round(0.5 + 0.35 * min(1.0, hit_ratio * 3) + 0.15 * min(1.0, density * 5), 4),
+                )
                 return SemanticMatch(
                     text=text,
-                    confidence=0.8,  # Default confidence for keyword match
+                    confidence=confidence,
                     category=action,
-                    metadata={"method": "keyword_matching"}
+                    metadata={
+                        "method": "keyword_matching",
+                        "matched_keywords": matched,
+                    },
                 )
 
         return SemanticMatch(

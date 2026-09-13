@@ -28,6 +28,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
 
+# 本模块专用 loguru handler 是否已配置（避免重复 Add，且绝不移除全局 handler）
+_log_handlers_configured = False
+
 
 class ErrorSeverity(Enum):
     """Error severity levels"""
@@ -228,9 +231,19 @@ class ErrorHandler:
         }
 
     def _configure_logging(self):
-        """Configure structured logging"""
-        # Remove default handler
-        logger.remove()
+        """Configure structured logging for the error handler.
+
+        注意：这里绝不能调用 ``logger.remove()`` —— loguru 的 handler 是进程中
+        全局的，移除会连带清空应用其它模块（config/main 等）已注册的 handler。
+        仅按需追加本处理器专属 handler，并保证只配置一次。
+        """
+        global _log_handlers_configured
+        if _log_handlers_configured:
+            return
+
+        def _is_own_record(record) -> bool:
+            # 控制台输出仅处理本模块产生的记录，避免与应用其余日志重复打印
+            return record["name"] == __name__
 
         # Add console handler with structured output
         logger.add(
@@ -242,6 +255,7 @@ class ErrorHandler:
                 "<level>{message}</level>"
             ),
             level="INFO",
+            filter=_is_own_record,
             enqueue=True,
         )
 
@@ -265,6 +279,8 @@ class ErrorHandler:
             rotation="500 MB",
             retention="30 days",
         )
+
+        _log_handlers_configured = True
 
     def _start_alert_processor(self):
         """Start background alert processor"""

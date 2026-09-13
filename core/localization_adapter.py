@@ -37,6 +37,62 @@ class UnitSystem(Enum):
     IMPERIAL = "imperial"
 
 
+# 单位定义：符号 -> (所属单位制, 物理量, 换算到公制基准的系数)
+_UNIT_DEFINITIONS: Dict[str, tuple] = {
+    # 长度（基准：米）
+    "m": (UnitSystem.METRIC, "length", 1.0),
+    "km": (UnitSystem.METRIC, "length", 1000.0),
+    "cm": (UnitSystem.METRIC, "length", 0.01),
+    "mm": (UnitSystem.METRIC, "length", 0.001),
+    "ft": (UnitSystem.IMPERIAL, "length", 0.3048),
+    "mi": (UnitSystem.IMPERIAL, "length", 1609.344),
+    "in": (UnitSystem.IMPERIAL, "length", 0.0254),
+    # 质量（基准：千克）
+    "kg": (UnitSystem.METRIC, "mass", 1.0),
+    "g": (UnitSystem.METRIC, "mass", 0.001),
+    "lb": (UnitSystem.IMPERIAL, "mass", 0.45359237),
+    "oz": (UnitSystem.IMPERIAL, "mass", 0.028349523125),
+    # 体积（基准：升）
+    "l": (UnitSystem.METRIC, "volume", 1.0),
+    "ml": (UnitSystem.METRIC, "volume", 0.001),
+    "gal": (UnitSystem.IMPERIAL, "volume", 3.785411784),
+    # 速度（基准：千米/小时）
+    "km/h": (UnitSystem.METRIC, "speed", 1.0),
+    "mph": (UnitSystem.IMPERIAL, "speed", 1.609344),
+}
+
+# 各物理量在目标单位制下使用的展示单位
+_UNIT_TARGET_SYMBOL: Dict[str, Dict[UnitSystem, str]] = {
+    "length": {UnitSystem.METRIC: "m", UnitSystem.IMPERIAL: "ft"},
+    "mass": {UnitSystem.METRIC: "kg", UnitSystem.IMPERIAL: "lb"},
+    "volume": {UnitSystem.METRIC: "l", UnitSystem.IMPERIAL: "gal"},
+    "speed": {UnitSystem.METRIC: "km/h", UnitSystem.IMPERIAL: "mph"},
+}
+
+# 温度单位（摄氏/华氏使用非线性换算）
+_TEMPERATURE_UNITS = {"c", "°c", "f", "°f"}
+
+# 常见单位全称/别名的归一化映射
+_UNIT_ALIASES: Dict[str, str] = {
+    "meter": "m", "meters": "m", "metre": "m", "metres": "m",
+    "kilometer": "km", "kilometers": "km", "kilometre": "km", "kilometres": "km",
+    "centimeter": "cm", "centimeters": "cm", "centimetre": "cm", "centimetres": "cm",
+    "millimeter": "mm", "millimeters": "mm",
+    "foot": "ft", "feet": "ft",
+    "mile": "mi", "miles": "mi",
+    "inch": "in", "inches": "in",
+    "kilogram": "kg", "kilograms": "kg",
+    "gram": "g", "grams": "g",
+    "pound": "lb", "pounds": "lb",
+    "ounce": "oz", "ounces": "oz",
+    "liter": "l", "liters": "l", "litre": "l", "litres": "l",
+    "milliliter": "ml", "milliliters": "ml",
+    "gallon": "gal", "gallons": "gal",
+    "kph": "km/h", "kilometers per hour": "km/h",
+    "mph": "mph", "miles per hour": "mph",
+}
+
+
 @dataclass
 class LocaleFormat:
     """Locale-specific format configuration"""
@@ -338,10 +394,43 @@ class LocalizationAdapter:
         locale_format = self._get_locale_format(locale)
         target_system = target_system or locale_format.unit_system
 
-        # Unit conversion (simplified)
-        converted_value = self._convert_unit(value, unit, target_system)
+        converted_value, display_unit = self._convert_unit_full(value, unit, target_system)
 
-        return f"{converted_value} {unit}"
+        return f"{converted_value} {display_unit}"
+
+    def _convert_unit_full(
+        self, value: float, unit: str, target_system: UnitSystem
+    ) -> tuple:
+        """按目标单位制换算数值并返回换算后的展示单位。
+
+        未知单位或单位已属于目标单位制时原样返回。
+        """
+        key = (unit or "").strip().lower()
+        if not key:
+            return value, unit
+        key = _UNIT_ALIASES.get(key, key)
+
+        # 温度换算
+        if key in _TEMPERATURE_UNITS:
+            is_celsius = key.endswith("c")
+            if is_celsius and target_system == UnitSystem.IMPERIAL:
+                return value * 9 / 5 + 32, "°F"
+            if (not is_celsius) and target_system == UnitSystem.METRIC:
+                return (value - 32) * 5 / 9, "°C"
+            return value, unit
+
+        definition = _UNIT_DEFINITIONS.get(key)
+        if definition is None:
+            return value, unit
+
+        source_system, quantity, factor = definition
+        if source_system == target_system:
+            return value, unit
+
+        base_value = value * factor
+        target_symbol = _UNIT_TARGET_SYMBOL[quantity][target_system]
+        target_factor = _UNIT_DEFINITIONS[target_symbol][2]
+        return base_value / target_factor, target_symbol
 
     def _convert_unit(self, value: float, unit: str, target_system: UnitSystem) -> float:
         """
@@ -355,9 +444,8 @@ class LocalizationAdapter:
         Returns:
             Converted value
         """
-        # Simplified unit conversion
-        # In production, use a proper unit conversion library
-        return value
+        converted_value, _ = self._convert_unit_full(value, unit, target_system)
+        return converted_value
 
     def _get_locale_format(self, locale: Optional[str]) -> LocaleFormat:
         """

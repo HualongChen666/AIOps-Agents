@@ -53,6 +53,8 @@ def distributed_storage(monkeypatch):
     """Provide a DistributedStorageManager with Redis forced into fallback."""
     monkeypatch.setattr("core.distributed_storage.REDIS_AVAILABLE", False)
     monkeypatch.setattr("core.distributed_storage.redis", None)
+    # 让健康探测在无真实数据库的测试环境返回可用（否则依赖真实 TCP 连通性）
+    monkeypatch.setattr(ReadWriteRouter, "_probe", staticmethod(lambda instance: True))
     return DistributedStorageManager()
 
 
@@ -398,8 +400,9 @@ def test_call_chain_finders_and_service_error_rate():
     assert engine._find_node_by_id("nope", [node]) is None
 
 
-def test_read_write_router():
+def test_read_write_router(monkeypatch):
     router = ReadWriteRouter()
+    monkeypatch.setattr(ReadWriteRouter, "_probe", staticmethod(lambda instance: True))
     with pytest.raises(Exception):
         router.get_read_connection()
     with pytest.raises(Exception):
@@ -434,6 +437,29 @@ def test_read_write_router():
 
     router.check_health()
     assert slave.is_available is True
+
+
+def test_read_write_router_probe_failure(monkeypatch):
+    """真实探测失败时应把实例标记为不可用（而非恒 True）。"""
+    monkeypatch.setattr(ReadWriteRouter, "_probe", staticmethod(lambda instance: False))
+    router = ReadWriteRouter()
+    master = DatabaseInstance(
+        host="m",
+        port=5432,
+        role=DatabaseRole.MASTER,
+        database_type=DatabaseType.POSTGRESQL,
+    )
+    slave = DatabaseInstance(
+        host="s1",
+        port=5433,
+        role=DatabaseRole.SLAVE,
+        database_type=DatabaseType.POSTGRESQL,
+    )
+    router.set_master(master)
+    router.add_slave(slave)
+    router.check_health()
+    assert master.is_available is False
+    assert slave.is_available is False
 
 
 def test_redis_cluster_adapter_fallback(monkeypatch):

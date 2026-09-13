@@ -134,17 +134,26 @@ class CircuitBreaker:
     def call(self, func: F, *args: Any, **kwargs: Any) -> Any:
         if self._is_open():
             raise RuntimeError(f"Circuit breaker {self.name} is OPEN")
-        result = func(*args, **kwargs)
+        try:
+            result = func(*args, **kwargs)
+        except Exception:
+            # 失败必须计入熔断统计，否则断路器永远不会因失败而打开
+            self.record_failure()
+            raise
         self.record_success()
         return result
 
     async def call_async(self, func: F, *args: Any, **kwargs: Any) -> Any:
         if self._is_open():
             raise RuntimeError(f"Circuit breaker {self.name} is OPEN")
-        if _is_async(func):
-            result = await func(*args, **kwargs)
-        else:
-            result = func(*args, **kwargs)
+        try:
+            if _is_async(func):
+                result = await func(*args, **kwargs)
+            else:
+                result = func(*args, **kwargs)
+        except Exception:
+            self.record_failure()
+            raise
         self.record_success()
         return result
 

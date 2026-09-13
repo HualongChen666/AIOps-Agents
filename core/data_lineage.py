@@ -544,26 +544,57 @@ class DataLineageManager:
 
         return [self._entities[eid].to_dict() for eid in downstream_ids if eid in self._entities]
 
-    def analyze_impact(self, entity_id: str) -> Dict[str, Any]:
+    def analyze_impact(self, entity_id: str, max_depth: int = 10) -> Dict[str, Any]:
         """
         Analyze impact of entity changes
 
+        除直接下游外，继续沿下游边做级联（传递闭包）遍历，避免低估影响面；
+        遍历对已访问节点去重，因而可安全处理环形依赖。
+
         Args:
             entity_id: Entity ID
+            max_depth: Maximum cascade traversal depth
 
         Returns:
             Impact analysis dictionary
         """
-        downstream = self.get_downstream(entity_id)
+        direct_ids = [
+            rel.target_id
+            for rel in self._relationships.values()
+            if rel.source_id == entity_id and rel.target_id in self._entities
+        ]
+        direct_set = set(direct_ids)
 
-        impact = {
+        visited: Set[str] = set(direct_ids)
+        frontier = list(direct_ids)
+        depth = 0
+        while frontier and depth < max_depth:
+            depth += 1
+            next_frontier: List[str] = []
+            for current in frontier:
+                for rel in self._relationships.values():
+                    target = rel.target_id
+                    if (
+                        rel.source_id == current
+                        and target in self._entities
+                        and target not in visited
+                    ):
+                        visited.add(target)
+                        next_frontier.append(target)
+            frontier = next_frontier
+
+        cascade_only = [eid for eid in visited if eid not in direct_set]
+
+        return {
             "entity_id": entity_id,
-            "direct_impact": len(downstream),
-            "affected_entities": downstream,
-            "total_impact": len(downstream),  # Could be extended with recursive analysis
+            "direct_impact": len(direct_ids),
+            "direct_entities": [self._entities[eid].to_dict() for eid in direct_ids],
+            "affected_entities": [self._entities[eid].to_dict() for eid in visited],
+            "cascade_impact": len(cascade_only),
+            "cascade_entities": [self._entities[eid].to_dict() for eid in cascade_only],
+            "total_impact": len(visited),
+            "max_depth": depth,
         }
-
-        return impact
 
     def get_lineage(self, entity_id: str, depth: int = 3) -> Dict[str, Any]:
         """

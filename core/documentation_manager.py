@@ -105,7 +105,7 @@ class DocumentationManager:
             template_id="user_manual",
             template_name="User Manual Template",
             doc_type=DocType.USER_MANUAL,
-            template_content="""''# {title}
+            template_content="""# {title}
 
 ## Table of Contents
 - [Quick Start](#quick-start)
@@ -146,7 +146,7 @@ class DocumentationManager:
             template_id="api_documentation",
             template_name="API Documentation Template",
             doc_type=DocType.API_DOCUMENTATION,
-            template_content="""''# {title}
+            template_content="""# {title}
 
 ## API Documentation
 
@@ -183,7 +183,7 @@ class DocumentationManager:
             template_id="developer_guide",
             template_name="Developer Guide Template",
             doc_type=DocType.DEVELOPER_GUIDE,
-            template_content="""''# {title}
+            template_content="""# {title}
 
 ## Developer Guide
 
@@ -215,7 +215,7 @@ class DocumentationManager:
             template_id="deployment_guide",
             template_name="Deployment Guide Template",
             doc_type=DocType.DEPLOYMENT_GUIDE,
-            template_content="""''# {title}
+            template_content="""# {title}
 
 ## Deployment Guide
 
@@ -247,7 +247,7 @@ class DocumentationManager:
             template_id="security_guide",
             template_name="Security Guide Template",
             doc_type=DocType.SECURITY_GUIDE,
-            template_content="""''# {title}
+            template_content="""# {title}
 
 ## Security Guide
 

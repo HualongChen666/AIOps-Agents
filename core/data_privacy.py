@@ -39,7 +39,7 @@ class DataPrivacyConfig:
         anonymization_enabled: bool = True,
         pii_detection_enabled: bool = True,
         data_retention_enabled: bool = True,
-        consent_required: bool = False,
+        consent_required: bool = True,
         gdpr_compliance: bool = False,
     ):
         self.anonymization_enabled = anonymization_enabled
@@ -189,6 +189,9 @@ def anonymize_ip(ip: str) -> str:
 def anonymize_text(text: str) -> str:
     """Anonymize PII in text.
 
+    基于原始文本一次性定位所有 PII 出现位置后统一替换，避免对已替换文本
+    二次替换（重叠/重复子串会导致越替越短、错位）。
+
     Args:
         text: Text to anonymize
 
@@ -200,20 +203,40 @@ def anonymize_text(text: str) -> str:
 
     detected = detect_pii(text)
 
-    for pii_type, matches in detected.items():
-        for match in matches:
-            if pii_type == "email":
-                text = text.replace(match, anonymize_email(match))
-            elif pii_type == "phone":
-                text = text.replace(match, anonymize_phone(match))
-            elif pii_type == "ssn":
-                text = text.replace(match, anonymize_ssn(match))
-            elif pii_type == "credit_card":
-                text = text.replace(match, anonymize_credit_card(match))
-            elif pii_type == "ip_address":
-                text = text.replace(match, anonymize_ip(match))
+    replacers = {
+        "email": anonymize_email,
+        "phone": anonymize_phone,
+        "ssn": anonymize_ssn,
+        "credit_card": anonymize_credit_card,
+        "ip_address": anonymize_ip,
+    }
 
-    return text
+    replacements = []  # (start, end, replacement)
+    for pii_type, matches in detected.items():
+        replacer = replacers.get(pii_type)
+        if replacer is None:
+            continue
+        for match in matches:
+            start = text.find(match)
+            while start != -1:
+                replacements.append((start, start + len(match), replacer(match)))
+                start = text.find(match, start + 1)
+
+    if not replacements:
+        return text
+
+    replacements.sort()
+    pieces: List[str] = []
+    cursor = 0
+    for start, end, replacement in replacements:
+        if start < cursor:
+            # 与已替换区间重叠，跳过
+            continue
+        pieces.append(text[cursor:start])
+        pieces.append(replacement)
+        cursor = end
+    pieces.append(text[cursor:])
+    return "".join(pieces)
 
 
 def hash_pii(data: str) -> str:

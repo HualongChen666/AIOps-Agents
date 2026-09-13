@@ -549,6 +549,7 @@ class FakeRedisClient:
     def __init__(self, **kwargs):
         self.kwargs = kwargs
         self._store = {}
+        self._zsets = {}
 
     def ping(self):
         return True
@@ -558,6 +559,28 @@ class FakeRedisClient:
 
     def setex(self, key, ttl, value):
         self._store[key] = value
+
+    def zadd(self, name, mapping):
+        z = self._zsets.setdefault(name, {})
+        added = 0
+        for member, score in mapping.items():
+            if member not in z:
+                added += 1
+            z[member] = score
+        return added
+
+    def zrem(self, name, *members):
+        z = self._zsets.get(name, {})
+        removed = 0
+        for member in members:
+            if member in z:
+                del z[member]
+                removed += 1
+        return removed
+
+    def zrangebyscore(self, name, min_score, max_score):
+        z = self._zsets.get(name, {})
+        return [m for m, s in z.items() if min_score <= s <= max_score]
 
     def delete(self, *keys):
         count = 0
@@ -666,6 +689,26 @@ def test_cache_invalidation(fake_redis):
 
     not_redis = MagicMock()
     CacheInvalidationStrategy.invalidate_by_prefix(not_redis, "foo")
+
+
+def test_cache_invalidation_by_time(fake_redis):
+    """按创建时间失效：只删除超过阈值的条目。"""
+    import time as _time
+
+    backend = RedisCacheBackend()
+    backend.set("old:1", "x")
+    backend.set("old:2", "y")
+    backend.set("new:1", "z")
+    # 把 old:* 的创建时间改为 2 小时前
+    index = backend.client._zsets[backend._CREATED_INDEX]
+    index["old:1"] = _time.time() - 7200
+    index["old:2"] = _time.time() - 7200
+
+    removed = CacheInvalidationStrategy.invalidate_by_time(backend, 3600)
+    assert removed == 2
+    assert backend.get("old:1") is None
+    assert backend.get("old:2") is None
+    assert backend.get("new:1") == "z"
 
 
 @pytest.mark.parametrize("backend", [None, MagicMock()])

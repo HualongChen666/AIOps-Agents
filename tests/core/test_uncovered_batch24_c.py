@@ -264,7 +264,10 @@ def test_analyze_impact_and_lineage(lineage_manager):
 
     impact = lineage_manager.analyze_impact(a.id)
     assert impact["direct_impact"] == 1
-    assert len(impact["affected_entities"]) == 1
+    # a -> b -> c：级联影响应包含 c（而非仅直接下游 b）
+    assert impact["cascade_impact"] == 1
+    assert impact["total_impact"] == 2
+    assert len(impact["affected_entities"]) == 2
 
     graph = lineage_manager.get_lineage(a.id, depth=2)
     assert graph["entity"]["id"] == a.id

@@ -6,6 +6,7 @@
 
 import logging
 import secrets
+import socket
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -116,15 +117,30 @@ class ReadWriteRouter:
         return self.master
 
     def check_health(self):
-        """检查数据库健康状态"""
-        # 简化的健康检查
+        """检查数据库健康状态（真实 TCP 连通性探测）"""
+        now = datetime.now(timezone.utc)
         if self.master:
-            self.master.last_check = datetime.now(timezone.utc)
+            self.master.last_check = now
+            self.master.is_available = self._probe(self.master)
 
         for slave in self.slaves:
-            slave.last_check = datetime.now(timezone.utc)
-            # 这里应该有实际的健康检查逻辑
-            slave.is_available = True
+            slave.last_check = now
+            slave.is_available = self._probe(slave)
+
+    # 探测超时（秒）：过短会误判慢节点，过长会拖慢健康检查
+    _PROBE_TIMEOUT_SECONDS = 1.0
+
+    @staticmethod
+    def _probe(instance: "DatabaseInstance") -> bool:
+        """对实例 host:port 做一次 TCP 连接探测，可建立连接即视为可用。"""
+        try:
+            with socket.create_connection(
+                (instance.host, instance.port),
+                timeout=ReadWriteRouter._PROBE_TIMEOUT_SECONDS,
+            ):
+                return True
+        except OSError:
+            return False
 
 
 class RedisClusterAdapter:
