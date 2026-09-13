@@ -37,6 +37,9 @@ class FlagRule:
     name: str
     conditions: Dict[str, Any]
     enabled: bool = True
+    # 规则命中时返回的目标值；None 表示按布尔语义返回 True。
+    # 多变体（MULTIVARIATE）标记可据此返回对应变体值。
+    value: Any = None
 
     def matches(self, context: Dict[str, Any]) -> bool:
         """
@@ -96,7 +99,12 @@ class FeatureFlag:
             "status": self.status.value,
             "fallback_value": self.fallback_value,
             "rules": [
-                {"name": rule.name, "conditions": rule.conditions, "enabled": rule.enabled}
+                {
+                    "name": rule.name,
+                    "conditions": rule.conditions,
+                    "enabled": rule.enabled,
+                    "value": rule.value,
+                }
                 for rule in self.rules
             ],
             "created_at": self.created_at.isoformat(),
@@ -167,6 +175,7 @@ class FeatureFlagManager:
                                 name=rule["name"],
                                 conditions=rule["conditions"],
                                 enabled=rule["enabled"],
+                                value=rule.get("value"),
                             )
                             for rule in flag_dict["rules"]
                         ],
@@ -384,7 +393,9 @@ class FeatureFlagManager:
                 continue
 
             if context and rule.matches(context):
-                return True
+                # 规则命中返回其目标值；未声明 value 时按布尔语义返回 True。
+                # 这样 MULTIVARIATE 标记可以经由规则返回具体变体，而非硬编码 True。
+                return rule.value if rule.value is not None else True
 
         # Handle percentage rollouts
         if flag.flag_type == FlagType.PERCENTAGE and user_id:

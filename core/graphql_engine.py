@@ -13,16 +13,28 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import strawberry
 from strawberry.exceptions import GraphQLError
 
-from core.db_engine import get_incident_history  # type: ignore[attr-defined]
+from core.db_engine import async_query_repairs
 from core.mcp_tools import get_host_health
-from core.metrics_history import get_metrics_history  # type: ignore[attr-defined]
+from core.metrics_history import get_metrics_history
 
 _logger = logging.getLogger(__name__)
+
+
+def _coerce_datetime(value: Any) -> datetime:
+    """把 ISO 字符串 / datetime / None 统一为 datetime（供 strawberry datetime 标量使用）。"""
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc)
 
 
 # ----------------------------------------------------------------------
@@ -83,7 +95,7 @@ class Query:
             raw = get_metrics_history(limit=limit)
             return [
                 Metric(
-                    timestamp=entry["timestamp"],
+                    timestamp=_coerce_datetime(entry["timestamp"]),
                     name=entry["name"],
                     value=float(entry["value"]),
                     host_id=entry.get("host_id"),
@@ -95,25 +107,34 @@ class Query:
             raise GraphQLError(str(exc))
 
     @strawberry.field
-    def incidents(self, host_id: Optional[str] = None, limit: int = 20) -> List[Incident]:
-        """查询历史 incident（通过 db_engine 提供的通用查询）"""
+    async def incidents(self, host_id: Optional[str] = None, limit: int = 20) -> List[Incident]:
+        """查询历史 incident（来源于 db_engine 的真实修复记录）。
+
+        每条修复记录即一次事件处置：其 repair_time 作为 created_at，
+        host 作为 host_id，risk 作为 severity 等。
+        """
         try:
-            raw = get_incident_history(host_id=host_id, limit=limit)
-            return [
-                Incident(
-                    incident_id=row["id"],
-                    host_id=row.get("host_id"),
-                    alert_id=row.get("alert_id"),
-                    script_key=row.get("script_key"),
-                    created_at=row["created_at"],
-                    status=row["status"],
-                    severity=row.get("severity"),
+            rows = await async_query_repairs(limit=limit)
+            results: List[Incident] = []
+            for row in rows:
+                if host_id is not None and row.get("host") != host_id:
+                    continue
+                created_at = _coerce_datetime(row.get("repair_time"))
+                results.append(
+                    Incident(
+                        incident_id=str(row.get("id")),
+                        host_id=row.get("host"),
+                        alert_id=row.get("alert_id"),
+                        script_key=row.get("script_key"),
+                        created_at=created_at,
+                        status=str(row.get("status") or "unknown"),
+                        severity=row.get("risk"),
+                    )
                 )
-                for row in raw
-            ]
+            return results
         except Exception as exc:
             _logger.error("GraphQL incidents 查询失败: %s", exc, exc_info=True)
-            raise
+            raise GraphQLError(str(exc))
 
 
 # ----------------------------------------------------------------------

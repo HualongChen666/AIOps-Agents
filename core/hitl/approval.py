@@ -226,10 +226,9 @@ class ApprovalWorkflow:
         with self._get_request_lock(request_id):
             request = self.active_requests.get(request_id)
             if not request:
+                logger.warning(f"Request {request_id} not found")
                 return False
             if tenant_id is not None and request.tenant_id != tenant_id:
-                return False
-                logger.warning(f"Request {request_id} not found")
                 return False
 
             step = next((s for s in request.steps if s.step_id == step_id), None)

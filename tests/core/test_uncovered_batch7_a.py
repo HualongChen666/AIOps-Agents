@@ -490,7 +490,8 @@ def test_validate_and_clean_input():
     dirty = "<script>alert(1)</script> SELECT * FROM users; -- ../path & more"
     cleaned = iv.validate_and_clean_input(dirty)
     assert "<script>" not in cleaned
-    assert "SELECT" not in cleaned
+    # 合法文本（SQL 关键词/注释符）不再被破坏性删除，仅做转义
+    assert "SELECT" in cleaned
     assert ".." not in cleaned
     # html.escape turns '&' into '&amp;'
     assert "&amp;" in cleaned

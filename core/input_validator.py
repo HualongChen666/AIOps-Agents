@@ -43,13 +43,16 @@ class InputValidator:
         r"<embed[^>]*>.*?</embed>",
     ]
 
-    # Command injection patterns
+    # Command injection patterns（仅匹配真实注入特征，避免因括号/方括号/花括号/`$` 等
+    # 常见字符而过宽误报；这些字符在合法文本中大量出现）
     COMMAND_INJECTION_PATTERNS = [
-        r"[;&|`$(){}[\]]",
-        r"\.\./",
-        r"\.\.\\",
-        r"`[^`]*`",
-        r"\$[^$]*\$",
+        r"\$\([^)]*\)",  # $(command substitution)
+        r"`[^`]*`",  # 反引号命令替换
+        r"\$\{[^}]*\}",  # ${var} 变量展开
+        r"(?<![\w.])(?:;|&&|\|\|)\s*\S",  # 命令串接 ; && ||
+        r"(?<![\w.])\|\s*\S",  # 管道到另一条命令
+        r"\.\./",  # 路径穿越
+        r"\.\.\\",  # 路径穿越（Windows）
     ]
 
     @classmethod
@@ -75,7 +78,7 @@ class InputValidator:
         sanitized = html.escape(input_string)
 
         # Remove null bytes
-        sanitized = sanitized.replace("", "")
+        sanitized = sanitized.replace("\x00", "")
 
         return sanitized
 
@@ -315,14 +318,9 @@ def validate_and_clean_input(input_string: str) -> str:
     cleaned = re.sub(r"javascript:", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"on\w+\s*=", "", cleaned, flags=re.IGNORECASE)
 
-    # Remove common SQL injection keywords and comment markers
-    cleaned = re.sub(
-        r"\b(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|UNION)\b",
-        "",
-        cleaned,
-        flags=re.IGNORECASE,
-    )
-    cleaned = re.sub(r"(--|;)", "", cleaned)
+    # NOTE: 不再删除 SQL 关键词与 ``--``/``;`` —— 这些字符在合法文本
+    # （SQL 片段、日志、代码讨论）中十分常见，直接删除会破坏输入语义。
+    # 潜在注入由后续 HTML 转义中和，而非改写/裁剪用户内容。
 
     # Remove path traversal sequences
     cleaned = cleaned.replace("..", "")

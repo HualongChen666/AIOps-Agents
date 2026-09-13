@@ -147,11 +147,49 @@ class Query:
 
             health_data = await check_all_modules_health()
 
+            # 依据各模块真实健康结果推导整体状态，而非硬编码 "healthy"
+            statuses: dict[str, str] = {}
+            for module_name, payload in health_data.items():
+                if isinstance(payload, dict):
+                    statuses[module_name] = str(payload.get("status", "unknown")).lower()
+
+            unhealthy = sorted(
+                name
+                for name, st in statuses.items()
+                if st in ("error", "unhealthy", "unavailable", "down", "critical")
+            )
+            degraded = sorted(
+                name
+                for name, st in statuses.items()
+                if st not in ("healthy", "ok", "unknown") and name not in unhealthy
+            )
+
+            if unhealthy:
+                overall = "unhealthy"
+            elif degraded:
+                overall = "degraded"
+            elif statuses:
+                overall = "healthy"
+            else:
+                overall = "unknown"
+
+            database = statuses.get("database", "unknown")
+            redis = statuses.get("redis", "unknown")
+
+            if unhealthy:
+                message = f"Unhealthy modules: {', '.join(unhealthy)}"
+            elif degraded:
+                message = f"Degraded modules: {', '.join(degraded)}"
+            elif statuses:
+                message = "All modules healthy"
+            else:
+                message = "No module health data available"
+
             return HealthStatus(
-                status="healthy",
-                database=health_data.get("database", {}).get("status", "unknown"),
-                redis=health_data.get("redis", {}).get("status", "unknown"),
-                message="System is operational",
+                status=overall,
+                database=database,
+                redis=redis,
+                message=message,
             )
         except Exception as e:
             logger.error(f"Failed to query health: {e}")

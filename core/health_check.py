@@ -280,14 +280,28 @@ async def check_metrics_health() -> Dict[str, Any]:
 async def check_alert_engine_health() -> Dict[str, Any]:
     """Check alert engine health.
 
+    真实检查：导入告警引擎并确认路由能力可用，读取真实告警历史规模。
+
     Returns:
         Dictionary with alert engine health status
     """
     try:
-        # Check if alert engine is operational
+        from core import alert_engine as alert_engine_module
+
+        router = getattr(alert_engine_module, "alert_engine", None)
+        if router is None or not hasattr(router, "route_alert"):
+            return {
+                "status": "unhealthy",
+                "message": "Alert engine router unavailable (missing route_alert)",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+
+        history = getattr(alert_engine_module, "alert_history", None)
+        routed_history_size = len(history) if history is not None else 0
         return {
             "status": "healthy",
             "message": "Alert engine operational",
+            "alert_history_size": routed_history_size,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
@@ -302,14 +316,28 @@ async def check_alert_engine_health() -> Dict[str, Any]:
 async def check_repair_engine_health() -> Dict[str, Any]:
     """Check repair engine health.
 
+    真实检查：导入修复引擎，确认存在可用修复脚本与历史接口。
+
     Returns:
         Dictionary with repair engine health status
     """
     try:
-        # Check if repair engine is operational
+        from core import repair_engine as repair_engine_module
+
+        scripts = repair_engine_module.get_repair_scripts()
+        script_count = len(scripts) if isinstance(scripts, (list, tuple, dict)) else 0
+        if script_count == 0:
+            return {
+                "status": "unhealthy",
+                "message": "Repair engine has no registered repair scripts",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        history = repair_engine_module.get_repair_history(limit=1)
         return {
             "status": "healthy",
             "message": "Repair engine operational",
+            "repair_script_count": script_count,
+            "repair_history_accessible": isinstance(history, list),
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:

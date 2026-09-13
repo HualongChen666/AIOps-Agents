@@ -463,10 +463,16 @@ class FaultTolerantExecutor:
             return FailureType.TIMEOUT_ERROR
         elif isinstance(exception, (MemoryError, ResourceWarning)):
             return FailureType.RESOURCE_ERROR
-        elif isinstance(exception, (ImportError, AttributeError)):
+        elif isinstance(exception, (ImportError, AttributeError, ModuleNotFoundError)):
             return FailureType.DEPENDENCY_ERROR
-        else:
+        elif isinstance(
+            exception,
+            (ValueError, TypeError, KeyError, IndexError, AssertionError, RuntimeError),
+        ):
             return FailureType.LOGIC_ERROR
+        else:
+            # 未能识别的异常如实归类，避免一律当作 LOGIC_ERROR 掩盖真实类别
+            return FailureType.UNKNOWN_ERROR
 
     async def _try_fallback(self, operation: str, args: tuple, kwargs: dict) -> Optional[Any]:
         """Try fallback handler"""

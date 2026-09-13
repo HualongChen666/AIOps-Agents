@@ -60,11 +60,56 @@ async def notify_rollback_failure(
         except Exception as exc:
             logger.warning(f"[escalation] Failed to send webhook notification: {exc}")
 
-    # Log to every configured channel even if no webhook is configured
+    # 通过通知引擎把升级消息真正投递到各渠道（此前仅打印 warning，未真正发送）
+    try:
+        from core import notify_engine
+    except Exception as exc:  # pragma: no cover - 依赖异常
+        logger.warning(f"[escalation] notify_engine 不可用，无法投递渠道通知: {exc}")
+        return
+
+    message = (
+        f"🚨 回滚失败，需人工介入 | alert={alert_id} | snapshot={snapshot_id} | "
+        f"error={error}"
+    )
+    alert = {
+        "type": "rollback_failure",
+        "level": "critical",
+        "severity": "critical",
+        "message": message,
+        "alert_id": alert_id,
+        "snapshot_id": snapshot_id,
+    }
+    notify_config = getattr(notify_engine, "NOTIFY_CONFIG", {}) or {}
+
     for channel in _notification_channels():
-        logger.warning(
-            f"[escalation] Notifying {channel} about rollback failure for alert {alert_id}"
-        )
+        channel = channel.strip()
+        if not channel:
+            continue
+        try:
+            is_configured = notify_engine._channel_configured(channel, notify_config)
+        except Exception:
+            is_configured = False
+
+        if not is_configured:
+            logger.warning(
+                f"[escalation] Channel '{channel}' 未配置，跳过通知 | alert={alert_id}"
+            )
+            continue
+
+        try:
+            result = await notify_engine.send_notification(alert, channels=[channel])
+            if isinstance(result, dict) and result.get("success"):
+                logger.info(
+                    f"[escalation] Channel '{channel}' notified | alert={alert_id}"
+                )
+            else:
+                logger.warning(
+                    f"[escalation] Channel '{channel}' delivery failed: {result} | alert={alert_id}"
+                )
+        except Exception as exc:
+            logger.warning(
+                f"[escalation] Channel '{channel}' notify raised: {exc} | alert={alert_id}"
+            )
 
 
 def escalate_rollback_failure_sync(

@@ -452,3 +452,32 @@ class MetricsHistory:
 METRICS_HISTORY = MetricsHistory()
 # 兼容旧代码使用的 metrics_history 别名
 metrics_history = METRICS_HISTORY
+
+
+def get_metrics_history(limit: int = 20) -> list[dict]:
+    """返回最近的指标采样点（只读消费，例如 GraphQL）。
+
+    数据来源为真实的 ``METRICS_HISTORY`` 环形缓冲；每个元素为
+    ``{"timestamp": iso 字符串, "name": metric, "value": float, "host_id": service|None}``。
+    无数据时返回空列表，绝不编造样本。
+    """
+    try:
+        safe_limit = max(1, int(limit)) if limit else 20
+    except (TypeError, ValueError):
+        safe_limit = 20
+
+    with METRICS_HISTORY._lock:
+        samples = list(METRICS_HISTORY._samples)[-safe_limit:]
+
+    result: list[dict] = []
+    for point in samples:
+        ts = point.timestamp
+        result.append(
+            {
+                "timestamp": ts.isoformat() if hasattr(ts, "isoformat") else str(ts),
+                "name": point.metric,
+                "value": float(point.value),
+                "host_id": None if point.service == "global" else point.service,
+            }
+        )
+    return result

@@ -1094,18 +1094,102 @@ def _build_rich_user_message(
 
 
 # ============================================================
-# 规则降级分析（保持不变）
+# 规则降级分析（真实规则库）
 # ============================================================
+_RULE_LIBRARY: list[dict] = [
+    {
+        "name": "CPU 饱和",
+        "keywords": ("cpu", "处理器", "负载", "load average", "iowait"),
+        "root_cause": "CPU 资源饱和，或存在忙等/热点线程",
+        "actions": [
+            "top/ps 定位高 CPU 进程并采样火焰图",
+            "检查是否存在死循环、频繁 GC 或定时任务叠加",
+            "必要时扩容或限流，并把热点负载迁移",
+        ],
+    },
+    {
+        "name": "内存不足",
+        "keywords": ("memory", "内存", "oom", "内存溢出", "swap"),
+        "root_cause": "内存泄漏或工作集超出可用内存，可能触发 OOM",
+        "actions": [
+            "free -m / ps 按 RSS 排序定位内存占用大户",
+            "检查缓存与连接池上限，以及近期发布是否引入泄漏",
+            "临时扩容或重启受影响服务，随后排查泄漏点",
+        ],
+    },
+    {
+        "name": "磁盘/IO 异常",
+        "keywords": ("disk", "磁盘", "空间", "inode", "no space", "io util"),
+        "root_cause": "磁盘空间/inode 耗尽或 IO 瓶颈",
+        "actions": [
+            "df -h / df -i 确认空间与 inode 使用情况",
+            "清理日志/临时文件，排查异常增长的大文件",
+            "iostat 观察 await/util，必要时扩容或迁移",
+        ],
+    },
+    {
+        "name": "网络/连接异常",
+        "keywords": (
+            "network",
+            "网络",
+            "timeout",
+            "超时",
+            "connection",
+            "连接",
+            "dns",
+            "丢包",
+        ),
+        "root_cause": "网络不通、丢包，或下游连接耗尽",
+        "actions": [
+            "ping/telnet/mtr 逐跳排查连通性与丢包",
+            "检查安全组、防火墙与 DNS 解析",
+            "观察连接池耗尽与 TIME_WAIT，调整超时与重试",
+        ],
+    },
+    {
+        "name": "服务不可用",
+        "keywords": ("down", "不可用", "crash", "崩溃", "503", "502", "restart", "重启"),
+        "root_cause": "进程崩溃或关键依赖不可用导致服务中断",
+        "actions": [
+            "查看服务日志与最近一次发布/配置变更",
+            "确认依赖（DB/缓存/中间件）健康状态",
+            "按 runbook 重启或回滚，并验证健康检查",
+        ],
+    },
+]
+
+
 def _rule_based_analysis(query: str, metrics: str, platform: str) -> str:
     """当 LLM 不可用或返回异常时的 fallback。
-    简单基于预定义规则生成建议，确保系统始终有响应。
+
+    基于内置规则库对 query 与 metrics 文本匹配已知症状，给出针对性的处置建议；
+    未命中任何规则时如实说明无法定向建议，而非输出与线索无关的固定文案。
     """
-    # 示例实现：仅返回简短提示，实际可自行拓展规则库
-    return (
-        "⚠️ AI 引擎暂不可用,已使用规则降级引擎。\n"
-        f"平台: {platform}\n查询: {query[:50]}...\n"
-        "建议: 手动检查告警日志,对照常见故障排查文档。"
+    haystack = f"{query or ''}\n{metrics or ''}".lower()
+    matched = [r for r in _RULE_LIBRARY if any(k.lower() in haystack for k in r["keywords"])]
+
+    header = (
+        "⚠️ AI 引擎暂不可用，已使用规则降级引擎（rule-based fallback）。\n"
+        f"平台: {platform}\n"
     )
+
+    if not matched:
+        return (
+            header
+            + "未匹配到已知症状规则，无法给出定向建议。\n"
+            "请手动检查告警日志，并对照常见故障排查文档定位。"
+        )
+
+    sections = []
+    for rule in matched:
+        actions = "\n".join(f"  {i}. {a}" for i, a in enumerate(rule["actions"], 1))
+        sections.append(
+            f"• 命中规则: {rule['name']}\n"
+            f"  可能根因: {rule['root_cause']}\n"
+            f"  建议操作:\n{actions}"
+        )
+
+    return header + "命中规则与建议:\n" + "\n".join(sections)
 
 
 # ============================================================

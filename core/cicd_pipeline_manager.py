@@ -308,9 +308,10 @@ class CICDPipelineManager:
         except Exception as e:
             logger.error(f"Stage execution failed: {stage_config.stage_name}, error: {e}")
 
-            # Retry if configured
-            if execution.metadata.get("retry_count", 0) < stage_config.retry_count:
-                execution.metadata["retry_count"] = execution.metadata.get("retry_count", 0) + 1
+            # Retry if configured（按 stage 维度计数，避免跨 stage 相互干扰）
+            retry_key = f"retry_count::{stage_config.stage_name}"
+            if execution.metadata.get(retry_key, 0) < stage_config.retry_count:
+                execution.metadata[retry_key] = execution.metadata.get(retry_key, 0) + 1
                 return await self._execute_stage(execution_id, stage_config)
 
             return {

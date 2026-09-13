@@ -48,11 +48,22 @@ _es_query_cache = QueryCache()
 
 
 def get_es_client():
-    """获取或创建全局 AsyncElasticsearch 客户端实例"""
+    """获取或创建全局 AsyncElasticsearch 客户端实例。
+
+    elasticsearch 库不可用时返回 ``None``，由调用方走本地 NDJSON fallback；
+    绝不能以 ``None([...])`` 的方式实例化，否则缺失依赖时会抛 TypeError。
+    """
     global _es_client
+    if AsyncElasticsearch is None:
+        logger.warning("elasticsearch 库不可用，ES 客户端为 None（将使用本地 fallback）")
+        return None
     if _es_client is None:
         es_url = ELASTICSEARCH_URL
-        _es_client = AsyncElasticsearch([es_url], request_timeout=30)
+        try:
+            _es_client = AsyncElasticsearch([es_url], request_timeout=30)
+        except Exception as exc:  # 缺 aiohttp 等底层依赖时不应崩溃，改为回退本地
+            logger.warning(f"Elasticsearch 客户端初始化失败，将使用本地 fallback: {exc}")
+            return None
         logger.info(f"Elasticsearch client initialized | url={es_url}")
     return _es_client
 

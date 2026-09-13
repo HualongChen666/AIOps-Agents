@@ -48,6 +48,8 @@ class CircuitBreaker:
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.last_failure_time: Optional[datetime] = None
+        # 半开状态下的单次试探标记：避免半开时并发全部放行
+        self._half_open_probe_in_flight = False
         self._lock = asyncio.Lock()
 
     async def call(self, func: Callable, *args, **kwargs) -> Any:
@@ -70,38 +72,56 @@ class CircuitBreaker:
             if self.state == CircuitState.OPEN:
                 if self._should_attempt_reset():
                     self.state = CircuitState.HALF_OPEN
+                    self._half_open_probe_in_flight = False
                     logger.info("Circuit breaker transitioning to HALF_OPEN")
                 else:
                     raise CircuitBreakerOpenError("Circuit breaker is OPEN")
 
-            elif self.state == CircuitState.HALF_OPEN:
-                logger.info("Circuit breaker in HALF_OPEN, attempting call")
+            if self.state == CircuitState.HALF_OPEN:
+                # 半开状态只放行一个试探请求；其余请求直接拒绝，
+                # 避免并发全部放行而失去半开保护意义。
+                if self._half_open_probe_in_flight:
+                    raise CircuitBreakerOpenError(
+                        "Circuit breaker is HALF_OPEN, probe already in flight"
+                    )
+                self._half_open_probe_in_flight = True
+                logger.info("Circuit breaker in HALF_OPEN, dispatching single probe")
 
         try:
             # 执行函数
             result = await func(*args, **kwargs)
-
-            # 成功时重置断路器
-            async with self._lock:
-                self.failure_count = 0
-                if self.state == CircuitState.HALF_OPEN:
-                    self.state = CircuitState.CLOSED
-                    logger.info("Circuit breaker reset to CLOSED")
-
-            return result
-
         except self.config.expected_exception:
             # 失败时增加失败计数
             async with self._lock:
                 self.failure_count += 1
                 self.last_failure_time = datetime.now(timezone.utc)
+                self._half_open_probe_in_flight = False
 
-                # 达到阈值时打开断路器
-                if self.failure_count >= self.config.failure_threshold:
+                # 半开状态下试探失败立即重新打开；否则达到阈值时打开
+                if (
+                    self.state == CircuitState.HALF_OPEN
+                    or self.failure_count >= self.config.failure_threshold
+                ):
                     self.state = CircuitState.OPEN
-                    logger.warning(f"Circuit breaker opened after {self.failure_count} failures")
-
+                    logger.warning(
+                        f"Circuit breaker opened after {self.failure_count} failures"
+                    )
             raise
+        except BaseException:
+            # 非配置内异常不计入失败计数，但必须释放半开试探标记
+            async with self._lock:
+                self._half_open_probe_in_flight = False
+            raise
+
+        # 成功时重置断路器
+        async with self._lock:
+            self.failure_count = 0
+            self._half_open_probe_in_flight = False
+            if self.state == CircuitState.HALF_OPEN:
+                self.state = CircuitState.CLOSED
+                logger.info("Circuit breaker reset to CLOSED")
+
+        return result
 
     def _should_attempt_reset(self) -> bool:
         """检查是否应该尝试重置断路器"""
