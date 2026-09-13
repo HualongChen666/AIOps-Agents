@@ -15,6 +15,7 @@ Tests for the hardware log analysis API endpoints including:
 - Auto-heal integration
 """
 
+import asyncio
 from datetime import datetime, timezone
 from io import BytesIO
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -241,8 +242,6 @@ class TestHardwareLogRouterAutoHealFunctions:
 
     def test_trigger_auto_heal_alert_success(self):
         """Test successful auto-heal trigger"""
-        from unittest.mock import MagicMock, Mock, patch
-
         from api.hardware_log_router import _trigger_auto_heal_alert
 
         alert = {
@@ -257,15 +256,14 @@ class TestHardwareLogRouterAutoHealFunctions:
 
         with patch.dict("sys.modules", {"gateway.services_client": MagicMock()}):
             with patch("gateway.services_client.trigger_auto_heal", mock_trigger):
-                result = _trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1")
+                result = asyncio.run(_trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1"))
 
-                assert result["success"] == True
+                assert result["success"] is True
                 mock_trigger.assert_called_once()
 
     def test_trigger_auto_heal_alert_import_error(self):
         """Test auto-heal trigger with import error (fallback)"""
         import builtins
-        from unittest.mock import patch
 
         from api.hardware_log_router import _trigger_auto_heal_alert
 
@@ -284,18 +282,18 @@ class TestHardwareLogRouterAutoHealFunctions:
             return real_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=mock_import):
-            with patch("api.hardware_log_router._execute_repair_direct") as mock_direct:
+            with patch(
+                "api.hardware_log_router._execute_repair_direct", new_callable=AsyncMock
+            ) as mock_direct:
                 mock_direct.return_value = {"success": True, "message": "Direct repair executed"}
 
-                result = _trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1")
+                result = asyncio.run(_trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1"))
 
-                assert result["success"] == True
+                assert result["success"] is True
                 mock_direct.assert_called_once()
 
     def test_trigger_auto_heal_alert_exception(self):
         """Test auto-heal trigger with exception"""
-        from unittest.mock import MagicMock, patch
-
         from api.hardware_log_router import _trigger_auto_heal_alert
 
         alert = {
@@ -309,15 +307,13 @@ class TestHardwareLogRouterAutoHealFunctions:
 
         with patch.dict("sys.modules", {"gateway.services_client": MagicMock()}):
             with patch("gateway.services_client.trigger_auto_heal", mock_trigger):
-                result = _trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1")
+                result = asyncio.run(_trigger_auto_heal_alert(alert, "tenant-1", "127.0.0.1"))
 
-                assert result["success"] == False
+                assert result["success"] is False
                 assert "Failed to trigger auto_heal" in result["error"]
 
     def test_execute_repair_direct_success(self):
         """Test direct repair execution success"""
-        from unittest.mock import patch
-
         from api.hardware_log_router import _execute_repair_direct
 
         alert = {
@@ -326,18 +322,13 @@ class TestHardwareLogRouterAutoHealFunctions:
             "params": {"host": "192.168.1.1"},
         }
 
-        # Test with mock - skip if import fails
-        try:
-            with patch("api.hardware_log_router.execute_repair") as mock_execute:
-                mock_execute.return_value = {"success": True}
+        with patch("core.repair_engine.execute_repair", new_callable=AsyncMock) as mock_execute:
+            mock_execute.return_value = {"success": True}
 
-                result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
+            result = asyncio.run(_execute_repair_direct(alert, "tenant-1", "127.0.0.1"))
 
-                assert result["success"] == True
-                mock_execute.assert_called_once_with("ipmi_power_cycle", {"host": "192.168.1.1"})
-        except (ImportError, AttributeError):
-            # Skip if the module doesn't exist
-            pass
+            assert result["success"] is True
+            mock_execute.assert_called_once_with("ipmi_power_cycle", {"host": "192.168.1.1"})
 
     def test_execute_repair_direct_no_script_key(self):
         """Test direct repair execution without script key"""
@@ -348,15 +339,13 @@ class TestHardwareLogRouterAutoHealFunctions:
             "params": {"host": "192.168.1.1"},
         }
 
-        result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
+        result = asyncio.run(_execute_repair_direct(alert, "tenant-1", "127.0.0.1"))
 
-        assert result["success"] == False
+        assert result["success"] is False
         assert "No script_key" in result["error"]
 
     def test_execute_repair_direct_exception(self):
         """Test direct repair execution with exception"""
-        from unittest.mock import patch
-
         from api.hardware_log_router import _execute_repair_direct
 
         alert = {
@@ -365,23 +354,19 @@ class TestHardwareLogRouterAutoHealFunctions:
             "params": {"host": "192.168.1.1"},
         }
 
-        # Test with mock - skip if import fails
-        try:
-            with patch(
-                "api.hardware_log_router.execute_repair", side_effect=Exception("Test error")
-            ):
-                result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
+        with patch(
+            "core.repair_engine.execute_repair",
+            new_callable=AsyncMock,
+            side_effect=Exception("Test error"),
+        ):
+            result = asyncio.run(_execute_repair_direct(alert, "tenant-1", "127.0.0.1"))
 
-                assert result["success"] == False
-                assert "Direct repair failed" in result["error"]
-        except (ImportError, AttributeError):
-            # Skip if the module doesn't exist
-            pass
+            assert result["success"] is False
+            assert "Direct repair failed" in result["error"]
 
     def test_execute_repair_direct_with_core_import_error(self):
         """Test direct repair execution when core.repair_engine import fails"""
         import builtins
-        from unittest.mock import patch
 
         from api.hardware_log_router import _execute_repair_direct
 
@@ -400,15 +385,13 @@ class TestHardwareLogRouterAutoHealFunctions:
             return real_import(name, *args, **kwargs)
 
         with patch("builtins.__import__", side_effect=mock_import):
-            result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
+            result = asyncio.run(_execute_repair_direct(alert, "tenant-1", "127.0.0.1"))
 
-            assert result["success"] == False
+            assert result["success"] is False
             assert "Direct repair failed" in result["error"]
 
     def test_execute_repair_direct_with_execute_exception(self):
         """Test direct repair execution when execute_repair raises exception"""
-        from unittest.mock import MagicMock, patch
-
         from api.hardware_log_router import _execute_repair_direct
 
         alert = {
@@ -417,16 +400,14 @@ class TestHardwareLogRouterAutoHealFunctions:
             "params": {"host": "192.168.1.1"},
         }
 
-        # Mock the import and the function call
-        mock_execute = MagicMock()
+        mock_execute = AsyncMock()
         mock_execute.side_effect = Exception("Repair execution failed")
 
-        with patch.dict("sys.modules", {"core.repair_engine": MagicMock()}):
-            with patch("core.repair_engine.execute_repair", mock_execute):
-                result = _execute_repair_direct(alert, "tenant-1", "127.0.0.1")
+        with patch("core.repair_engine.execute_repair", mock_execute):
+            result = asyncio.run(_execute_repair_direct(alert, "tenant-1", "127.0.0.1"))
 
-                assert result["success"] == False
-                assert "Direct repair failed" in result["error"]
+            assert result["success"] is False
+            assert "Direct repair failed" in result["error"]
 
 
 class TestHardwareLogRouterFileUpload:
@@ -933,7 +914,10 @@ class TestHardwareLogRouterRepairTriggering:
 
         with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
             with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
-                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
+                with patch(
+                    "api.hardware_log_router._trigger_auto_heal_alert",
+                    new_callable=AsyncMock,
+                ) as mock_heal:
                     mock_heal.return_value = {"success": True}
 
                     response = hardware_log_client.post(
@@ -988,7 +972,10 @@ class TestHardwareLogRouterRepairTriggering:
 
         with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
             with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
-                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
+                with patch(
+                    "api.hardware_log_router._trigger_auto_heal_alert",
+                    new_callable=AsyncMock,
+                ) as mock_heal:
                     mock_heal.return_value = {"success": True}
 
                     response = hardware_log_client.post(
@@ -1019,7 +1006,10 @@ class TestHardwareLogRouterRepairTriggering:
 
         with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
             with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
-                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
+                with patch(
+                    "api.hardware_log_router._trigger_auto_heal_alert",
+                    new_callable=AsyncMock,
+                ) as mock_heal:
                     # Simulate HTTPException being raised
                     mock_heal.side_effect = HTTPException(status_code=403, detail="Forbidden")
 
@@ -1411,7 +1401,10 @@ class TestHardwareLogRouterUnitTests:
             mock_analyzer.return_value.analyze_log.return_value = analysis_result
             mock_analyzer.return_value.generate_repair_plan.return_value = {}
 
-            with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
+            with patch(
+                    "api.hardware_log_router._trigger_auto_heal_alert",
+                    new_callable=AsyncMock,
+                ) as mock_heal:
                 mock_heal.return_value = {"success": True}
 
                 result = asyncio.run(analyze_hardware_log(request, req))
@@ -1468,7 +1461,10 @@ class TestHardwareLogRouterUnitTests:
             mock_analyzer.return_value.analyze_log.return_value = analysis_result
             mock_analyzer.return_value.generate_repair_plan.return_value = {}
 
-            with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
+            with patch(
+                    "api.hardware_log_router._trigger_auto_heal_alert",
+                    new_callable=AsyncMock,
+                ) as mock_heal:
                 mock_heal.side_effect = Exception("Auto-heal failed")
 
                 result = asyncio.run(analyze_hardware_log(request, req))
@@ -1686,7 +1682,10 @@ class TestHardwareLogRouterUnitTests:
 
         with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
             with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
-                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
+                with patch(
+                    "api.hardware_log_router._trigger_auto_heal_alert",
+                    new_callable=AsyncMock,
+                ) as mock_heal:
                     mock_heal.return_value = {"success": True, "message": "Repair executed"}
 
                     result = asyncio.run(trigger_hardware_repair(request, req))
@@ -1725,7 +1724,10 @@ class TestHardwareLogRouterUnitTests:
 
         with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
             with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
-                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
+                with patch(
+                    "api.hardware_log_router._trigger_auto_heal_alert",
+                    new_callable=AsyncMock,
+                ) as mock_heal:
                     mock_heal.return_value = {"success": True, "message": "Repair executed"}
 
                     result = asyncio.run(trigger_hardware_repair(request, req))
@@ -1803,7 +1805,10 @@ class TestHardwareLogRouterUnitTests:
 
         with patch.dict("sys.modules", {"core.auto_heal": MagicMock()}):
             with patch("core.auto_heal.REPAIR_SCRIPT_LIBRARY", mock_library):
-                with patch("api.hardware_log_router._trigger_auto_heal_alert") as mock_heal:
+                with patch(
+                    "api.hardware_log_router._trigger_auto_heal_alert",
+                    new_callable=AsyncMock,
+                ) as mock_heal:
                     # Simulate HTTPException being raised
                     mock_heal.side_effect = HTTPException(status_code=403, detail="Forbidden")
 

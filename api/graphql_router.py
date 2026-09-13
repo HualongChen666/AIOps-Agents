@@ -726,15 +726,13 @@ def _get_dataloader_config() -> DataLoaderConfig:
 
 
 def _get_batch_stats(registry: DataLoaderRegistry) -> BatchLoadStats:
-    """获取批量加载统计信息"""
-    # 这是一个简化的实现，实际应该从DataLoader实例中收集真实统计
+    """获取批量加载统计信息（来自各 DataLoader 记录的真实批次数据）"""
     total_batches = 0
     total_items = 0
     max_batch = 0
     cache_hits = 0
     cache_misses = 0
 
-    # 尝试从各个loader获取统计
     loaders = [
         registry.get_alert_loader(),
         registry.get_repair_loader(),
@@ -742,28 +740,48 @@ def _get_batch_stats(registry: DataLoaderRegistry) -> BatchLoadStats:
     ]
 
     for loader in loaders:
-        if hasattr(loader, '_cache'):
-            cache_hits += len(loader._cache)
-        # 其他统计需要实际实现，这里使用默认值
+        stats = loader.get_stats()
+        total_batches += stats["total_batches"]
+        total_items += stats["total_items_loaded"]
+        max_batch = max(max_batch, stats["max_batch_size_used"])
+        cache_hits += stats["cache_hits"]
+        cache_misses += stats["cache_misses"]
 
     return BatchLoadStats(
         total_batches=total_batches,
         total_items_loaded=total_items,
-        average_batch_size=float(max_batch) if total_batches > 0 else 0.0,
+        average_batch_size=(float(total_items) / total_batches) if total_batches else 0.0,
         max_batch_size_used=max_batch,
         cache_hit_rate=float(cache_hits) / max(1, cache_hits + cache_misses) * 100,
     )
 
 
 def _get_performance_metrics(registry: DataLoaderRegistry) -> PerformanceMetrics:
-    """获取性能指标"""
-    # 简化实现，实际应该从监控数据中获取
+    """获取性能指标（由各 DataLoader 实测的批量加载耗时聚合而来）"""
+    total_load_time = 0.0
+    total_batches = 0
+    p50 = 0.0
+    p95 = 0.0
+    p99 = 0.0
+
+    for loader in (
+        registry.get_alert_loader(),
+        registry.get_repair_loader(),
+        registry.get_metrics_loader(),
+    ):
+        stats = loader.get_stats()
+        total_load_time += stats["total_load_time_ms"]
+        total_batches += stats["total_batches"]
+        p50 = max(p50, stats["p50_load_time_ms"])
+        p95 = max(p95, stats["p95_load_time_ms"])
+        p99 = max(p99, stats["p99_load_time_ms"])
+
     return PerformanceMetrics(
-        total_load_time_ms=0.0,
-        average_load_time_ms=0.0,
-        p50_load_time_ms=0.0,
-        p95_load_time_ms=0.0,
-        p99_load_time_ms=0.0,
+        total_load_time_ms=total_load_time,
+        average_load_time_ms=(total_load_time / total_batches) if total_batches else 0.0,
+        p50_load_time_ms=p50,
+        p95_load_time_ms=p95,
+        p99_load_time_ms=p99,
     )
 
 

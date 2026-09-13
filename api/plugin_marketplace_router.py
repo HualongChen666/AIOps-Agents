@@ -24,7 +24,6 @@ from core.api_response_standard import (
     create_success_response,
 )
 from core.auth import check_rate_limit, get_current_user, require_permission
-from core.auth_db import get_session
 from core.database import get_db
 from core.models import (
     PluginListingDB,
@@ -153,7 +152,6 @@ async def get_plugin_listings(
             return create_success_response(cached_result)
         
         # 从数据库获取数据
-        db = get_session()
         try:
             query = db.query(PluginListingDB)
             
@@ -206,8 +204,9 @@ async def get_plugin_listings(
             cache_manager.set(cache_key, response_data, ttl=600)
             
             return create_success_response(response_data)
-        finally:
-            db.close()
+        except Exception:
+            db.rollback()
+            raise
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取插件列表失败"
@@ -246,7 +245,6 @@ async def upload_plugin(
     logger.info(f"Plugin upload requested by user {current_user.username} from {client_ip}")
     
     try:
-        db = get_session()
         try:
             # 检查插件是否已存在
             existing = db.query(PluginListingDB).filter(
@@ -296,8 +294,9 @@ async def upload_plugin(
                 },
                 "插件上传成功，等待审核"
             )
-        finally:
-            db.close()
+        except Exception:
+            db.rollback()
+            raise
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="上传插件失败"
@@ -337,7 +336,6 @@ async def add_plugin_review(
     logger.info(f"Plugin review addition requested by user {current_user.username} from {client_ip}")
     
     try:
-        db = get_session()
         try:
             # 检查插件是否存在
             plugin = db.query(PluginListingDB).filter(
@@ -380,8 +378,9 @@ async def add_plugin_review(
                 },
                 "评论添加成功"
             )
-        finally:
-            db.close()
+        except Exception:
+            db.rollback()
+            raise
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="添加评论失败"
@@ -421,7 +420,6 @@ async def install_plugin(
     logger.info(f"Plugin installation requested by user {current_user.username} from {client_ip}")
     
     try:
-        db = get_session()
         try:
             # 检查插件是否存在
             plugin = db.query(PluginListingDB).filter(
@@ -473,8 +471,9 @@ async def install_plugin(
                 },
                 "插件安装成功"
             )
-        finally:
-            db.close()
+        except Exception:
+            db.rollback()
+            raise
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="安装插件失败"
@@ -513,7 +512,6 @@ async def get_installed_plugins(
     logger.info(f"Installed plugins list requested by user {current_user.username} from {client_ip}")
     
     try:
-        db = get_session()
         try:
             query = db.query(InstalledPluginDB)
             
@@ -547,8 +545,9 @@ async def get_installed_plugins(
             }
             
             return create_success_response(response_data)
-        finally:
-            db.close()
+        except Exception:
+            db.rollback()
+            raise
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取已安装插件列表失败"
@@ -586,7 +585,6 @@ async def uninstall_plugin(
     logger.info(f"Plugin uninstallation requested by user {current_user.username} from {client_ip}")
     
     try:
-        db = get_session()
         try:
             # 查找已安装的插件
             installed = db.query(InstalledPluginDB).filter(
@@ -607,8 +605,9 @@ async def uninstall_plugin(
                 {"plugin_id": plugin_id},
                 "插件卸载成功"
             )
-        finally:
-            db.close()
+        except Exception:
+            db.rollback()
+            raise
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="卸载插件失败"

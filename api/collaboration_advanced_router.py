@@ -834,18 +834,6 @@ async def get_permissions(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取权限列表失败"
         )
 
-        return create_success_response(
-            {
-                "items": paginated,
-                "total": len(permissions),
-                "limit": limit,
-            }
-        )
-    except Exception as e:
-        return create_error_response(
-            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取权限列表失败"
-        )
-
 
 @router.post(
     "/permissions",
@@ -1009,24 +997,6 @@ async def get_activities(
                     }
                     for activity in activities
                 ],
-                "total": total,
-                "limit": limit,
-                "offset": offset,
-            }
-        )
-    except Exception as e:
-        return create_error_response(
-            error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="获取活动列表失败"
-        )
-        activities.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-
-        # 分页
-        total = len(activities)
-        paginated = activities[offset : offset + limit]
-
-        return create_success_response(
-            {
-                "items": paginated,
                 "total": total,
                 "limit": limit,
                 "offset": offset,

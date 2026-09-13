@@ -5,6 +5,7 @@ Implements N+1 query optimization with batching
 """
 
 import asyncio
+import time
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from loguru import logger
@@ -36,6 +37,15 @@ class DataLoader:
         self._batch: List[Any] = []
         self._callbacks: List[asyncio.Future[Any]] = []
         self._scheduled = False
+        # Real batching/performance counters (consumed by /graphql-dataloader).
+        self._stats: Dict[str, Any] = {
+            "total_batches": 0,
+            "total_items_loaded": 0,
+            "max_batch_size_used": 0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "load_times_ms": [],
+        }
 
     async def load(self, key: Any) -> Any:
         """
@@ -48,7 +58,10 @@ class DataLoader:
             Loaded item
         """
         if self.cache and key in self._cache:
+            self._stats["cache_hits"] += 1
             return self._cache[key]
+
+        self._stats["cache_misses"] += 1
 
         # Create a promise for this item
         future: asyncio.Future[Any] = asyncio.Future()
@@ -90,7 +103,16 @@ class DataLoader:
                 batch_callbacks = self._callbacks[i : i + self.max_batch_size]
 
                 try:
+                    started = time.perf_counter()
                     results = await self.batch_load_fn(batch_keys)
+
+                    # Record real batch statistics for this dispatched batch.
+                    self._stats["total_batches"] += 1
+                    self._stats["total_items_loaded"] += len(batch_keys)
+                    self._stats["max_batch_size_used"] = max(
+                        self._stats["max_batch_size_used"], len(batch_keys)
+                    )
+                    self._stats["load_times_ms"].append((time.perf_counter() - started) * 1000.0)
 
                     # Resolve futures
                     for callback, result in zip(batch_callbacks, results):
@@ -119,6 +141,30 @@ class DataLoader:
             self._cache.clear()
         elif key in self._cache:
             del self._cache[key]
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Return a snapshot of real batching/cache statistics for this loader."""
+        times = sorted(self._stats["load_times_ms"])
+
+        def _percentile(p: float) -> float:
+            if not times:
+                return 0.0
+            idx = max(0, min(len(times) - 1, round(p * (len(times) - 1))))
+            return times[idx]
+
+        total_batches = self._stats["total_batches"]
+        return {
+            "total_batches": total_batches,
+            "total_items_loaded": self._stats["total_items_loaded"],
+            "max_batch_size_used": self._stats["max_batch_size_used"],
+            "cache_hits": self._stats["cache_hits"],
+            "cache_misses": self._stats["cache_misses"],
+            "total_load_time_ms": sum(times),
+            "average_load_time_ms": (sum(times) / total_batches) if total_batches else 0.0,
+            "p50_load_time_ms": _percentile(0.50),
+            "p95_load_time_ms": _percentile(0.95),
+            "p99_load_time_ms": _percentile(0.99),
+        }
 
     def prime(self, key: Any, value: Any) -> None:
         """

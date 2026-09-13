@@ -210,7 +210,7 @@ def _convert_issue_to_response(issue: ComponentIssue) -> ComponentIssueResponse:
     )
 
 
-def _trigger_auto_heal_alert(
+async def _trigger_auto_heal_alert(
     alert: dict[str, Any],
     tenant_id: str,
     operator_ip: str,
@@ -239,7 +239,7 @@ def _trigger_auto_heal_alert(
     except ImportError:
         logger.warning("trigger_auto_heal not available, using fallback")
         # Fallback: direct repair execution
-        return _execute_repair_direct(alert, tenant_id, operator_ip)
+        return await _execute_repair_direct(alert, tenant_id, operator_ip)
     except Exception as e:
         logger.error(f"Error triggering auto_heal: {e}", exc_info=True)
         return {
@@ -248,7 +248,7 @@ def _trigger_auto_heal_alert(
         }
 
 
-def _execute_repair_direct(
+async def _execute_repair_direct(
     alert: dict[str, Any],
     tenant_id: str,
     operator_ip: str,
@@ -276,7 +276,7 @@ def _execute_repair_direct(
                 "error": "No script_key provided for direct repair",
             }
 
-        result = execute_repair(script_key, params)
+        result = await execute_repair(script_key, params)
         return result
     except Exception as e:
         logger.error(f"Error executing direct repair: {e}", exc_info=True)
@@ -340,7 +340,7 @@ def _build_analysis_response(
     }
 
 
-def _trigger_auto_repair_for_critical_issues(
+async def _trigger_auto_repair_for_critical_issues(
     analysis_result: AnalysisResult, tenant_id: str, operator_ip: str, response: dict[str, Any]
 ) -> None:
     """
@@ -372,7 +372,7 @@ def _trigger_auto_repair_for_critical_issues(
                 "params": {},
                 "tenant_id": tenant_id,
             }
-            heal_result = _trigger_auto_heal_alert(
+            heal_result = await _trigger_auto_heal_alert(
                 alert=alert,
                 tenant_id=tenant_id,
                 operator_ip=operator_ip,
@@ -499,7 +499,7 @@ async def analyze_hardware_log(
 
         # Auto-trigger repair if requested
         if request.auto_trigger_repair:
-            _trigger_auto_repair_for_critical_issues(
+            await _trigger_auto_repair_for_critical_issues(
                 analysis_result, tenant_id, operator_ip, response
             )
 
@@ -709,7 +709,7 @@ async def trigger_hardware_repair(
             return _submit_for_approval(alert, script_key, tenant_id, operator_ip)
 
         # Execute repair directly (or with force)
-        result = _trigger_auto_heal_alert(
+        result = await _trigger_auto_heal_alert(
             alert=alert,
             tenant_id=tenant_id,
             operator_ip=operator_ip,

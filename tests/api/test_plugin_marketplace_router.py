@@ -12,6 +12,8 @@ import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from core.database import get_db
+
 from api.plugin_marketplace_router import (
     PluginListingRequest,
     PluginReviewRequest,
@@ -103,8 +105,7 @@ class TestGetPluginListings:
     """Test cases for get_plugin_listings endpoint"""
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
-    def test_get_plugin_listings_success(self, mock_get_session, mock_cache, client):
+    def test_get_plugin_listings_success(self, mock_cache, client):
         """Test successful plugin listings retrieval"""
         from core.models import PluginListingDB
 
@@ -141,8 +142,7 @@ class TestGetPluginListings:
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )]
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins")
         assert response.status_code == 200
@@ -167,9 +167,8 @@ class TestGetPluginListings:
         assert data["success"] == True
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_get_plugin_listings_with_category_filter(
-        self, mock_get_session, mock_cache, client
+        self, mock_cache, client
     ):
         """Test plugin listings with category filter"""
         mock_cache.get.return_value = None
@@ -180,16 +179,14 @@ class TestGetPluginListings:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins?category=monitoring")
         assert response.status_code == 200
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_get_plugin_listings_with_quality_filter(
-        self, mock_get_session, mock_cache, client
+        self, mock_cache, client
     ):
         """Test plugin listings with quality filter"""
         mock_cache.get.return_value = None
@@ -200,16 +197,14 @@ class TestGetPluginListings:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins?quality=verified")
         assert response.status_code == 200
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_get_plugin_listings_with_pagination(
-        self, mock_get_session, mock_cache, client
+        self, mock_cache, client
     ):
         """Test plugin listings with pagination"""
         mock_cache.get.return_value = None
@@ -220,22 +215,19 @@ class TestGetPluginListings:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins?limit=10&offset=0")
         assert response.status_code == 200
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_get_plugin_listings_invalid_limit(
-        self, mock_get_session, mock_cache, client
+        self, mock_cache, client
     ):
         """Test plugin listings with invalid limit"""
         mock_cache.get.return_value = None
         mock_db = MagicMock()
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins?limit=0")
         # FastAPI validation should handle this
@@ -251,9 +243,8 @@ class TestUploadPlugin:
     """Test cases for upload_plugin endpoint"""
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_upload_plugin_success(
-        self, mock_get_session, mock_cache, client, sample_plugin_listing
+        self, mock_cache, client, sample_plugin_listing
     ):
         """Test successful plugin upload"""
         mock_db = MagicMock()
@@ -263,8 +254,7 @@ class TestUploadPlugin:
         mock_query.first.return_value = None  # Plugin doesn't exist
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.post("/api/v1/plugin-marketplace/plugins", json=sample_plugin_listing)
         assert response.status_code == 201
@@ -272,9 +262,8 @@ class TestUploadPlugin:
         assert "success" in data
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_upload_plugin_already_exists(
-        self, mock_get_session, mock_cache, client, sample_plugin_listing
+        self, mock_cache, client, sample_plugin_listing
     ):
         """Test uploading a plugin that already exists"""
         from core.models import PluginListingDB
@@ -306,8 +295,7 @@ class TestUploadPlugin:
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
         )
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.post("/api/v1/plugin-marketplace/plugins", json=sample_plugin_listing)
         assert response.status_code in (200, 201)
@@ -316,9 +304,8 @@ class TestUploadPlugin:
         assert "error" in data or "success" in data
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_upload_plugin_all_categories(
-        self, mock_get_session, mock_cache, client, sample_plugin_listing
+        self, mock_cache, client, sample_plugin_listing
     ):
         """Test uploading plugins for all categories"""
         mock_db = MagicMock()
@@ -328,8 +315,7 @@ class TestUploadPlugin:
         mock_query.first.return_value = None
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         categories = [
             PluginCategoryEnum.GENERAL,
@@ -348,9 +334,8 @@ class TestUploadPlugin:
             assert response.status_code == 201
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_upload_plugin_all_qualities(
-        self, mock_get_session, mock_cache, client, sample_plugin_listing
+        self, mock_cache, client, sample_plugin_listing
     ):
         """Test uploading plugins for all quality levels"""
         mock_db = MagicMock()
@@ -360,8 +345,7 @@ class TestUploadPlugin:
         mock_query.first.return_value = None
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         qualities = [
             PluginQualityEnum.COMMUNITY,
@@ -384,9 +368,8 @@ class TestAddPluginReview:
     """Test cases for add_plugin_review endpoint"""
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_add_plugin_review_success(
-        self, mock_get_session, mock_cache, client, sample_plugin_review
+        self, mock_cache, client, sample_plugin_review
     ):
         """Test successful plugin review addition"""
         from core.models import PluginListingDB, PluginReviewDB
@@ -420,8 +403,7 @@ class TestAddPluginReview:
         )
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.post(
             "/api/v1/plugin-marketplace/plugins/test-plugin-001/reviews", json=sample_plugin_review
@@ -431,9 +413,8 @@ class TestAddPluginReview:
         assert "success" in data
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_add_plugin_review_plugin_not_found(
-        self, mock_get_session, mock_cache, client, sample_plugin_review
+        self, mock_cache, client, sample_plugin_review
     ):
         """Test adding review for non-existent plugin"""
         mock_db = MagicMock()
@@ -441,8 +422,7 @@ class TestAddPluginReview:
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.first.return_value = None  # Plugin doesn't exist
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.post(
             "/api/v1/plugin-marketplace/plugins/nonexistent/reviews", json=sample_plugin_review
@@ -452,9 +432,8 @@ class TestAddPluginReview:
         assert "error" in data
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_add_plugin_review_all_ratings(
-        self, mock_get_session, mock_cache, client, sample_plugin_review
+        self, mock_cache, client, sample_plugin_review
     ):
         """Test adding reviews with all rating values"""
         from core.models import PluginListingDB
@@ -487,8 +466,7 @@ class TestAddPluginReview:
         )
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         for rating in range(1, 6):
             sample_plugin_review["rating"] = rating
@@ -508,9 +486,8 @@ class TestInstallPlugin:
     """Test cases for install_plugin endpoint"""
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_install_plugin_success(
-        self, mock_get_session, mock_cache, client, sample_plugin_install
+        self, mock_cache, client, sample_plugin_install
     ):
         """Test successful plugin installation"""
         from core.models import PluginListingDB
@@ -547,8 +524,7 @@ class TestInstallPlugin:
         ]
         mock_db.add = MagicMock()
         mock_db.commit = MagicMock()
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.post(
             "/api/v1/plugin-marketplace/plugins/test-plugin-001/install", json=sample_plugin_install
@@ -558,9 +534,8 @@ class TestInstallPlugin:
         assert "success" in data
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_install_plugin_not_found(
-        self, mock_get_session, mock_cache, client, sample_plugin_install
+        self, mock_cache, client, sample_plugin_install
     ):
         """Test installing a non-existent plugin"""
         mock_db = MagicMock()
@@ -568,8 +543,7 @@ class TestInstallPlugin:
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.first.return_value = None  # Plugin doesn't exist
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.post(
             "/api/v1/plugin-marketplace/plugins/nonexistent/install", json=sample_plugin_install
@@ -579,9 +553,8 @@ class TestInstallPlugin:
         assert "error" in data
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
     def test_install_plugin_already_installed(
-        self, mock_get_session, mock_cache, client, sample_plugin_install
+        self, mock_cache, client, sample_plugin_install
     ):
         """Test installing a plugin that is already installed"""
         from core.models import PluginListingDB, InstalledPluginDB
@@ -622,8 +595,7 @@ class TestInstallPlugin:
                 configuration={},
             ),
         ]
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.post(
             "/api/v1/plugin-marketplace/plugins/test-plugin-001/install", json=sample_plugin_install
@@ -641,8 +613,7 @@ class TestInstallPlugin:
 class TestGetInstalledPlugins:
     """Test cases for get_installed_plugins endpoint"""
 
-    @patch("api.plugin_marketplace_router.get_session")
-    def test_get_installed_plugins_success(self, mock_get_session, client):
+    def test_get_installed_plugins_success(self, client):
         """Test successful installed plugins retrieval"""
         from core.models import InstalledPluginDB
 
@@ -653,16 +624,14 @@ class TestGetInstalledPlugins:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins/installed")
         assert response.status_code == 200
         data = response.json()
         assert "success" in data
 
-    @patch("api.plugin_marketplace_router.get_session")
-    def test_get_installed_plugins_with_filter(self, mock_get_session, client):
+    def test_get_installed_plugins_with_filter(self, client):
         """Test installed plugins with enabled filter"""
         mock_db = MagicMock()
         mock_query = MagicMock()
@@ -671,14 +640,12 @@ class TestGetInstalledPlugins:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins/installed?enabled=true")
         assert response.status_code == 200
 
-    @patch("api.plugin_marketplace_router.get_session")
-    def test_get_installed_plugins_with_pagination(self, mock_get_session, client):
+    def test_get_installed_plugins_with_pagination(self, client):
         """Test installed plugins with pagination"""
         mock_db = MagicMock()
         mock_query = MagicMock()
@@ -687,8 +654,7 @@ class TestGetInstalledPlugins:
         mock_query.count.return_value = 0
         mock_query.offset.return_value = mock_query
         mock_query.limit.return_value = []
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.get("/api/v1/plugin-marketplace/plugins/installed?limit=10&offset=0")
         assert response.status_code == 200
@@ -703,8 +669,7 @@ class TestUninstallPlugin:
     """Test cases for uninstall_plugin endpoint"""
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
-    def test_uninstall_plugin_success(self, mock_get_session, mock_cache, client):
+    def test_uninstall_plugin_success(self, mock_cache, client):
         """Test successful plugin uninstallation"""
         from core.models import PluginListingDB, InstalledPluginDB
 
@@ -746,8 +711,7 @@ class TestUninstallPlugin:
         ]
         mock_db.delete = MagicMock()
         mock_db.commit = MagicMock()
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.delete("/api/v1/plugin-marketplace/plugins/installed/test-plugin-001")
         assert response.status_code == 200
@@ -755,16 +719,14 @@ class TestUninstallPlugin:
         assert "success" in data
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
-    def test_uninstall_plugin_not_found(self, mock_get_session, mock_cache, client):
+    def test_uninstall_plugin_not_found(self, mock_cache, client):
         """Test uninstalling a non-existent plugin"""
         mock_db = MagicMock()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
         mock_query.first.return_value = None  # Plugin doesn't exist
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.delete("/api/v1/plugin-marketplace/plugins/installed/nonexistent")
         assert response.status_code == 200
@@ -772,8 +734,7 @@ class TestUninstallPlugin:
         assert "error" in data
 
     @patch("api.plugin_marketplace_router.cache_manager")
-    @patch("api.plugin_marketplace_router.get_session")
-    def test_uninstall_plugin_not_installed(self, mock_get_session, mock_cache, client):
+    def test_uninstall_plugin_not_installed(self, mock_cache, client):
         """Test uninstalling a plugin that is not installed"""
         from core.models import PluginListingDB
 
@@ -783,8 +744,7 @@ class TestUninstallPlugin:
         mock_query.filter.return_value = mock_query
         # Plugin not installed → the single InstalledPluginDB lookup returns None
         mock_query.first.return_value = None
-        mock_get_session.return_value = mock_db
-        mock_get_session.return_value.__enter__.return_value = mock_db
+        client.app.dependency_overrides[get_db] = lambda: mock_db
 
         response = client.delete("/api/v1/plugin-marketplace/plugins/installed/test-plugin-001")
         assert response.status_code == 200

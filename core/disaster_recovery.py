@@ -269,6 +269,114 @@ class DisasterRecovery:
             print(f"Database restore failed: {e}")
             return False
 
+    def restore_redis(self, backup_file: str) -> bool:
+        """
+        Restore Redis from an RDB snapshot.
+
+        The snapshot is placed at the server's configured ``dir``/``dbfilename``
+        and Redis is asked to reload it from disk (``DEBUG RELOAD``).
+
+        Args:
+            backup_file: Path to the ``.rdb`` snapshot produced by backup_redis
+
+        Returns:
+            True only when Redis actually reloaded the snapshot from disk;
+            False when Redis is unreachable, the snapshot is invalid, or the
+            server refuses the reload.  No success is ever fabricated.
+        """
+        import redis as redis_lib
+
+        from config import REDIS_DB, REDIS_HOST, REDIS_PASSWORD, REDIS_PORT
+
+        backup_path = Path(backup_file)
+        if not backup_path.exists():
+            print(f"Backup file not found: {backup_path}")
+            return False
+
+        # RDB files start with the magic string "REDIS".
+        try:
+            with open(backup_path, "rb") as f:
+                magic = f.read(5)
+        except OSError as exc:
+            print(f"Failed to read backup file {backup_path}: {exc}")
+            return False
+        if magic != b"REDIS":
+            print(f"Not a valid Redis RDB snapshot: {backup_path}")
+            return False
+
+        client = None
+        try:
+            client = redis_lib.Redis(
+                host=REDIS_HOST,
+                port=REDIS_PORT,
+                db=REDIS_DB,
+                password=REDIS_PASSWORD or None,
+                socket_connect_timeout=5,
+            )
+            client.ping()
+            target_dir = Path(client.config_get("dir").get("dir", "."))
+            target_name = client.config_get("dbfilename").get("dbfilename", "dump.rdb")
+            shutil.copy2(backup_path, target_dir / target_name)
+            # Reload the dataset from the RDB now on disk (real restore).
+            client.execute_command("DEBUG", "RELOAD")
+            return True
+        except redis_lib.RedisError as exc:
+            print(f"Redis restore failed: {exc}")
+            return False
+        finally:
+            if client is not None:
+                try:
+                    client.close()
+                except (redis_lib.RedisError, OSError):  # pragma: no cover - best-effort close
+                    pass
+
+    def restore_configuration(self, backup_file: str) -> bool:
+        """
+        Restore configuration files from a backup_configuration() snapshot.
+
+        Only the files listed in the snapshot's ``manifest.json`` are restored,
+        and only by basename (no directory component / path traversal).
+
+        Args:
+            backup_file: Path to the ``config_<timestamp>`` backup directory
+
+        Returns:
+            True only when every file listed in the manifest was copied back;
+            False when the snapshot is missing, incomplete or unreadable.
+        """
+        backup_path = Path(backup_file)
+        manifest_file = backup_path / "manifest.json"
+        if not backup_path.is_dir() or not manifest_file.exists():
+            print(f"Configuration backup not found or incomplete: {backup_path}")
+            return False
+
+        try:
+            with open(manifest_file, "r", encoding="utf-8") as f:
+                manifest = json.load(f)
+        except (OSError, ValueError) as exc:
+            print(f"Failed to read backup manifest {manifest_file}: {exc}")
+            return False
+
+        files = manifest.get("files") or []
+        if not files:
+            print(f"Backup manifest lists no files: {manifest_file}")
+            return False
+
+        restored = 0
+        for name in files:
+            safe_name = Path(str(name)).name  # strip any directory component
+            src = backup_path / safe_name
+            if not src.is_file():
+                print(f"Backup file missing from snapshot: {src}")
+                continue
+            try:
+                shutil.copy2(src, Path(safe_name))
+                restored += 1
+            except OSError as exc:
+                print(f"Failed to restore {safe_name}: {exc}")
+
+        return restored == len(files)
+
     def cleanup_old_backups(self, retention_days: int = 30) -> bool:
         """
         Clean up old backups older than retention_days.

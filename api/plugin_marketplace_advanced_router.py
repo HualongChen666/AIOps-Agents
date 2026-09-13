@@ -283,8 +283,8 @@ async def get_plugin_listings(
         
     except Exception as e:
         logger.error(f"Error getting plugin listings: {e}")
-        # Fallback to empty list
-        return []
+        # Surface the failure instead of masking a storage outage as "no plugins".
+        raise HTTPException(status_code=500, detail=f"Failed to list plugins: {e}")
 
 
 @router.get(

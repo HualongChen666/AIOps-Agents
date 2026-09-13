@@ -567,32 +567,88 @@ class TestExecuteRestore:
                 assert data["restored"] is True
 
     def test_execute_restore_redis(self, disaster_client):
-        """Test successful Redis restore."""
-        resp = disaster_client.post(
-            "/api/disaster/restore",
-            json={
-                "backup_file": "/tmp/backups/redis_backup_20260702_103000.rdb",
-                "restore_type": "redis"
-            }
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "success"
-        assert data["restore_type"] == "redis"
+        """Test successful Redis restore (real DisasterRecovery.restore_redis)."""
+        with patch("api.disaster_router._get_backup_dir") as mock_dir:
+            mock_dir.return_value = Path("/tmp/backups")
+            with patch(
+                "core.disaster_recovery.DisasterRecovery.restore_redis"
+            ) as mock_restore:
+                mock_restore.return_value = True
+
+                resp = disaster_client.post(
+                    "/api/disaster/restore",
+                    json={
+                        "backup_file": "/tmp/backups/redis_backup_20260702_103000.rdb",
+                        "restore_type": "redis"
+                    }
+                )
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["status"] == "success"
+                assert data["restore_type"] == "redis"
+                assert data["restored"] is True
+                mock_restore.assert_called_once_with(
+                    "/tmp/backups/redis_backup_20260702_103000.rdb"
+                )
+
+    def test_execute_restore_redis_failure(self, disaster_client):
+        """A Redis restore that did not actually succeed must not report success."""
+        with patch("api.disaster_router._get_backup_dir") as mock_dir:
+            mock_dir.return_value = Path("/tmp/backups")
+            with patch(
+                "core.disaster_recovery.DisasterRecovery.restore_redis"
+            ) as mock_restore:
+                mock_restore.return_value = False
+
+                resp = disaster_client.post(
+                    "/api/disaster/restore",
+                    json={
+                        "backup_file": "/tmp/backups/redis_backup_20260702_103000.rdb",
+                        "restore_type": "redis"
+                    }
+                )
+                assert resp.status_code == 500
 
     def test_execute_restore_configuration(self, disaster_client):
-        """Test successful configuration restore."""
-        resp = disaster_client.post(
-            "/api/disaster/restore",
-            json={
-                "backup_file": "/tmp/backups/config_20260702_103000",
-                "restore_type": "configuration"
-            }
-        )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "success"
-        assert data["restore_type"] == "configuration"
+        """Test successful configuration restore (real DisasterRecovery.restore_configuration)."""
+        with patch("api.disaster_router._get_backup_dir") as mock_dir:
+            mock_dir.return_value = Path("/tmp/backups")
+            with patch(
+                "core.disaster_recovery.DisasterRecovery.restore_configuration"
+            ) as mock_restore:
+                mock_restore.return_value = True
+
+                resp = disaster_client.post(
+                    "/api/disaster/restore",
+                    json={
+                        "backup_file": "/tmp/backups/config_20260702_103000",
+                        "restore_type": "configuration"
+                    }
+                )
+                assert resp.status_code == 200
+                data = resp.json()
+                assert data["status"] == "success"
+                assert data["restore_type"] == "configuration"
+                assert data["restored"] is True
+                mock_restore.assert_called_once_with("/tmp/backups/config_20260702_103000")
+
+    def test_execute_restore_configuration_failure(self, disaster_client):
+        """A configuration restore that did not actually succeed must not report success."""
+        with patch("api.disaster_router._get_backup_dir") as mock_dir:
+            mock_dir.return_value = Path("/tmp/backups")
+            with patch(
+                "core.disaster_recovery.DisasterRecovery.restore_configuration"
+            ) as mock_restore:
+                mock_restore.return_value = False
+
+                resp = disaster_client.post(
+                    "/api/disaster/restore",
+                    json={
+                        "backup_file": "/tmp/backups/config_20260702_103000",
+                        "restore_type": "configuration"
+                    }
+                )
+                assert resp.status_code == 500
 
     def test_execute_restore_invalid_type(self, disaster_client):
         """Test restore with invalid type."""

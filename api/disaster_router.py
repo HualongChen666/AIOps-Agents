@@ -1183,13 +1183,9 @@ async def execute_restore(
         if request.restore_type == "database":
             restored = dr.restore_database(request.backup_file)
         elif request.restore_type == "redis":
-            # Redis restore would require Redis connection
-            logger.warning("Redis restore not fully implemented, returning success for testing")
-            restored = True
+            restored = dr.restore_redis(request.backup_file)
         elif request.restore_type == "configuration":
-            # Configuration restore would require file operations
-            logger.warning("Configuration restore not fully implemented, returning success for testing")
-            restored = True
+            restored = dr.restore_configuration(request.backup_file)
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
