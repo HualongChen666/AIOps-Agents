@@ -10,11 +10,20 @@ import api from '@/lib/api';
 interface SLAData {
   id: string;
   sla_id: string;
+  slo_name: string;
+  service: string;
+  metric: string;
   timestamp: string;
   availability: number;
-  response_time: number;
-  uptime: number;
-  downtime: number;
+  samples: number;
+}
+
+interface HistoricalSeries {
+  slo_id: string;
+  slo_name: string;
+  service: string;
+  metric: string;
+  time_series: { timestamp: string; value: number; count: number }[];
 }
 
 export default function SLAStoragePage() {
@@ -29,8 +38,22 @@ export default function SLAStoragePage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/v1/slo/sla-storage');
-      setData(res.data.data || []);
+      const res = await api.get('/api/v1/slo/historical-data', { params: { period: '30d' } });
+      const series: HistoricalSeries[] = res.data.historical_data || [];
+      setData(
+        series.flatMap((s) =>
+          (s.time_series || []).map((p) => ({
+            id: `${s.slo_id}-${p.timestamp}`,
+            sla_id: s.slo_id,
+            slo_name: s.slo_name,
+            service: s.service,
+            metric: s.metric,
+            timestamp: p.timestamp,
+            availability: p.value,
+            samples: p.count,
+          }))
+        )
+      );
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载数据失败');
     } finally {
@@ -75,9 +98,9 @@ export default function SLAStoragePage() {
             </div>
             <div className="p-4 border rounded-lg">
               <div className="text-2xl font-bold">
-                {data.length > 0 ? Math.round(data.reduce((sum, d) => sum + d.response_time, 0) / data.length) : 0}ms
+                {data.reduce((sum, d) => sum + d.samples, 0)}
               </div>
-              <div className="text-sm text-gray-500">平均响应时间</div>
+              <div className="text-sm text-gray-500">累计样本</div>
             </div>
           </div>
         </CardContent>
@@ -91,25 +114,25 @@ export default function SLAStoragePage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SLA ID</TableHead>
+                <TableHead>SLA</TableHead>
+                <TableHead>服务 / 指标</TableHead>
                 <TableHead>时间戳</TableHead>
                 <TableHead>可用性</TableHead>
-                <TableHead>响应时间</TableHead>
-                <TableHead>运行时间</TableHead>
-                <TableHead>停机时间</TableHead>
+                <TableHead>样本数</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.slice(0, 50).map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-mono text-sm">{item.sla_id}</TableCell>
+                  <TableCell className="font-medium">{item.slo_name}</TableCell>
+                  <TableCell className="text-sm text-gray-500">{item.service} · {item.metric}</TableCell>
                   <TableCell className="text-sm text-gray-500">
                     {new Date(item.timestamp).toLocaleString()}
                   </TableCell>
                   <TableCell className="font-semibold">{item.availability.toFixed(2)}%</TableCell>
-                  <TableCell>{item.response_time}ms</TableCell>
-                  <TableCell>{item.uptime}h</TableCell>
-                  <TableCell className="text-red-600">{item.downtime}min</TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{item.samples}</Badge>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

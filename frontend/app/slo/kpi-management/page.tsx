@@ -27,7 +27,8 @@ export default function KPIManagementPage() {
     name: '',
     category: '',
     unit: '',
-    target: 0
+    target: 0,
+    metric: ''
   });
 
   useEffect(() => {
@@ -49,7 +50,7 @@ export default function KPIManagementPage() {
   const handleCreate = async () => {
     try {
       await api.post('/api/v1/slo/kpi-management', newKPI);
-      setNewKPI({ name: '', category: '', unit: '', target: 0 });
+      setNewKPI({ name: '', category: '', unit: '', target: 0, metric: '' });
       fetchKPIs();
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '创建KPI失败');
@@ -107,6 +108,11 @@ export default function KPIManagementPage() {
               value={newKPI.target}
               onChange={(e) => setNewKPI({ ...newKPI, target: parseFloat(e.target.value) || 0 })}
             />
+            <Input
+              placeholder="绑定指标 (可选, 如: cpu)"
+              value={newKPI.metric}
+              onChange={(e) => setNewKPI({ ...newKPI, metric: e.target.value })}
+            />
           </div>
           <Button onClick={handleCreate} className="mt-4">创建</Button>
         </CardContent>
@@ -136,7 +142,7 @@ export default function KPIManagementPage() {
                   <TableCell><Badge variant="outline">{kpi.category}</Badge></TableCell>
                   <TableCell>{kpi.unit}</TableCell>
                   <TableCell>{kpi.target}</TableCell>
-                  <TableCell className="font-semibold">{kpi.current}</TableCell>
+                  <TableCell className="font-semibold">{kpi.current ?? '-'}</TableCell>
                   <TableCell>
                     <Badge variant={kpi.trend === 'up' ? 'default' : kpi.trend === 'down' ? 'destructive' : 'secondary'}>
                       {kpi.trend === 'up' ? '上升' : kpi.trend === 'down' ? '下降' : '稳定'}

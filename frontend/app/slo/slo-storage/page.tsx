@@ -10,9 +10,20 @@ import api from '@/lib/api';
 interface SLOData {
   id: string;
   slo_id: string;
+  slo_name: string;
+  service: string;
+  metric: string;
   timestamp: string;
   value: number;
-  metadata: Record<string, any>;
+  count: number;
+}
+
+interface HistoricalSeries {
+  slo_id: string;
+  slo_name: string;
+  service: string;
+  metric: string;
+  time_series: { timestamp: string; value: number; count: number }[];
 }
 
 export default function SLOStoragePage() {
@@ -27,8 +38,22 @@ export default function SLOStoragePage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/v1/slo/storage');
-      setData(res.data.data || []);
+      const res = await api.get('/api/v1/slo/historical-data', { params: { period: '7d' } });
+      const series: HistoricalSeries[] = res.data.historical_data || [];
+      setData(
+        series.flatMap((s) =>
+          (s.time_series || []).map((p) => ({
+            id: `${s.slo_id}-${p.timestamp}`,
+            slo_id: s.slo_id,
+            slo_name: s.slo_name,
+            service: s.service,
+            metric: s.metric,
+            timestamp: p.timestamp,
+            value: p.value,
+            count: p.count,
+          }))
+        )
+      );
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载数据失败');
     } finally {
@@ -83,22 +108,24 @@ export default function SLOStoragePage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>SLO ID</TableHead>
+                <TableHead>SLO</TableHead>
+                <TableHead>服务 / 指标</TableHead>
                 <TableHead>时间戳</TableHead>
                 <TableHead>值</TableHead>
-                <TableHead>元数据</TableHead>
+                <TableHead>样本数</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {data.slice(0, 50).map((item) => (
                 <TableRow key={item.id}>
-                  <TableCell className="font-mono text-sm">{item.slo_id}</TableCell>
+                  <TableCell className="font-medium">{item.slo_name}</TableCell>
+                  <TableCell className="text-sm text-gray-500">{item.service} · {item.metric}</TableCell>
                   <TableCell className="text-sm text-gray-500">
                     {new Date(item.timestamp).toLocaleString()}
                   </TableCell>
-                  <TableCell className="font-semibold">{item.value.toFixed(2)}%</TableCell>
+                  <TableCell className="font-semibold">{item.value.toFixed(2)}</TableCell>
                   <TableCell className="text-sm">
-                    <Badge variant="outline">{Object.keys(item.metadata).length} 项</Badge>
+                    <Badge variant="outline">{item.count}</Badge>
                   </TableCell>
                 </TableRow>
               ))}

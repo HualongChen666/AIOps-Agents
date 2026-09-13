@@ -471,6 +471,7 @@ from api.settings_router import router as settings_router
 from api.slack_router import router as slack_router
 from api.slo_router import router as slo_router
 from api.slo_advanced_router import router as slo_advanced_router
+from api.slo_console_router import router as slo_console_router
 from api.sse_router import router as sse_router
 from api.stats_router import router as stats_router
 from api.team_collaboration_router import router as team_collaboration_router
@@ -1195,6 +1196,7 @@ CORE_ROUTERS = [
     anomaly_router,
     slo_router,
     slo_advanced_router,
+    slo_console_router,
     chaos_simple_router,
     tenant_router,
     tenant_advanced_router,

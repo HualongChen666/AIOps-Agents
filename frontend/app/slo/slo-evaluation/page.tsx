@@ -10,13 +10,25 @@ import api from '@/lib/api';
 interface EvaluationResult {
   slo_id: string;
   slo_name: string;
-  period_start: string;
-  period_end: string;
+  service: string;
+  metric: string;
+  period: string;
   compliance: number;
   target: number;
   status: 'pass' | 'fail';
   incidents: number;
-  total_downtime: number;
+}
+
+interface SLOReport {
+  slo_id: string;
+  slo_name: string;
+  service: string;
+  metric: string;
+  period: string;
+  availability: number;
+  slaTarget: number;
+  compliance: string;
+  incidents: number;
 }
 
 export default function SLOEvaluationPage() {
@@ -29,8 +41,21 @@ export default function SLOEvaluationPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.post('/api/v1/slo/evaluation', { period });
-      setResults(res.data.results || []);
+      const res = await api.post('/api/v1/slo/reports', null, { params: { period } });
+      const reports: SLOReport[] = res.data.reports || [];
+      setResults(
+        reports.map((r) => ({
+          slo_id: r.slo_id,
+          slo_name: r.slo_name,
+          service: r.service,
+          metric: r.metric,
+          period: r.period,
+          compliance: r.availability,
+          target: r.slaTarget,
+          status: r.compliance === 'compliant' ? 'pass' : 'fail',
+          incidents: r.incidents,
+        }))
+      );
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '评估失败');
     } finally {
@@ -75,6 +100,7 @@ export default function SLOEvaluationPage() {
                   {result.status === 'pass' ? '通过' : '未通过'}
                 </Badge>
               </div>
+              <div className="text-sm text-gray-500">{result.service} · {result.metric}</div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -86,23 +112,19 @@ export default function SLOEvaluationPage() {
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className={`h-2 rounded-full ${result.status === 'pass' ? 'bg-green-500' : 'bg-red-500'}`}
-                      style={{ width: `${result.compliance}%` }}
+                      style={{ width: `${Math.min(result.compliance, 100)}%` }}
                     />
                   </div>
                   <div className="text-xs text-gray-500 mt-1">目标: {result.target}%</div>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-gray-500">事件数</div>
                     <div className="text-lg font-semibold">{result.incidents}</div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-500">停机时间</div>
-                    <div className="text-lg font-semibold">{result.total_downtime}min</div>
-                  </div>
-                  <div>
                     <div className="text-sm text-gray-500">周期</div>
-                    <div className="text-sm">{new Date(result.period_start).toLocaleDateString()} - {new Date(result.period_end).toLocaleDateString()}</div>
+                    <div className="text-sm">{result.period}</div>
                   </div>
                 </div>
               </div>

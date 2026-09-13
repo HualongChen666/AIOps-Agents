@@ -39,7 +39,7 @@ export default function SLODefinitionPage() {
   const fetchDefinitions = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/v1/slo/definition');
+      const res = await api.get('/api/v1/slo/definitions');
       setDefinitions(res.data.definitions || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载SLO定义失败');
@@ -50,7 +50,7 @@ export default function SLODefinitionPage() {
 
   const handleCreate = async () => {
     try {
-      await api.post('/api/v1/slo/definition', newDef);
+      await api.post('/api/v1/slo/definitions', newDef);
       setNewDef({
         name: '',
         description: '',

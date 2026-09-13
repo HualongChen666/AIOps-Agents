@@ -10,12 +10,13 @@ interface SLOMonitor {
   id: string;
   name: string;
   service: string;
-  current_value: number;
+  metric: string;
+  current: number;
   target: number;
-  remaining_budget: number;
-  error_budget_consumed: number;
+  errorBudget: number;
+  burnRate: number;
+  window: string;
   status: 'healthy' | 'warning' | 'critical';
-  last_check: string;
 }
 
 export default function SLOMonitoringPage() {
@@ -32,8 +33,8 @@ export default function SLOMonitoringPage() {
   const fetchMonitors = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/v1/slo/monitoring');
-      setMonitors(res.data.monitors || []);
+      const res = await api.get('/api/v1/slo/');
+      setMonitors(res.data.slos || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载监控数据失败');
     } finally {
@@ -75,35 +76,32 @@ export default function SLOMonitoringPage() {
                   {monitor.status}
                 </Badge>
               </div>
-              <div className="text-sm text-gray-500">{monitor.service}</div>
+              <div className="text-sm text-gray-500">{monitor.service} · {monitor.metric}</div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-500">当前值</span>
-                    <span className="font-semibold">{monitor.current_value.toFixed(2)}%</span>
+                    <span className="font-semibold">{monitor.current.toFixed(2)}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className={`h-2 rounded-full ${monitor.status === 'healthy' ? 'bg-green-500' : monitor.status === 'warning' ? 'bg-yellow-500' : 'bg-red-500'}`}
-                      style={{ width: `${monitor.current_value}%` }}
+                      style={{ width: `${Math.min(monitor.current, 100)}%` }}
                     />
                   </div>
-                  <div className="text-xs text-gray-500 mt-1">目标: {monitor.target}%</div>
+                  <div className="text-xs text-gray-500 mt-1">目标: {monitor.target}% · 窗口: {monitor.window}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-sm text-gray-500">剩余预算</div>
-                    <div className="text-lg font-semibold">{monitor.remaining_budget.toFixed(2)}%</div>
+                    <div className="text-lg font-semibold">{monitor.errorBudget.toFixed(2)}%</div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-500">已消耗</div>
-                    <div className="text-lg font-semibold text-red-600">{monitor.error_budget_consumed.toFixed(2)}%</div>
+                    <div className="text-sm text-gray-500">燃烧率</div>
+                    <div className="text-lg font-semibold text-red-600">{monitor.burnRate.toFixed(2)}x</div>
                   </div>
-                </div>
-                <div className="text-xs text-gray-500">
-                  最后检查: {new Date(monitor.last_check).toLocaleString()}
                 </div>
               </div>
             </CardContent>

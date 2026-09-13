@@ -7,21 +7,19 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import api from '@/lib/api';
 
-interface SLOIncident {
+interface SLOAlert {
   id: string;
   slo_id: string;
   slo_name: string;
   severity: 'critical' | 'major' | 'minor';
-  start_time: string;
-  end_time?: string;
-  duration: number;
-  impact: string;
+  message: string;
   status: 'open' | 'resolved';
-  description: string;
+  created_at: string;
+  resolved_at?: string | null;
 }
 
 export default function SLOIncidentPage() {
-  const [incidents, setIncidents] = useState<SLOIncident[]>([]);
+  const [incidents, setIncidents] = useState<SLOAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,8 +30,8 @@ export default function SLOIncidentPage() {
   const fetchIncidents = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/v1/slo/incident');
-      setIncidents(res.data.incidents || []);
+      const res = await api.get('/api/v1/slo/alerts');
+      setIncidents(res.data.alerts || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载事件失败');
     } finally {
@@ -75,9 +73,8 @@ export default function SLOIncidentPage() {
               <TableRow>
                 <TableHead>SLO</TableHead>
                 <TableHead>严重程度</TableHead>
-                <TableHead>开始时间</TableHead>
-                <TableHead>持续时间</TableHead>
-                <TableHead>影响</TableHead>
+                <TableHead>触发时间</TableHead>
+                <TableHead>说明</TableHead>
                 <TableHead>状态</TableHead>
               </TableRow>
             </TableHeader>
@@ -91,10 +88,9 @@ export default function SLOIncidentPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-gray-500">
-                    {new Date(incident.start_time).toLocaleString()}
+                    {new Date(incident.created_at).toLocaleString()}
                   </TableCell>
-                  <TableCell>{incident.duration}min</TableCell>
-                  <TableCell className="text-sm">{incident.impact}</TableCell>
+                  <TableCell className="text-sm">{incident.message}</TableCell>
                   <TableCell>
                     <Badge variant={incident.status === 'open' ? 'destructive' : 'default'}>
                       {incident.status === 'open' ? '进行中' : '已解决'}

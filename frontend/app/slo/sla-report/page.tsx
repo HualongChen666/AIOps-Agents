@@ -9,17 +9,16 @@ import api from '@/lib/api';
 
 interface SLAReport {
   id: string;
-  sla_name: string;
-  customer: string;
-  period_start: string;
-  period_end: string;
+  slo_id: string;
+  slo_name: string;
+  service: string;
+  metric: string;
+  period: string;
   availability: number;
-  availability_target: number;
-  response_time: number;
-  response_time_target: number;
-  compliance: boolean;
+  slaTarget: number;
+  compliance: string;
   incidents: number;
-  credits: number;
+  aggregation: string | null;
 }
 
 export default function SLAReportPage() {
@@ -32,7 +31,7 @@ export default function SLAReportPage() {
     try {
       setLoading(true);
       setError(null);
-      const res = await api.post('/api/v1/slo/sla-report', { period });
+      const res = await api.post('/api/v1/slo/reports', null, { params: { period } });
       setReports(res.data.reports || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '生成报告失败');
@@ -44,6 +43,8 @@ export default function SLAReportPage() {
   useEffect(() => {
     generateReport();
   }, []);
+
+  const isCompliant = (report: SLAReport) => report.compliance === 'compliant';
 
   return (
     <div className="space-y-6">
@@ -73,36 +74,26 @@ export default function SLAReportPage() {
           <Card key={report.id}>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>{report.sla_name}</CardTitle>
-                <Badge variant={report.compliance ? 'default' : 'destructive'}>
-                  {report.compliance ? '合规' : '违规'}
+                <CardTitle>{report.slo_name}</CardTitle>
+                <Badge variant={isCompliant(report) ? 'default' : 'destructive'}>
+                  {isCompliant(report) ? '合规' : '违规'}
                 </Badge>
               </div>
-              <div className="text-sm text-gray-500">{report.customer}</div>
+              <div className="text-sm text-gray-500">
+                {report.service} · {report.metric}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-sm mb-1">
                     <span className="text-gray-500">可用性</span>
-                    <span className="font-semibold">{report.availability.toFixed(2)}% / {report.availability_target}%</span>
+                    <span className="font-semibold">{report.availability.toFixed(2)}% / {report.slaTarget}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
-                      className={`h-2 rounded-full ${report.compliance ? 'bg-green-500' : 'bg-red-500'}`}
-                      style={{ width: `${report.availability}%` }}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-500">响应时间</span>
-                    <span className="font-semibold">{report.response_time}ms / {report.response_time_target}ms</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full ${report.response_time <= report.response_time_target ? 'bg-green-500' : 'bg-red-500'}`}
-                      style={{ width: `${Math.min((report.response_time / report.response_time_target) * 100, 100)}%` }}
+                      className={`h-2 rounded-full ${isCompliant(report) ? 'bg-green-500' : 'bg-red-500'}`}
+                      style={{ width: `${Math.min(report.availability, 100)}%` }}
                     />
                   </div>
                 </div>
@@ -112,14 +103,12 @@ export default function SLAReportPage() {
                     <div className="text-lg font-semibold">{report.incidents}</div>
                   </div>
                   <div>
-                    <div className="text-sm text-gray-500">服务信用</div>
-                    <div className="text-lg font-semibold text-red-600">${report.credits}</div>
+                    <div className="text-sm text-gray-500">聚合方式</div>
+                    <div className="text-sm font-mono">{report.aggregation || 'good_ratio'}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-500">周期</div>
-                    <div className="text-sm">
-                      {new Date(report.period_start).toLocaleDateString()} - {new Date(report.period_end).toLocaleDateString()}
-                    </div>
+                    <div className="text-sm">{report.period}</div>
                   </div>
                 </div>
               </div>

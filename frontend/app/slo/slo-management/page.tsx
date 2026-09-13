@@ -26,6 +26,7 @@ export default function SLOManagementPage() {
   const [newSLO, setNewSLO] = useState({
     name: '',
     service: '',
+    metric: '',
     target: 99.9,
     window: '30d'
   });
@@ -37,7 +38,7 @@ export default function SLOManagementPage() {
   const fetchSLOs = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/api/v1/slo/management');
+      const res = await api.get('/api/v1/slo/');
       setSlos(res.data.slos || []);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载SLO失败');
@@ -48,8 +49,8 @@ export default function SLOManagementPage() {
 
   const handleCreate = async () => {
     try {
-      await api.post('/api/v1/slo/management', newSLO);
-      setNewSLO({ name: '', service: '', target: 99.9, window: '30d' });
+      await api.post('/api/v1/slo/', newSLO);
+      setNewSLO({ name: '', service: '', metric: '', target: 99.9, window: '30d' });
       fetchSLOs();
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '创建SLO失败');
@@ -58,7 +59,7 @@ export default function SLOManagementPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      await api.delete(`/api/v1/slo/management/${id}`);
+      await api.delete(`/api/v1/slo/${id}`);
       fetchSLOs();
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '删除SLO失败');
@@ -104,6 +105,11 @@ export default function SLOManagementPage() {
               placeholder="服务名称"
               value={newSLO.service}
               onChange={(e) => setNewSLO({ ...newSLO, service: e.target.value })}
+            />
+            <Input
+              placeholder="指标 (如: availability, latency, error_rate)"
+              value={newSLO.metric}
+              onChange={(e) => setNewSLO({ ...newSLO, metric: e.target.value })}
             />
             <Input
               type="number"
