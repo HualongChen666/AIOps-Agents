@@ -8,6 +8,9 @@ from pathlib import Path
 
 from core.security import subprocess_runner
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from service_paths import service_relpath, tests_relpath  # noqa: E402
+
 ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 PYTHON = sys.executable
 SERVICES = [
@@ -36,11 +39,15 @@ def run(args):
 def main():
     for svc in SERVICES:
         print(f"Formatting {svc} ...")
-        r1 = run(["black", f"services/{svc}", f"tests/services/{svc}"])
+        targets = [service_relpath(svc)]
+        svc_tests = tests_relpath(svc)
+        if svc_tests:
+            targets.append(svc_tests)
+        r1 = run(["black", *targets])
         if r1.returncode != 0:
             print(f"  black rc={r1.returncode}")
             print(r1.stderr[:500])
-        r2 = run(["isort", f"services/{svc}", f"tests/services/{svc}"])
+        r2 = run(["isort", *targets])
         if r2.returncode != 0:
             print(f"  isort rc={r2.returncode}")
             print(r2.stderr[:500])

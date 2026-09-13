@@ -11,6 +11,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(REPO_ROOT))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from service_paths import service_module  # noqa: E402
 
 SERVICES = [
     "prometheus_integration_service",
@@ -25,8 +27,9 @@ SERVICES = [
 
 
 def benchmark(service_name: str) -> dict:
-    metrics_mod = __import__(f"services.{service_name}.metrics", fromlist=["MetricsCollector"])
-    service_mod = __import__(f"services.{service_name}.service", fromlist=["OPERATIONS", "Service"])
+    module = service_module(service_name)
+    metrics_mod = __import__(f"{module}.metrics", fromlist=["MetricsCollector"])
+    service_mod = __import__(f"{module}.service", fromlist=["OPERATIONS", "Service"])
     MetricsCollector = metrics_mod.MetricsCollector
     Service = service_mod.Service
     OPERATIONS = service_mod.OPERATIONS

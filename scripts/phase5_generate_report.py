@@ -12,6 +12,9 @@ from pathlib import Path
 
 from core.security import subprocess_runner
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from service_paths import service_relpath  # noqa: E402
+
 ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 JSON_FILE = ROOT / "temp" / "phase5_remaining.json"
 REPORT_MD = ROOT / "temp" / "phase5_70_78_verification_report.md"
@@ -35,10 +38,11 @@ def run_coverage_report(svc: str) -> tuple[str, str]:
     ROOT / "temp" / f"coverage_{svc}.ini"
     # Force per-service include to keep core/api files from polluting the report.
     report_rc_file = ROOT / "temp" / f"coverage_report_{svc}.ini"
+    svc_path = service_relpath(svc)
     report_rc_file.write_text(
-        f"[run]\ndata_file = {data_file}\nsource = services/{svc}\n"
+        f"[run]\ndata_file = {data_file}\nsource = {svc_path}\n"
         f"branch = True\nrelative_files = True\n"
-        f"[report]\ninclude = services/{svc}/*\nskip_covered = False\n",
+        f"[report]\ninclude = {svc_path}/*\nskip_covered = False\n",
         encoding="utf-8",
     )
     # Prefer the project virtualenv interpreter on either platform.

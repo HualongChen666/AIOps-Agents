@@ -8,16 +8,23 @@ from pathlib import Path
 
 from core.security import subprocess_runner
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from service_paths import tests_relpath  # noqa: E402
+
 ROOT = Path(os.getenv("AIOPS_ROOT", Path(__file__).resolve().parents[1]))
 SERVICE = "prometheus_integration_service"
 
 
 def main() -> int:
+    svc_tests = tests_relpath(SERVICE)
+    if svc_tests is None:
+        print(f"No test directory found for {SERVICE}; nothing to run.")
+        return 0
     cmd = [
         sys.executable,
         "-m",
         "pytest",
-        f"tests/services/{SERVICE}",
+        svc_tests,
         "-o",
         "addopts=",
         "-q",
