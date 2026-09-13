@@ -24,6 +24,38 @@ except Exception as e:
     retry_with_policy = None  # type: ignore
 
 
+def _record_llm_metrics(
+    model: str,
+    latency: float,
+    prompt_tokens: int,
+    completion_tokens: int,
+    cost: float,
+) -> None:
+    """Publish a completed LLM inference on the AI metrics (best effort)."""
+    try:
+        from core.prometheus_metrics import get_metrics_exporter
+
+        get_metrics_exporter().record_ai_request(
+            model=model,
+            operation="generate",
+            duration=latency,
+            tokens=int(prompt_tokens or 0) + int(completion_tokens or 0),
+            cost=float(cost or 0.0),
+        )
+    except Exception:  # pragma: no cover - metrics must never break generation
+        pass
+
+
+def _record_llm_failure(model: str, error_type: str) -> None:
+    """Publish a failed LLM inference (best effort)."""
+    try:
+        from core.prometheus_metrics import get_metrics_exporter
+
+        get_metrics_exporter().record_ai_failure(model, error_type or "error")
+    except Exception:  # pragma: no cover
+        pass
+
+
 class EnhancedLLMRouter:
     """
     Enhanced LLM router with intelligent strategies
@@ -372,10 +404,14 @@ class EnhancedLLMRouter:
                 model_name, prompt_tokens, completion_tokens
             )
             self.record_success(model_name, latency=latency, actual_cost=actual_cost)
+            _record_llm_metrics(
+                model_name, latency, prompt_tokens, completion_tokens, actual_cost
+            )
             return {"content": content, "model": model_name, "usage": usage}
         except Exception as e:
             logger.warning(f"LLM generation failed for {model_name}: {e}, using fallback")
             self.record_failure(model_name, str(e))
+            _record_llm_failure(model_name, type(e).__name__)
             return self._fallback_result(prompt, model_name)
 
     def _fallback_result(self, prompt: str, model_name: str) -> Dict[str, Any]:

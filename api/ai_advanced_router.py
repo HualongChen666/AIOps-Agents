@@ -2540,10 +2540,28 @@ async def analyze_root_cause(req: AiAdvancedRootCauseAnalysisRequest) -> RootCau
 # ============================================================================
 
 
+def _record_kg_query(query_type: str, start: float) -> None:
+    """Publish a knowledge-graph query on the KG metrics (best effort)."""
+    try:
+        import time as _time
+
+        from core.prometheus_metrics import get_metrics_exporter
+
+        get_metrics_exporter().record_kg_query(query_type, _time.perf_counter() - start)
+    except Exception:  # pragma: no cover - metrics must never break a query
+        pass
+
+
 @router.get("/knowledge-graph/nodes", response_model=Dict[str, List[GraphNodeResponse]])
 async def get_knowledge_graph_nodes() -> Dict[str, List[GraphNodeResponse]]:
     """Get all knowledge graph nodes"""
-    return {"nodes": list(_graph_nodes.values())}
+    import time as _time
+
+    start = _time.perf_counter()
+    try:
+        return {"nodes": list(_graph_nodes.values())}
+    finally:
+        _record_kg_query("nodes", start)
 
 
 @router.post("/knowledge-graph/nodes", response_model=GraphNodeResponse)
@@ -2566,6 +2584,9 @@ async def get_knowledge_graph_edges(
     current_user: User = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get all knowledge graph edges with optional filtering and pagination"""
+    import time as _time
+
+    start = _time.perf_counter()
     try:
         query = db.query(AIGraphEdgeDB)
         
@@ -2581,6 +2602,7 @@ async def get_knowledge_graph_edges(
         total = query.count()
         edges = query.offset(offset).limit(limit).all()
         
+        _record_kg_query("edges", start)
         return {
             "edges": [
                 {

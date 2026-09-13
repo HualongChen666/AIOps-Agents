@@ -84,10 +84,7 @@ class PrometheusMetricsExporter:
             ["endpoint", "method", "error_type"],
         )
         self.api_connections_active = Gauge(
-            "aiops_api_connections_active", "Number of active API connections"
-        )
-        self.api_connections_idle = Gauge(
-            "aiops_api_connections_idle", "Number of idle API connections"
+            "aiops_api_connections_active", "Number of in-flight API requests"
         )
 
         # ------------------------------------------------------------------
@@ -174,12 +171,6 @@ class PrometheusMetricsExporter:
         )
         self.kg_edges_total = Gauge(
             "aiops_knowledge_graph_edges_total", "Total number of knowledge graph edges"
-        )
-        self.kg_cache_hits_total = Counter(
-            "aiops_knowledge_graph_cache_hits_total", "Knowledge graph cache hits"
-        )
-        self.kg_cache_misses_total = Counter(
-            "aiops_knowledge_graph_cache_misses_total", "Knowledge graph cache misses"
         )
 
         # ------------------------------------------------------------------
@@ -420,10 +411,9 @@ class PrometheusMetricsExporter:
                 endpoint=endpoint, method=method, error_type=str(status)
             ).inc()
 
-    def update_api_connections(self, active: int, idle: int) -> None:
-        """Update the API connection pool gauge."""
+    def update_api_connections(self, active: int) -> None:
+        """Update the in-flight API request gauge."""
         self.api_connections_active.set(active)
-        self.api_connections_idle.set(idle)
 
     # ======================================================================
     # Database
@@ -513,12 +503,6 @@ class PrometheusMetricsExporter:
     def update_kg_size(self, nodes: int, edges: int) -> None:
         self.kg_nodes_total.set(nodes)
         self.kg_edges_total.set(edges)
-
-    def record_kg_cache_hit(self) -> None:
-        self.kg_cache_hits_total.inc()
-
-    def record_kg_cache_miss(self) -> None:
-        self.kg_cache_misses_total.inc()
 
     # ======================================================================
     # Workflow

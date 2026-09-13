@@ -359,14 +359,10 @@
       "targets": [
         {
           "expr": "aiops_api_connections_active",
-          "legendFormat": "Active Connections"
-        },
-        {
-          "expr": "aiops_api_connections_idle",
-          "legendFormat": "Idle Connections"
+          "legendFormat": "In-flight Requests"
         }
       ],
-      "title": "API Connection Pool",
+      "title": "API Active Connections",
       "type": "timeseries"
     }
   ],

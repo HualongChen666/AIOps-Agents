@@ -163,12 +163,16 @@ class _AIOpsRAGPipeline:
         self, query: str, top_k: int = 5, max_context_length: int = 4000
     ) -> str:
         """Search Qdrant through the real RAG engine and fuse results into context."""
+        import time as _time
+
+        _e2e_start = _time.perf_counter()
         try:
             results = await asyncio.to_thread(self.rag.search_similar, query, top_k=top_k)
         except Exception as e:
             logger.warning(f"Phase 2 RAG search failed: {e}")
             return ""
 
+        _gen_start = _time.perf_counter()
         context_parts: List[str] = []
         current_len = 0
         for r in results:
@@ -179,7 +183,23 @@ class _AIOpsRAGPipeline:
                 break
             context_parts.append(part)
             current_len += len(part)
-        return "\n\n".join(context_parts)
+        context = "\n\n".join(context_parts)
+
+        # Publish the real sub-step timings (generation = context fusion step).
+        try:
+            from core.prometheus_metrics import get_metrics_exporter
+
+            exporter = get_metrics_exporter()
+            model = getattr(self.rag, "model_name", "") or "rag"
+            exporter.record_rag_generation(model, _time.perf_counter() - _gen_start)
+            exporter.record_rag_e2e(
+                getattr(self.rag, "collection_name", "rag"),
+                model,
+                _time.perf_counter() - _e2e_start,
+            )
+        except Exception:  # pragma: no cover - metrics must never break the pipeline
+            pass
+        return context
 
 
 _rag_pipeline: Optional[_AIOpsRAGPipeline] = None

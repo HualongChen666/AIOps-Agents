@@ -39,6 +39,7 @@ class PrometheusMetricsMiddleware:
 
     def __init__(self, app: ASGIApp):
         self.app = app
+        self._in_flight = 0
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope.get("type") != "http" or not callable(get_metrics_exporter):
@@ -52,6 +53,11 @@ class PrometheusMetricsMiddleware:
 
         start = time.perf_counter()
         status_holder = {"status": 500}
+        self._in_flight += 1
+        try:
+            get_metrics_exporter().api_connections_active.set(self._in_flight)
+        except Exception:  # pragma: no cover
+            pass
 
         async def send_wrapper(message):
             if message["type"] == "http.response.start":
@@ -62,13 +68,16 @@ class PrometheusMetricsMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             duration = time.perf_counter() - start
+            self._in_flight = max(0, self._in_flight - 1)
             try:
-                get_metrics_exporter().record_api_request(
+                exporter = get_metrics_exporter()
+                exporter.record_api_request(
                     endpoint=_endpoint_label(scope),
                     method=scope.get("method", ""),
                     duration=duration,
                     status=status_holder["status"],
                 )
+                exporter.api_connections_active.set(self._in_flight)
             except Exception:  # pragma: no cover - never break a request over metrics
                 pass
 

@@ -18,6 +18,20 @@ from typing import Any, Dict, List, Optional, cast
 from loguru import logger
 
 
+def _record_ai_cache(*, miss: bool) -> None:
+    """Publish an AI analysis cache hit/miss (best effort)."""
+    try:
+        from core.prometheus_metrics import get_metrics_exporter
+
+        exporter = get_metrics_exporter()
+        if miss:
+            exporter.record_ai_cache_miss()
+        else:
+            exporter.record_ai_cache_hit()
+    except Exception:  # pragma: no cover - metrics must never break the cache
+        pass
+
+
 class AIAnalysisEnhancer:
     """🔧 P1 Enhancement: Enhanced AI analysis capabilities"""
 
@@ -64,6 +78,7 @@ class AIAnalysisEnhancer:
             Cached analysis or None
         """
         if context_key not in self._context_cache:
+            _record_ai_cache(miss=True)
             return None
 
         cached = self._context_cache[context_key]
@@ -71,9 +86,11 @@ class AIAnalysisEnhancer:
 
         if datetime.now(timezone.utc) - cache_time > timedelta(seconds=self._cache_ttl):
             del self._context_cache[context_key]
+            _record_ai_cache(miss=True)
             return None
 
         logger.info(f"Cache hit for context key: {context_key}")
+        _record_ai_cache(miss=False)
         return cast(Dict[str, Any], cached["analysis"])
 
     def cache_analysis(self, context_key: str, analysis: Dict[str, Any]) -> None:

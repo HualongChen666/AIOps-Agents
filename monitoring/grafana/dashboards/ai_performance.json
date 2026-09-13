@@ -362,7 +362,7 @@
       },
       "targets": [
         {
-          "expr": "rate(aiops_ai_cost_usd[5m])",
+          "expr": "sum(rate(aiops_ai_cost_usd_total[5m]))",
           "legendFormat": "Cost Rate"
         }
       ],

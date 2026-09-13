@@ -282,6 +282,12 @@ def search_similar(
     当 `score_threshold` 为 0 时使用环境变量 `RAG_SCORE_THRESHOLD` 默认值。
     """
     try:
+        import time as _time
+
+        from core.prometheus_metrics import get_metrics_exporter
+
+        _start = _time.perf_counter()
+        exporter = get_metrics_exporter()
         threshold = score_threshold or _RETRIEVAL_SCORE_THRESHOLD
         vectors = _embed([query], embed_type="query")
         # SECURITY: Check if vectors is empty to avoid IndexError
@@ -300,6 +306,9 @@ def search_similar(
         results = []
         for point in raw.points:
             results.append({"score": point.score, "payload": point.payload})
+        _elapsed = _time.perf_counter() - _start
+        exporter.record_rag_retrieval(_COLLECTION_NAME, _elapsed)
+        exporter.record_vector_search(_COLLECTION_NAME, dim, _elapsed)
         logger.info("[RAG] search_similar query='%s' 返回 %d 条", query, len(results))
         return results
     except Exception as e:
