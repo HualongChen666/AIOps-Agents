@@ -7,10 +7,15 @@ alerting:
     - static_configs:
         - targets: []
 
+# Alert/recording rules evaluated by this Prometheus. The files are mounted from
+# monitoring/prometheus/alerts (see docker-compose.yml) so the root dev stack
+# evaluates the same rules as the monitoring stack instead of shipping an empty
+# rule set.
 rule_files:
-  # - "alert_rules.yml"
+  - "/etc/prometheus/alerts/*.yml"
 
 scrape_configs:
+  # AIOps Agent application metrics (unified default registry, exposed at /metrics).
   - job_name: 'aiops-agent'
     static_configs:
       - targets: ['aiops-agent:8000']
@@ -21,10 +26,7 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  - job_name: 'redis'
+  # Host metrics (node_exporter runs in this stack, see docker-compose.yml).
+  - job_name: 'node-exporter'
     static_configs:
-      - targets: ['redis:6379']
-
-  - job_name: 'postgres'
-    static_configs:
-      - targets: ['postgres:5432']
+      - targets: ['node-exporter:9100']

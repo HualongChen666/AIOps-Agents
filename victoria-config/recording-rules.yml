@@ -14,18 +14,18 @@ groups:
 
       # API response time percentiles
       - record: aiops:api_response_time_seconds:p95
-        expr: histogram_quantile(0.95, sum(rate(aiops_api_response_time_seconds_bucket[5m])) by (le))
+        expr: histogram_quantile(0.95, sum(rate(aiops_api_request_duration_seconds_bucket[5m])) by (le))
 
       - record: aiops:api_response_time_seconds:p99
-        expr: histogram_quantile(0.99, sum(rate(aiops_api_response_time_seconds_bucket[5m])) by (le))
+        expr: histogram_quantile(0.99, sum(rate(aiops_api_request_duration_seconds_bucket[5m])) by (le))
 
       # LLM inference duration percentiles
       - record: aiops:llm_inference_time_seconds:p95
-        expr: histogram_quantile(0.95, sum(rate(aiops_llm_inference_time_seconds_bucket[5m])) by (le))
+        expr: histogram_quantile(0.95, sum(rate(aiops_ai_request_duration_seconds_bucket[5m])) by (le))
 
       # LLM token usage rate
       - record: aiops:llm_token_usage_total:rate5m
-        expr: sum by (model, token_type) (rate(aiops_llm_token_usage_total[5m]))
+        expr: sum by (model, token_type) (rate(aiops_ai_tokens_total[5m]))
 
       # Database query duration percentile
       - record: aiops:db_query_time_seconds:p95

@@ -96,7 +96,7 @@ VictoriaMetrics indexes labels in the order they appear in metric names. Put fre
 
 ```promql
 # Good label ordering
-aiops_http_requests_total{service="api", endpoint="/users", status="200"}
+aiops_api_requests_total{service="api", endpoint="/users", status="200"}
 
 # Label priority: service > endpoint > status
 ```
@@ -110,8 +110,8 @@ aiops_http_requests_total{service="api", endpoint="/users", status="200"}
 # - Use _seconds for durations
 # - Use _bytes for sizes
 
-aiops_http_requests_total
-aiops_request_duration_seconds
+aiops_api_requests_total
+aiops_api_request_duration_seconds
 aiops_memory_usage_bytes
 ```
 
@@ -130,7 +130,7 @@ rate(aiops_alerts_total[5m])
 ```promql
 # Optimized AI response time query
 histogram_quantile(0.95, 
-    sum(rate(aiops_ai_response_duration_seconds_bucket[5m])) by (le, model)
+    sum(rate(aiops_ai_request_duration_seconds_bucket[5m])) by (le, model)
 )
 
 # Optimized AI success rate

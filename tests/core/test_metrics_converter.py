@@ -35,6 +35,6 @@ def test_system_snapshot_to_prometheus():
         "disk": {"usage_percent": 70.0, "total_gb": 512.0, "used_gb": 358.0},
     }
     lines = MetricsConverter.system_snapshot_to_prometheus(snapshot)
-    assert "aiops_cpu_usage_percent" in lines
+    assert "aiops_system_cpu_usage_percent" in lines
     assert "aiops_memory_used_gb" in lines
     assert "aiops_disk_total_gb" in lines

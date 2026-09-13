@@ -644,6 +644,16 @@ def refresh_access_token(refresh_token_str: str) -> Optional[str]:
         return None
 
 
+def _record_auth_failure() -> None:
+    """Expose authentication failures on ``aiops_auth_failures_total`` (best effort)."""
+    try:
+        from core.prometheus_metrics import record_auth_failure
+
+        record_auth_failure()
+    except Exception:  # pragma: no cover - metrics must never break auth
+        pass
+
+
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -651,6 +661,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
         headers={"WWW-Authenticate": "Bearer"},
     )
     if await is_token_revoked(token):
+        _record_auth_failure()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been revoked",
@@ -671,11 +682,14 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> User:
             raise credentials_exception
         token_data = TokenData(username=username, role=role)
     except jwt.PyJWTError:
+        _record_auth_failure()
         raise credentials_exception
     if token_data.username is None:
+        _record_auth_failure()
         raise credentials_exception
     user = await get_user(username=token_data.username)
     if user is None:
+        _record_auth_failure()
         raise credentials_exception
     return User(**user.model_dump())
 

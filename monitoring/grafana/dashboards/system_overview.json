@@ -579,7 +579,7 @@
           "legendFormat": "API Active Connections"
         },
         {
-          "expr": "aiops_postgres_connections_active",
+          "expr": "aiops_db_pool_connections{state=\"active\"}",
           "legendFormat": "Postgres Connections"
         },
         {

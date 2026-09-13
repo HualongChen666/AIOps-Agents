@@ -173,7 +173,7 @@ class MetricsConverter:
             cpu_usage = cpu.get("usage_percent", 0)
             lines.append(
                 MetricsConverter.sqlite_to_prometheus(
-                    "aiops_cpu_usage_percent", cpu_usage, {"host": "localhost"}, timestamp
+                    "aiops_system_cpu_usage_percent", cpu_usage, {"host": "localhost"}, timestamp
                 )
             )
 
@@ -197,7 +197,7 @@ class MetricsConverter:
 
             lines.append(
                 MetricsConverter.sqlite_to_prometheus(
-                    "aiops_memory_usage_percent", mem_usage, {"host": "localhost"}, timestamp
+                    "aiops_system_memory_usage_percent", mem_usage, {"host": "localhost"}, timestamp
                 )
             )
             lines.append(
@@ -220,7 +220,7 @@ class MetricsConverter:
 
             lines.append(
                 MetricsConverter.sqlite_to_prometheus(
-                    "aiops_disk_usage_percent", disk_usage, {"host": "localhost"}, timestamp
+                    "aiops_system_disk_usage_percent", disk_usage, {"host": "localhost"}, timestamp
                 )
             )
             lines.append(
@@ -242,12 +242,12 @@ class MetricsConverter:
 
             lines.append(
                 MetricsConverter.sqlite_to_prometheus(
-                    "aiops_network_rx_bytes", rx_bytes, {"host": "localhost"}, timestamp
+                    "aiops_system_network_rx_bytes", rx_bytes, {"host": "localhost"}, timestamp
                 )
             )
             lines.append(
                 MetricsConverter.sqlite_to_prometheus(
-                    "aiops_network_tx_bytes", tx_bytes, {"host": "localhost"}, timestamp
+                    "aiops_system_network_tx_bytes", tx_bytes, {"host": "localhost"}, timestamp
                 )
             )
 

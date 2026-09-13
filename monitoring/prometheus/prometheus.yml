@@ -30,7 +30,11 @@ scrape_configs:
           service: 'prometheus'
           component: 'monitoring'
 
-  # AIOps Agent API metrics
+  # AIOps Agent application metrics
+  # A single /metrics endpoint exposes every aiops_* family (API, AI/LLM, RAG,
+  # workflow, knowledge graph, cache, database, domain gauges), so one job is
+  # enough — the former per-domain jobs pointed at /metrics/<sub> paths that
+  # never existed and scraped nothing.
   - job_name: 'aiops-api'
     scrape_interval: 10s
     metrics_path: '/metrics'
@@ -44,50 +48,6 @@ scrape_configs:
       - source_labels: [__address__]
         target_label: instance
         replacement: 'aiops-api'
-
-  # AIOps Agent Performance Metrics
-  - job_name: 'aiops-performance'
-    scrape_interval: 10s
-    metrics_path: '/metrics/performance'
-    static_configs:
-      - targets: ['host.docker.internal:8000']
-        labels:
-          service: 'aiops-performance'
-          component: 'performance'
-          environment: 'production'
-
-  # AIOps Agent AI/LLM Metrics
-  - job_name: 'aiops-ai'
-    scrape_interval: 10s
-    metrics_path: '/metrics/ai'
-    static_configs:
-      - targets: ['host.docker.internal:8000']
-        labels:
-          service: 'aiops-ai'
-          component: 'ai'
-          environment: 'production'
-
-  # AIOps Agent Knowledge Graph Metrics
-  - job_name: 'aiops-knowledge-graph'
-    scrape_interval: 10s
-    metrics_path: '/metrics/knowledge-graph'
-    static_configs:
-      - targets: ['host.docker.internal:8000']
-        labels:
-          service: 'aiops-knowledge-graph'
-          component: 'knowledge-graph'
-          environment: 'production'
-
-  # AIOps Agent Workflow Metrics
-  - job_name: 'aiops-workflow'
-    scrape_interval: 10s
-    metrics_path: '/metrics/workflow'
-    static_configs:
-      - targets: ['host.docker.internal:8000']
-        labels:
-          service: 'aiops-workflow'
-          component: 'workflow'
-          environment: 'production'
 
   # Node Exporter - System metrics
   - job_name: 'node-exporter'

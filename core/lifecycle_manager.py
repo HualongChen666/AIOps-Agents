@@ -1357,10 +1357,26 @@ async def lifespan(app: Any) -> AsyncGenerator[None, None]:
     except Exception as e:
         _logger.warning(f"Database init failed (continuing without it): {e}")
 
+    # Start domain observability metric sampling (alerts/repairs/backups/anomalies/…)
+    try:
+        from core.observability_collector import start_observability_metrics
+
+        start_observability_metrics()
+        _logger.info("Observability metrics collector started")
+    except Exception as e:
+        _logger.warning(f"Observability metrics collector failed to start: {e}")
+
     yield
 
     # Shutdown
     _logger.info("Application shutdown started.")
+
+    try:
+        from core.observability_collector import stop_observability_metrics
+
+        await stop_observability_metrics()
+    except Exception as e:
+        _logger.warning(f"Observability metrics collector shutdown failed: {e}")
 
     # Shutdown telemetry
     try:

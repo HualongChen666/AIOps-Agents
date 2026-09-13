@@ -157,6 +157,23 @@ def _finalize(execution: WorkflowExecution, result: dict[str, Any], *, failed: b
         )
 
 
+def _record_workflow_metrics(
+    execution: WorkflowExecution, workflow_type: str, *, failed: bool
+) -> None:
+    """Publish a finished workflow execution on the workflow metrics (best effort)."""
+    try:
+        from core.prometheus_metrics import get_metrics_exporter
+
+        exporter = get_metrics_exporter()
+        duration = float(execution.duration_sec or 0.0)
+        exporter.record_workflow_execution(workflow_type, execution.status, duration)
+        if failed:
+            exporter.record_workflow_failure(workflow_type, "step_error")
+    except Exception:  # pragma: no cover - metrics must never break execution
+        pass
+
+
+
 async def run_execution(
     execution_id: str,
     *,
@@ -196,6 +213,7 @@ async def run_execution(
             execution.completed_at = _utcnow()
             db.commit()
             db.refresh(execution)
+            _record_workflow_metrics(execution, execution.workflow_id, failed=True)
             return execution
 
         steps = _steps_of(workflow)
@@ -226,6 +244,7 @@ async def run_execution(
                 _flush(db, execution)
                 db.refresh(execution)
                 logger.error("Workflow execution %s failed at %s: %s", execution_id, step_key, exc)
+                _record_workflow_metrics(execution, workflow.name or execution.workflow_id, failed=True)
                 return execution
 
             if step.get("fail"):
@@ -236,6 +255,7 @@ async def run_execution(
                 _finalize(execution, result, failed=True)
                 _flush(db, execution)
                 db.refresh(execution)
+                _record_workflow_metrics(execution, workflow.name or execution.workflow_id, failed=True)
                 return execution
 
             _append_log(execution, f"[SUCCESS] 节点 {step_title} 完成")
@@ -251,6 +271,7 @@ async def run_execution(
         _flush(db, execution)
         db.refresh(execution)
         logger.info("Workflow execution %s completed", execution_id)
+        _record_workflow_metrics(execution, workflow.name or execution.workflow_id, failed=False)
         return execution
     except Exception:
         db.rollback()

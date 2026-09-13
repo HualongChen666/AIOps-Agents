@@ -123,3 +123,7 @@ frontend/tsconfig.tsbuildinfo
 
 # Runtime settings artifact
 /data/settings.json
+
+# SQLite WAL sidecar files (runtime/test artifacts)
+*.db-wal
+*.db-shm

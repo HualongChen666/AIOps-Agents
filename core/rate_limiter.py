@@ -102,6 +102,16 @@ class AdvancedRateLimiter:
         self._blocked: Dict[str, float] = {}  # IP -> blocked_until timestamp
         self._lock = asyncio.Lock()
 
+    @staticmethod
+    def _record_rejection() -> None:
+        """Expose the rejection on ``aiops_rate_limit_exceeded_total`` (best effort)."""
+        if not callable(get_metrics_exporter):
+            return
+        try:
+            get_metrics_exporter().rate_limit_exceeded_total.inc()
+        except Exception:  # pragma: no cover - metrics must never break limiting
+            pass
+
     async def check_rate_limit_advanced(
         self, key: str, limit: int, window: int = 60, algorithm: str = "sliding_window"
     ) -> tuple[bool, Optional[str]]:
@@ -129,6 +139,7 @@ class AdvancedRateLimiter:
             if key in self._blocked:
                 if now < self._blocked[key]:
                     remaining = int(self._blocked[key] - now)
+                    self._record_rejection()
                     return False, f"Rate limit exceeded. Try again in {remaining}s"
                 else:
                     del self._blocked[key]
@@ -154,6 +165,7 @@ class AdvancedRateLimiter:
             # Block for a short time on repeated violations
             if len(self._requests[key]) > limit * 2:
                 self._blocked[key] = now + 60  # Block for 1 minute
+            self._record_rejection()
             return False, f"Rate limit exceeded: {len(self._requests[key])}/{limit} per {window}s"
 
         # Add current request

@@ -158,7 +158,7 @@ groups:
     rules:
       # High database connection pool usage
       - alert: HighDatabaseConnectionPool
-        expr: aiops_postgres_connections_active / aiops_postgres_connections_max > 0.8
+        expr: aiops_db_pool_connections{state="active"} / aiops_db_pool_connections{state="max"} > 0.8
         for: 5m
         labels:
           severity: warning
@@ -169,7 +169,7 @@ groups:
 
       # Slow database queries
       - alert: SlowDatabaseQueries
-        expr: histogram_quantile(0.95, rate(aiops_postgres_query_duration_seconds_bucket[5m])) > 1
+        expr: histogram_quantile(0.95, rate(aiops_db_query_time_seconds_bucket[5m])) > 1
         for: 5m
         labels:
           severity: warning

@@ -229,6 +229,41 @@ class DualWriteStrategy:
 
         return all(sqlite_results)
 
+    async def write_snapshot(self, snapshot: Dict[str, Any]) -> bool:
+        """Persist a ``collect_all()`` system snapshot through the dual-write path.
+
+        Converts the snapshot to Prometheus exposition text (via
+        :class:`core.metrics_converter.MetricsConverter`), then writes each
+        resulting series to SQLite and (when enabled) VictoriaMetrics. This is
+        the real integration point the Phase-1 migration was missing: previously
+        callers passed the raw snapshot dictionary straight into
+        :meth:`write_batch_metrics`, which expects ``{"name", "value"}`` records
+        and therefore failed for every key.
+
+        Args:
+            snapshot: Snapshot dictionary from ``core.collector.collect_all``.
+
+        Returns:
+            True when at least one series was written.
+        """
+        from core.metrics_converter import MetricsConverter
+
+        text = MetricsConverter.system_snapshot_to_prometheus(snapshot)
+        wrote_any = False
+        for line in text.splitlines():
+            parsed = MetricsConverter.prometheus_to_sqlite(line)
+            if not parsed:
+                continue
+            wrote_any = (
+                await self.write_metric(
+                    parsed["name"],
+                    parsed["value"],
+                    parsed.get("labels", {}),
+                    parsed.get("timestamp"),
+                )
+            ) or wrote_any
+        return wrote_any
+
     def get_stats(self) -> Dict[str, Any]:
         """
         Get dual-write statistics

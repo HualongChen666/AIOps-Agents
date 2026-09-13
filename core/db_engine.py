@@ -120,8 +120,97 @@ def _ensure_engine() -> Any:
                 }
             )
         _ENGINE = create_async_engine(db_url, **engine_kwargs)
+        _configure_sqlite_pragmas(_ENGINE, db_url)
+        _attach_query_metrics(_ENGINE)
         _AsyncSessionLocal = async_sessionmaker(bind=_ENGINE, expire_on_commit=False)
     return _ENGINE
+
+
+def _configure_sqlite_pragmas(async_engine: Any, db_url: str) -> None:
+    """Enable WAL + a busy timeout for SQLite so readers (metrics sampling) and
+    writers (alert/repair persistence) can proceed concurrently instead of
+    tripping over "database is locked"."""
+    if not db_url.startswith("sqlite"):
+        return
+    try:
+        from sqlalchemy import event
+
+        sync_engine = async_engine.sync_engine
+
+        @event.listens_for(sync_engine, "connect")
+        def _set_sqlite_pragma(dbapi_connection, connection_record):  # noqa: ANN001
+            try:
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA busy_timeout=5000")
+                cursor.close()
+            except Exception:  # pragma: no cover - pragmas are best effort
+                pass
+    except Exception as exc:  # pragma: no cover
+        logger.debug("SQLite pragma configuration unavailable: %s", exc)
+
+
+
+def _attach_query_metrics(async_engine: Any) -> None:
+    """Instrument the engine so every SQL statement feeds the DB metrics.
+
+    Records query latency on ``aiops_db_query_time_seconds`` (labelled with the
+    statement's table and operation) and query failures on
+    ``aiops_db_query_errors_total``. Everything is best-effort: a metrics
+    failure must never affect the query itself.
+    """
+    import re
+    import time as _time
+
+    try:
+        from sqlalchemy import event
+
+        from core.prometheus_metrics import get_metrics_exporter
+
+        sync_engine = async_engine.sync_engine
+
+        def _parse(statement: str) -> tuple[str, str]:
+            if not statement:
+                return ("unknown", "unknown")
+            text = statement.strip().lstrip("(").strip()
+            match = re.match(
+                r"(?is)^(select|insert|update|delete|with)\b", text
+            )
+            operation = match.group(1).lower() if match else "other"
+            if operation == "with":
+                operation = "select"
+            table_match = re.search(
+                r'(?is)\b(?:from|into|update|join)\s+"?([a-zA-Z_][\w\.]*)"?', text
+            )
+            table = table_match.group(1).split(".")[-1] if table_match else "unknown"
+            return (table, operation)
+
+        @event.listens_for(sync_engine, "before_cursor_execute")
+        def _before(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001
+            conn.info.setdefault("_aiops_query_start", []).append(_time.perf_counter())
+
+        @event.listens_for(sync_engine, "after_cursor_execute")
+        def _after(conn, cursor, statement, parameters, context, executemany):  # noqa: ANN001
+            stack = conn.info.get("_aiops_query_start")
+            if not stack:
+                return
+            duration = _time.perf_counter() - stack.pop()
+            table, operation = _parse(statement)
+            try:
+                get_metrics_exporter().record_db_query(table, operation, duration, True)
+            except Exception:  # pragma: no cover - never break a query over metrics
+                pass
+
+        @event.listens_for(sync_engine, "handle_error")
+        def _on_error(exception_context):  # noqa: ANN001
+            try:
+                table, operation = _parse(getattr(exception_context, "statement", "") or "")
+                get_metrics_exporter().record_db_query(table, operation, 0.0, False)
+            except Exception:  # pragma: no cover
+                pass
+    except Exception as exc:  # pragma: no cover - instrumentation is optional
+        logger.debug("DB query metrics instrumentation unavailable: %s", exc)
+
 
 
 class _LazyEngineProxy:

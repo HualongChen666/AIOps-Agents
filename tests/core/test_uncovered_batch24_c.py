@@ -87,14 +87,14 @@ def test_system_snapshot_to_prometheus_all_sections():
     result = metrics_converter.MetricsConverter.system_snapshot_to_prometheus(
         snapshot
     )  # noqa: F841  # Variable for test verification
-    assert "aiops_cpu_usage_percent" in result
+    assert "aiops_system_cpu_usage_percent" in result
     assert "aiops_cpu_core_usage_percent" in result
-    assert "aiops_memory_usage_percent" in result
+    assert "aiops_system_memory_usage_percent" in result
     assert "aiops_memory_total_gb" in result
     assert "aiops_memory_used_gb" in result
-    assert "aiops_disk_usage_percent" in result
-    assert "aiops_network_rx_bytes" in result
-    assert "aiops_network_tx_bytes" in result
+    assert "aiops_system_disk_usage_percent" in result
+    assert "aiops_system_network_rx_bytes" in result
+    assert "aiops_system_network_tx_bytes" in result
 
 
 def test_system_snapshot_empty():

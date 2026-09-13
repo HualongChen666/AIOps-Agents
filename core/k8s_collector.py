@@ -21,8 +21,19 @@ from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, Dict, List
 
-from kubernetes import client, config  # pip install kubernetes
-from kubernetes.client import ApiException
+try:  # Kubernetes is an optional dependency: without it the collector degrades to empty.
+    from kubernetes import client, config  # pip install kubernetes
+    from kubernetes.client import ApiException
+
+    KUBERNETES_AVAILABLE = True
+except Exception:  # pragma: no cover - exercised only when the lib is absent
+    client = None  # type: ignore[assignment]
+    config = None  # type: ignore[assignment]
+
+    class ApiException(Exception):  # type: ignore[no-redef]
+        """Placeholder so ``except ApiException`` stays valid without the SDK."""
+
+    KUBERNETES_AVAILABLE = False
 
 from config import (
     K8S_HOST_COOLDOWN_SEC,
@@ -221,6 +232,10 @@ def collect_all_k8s(max_workers: int = 4, timeout: float = 30.0) -> List[Dict[st
     """
     from concurrent.futures import ThreadPoolExecutor
     from concurrent.futures import TimeoutError as FutureTimeoutError
+
+    if not KUBERNETES_AVAILABLE:
+        _logger.info("kubernetes SDK not installed; K8s collection returns no data")
+        return []
 
     results: List[Dict[str, Any]] = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

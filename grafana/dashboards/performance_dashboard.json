@@ -14,7 +14,7 @@
       "type": "graph",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(aiops_api_response_time_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(aiops_api_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "{{endpoint}}"
         }
       ],
@@ -86,7 +86,7 @@
       "type": "graph",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(aiops_llm_inference_time_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(aiops_ai_request_duration_seconds_bucket[5m])) by (le))",
           "legendFormat": "{{model}}"
         }
       ],
@@ -103,7 +103,7 @@
       "type": "graph",
       "targets": [
         {
-          "expr": "aiops_llm_token_usage_total",
+          "expr": "aiops_ai_tokens_total",
           "legendFormat": "{{model}}"
         }
       ],
@@ -183,7 +183,7 @@
       "type": "graph",
       "targets": [
         {
-          "expr": "aiops_llm_cost_usd_total",
+          "expr": "aiops_ai_cost_usd_total",
           "legendFormat": "total"
         }
       ],

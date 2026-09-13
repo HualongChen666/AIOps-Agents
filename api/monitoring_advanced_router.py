@@ -262,7 +262,7 @@ def _collect_api_telemetry(endpoint_filter: Optional[str] = None) -> tuple:
             },
         )
 
-    for metric in exporter.api_throughput.collect():
+    for metric in exporter.api_requests_total.collect():
         for sample in metric.samples:
             if not sample.name.endswith("_total"):
                 continue
@@ -274,7 +274,7 @@ def _collect_api_telemetry(endpoint_filter: Optional[str] = None) -> tuple:
             if status.isdigit() and int(status) >= 400:
                 entry["error_count"] += count
 
-    for metric in exporter.api_response_time.collect():
+    for metric in exporter.api_request_duration_seconds.collect():
         for sample in metric.samples:
             labels = sample.labels
             entry = _entry(labels.get("endpoint", ""), labels.get("method", ""))

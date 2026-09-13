@@ -180,8 +180,8 @@ http_requests_total{service="api", endpoint="/users"}
 #### Use Efficient Metric Names
 ```promql
 # Good: Follow naming conventions
-aiops_http_requests_total
-aiops_request_duration_seconds
+aiops_api_requests_total
+aiops_api_request_duration_seconds
 aiops_memory_usage_bytes
 ```
 

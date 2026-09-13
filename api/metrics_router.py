@@ -305,8 +305,8 @@ async def _collect_system_snapshot() -> dict[str, Any]:
     # Phase 1 集成: 双写到 VictoriaMetrics
     if _dual_write_strategy and _metrics_converter:
         try:
-            # 双写
-            await _dual_write_strategy.write_batch_metrics([response])
+            # 双写（经 MetricsConverter 转 Prometheus 文本，逐条落 SQLite/VM）
+            await _dual_write_strategy.write_snapshot(response)
         except Exception as e:
             logger.warning(f"Phase 1 dual_write failed: {e}")
 

@@ -98,10 +98,13 @@ services:
       # deploy/prometheus.yml scrapes the services defined in this compose file
       # (aiops-agent, redis, postgres) by their service names.
       - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Evaluate the same alert/recording rules as the monitoring stack.
+      - ./monitoring/prometheus/alerts:/etc/prometheus/alerts:ro
       - prometheus-data:/prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
     networks:
       - aiops-network
     restart: unless-stopped
@@ -111,6 +114,30 @@ services:
           memory: 512M
         reservations:
           memory: 128M
+
+  # Host metrics for the node_* panels of grafana/dashboards/aiops_enhanced_dashboard.json.
+  node-exporter:
+    image: prom/node-exporter:v1.6.0
+    ports:
+      - "9100:9100"
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/host"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro,rslave
+    networks:
+      - aiops-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+        reservations:
+          memory: 32M
 
   grafana:
     image: grafana/grafana:10.2.0

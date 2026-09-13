@@ -68,7 +68,7 @@ groups:
 
       # API latency (p95)
       - alert: AIOpsAgentHighLatency
-        expr: histogram_quantile(0.95, sum(rate(aiops_api_response_time_seconds_bucket[5m])) by (le)) > 2
+        expr: histogram_quantile(0.95, sum(rate(aiops_api_request_duration_seconds_bucket[5m])) by (le)) > 2
         for: 5m
         labels:
           severity: warning
@@ -79,7 +79,7 @@ groups:
 
       # AI/LLM latency (p95)
       - alert: AIEngineSlowResponses
-        expr: histogram_quantile(0.95, sum(rate(aiops_llm_inference_time_seconds_bucket[5m])) by (le)) > 30
+        expr: histogram_quantile(0.95, sum(rate(aiops_ai_request_duration_seconds_bucket[5m])) by (le)) > 30
         for: 5m
         labels:
           severity: warning
