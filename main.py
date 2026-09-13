@@ -590,6 +590,15 @@ topology_view_router: Any = None
 workflow_router: Any = None
 workflow_advanced_router: Any = None
 workflow_visualization_router: Any = None
+workflow_management_router: Any = None
+workflow_execution_router: Any = None
+workflow_status_router: Any = None
+workflow_visualization_page_router: Any = None
+task_scheduler_router: Any = None
+executor_router: Any = None
+performance_scheduler_router: Any = None
+change_approval_router: Any = None
+change_records_router: Any = None
 priority_advanced_router: Any = None
 root_cause_advanced_router: Any = None
 
@@ -642,6 +651,18 @@ if ENABLE_ADDONS:
         from api.workflow_router import router as workflow_router
         from api.workflow_advanced_router import router as workflow_advanced_router
         from api.workflow_visualization_router import router as workflow_visualization_router
+        # Workflow frontend pages (frontend/app/workflow/*) — real domain backends.
+        from api.workflow_management_router import router as workflow_management_router
+        from api.workflow_execution_router import router as workflow_execution_router
+        from api.workflow_status_router import router as workflow_status_router
+        from api.workflow_visualization_page_router import (
+            router as workflow_visualization_page_router,
+        )
+        from api.task_scheduler_router import router as task_scheduler_router
+        from api.executor_router import router as executor_router
+        from api.performance_scheduler_router import router as performance_scheduler_router
+        from api.change_approval_router import router as change_approval_router
+        from api.change_records_router import router as change_records_router
     if RELEASE_MANAGEMENT_ENABLED:
         from api.release_management_router import router as release_management_router
     if INTEGRATIONS_ENABLED:
@@ -1242,6 +1263,15 @@ ADDON_ROUTERS = [
     (workflow_router, WORKFLOW_ENABLED),
     (workflow_advanced_router, WORKFLOW_ENABLED),
     (workflow_visualization_router, WORKFLOW_ENABLED),
+    (workflow_management_router, WORKFLOW_ENABLED),
+    (workflow_execution_router, WORKFLOW_ENABLED),
+    (workflow_status_router, WORKFLOW_ENABLED),
+    (workflow_visualization_page_router, WORKFLOW_ENABLED),
+    (task_scheduler_router, WORKFLOW_ENABLED),
+    (executor_router, WORKFLOW_ENABLED),
+    (performance_scheduler_router, WORKFLOW_ENABLED),
+    (change_approval_router, WORKFLOW_ENABLED),
+    (change_records_router, WORKFLOW_ENABLED),
     (release_management_router, RELEASE_MANAGEMENT_ENABLED),
     (hitl_router, INCIDENT_RESPONSE_ENABLED),
     (priority_router, INCIDENT_RESPONSE_ENABLED),
