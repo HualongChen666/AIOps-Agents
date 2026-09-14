@@ -158,6 +158,22 @@ class QueryCache:
 query_cache = QueryCache()
 
 
+def _relationship_load_options(model, relationship_names, loader):
+    """
+    仅为模型中**真实存在**的关系属性构建 eager-load 选项。
+
+    历史上这里无条件引用 ``Alert.details`` / ``Alert.tags`` / ``Alert.assignee``
+    等关系，但 ``core.models.Alert``（以及 ``Metrics``）并未定义这些 relationship，
+    导致 selectinload/joinedload 在运行期抛 ``AttributeError``，查询不可用。
+    这里按属性存在性过滤，既避免崩溃，又能在日后新增关系时自动生效。
+    """
+    options = []
+    for name in relationship_names:
+        if hasattr(model, name):
+            options.append(loader(getattr(model, name)))
+    return options
+
+
 def optimize_alert_query(session: AsyncSession) -> Select:
     """
     优化告警查询，避免N+1问题
@@ -170,10 +186,15 @@ def optimize_alert_query(session: AsyncSession) -> Select:
     """
     from core.models import Alert
 
-    # 使用selectinload预加载关联数据
-    stmt = select(Alert).options(
-        selectinload(Alert.details), selectinload(Alert.tags), selectinload(Alert.assignee)
+    stmt = select(Alert)
+
+    # 仅对真实存在的关系应用 selectinload（Alert 当前以 JSON 列存储附加信息，
+    # 无 details/tags/assignee 关系）。
+    load_options = _relationship_load_options(
+        Alert, ("details", "tags", "assignee"), selectinload
     )
+    if load_options:
+        stmt = stmt.options(*load_options)
 
     return stmt
 
@@ -190,8 +211,12 @@ def optimize_metrics_query(session: AsyncSession) -> Select:
     """
     from core.models import Metrics
 
-    # 使用joinedload进行关联查询
-    stmt = select(Metrics).options(joinedload(Metrics.source))
+    stmt = select(Metrics)
+
+    # 仅对真实存在的关系应用 joinedload。
+    load_options = _relationship_load_options(Metrics, ("source",), joinedload)
+    if load_options:
+        stmt = stmt.options(*load_options)
 
     return stmt
 

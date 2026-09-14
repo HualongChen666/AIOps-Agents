@@ -133,6 +133,10 @@ class PerformanceOptimizer:
         # Initialize components
         self._initialize_caches()
         self._initialize_async_pools()
+
+        # Background monitoring lifecycle control (allows a clean shutdown).
+        self._monitor_stop = threading.Event()
+        self._monitor_thread: Optional[threading.Thread] = None
         self._start_background_monitoring()
 
         logger.info("Performance Optimizer initialized")
@@ -218,22 +222,31 @@ class PerformanceOptimizer:
             return
 
         # Start background thread for monitoring
-        monitor_thread = threading.Thread(target=self._background_monitoring_loop, daemon=True)
-        monitor_thread.start()
+        self._monitor_thread = threading.Thread(
+            target=self._background_monitoring_loop, daemon=True
+        )
+        self._monitor_thread.start()
         logger.info("Background performance monitoring started")
 
+    def stop_background_monitoring(self, timeout: float = 5.0) -> None:
+        """Signal the background monitoring thread to stop and wait for it."""
+        self._monitor_stop.set()
+        if self._monitor_thread is not None and self._monitor_thread.is_alive():
+            self._monitor_thread.join(timeout=timeout)
+        logger.info("Background performance monitoring stopped")
+
     def _background_monitoring_loop(self):
-        """Background monitoring loop"""
-        while True:
+        """Background monitoring loop (stoppable)."""
+        while not self._monitor_stop.is_set():
             try:
                 self._collect_metrics()
                 self._detect_bottlenecks()
                 self._check_alerts()
                 self._cleanup_old_metrics()
-                time.sleep(30)  # Monitor every 30 seconds
             except Exception as e:
                 logger.error(f"Background monitoring error: {e}")
-                time.sleep(30)
+            # Wait on the stop event so shutdown is prompt instead of sleeping 30s.
+            self._monitor_stop.wait(30)
 
     def _collect_metrics(self):
         """Collect performance metrics"""
@@ -261,53 +274,52 @@ class PerformanceOptimizer:
                 self.metrics_history[f"cache_hit_rate_{cache_name}"].append((timestamp, hit_rate))
 
     def _detect_bottlenecks(self) -> Dict[str, Any]:
-        """Detect performance bottlenecks"""
+        """Detect performance bottlenecks.
+
+        Evaluates each metric against its (declared) warning **and** critical
+        thresholds instead of only the critical value, so approaching-limit
+        regressions are surfaced with ``severity="warning"``.
+        """
         detected: List[DetectionDict] = []
 
-        # Check response times
-        if "response_time" in self.metrics_history:
-            recent_times = [v for _, v in self.metrics_history["response_time"][-10:]]
-            if recent_times:
-                avg_time = sum(recent_times) / len(recent_times)
-                if avg_time > self.thresholds["response_time_critical"]:
-                    detected.append(
-                        DetectionDict(
-                            metric="response_time",
-                            severity="critical",
-                            value=avg_time,
-                            threshold=self.thresholds["response_time_critical"],
-                        )
-                    )
+        # (metric key, sample size, warning threshold key, critical threshold key)
+        checks = [
+            ("response_time", 10, "response_time_warning", "response_time_critical"),
+            ("memory_usage", 5, "memory_usage_warning", "memory_usage_critical"),
+            ("cpu_usage", 5, "cpu_usage_warning", "cpu_usage_critical"),
+        ]
 
-        # Check memory usage
-        if "memory_usage" in self.metrics_history:
-            recent_memory = [v for _, v in self.metrics_history["memory_usage"][-5:]]
-            if recent_memory:
-                avg_memory = sum(recent_memory) / len(recent_memory)
-                if avg_memory > self.thresholds["memory_usage_critical"]:
-                    detected.append(
-                        DetectionDict(
-                            metric="memory_usage",
-                            severity="critical",
-                            value=avg_memory,
-                            threshold=self.thresholds["memory_usage_critical"],
-                        )
-                    )
+        for metric_key, sample_size, warning_key, critical_key in checks:
+            history = self.metrics_history.get(metric_key)
+            if not history:
+                continue
 
-        # Check CPU usage
-        if "cpu_usage" in self.metrics_history:
-            recent_cpu = [v for _, v in self.metrics_history["cpu_usage"][-5:]]
-            if recent_cpu:
-                avg_cpu = sum(recent_cpu) / len(recent_cpu)
-                if avg_cpu > self.thresholds["cpu_usage_critical"]:
-                    detected.append(
-                        DetectionDict(
-                            metric="cpu_usage",
-                            severity="critical",
-                            value=avg_cpu,
-                            threshold=self.thresholds["cpu_usage_critical"],
-                        )
+            recent_values = [v for _, v in history[-sample_size:]]
+            if not recent_values:
+                continue
+
+            avg_value = sum(recent_values) / len(recent_values)
+            warning_threshold = self.thresholds[warning_key]
+            critical_threshold = self.thresholds[critical_key]
+
+            if avg_value > critical_threshold:
+                detected.append(
+                    DetectionDict(
+                        metric=metric_key,
+                        severity="critical",
+                        value=avg_value,
+                        threshold=critical_threshold,
                     )
+                )
+            elif avg_value > warning_threshold:
+                detected.append(
+                    DetectionDict(
+                        metric=metric_key,
+                        severity="warning",
+                        value=avg_value,
+                        threshold=warning_threshold,
+                    )
+                )
 
         # Store detected bottlenecks
         for detection in detected:

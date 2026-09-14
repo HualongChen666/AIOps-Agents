@@ -11,7 +11,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from loguru import logger
 
@@ -114,6 +114,11 @@ class MemoryUsageOptimizer:
         self.total_memory_freed_mb = 0.0
         self.total_leaks_detected = 0
 
+        # 组件级内存动作的真实处理器（CLEAR_CACHE / REDUCE_POOL_SIZE /
+        # RESTART_COMPONENT）。由组件自身注册，使内存超限可触发真实补救动作，
+        # 而非静默忽略枚举值。
+        self._action_handlers: Dict[MemoryAction, Callable[[str], Any]] = {}
+
         # Start tracing memory
         tracemalloc.start()
 
@@ -153,6 +158,9 @@ class MemoryUsageOptimizer:
             memory_percent=memory.percent,
             gc_objects=len(gc.get_objects()),
             gc_collections=gc_collections,
+            # 记录所属组件，否则 detect_memory_leaks 的组件过滤恒不匹配
+            # （非 "system" 组件的历史快照会被全部过滤掉 → 泄漏检测永无数据）。
+            metadata={"component": component},
         )
 
         self.memory_snapshots.append(snapshot)
@@ -189,6 +197,48 @@ class MemoryUsageOptimizer:
         )
 
         logger.info(f"Set memory limit for {component}: {max_memory_mb}MB")
+
+    def register_action_handler(
+        self, action: MemoryAction, handler: Callable[[str], Any]
+    ) -> None:
+        """注册组件级内存动作的真实处理器。
+
+        Args:
+            action: 触发动作类型（CLEAR_CACHE / REDUCE_POOL_SIZE / RESTART_COMPONENT 等）
+            handler: 接收组件名、执行真实补救逻辑的可调用对象
+        """
+        self._action_handlers[action] = handler
+        logger.info(f"Registered memory action handler for {action.value}")
+
+    def _apply_memory_action(self, component: str, action: MemoryAction) -> Dict[str, Any]:
+        """执行（或分派）内存超限时应采取的动作。
+
+        Returns:
+            动作执行结果字典（含 action / result）。
+        """
+        if action == MemoryAction.COLLECT_GARBAGE:
+            return {"action": action.value, "result": self.collect_garbage()}
+
+        if action == MemoryAction.ALERT_ONLY:
+            logger.warning(f"Memory alert for {component}: action_on_exceed=alert_only")
+            return {"action": action.value, "result": "alerted"}
+
+        handler = self._action_handlers.get(action)
+        if handler is None:
+            # 无处理器时明确报告（而非静默忽略该枚举值）。
+            logger.warning(
+                f"No handler registered for memory action '{action.value}' "
+                f"(component={component}); action not executed"
+            )
+            return {"action": action.value, "result": "no_handler"}
+
+        try:
+            result = handler(component)
+            logger.info(f"Executed memory action {action.value} for {component}")
+            return {"action": action.value, "result": result}
+        except Exception as e:
+            logger.error(f"Memory action {action.value} failed for {component}: {e}")
+            return {"action": action.value, "result": "error", "error": str(e)}
 
     def check_memory_limit(self, component: str) -> Dict[str, Any]:
         """
@@ -389,10 +439,27 @@ class MemoryUsageOptimizer:
         limit_check = self.check_memory_limit(component)
 
         if limit_check["status"] in ["warning", "critical"]:
-            # Perform garbage collection
-            gc_result = self.collect_garbage()
-            result["actions_taken"].append("garbage_collection")
-            result["memory_freed_mb"] += gc_result["memory_freed_mb"]
+            # 按配置的真实动作补救（COLLECT_GARBAGE / CLEAR_CACHE /
+            # REDUCE_POOL_SIZE / RESTART_COMPONENT / ALERT_ONLY）。
+            limit = self.memory_limits.get(component)
+            action = limit.action_on_exceed if limit else MemoryAction.COLLECT_GARBAGE
+
+            action_result = self._apply_memory_action(component, action)
+            # 保持既有动作标签 "garbage_collection" 以兼容既有契约。
+            label = (
+                "garbage_collection"
+                if action == MemoryAction.COLLECT_GARBAGE
+                else action.value
+            )
+            result["actions_taken"].append(label)
+            result["action_result"] = action_result
+
+            if action == MemoryAction.COLLECT_GARBAGE and isinstance(
+                action_result.get("result"), dict
+            ):
+                result["memory_freed_mb"] += action_result["result"].get(
+                    "memory_freed_mb", 0.0
+                )
 
         # Detect memory leaks
         leaks = self.detect_memory_leaks(component)
@@ -448,15 +515,11 @@ class MemoryUsageOptimizer:
                         limit_check = self.check_memory_limit(component)
 
                         if limit_check["status"] in ["warning", "critical"]:
-                            # Execute action
+                            # Execute the configured action (GC / clear cache /
+                            # reduce pool / restart / alert-only).
                             limit = self.memory_limits.get(component)
                             if limit:
-                                if limit.action_on_exceed == MemoryAction.COLLECT_GARBAGE:
-                                    self.collect_garbage()
-                                elif limit.action_on_exceed == MemoryAction.ALERT_ONLY:
-                                    logger.warning(
-                                        f"Memory alert for {component}: {limit_check['message']}"
-                                    )
+                                self._apply_memory_action(component, limit.action_on_exceed)
 
                     # Detect leaks periodically
                     if datetime.now(timezone.utc).minute % 10 == 0:  # Every 10 minutes

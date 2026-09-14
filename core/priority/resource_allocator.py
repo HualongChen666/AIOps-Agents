@@ -59,6 +59,8 @@ class ResourceAllocator:
         """Initialize resource allocator"""
         self.resources: Dict[str, Resource] = {}
         self.allocations: List[ResourceAllocation] = []
+        # 因容量不足而暂时无法满足的任务，供 optimize_allocation 在释放资源后重分配。
+        self.pending_tasks: List[Dict] = []
 
     def add_resource(self, resource: Resource) -> None:
         """
@@ -83,14 +85,16 @@ class ResourceAllocator:
         Returns:
             List of resource allocations
         """
-        # Filter resources by type
-        available_resources = [
-            r for r in self.resources.values() if r.type == resource_type and r.available > 0
-        ]
+        # Resources of the requested type. Keep the full set so that tasks which
+        # cannot be satisfied now can still be queued for later reallocation,
+        # even when every resource of this type is momentarily exhausted.
+        type_resources = [r for r in self.resources.values() if r.type == resource_type]
 
-        if not available_resources:
+        if not type_resources:
             logger.warning(f"No available resources of type {resource_type}")
             return []
+
+        available_resources = [r for r in type_resources if r.available > 0]
 
         # Sort tasks by priority (descending)
         sorted_tasks = sorted(tasks, key=lambda t: t.get("priority", 0), reverse=True)
@@ -125,6 +129,15 @@ class ResourceAllocator:
                     )
 
                     break
+
+        # 记录本轮因容量不足而未能分配的任务，供后续重分配。
+        allocated_task_ids = {a.task_id for a in allocations}
+        for task in sorted_tasks:
+            required = task.get("resource_requirement", {}).get(resource_type, 0)
+            if required <= 0:
+                continue
+            if task.get("id", "unknown") not in allocated_task_ids and task not in self.pending_tasks:
+                self.pending_tasks.append(task)
 
         self.allocations.extend(allocations)
 
@@ -189,17 +202,22 @@ class ResourceAllocator:
         """
         Optimize resource allocation
 
-        Reallocates resources to improve overall utilization
+        释放低优先级任务占用的资源，并将这些资源**重分配**给此前因容量不足
+        而排队等待的高优先级任务（self.pending_tasks）。
         """
-        # Simplified: release resources from low-priority tasks
-        # and reallocate to high-priority tasks
-
-        # Sort allocations by priority (ascending)
-        sorted_allocations = sorted(self.allocations, key=lambda a: a.priority)
-
         # Release low-priority allocations
-        for allocation in sorted_allocations:
+        for allocation in sorted(self.allocations, key=lambda a: a.priority):
             if allocation.priority < 0.5:
                 self.release(allocation.task_id)
+
+        # Reallocate the freed capacity to pending higher-priority tasks.
+        if self.pending_tasks:
+            pending = sorted(
+                self.pending_tasks, key=lambda t: t.get("priority", 0), reverse=True
+            )
+            self.pending_tasks = []
+            for resource_type in {r.type for r in self.resources.values()}:
+                if pending:
+                    self.allocate(pending, resource_type)
 
         logger.info("Optimized resource allocation")

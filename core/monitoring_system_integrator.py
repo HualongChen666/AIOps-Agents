@@ -5,6 +5,8 @@
 """
 
 import logging
+import operator as _operator
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -13,6 +15,22 @@ from typing import Any, Dict, List, Optional
 from core.monitoring_infrastructure import get_monitoring_infrastructure
 
 _logger = logging.getLogger(__name__)
+
+
+# 条件比较运算符映射（严格解析，避免 eval 注入）。
+_COMPARISON_OPERATORS = {
+    "<=": _operator.le,
+    ">=": _operator.ge,
+    "==": _operator.eq,
+    "!=": _operator.ne,
+    "<": _operator.lt,
+    ">": _operator.gt,
+}
+
+# 形如 ``metric_name > 80`` 的原子条件。
+_ATOMIC_CONDITION_RE = re.compile(
+    r"^\s*([A-Za-z_][A-Za-z0-9_.]*)\s*(<=|>=|==|!=|<|>)\s*(-?\d+(?:\.\d+)?)\s*$"
+)
 
 
 class AlertSeverity(str, Enum):
@@ -210,24 +228,84 @@ class MonitoringSystemIntegrator:
         return self.alerts.get(alert_id)
 
     def evaluate_alert_rules(self, metrics: Dict[str, float]):
-        """评估告警规则"""
+        """评估告警规则
+
+        真正解析每条规则的 ``condition`` 表达式（如 ``system_memory_percent > 85``、
+        ``api_error_rate > 0.05``）并对传入的 ``metrics`` 求值；命中即创建告警。
+        支持 ``&&`` / ``and``、``||`` / ``or`` 组合以及 ``< <= > >= == !=`` 比较符，
+        而非仅处理 ``cpu`` 关键词。
+        """
         for rule_id, rule in self.alert_rules.items():
             try:
-                # 简化的规则评估
-                # 实际应该解析condition表达式并评估
-                if "cpu" in rule["condition"].lower():
-                    cpu_value = metrics.get("system_cpu_percent", 0)
-                    if cpu_value > 80:
-                        alert = UnifiedAlert(
-                            alert_id=rule_id,
-                            alert_name=rule["alert_name"],
-                            severity=rule["severity"],
-                            status=AlertStatus.ACTIVE,
-                            message=f"{rule['message']}: {cpu_value}%",
-                        )
-                        self.create_alert(alert)
+                condition = str(rule.get("condition", ""))
+                if not condition:
+                    continue
+
+                if not self._evaluate_condition(condition, metrics):
+                    continue
+
+                summary = self._describe_condition(condition, metrics)
+                alert = UnifiedAlert(
+                    alert_id=rule_id,
+                    alert_name=rule["alert_name"],
+                    severity=rule["severity"],
+                    status=AlertStatus.ACTIVE,
+                    message=f"{rule['message']} ({summary})" if summary else rule["message"],
+                )
+                self.create_alert(alert)
             except Exception as e:
                 _logger.error(f"Error evaluating alert rule {rule_id}: {e}")
+
+    @staticmethod
+    def _evaluate_condition(condition: str, metrics: Dict[str, float]) -> bool:
+        """对单个条件表达式求值（不依赖 eval）。
+
+        组合逻辑优先级：``||``/``or`` 低于 ``&&``/``and``。
+        """
+        expr = condition.strip()
+
+        for sep in ("||", " or "):
+            if sep in expr:
+                return any(
+                    MonitoringSystemIntegrator._evaluate_condition(part, metrics)
+                    for part in expr.split(sep)
+                )
+
+        for sep in ("&&", " and "):
+            if sep in expr:
+                return all(
+                    MonitoringSystemIntegrator._evaluate_condition(part, metrics)
+                    for part in expr.split(sep)
+                )
+
+        match = _ATOMIC_CONDITION_RE.match(expr)
+        if match is None:
+            _logger.warning(f"Unsupported alert condition (skipped): {condition!r}")
+            return False
+
+        metric_name, op_symbol, threshold_str = match.group(1), match.group(2), match.group(3)
+
+        # 指标缺失时不命中（无法判定满足阈值）。
+        if metric_name not in metrics:
+            return False
+
+        try:
+            value = float(metrics[metric_name])
+            threshold = float(threshold_str)
+        except (TypeError, ValueError):
+            return False
+
+        return _COMPARISON_OPERATORS[op_symbol](value, threshold)
+
+    @staticmethod
+    def _describe_condition(condition: str, metrics: Dict[str, float]) -> str:
+        """生成用于告警消息的条件摘要，例如 ``system_memory_percent=90.0``。"""
+        names = _ATOMIC_CONDITION_RE.findall(condition)
+        if names:
+            metric_name = names[0][0]
+            if metric_name in metrics:
+                return f"{metric_name}={metrics[metric_name]}"
+        return condition
 
     def get_dashboard(self, dashboard_id: str) -> Optional[DashboardConfig]:
         """获取仪表盘配置"""

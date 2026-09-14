@@ -12008,3 +12008,52 @@ terraform/storage.tf
 
 - 本台账解析的「中危」条目（`发现（中）` + `【中】`）：**471** 行 / 去重 ID **349**。
 - 用户口径：总计 **415**，第 8 批后剩余 **290**。本批修复 **3** → 剩余 **287**。
+
+
+---
+
+# PART LI — 中危（medium）逐条修复 · 第 10 批（2026-09-14）
+
+> 目标：按本台账登记的「发现（中）」条目逐条修复到通过。本批修复 **10 条清单条目**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 另修复 **1 条**在验证过程中被**复现**的「测试写脏仓库」缺陷（非清单条目，附带记录）。
+>
+> 说明（诚实记录）：本批为**服务器中断后接续完成**——代码改动此前仅以 `git stash`
+> （`stash@{0}: wip4`）暂存、未提交、未写入台账；本次恢复暂存（`git stash pop`）、
+> 实跑验证（干净 HEAD 反证 + 修复后通过 + 回归集合比对）后收尾提交。
+
+## 本批修复（10 条清单 + 1 条附带，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| F271 | `core/log_router.py` | `route_log` 的 `zip(self.destinations, results)` **错位**修正为「(destination, coroutine) 配对」后再 gather，失败可归属到真实目标；未知 destination **不再静默**（`logger.warning` 跳过）。 |
+| F283 | `core/loki_client.py` | `_build_url` 由 `urljoin`（endpoint 以 `/` 开头会**丢弃 base_url 路径前缀**）改为直拼 `f"{base.rstrip('/')}/{endpoint.lstrip('/')}"`；`LokiQueryResult.data` 由必填报错改为 `default_factory=dict`（Loki error 响应无 data 时不再校验失败）。 |
+| F291 | `core/memory_usage_optimizer.py` | `take_memory_snapshot` 记入 `metadata={"component": component}`（此前**从不设置** → 组件过滤恒空、泄漏检测永无数据）；新增 `register_action_handler`/`_apply_memory_action`，使 `REDUCE_POOL_SIZE`/`RESTART_COMPONENT`/`CLEAR_CACHE` 由**静默忽略**变为**真实分派执行**（无处理器时显式告警），后台循环同路径。 |
+| F299 | `core/middleware/rate_limit_middleware.py` | 先 `is_allowed` 判定再 `call_next`——**超限请求在下游处理器之前拦截返回 429**（原为先执行下游再判，未真正拦截）；响应头 `limit/remaining/reset/Retry-After` 取值同源。 |
+| F307 | `core/monitoring_system_integrator.py` | `evaluate_alert_rules` **真正解析每条 `condition`**（正则原子条件 + `&&`/`||`/`and`/`or` 组合，运算符映射无 `eval`），指标缺失不命中；内存/API 规则不再永不评估（原**仅 `cpu` 关键词**）。 |
+| F315 | `core/performance_data_collector.py` | `collect_metric`/`collect_batch_metrics` 由 `metadata=` 改为 `meta_data=`（模型真实列名），**修复 SQLAlchemy 未知 kwarg 导致的采集失败**。 |
+| F323 | `core/performance_optimizer.py` | 后台监控由 `while True`（**无停止机制**）改为 `self._monitor_stop`(Event) 驱动 + `stop_background_monitoring()` 可干净停止；`_detect_bottlenecks` 增加 **warning 阈值**分支（`*_usage_warning` 原先定义未用，仅判 critical）。 |
+| F327 | `core/priority/resource_allocator.py` | `allocate` 记录**容量不足的 pending 任务**；`optimize_allocation` 释放低优先级后**真正重分配**给 pending 高优先级任务（原注释称重分配，实际**仅释放**）。 |
+| F333 | `core/plugin_development_sdk.py` | `integration`/`ai` 模板补 `from datetime import datetime, timezone`（模板体用到 → 生成代码原先运行即 NameError）；同时修正模板 f-string 花括号转义（`{self.plugin_name}` → `{{self.plugin_name}}`，生成源码原样残留字面量）。 |
+| F344 | `core/query_optimization.py` | `optimize_alert_query`/`optimize_metrics_query` 改为**仅对模型中真实存在的关系**（`hasattr` 过滤）施加 `selectinload`/`joinedload`——不再对 `Alert.details/tags/assignee`、`Metrics.source` 等**不存在的属性**报 `AttributeError`。 |
+| （附带） | `tests/api/test_uncovered_api_batch_e.py` | **测试写脏仓库**：`test_metrics_router_extra_paths` 的 KPI CRUD 段真实 POST 到后端 → 每次运行向**受版本管理的 `data/kpi_config.json`** 追加一条空配置（实测复现；污染记录 `created_at` 对齐批运行时刻）。改为将该测试的 `core.kpi_config._KPI_CONFIG_PATH` 重定向到 `tmp_path`（仍跑**真实** create/update/delete 逻辑，落盘到临时文件），断言不变。 |
+
+## 验证证据（本环境实测）
+
+- **改动前反证**：`tests/core/test_medium_ledger_batch10_20260914.py` 在**干净 HEAD（修复仍处于 stash）**为
+  **16 failed / 3 passed**（16 条用例逐条指向本批 10 个文件的行为缺陷）。
+- **修复后**：同文件 **19 passed**（含 `monitoring` 真实条件求值、`rate_limit` 下游未被调用、
+  `log_router` 归属正确、`resource_allocator` pending 重分配、插件模板 `exec` 生成代码可实例化并调用）。
+- **无回归**（与干净 HEAD 集合一致）：`tests/test_autoheal_router_real_branches.py`
+  + `tests/api/test_uncovered_api_batch_{b,i}.py` + `tests/api/test_uncovered_routers.py`
+  + `tests/test_security_audit.py` 在修复后为 **4 failed / 162 passed / 5 skipped / 19 errors**，
+  与第 9 批记录的 HEAD 基线**完全一致**（失败集合相同，均为既有失效）。
+- **污染修复验证**：`tests/api/test_uncovered_api_batch_e.py` 运行前后 `git status data/kpi_config.json` 均为
+  **干净**（修复前该文件每次 +11 行）；用例结果为 **2 failed / 28 passed / 1 skipped**，其中
+  `test_grpc_service_router_endpoints`、`test_grpc_service_router_error_paths` 经 `git stash push` 于 HEAD 复核
+  **同为失败**（既有失效，与本批改动无关）。
+
+## 进度口径（诚实记录）
+
+- 本台账解析的「中危」条目（`发现（中）` + `【中】`）：**471** 行 / 去重 ID **349**。
+- 用户口径：总计 **415**，第 9 批后剩余 **287**。本批修复 **10** → 剩余 **277**。

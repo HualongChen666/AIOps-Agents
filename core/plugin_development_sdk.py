@@ -85,7 +85,7 @@ class {class_name}:
         self.version = "{version}"
         self.author = "{author}"
 
-        logger.info(f"Initialized {self.plugin_name} plugin")
+        logger.info(f"Initialized {{self.plugin_name}} plugin")
 
     def initialize(self, config: Dict[str, Any]) -> bool:
         """
@@ -99,10 +99,10 @@ class {class_name}:
         """
         try:
             self.config.update(config)
-            logger.info(f"{self.plugin_name} plugin initialized")
+            logger.info(f"{{self.plugin_name}} plugin initialized")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize {self.plugin_name}: {e}")
+            logger.error(f"Failed to initialize {{self.plugin_name}}: {{e}}")
             return False
 
     def collect_metrics(self, target: str) -> Dict[str, Any]:
@@ -141,10 +141,10 @@ class {class_name}:
             True if successful, False otherwise
         """
         try:
-            logger.info(f"{self.plugin_name} plugin cleaned up")
+            logger.info(f"{{self.plugin_name}} plugin cleaned up")
             return True
         except Exception as e:
-            logger.error(f"Failed to cleanup {self.plugin_name}: {{e}}")
+            logger.error(f"Failed to cleanup {{self.plugin_name}}: {{e}}")
             return False
 
 
@@ -186,6 +186,7 @@ Enterprise-grade integration plugin template
 
 from typing import Dict, Any, Optional
 from loguru import logger
+from datetime import datetime, timezone
 
 
 class {class_name}:
@@ -206,7 +207,7 @@ class {class_name}:
         self.author = "{author}"
         self.connected = False
 
-        logger.info(f"Initialized {self.plugin_name} plugin")
+        logger.info(f"Initialized {{self.plugin_name}} plugin")
 
     def connect(self, credentials: Dict[str, Any]) -> bool:
         """
@@ -220,10 +221,10 @@ class {class_name}:
         """
         try:
             self.connected = True
-            logger.info(f"{self.plugin_name} connected successfully")
+            logger.info(f"{{self.plugin_name}} connected successfully")
             return True
         except Exception as e:
-            logger.error(f"Failed to connect {self.plugin_name}: {{e}}")
+            logger.error(f"Failed to connect {{self.plugin_name}}: {{e}}")
             return False
 
     def execute_action(self, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -261,10 +262,10 @@ class {class_name}:
         """
         try:
             self.connected = False
-            logger.info(f"{self.plugin_name} disconnected")
+            logger.info(f"{{self.plugin_name}} disconnected")
             return True
         except Exception as e:
-            logger.error(f"Failed to disconnect {self.plugin_name}: {{e}}")
+            logger.error(f"Failed to disconnect {{self.plugin_name}}: {{e}}")
             return False
 
 
@@ -311,6 +312,7 @@ Enterprise-grade AI plugin template
 
 from typing import Dict, Any, Optional
 from loguru import logger
+from datetime import datetime, timezone
 
 
 class {class_name}:
@@ -331,7 +333,7 @@ class {class_name}:
         self.author = "{author}"
         self.model_loaded = False
 
-        logger.info(f"Initialized {self.plugin_name} plugin")
+        logger.info(f"Initialized {{self.plugin_name}} plugin")
 
     def initialize_model(self, model_config: Dict[str, Any]) -> bool:
         """
@@ -345,7 +347,7 @@ class {class_name}:
         """
         try:
             self.model_loaded = True
-            logger.info(f"{self.plugin_name} model initialized")
+            logger.info(f"{{self.plugin_name}} model initialized")
             return True
         except Exception as e:
             logger.error(f"Failed to initialize model: {{e}}")

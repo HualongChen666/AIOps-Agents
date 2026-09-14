@@ -78,7 +78,9 @@ class PerformanceDataCollector:
                     environment=metric_data.get("environment", "dev"),
                     git_commit=metric_data.get("git_commit"),
                     git_branch=metric_data.get("git_branch"),
-                    metadata=metric_data.get("metadata"),
+                    # 模型列名为 meta_data（见 core.models.PerformanceMetric）；
+                    # 使用 metadata= 会触发 SQLAlchemy "invalid keyword argument" 而无法落库。
+                    meta_data=metric_data.get("metadata"),
                 )
 
                 session.add(metric)
@@ -137,7 +139,8 @@ class PerformanceDataCollector:
                         environment=metric_data.get("environment", "dev"),
                         git_commit=metric_data.get("git_commit"),
                         git_branch=metric_data.get("git_branch"),
-                        metadata=metric_data.get("metadata"),
+                        # 模型列名为 meta_data（见 core.models.PerformanceMetric）。
+                        meta_data=metric_data.get("metadata"),
                     )
                     metrics.append(metric)
 

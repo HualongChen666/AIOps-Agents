@@ -19,7 +19,6 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
 
 import httpx
 from pydantic import BaseModel, Field
@@ -38,7 +37,8 @@ class LokiQueryResult(BaseModel):
     """Loki查询结果"""
 
     status: str = Field(..., description="查询状态: success or error")
-    data: Dict[str, Any] = Field(..., description="查询数据")
+    # Loki 的错误响应可能不含 data 字段，缺省为空字典以避免校验失败。
+    data: Dict[str, Any] = Field(default_factory=dict, description="查询数据")
     error_type: Optional[str] = Field(None, description="错误类型")
     error: Optional[str] = Field(None, description="错误信息")
 
@@ -90,13 +90,16 @@ class LokiClient:
         """
         构建完整的API URL
 
+        直接拼接（而非 ``urljoin``），以避免端点以 ``/`` 开头时把 ``base_url``
+        的路径前缀整体丢弃（例如 ``http://host:3100/loki`` + ``/api/v1/query``）。
+
         Args:
             endpoint: API端点
 
         Returns:
             完整的URL
         """
-        return urljoin(self.base_url, endpoint)
+        return f"{self.base_url.rstrip('/')}/{endpoint.lstrip('/')}"
 
     async def _request(
         self,

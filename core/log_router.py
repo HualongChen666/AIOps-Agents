@@ -151,21 +151,27 @@ class LogRouter:
 
         success = True
 
-        # Route to all destinations in parallel for better performance
-        tasks = []
+        # Route to all destinations in parallel for better performance.
+        # Keep the (destination, coroutine) pairing so failures are attributed
+        # to the correct destination even when some entries are unrecognized.
+        task_pairs = []
         for destination in self.destinations:
             if destination == LogDestination.LOKI.value:
-                tasks.append(self.send_to_loki(log_entry))
+                task_pairs.append((destination, self.send_to_loki(log_entry)))
             elif destination == LogDestination.ELASTICSEARCH.value:
-                tasks.append(self.send_to_elasticsearch(log_entry))
+                task_pairs.append((destination, self.send_to_elasticsearch(log_entry)))
             elif destination == LogDestination.KAFKA.value:
-                tasks.append(self.send_to_kafka(log_entry))
+                task_pairs.append((destination, self.send_to_kafka(log_entry)))
             elif destination == LogDestination.S3.value:
-                tasks.append(self.send_to_s3(log_entry))
+                task_pairs.append((destination, self.send_to_s3(log_entry)))
+            else:
+                logger.warning(f"Unknown log destination '{destination}', skipping")
 
-        if tasks:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for dest, result in zip(self.destinations, results):
+        if task_pairs:
+            destinations = [dest for dest, _ in task_pairs]
+            coroutines = [coro for _, coro in task_pairs]
+            results = await asyncio.gather(*coroutines, return_exceptions=True)
+            for dest, result in zip(destinations, results):
                 if isinstance(result, Exception):
                     logger.error(f"Failed to route log to {dest}: {result}")
                     success = False

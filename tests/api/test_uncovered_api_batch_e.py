@@ -1414,9 +1414,17 @@ def test_windows_repair_router_error_paths(client, admin_headers, monkeypatch):
     assert resp.status_code != 404, resp.text
 
 
-def test_metrics_router_extra_paths(client, admin_headers, monkeypatch):
+def test_metrics_router_extra_paths(client, admin_headers, monkeypatch, tmp_path):
     """Cover predictions slope branches and error paths."""
     import api.metrics_router as mr
+    import core.kpi_config as kpi_config
+
+    # Redirect KPI-config persistence to a temp file: the CRUD block below used to
+    # hit the real backend and append to the tracked data/kpi_config.json,
+    # polluting the repo on every run.
+    monkeypatch.setattr(
+        kpi_config, "_KPI_CONFIG_PATH", str(tmp_path / "kpi_config.json")
+    )
 
     monkeypatch.setattr(
         mr.metrics_history,

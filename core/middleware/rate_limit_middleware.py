@@ -206,36 +206,39 @@ async def rate_limit_middleware(request: Request, call_next: Callable) -> Respon
     client_id = rate_limiter._get_client_id(request)
     path = request.url.path
     current_time = time.time()
-    
-    # 检查速率限制
+
+    limit = rate_limiter._get_limit(path)[0]
+
+    # 检查速率限制（必须在执行下游处理器之前拦截，否则超限请求仍会被处理）
     is_allowed, remaining, reset_time = rate_limiter.is_allowed(client_id, path, current_time)
-    
-    # 添加速率限制响应头
-    response = await call_next(request)
-    response.headers["X-RateLimit-Limit"] = str(rate_limiter._get_limit(path)[0])
-    response.headers["X-RateLimit-Remaining"] = str(remaining)
-    response.headers["X-RateLimit-Reset"] = str(reset_time)
-    
+
     if not is_allowed:
         logger.warning(
             f"速率限制触发 | client_id={client_id} | path={path} | "
             f"reset_time={reset_time}"
         )
+        retry_after = max(reset_time - int(current_time), 0)
         return JSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             content={
                 "detail": "请求过于频繁，请稍后再试",
                 "error": "rate_limit_exceeded",
-                "retry_after": reset_time - int(current_time),
+                "retry_after": retry_after,
             },
             headers={
-                "X-RateLimit-Limit": str(rate_limiter._get_limit(path)[0]),
+                "X-RateLimit-Limit": str(limit),
                 "X-RateLimit-Remaining": "0",
                 "X-RateLimit-Reset": str(reset_time),
-                "Retry-After": str(reset_time - int(current_time)),
+                "Retry-After": str(retry_after),
             },
         )
-    
+
+    # 仅在允许时执行下游处理器，并附带速率限制响应头
+    response = await call_next(request)
+    response.headers["X-RateLimit-Limit"] = str(limit)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
+    response.headers["X-RateLimit-Reset"] = str(reset_time)
+
     return response
 
 
