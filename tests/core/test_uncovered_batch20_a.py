@@ -566,10 +566,10 @@ async def test_list_and_export_jobs(tuner, fast_fine_tuner_asyncio, tmp_path, mo
     )
     ds = fine_tuner.TrainingDataset(dataset_id="ds-4", dataset_path="data.json")
     job_id = await tuner.start_fine_tuning(cfg, ds)
-    for _ in range(20):
+    for _ in range(50):
         if tuner.training_jobs[job_id].status == fine_tuner.TrainingStatus.COMPLETED:
             break
-        await asyncio.sleep(0)
+        await asyncio.sleep(0.01)
 
     all_jobs = tuner.list_training_jobs()
     assert any(j["job_id"] == job_id for j in all_jobs)
@@ -579,7 +579,8 @@ async def test_list_and_export_jobs(tuner, fast_fine_tuner_asyncio, tmp_path, mo
 
     export_path = await tuner.export_model(job_id, export_format="pytorch")
     assert export_path is not None
-    assert Path(export_path).name == "model.pytorch"
+    assert Path(export_path).is_dir()
+    assert (Path(export_path) / "export_meta.json").exists()
 
     pending_job = fine_tuner.TrainingConfig(
         model_name="pending",

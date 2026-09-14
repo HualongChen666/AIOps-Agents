@@ -788,7 +788,7 @@ def test_search_with_filter(qdrant_mocks):
     mock_result.id = "p1"
     mock_result.score = 0.95
     mock_result.payload = {"x": "y"}
-    mock_client.search.return_value = [mock_result]
+    mock_client.query_points.return_value.points = [mock_result]
 
     results = qdrant_service.search("incidents", [0.1, 0.2], top_k=3, filter={"tag": "x"})
     assert len(results) == 1
@@ -798,14 +798,14 @@ def test_search_with_filter(qdrant_mocks):
 def test_search_without_filter(qdrant_mocks):
     _, mock_client = qdrant_mocks
     qdrant_service._qdrant_client = mock_client
-    mock_client.search.return_value = []
+    mock_client.query_points.return_value.points = []
     results = qdrant_service.search("incidents", [0.1, 0.2])
     assert results == []
 
 
 def test_search_failure(qdrant_mocks):
     _, mock_client = qdrant_mocks
-    mock_client.search.side_effect = RuntimeError("fail")
+    mock_client.query_points.side_effect = RuntimeError("fail")
     qdrant_service._qdrant_client = mock_client
     with pytest.raises(RuntimeError):
         qdrant_service.search("incidents", [0.1])

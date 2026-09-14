@@ -560,9 +560,13 @@ class SecurityInputValidatorMiddleware(BaseHTTPMiddleware):
 
         except Exception as e:
             logger.error(f"Error in security validation middleware: {e}")
-            # If validation fails, allow the request to continue (fail-open)
-            # This prevents the middleware from breaking the application
-            return await call_next(request)
+            # Fail closed: an unexpected validator error must not silently
+            # disable input protection. Reject the request instead of letting
+            # it through unvalidated.
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"detail": "Input validation failed"},
+            )
 
 
 # Global validator instance for singleton pattern with thread safety

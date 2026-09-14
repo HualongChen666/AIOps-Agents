@@ -616,32 +616,74 @@ class UIExperienceSupport:
             return {}
 
     async def _generate_line_chart_data(self, config: ReportConfig) -> Dict[str, Any]:
-        """生成折线图数据"""
-        # 模拟数据生成
-        time_points = []
-        values = []
+        """生成折线图数据（取自真实指标历史缓冲区）"""
+        from core.metrics_history import METRICS_HISTORY, get_metrics_history
 
-        for i in range(24):
-            time_points.append((datetime.now() - timedelta(hours=23 - i)).isoformat())
-            values.append(50 + (i % 10) * 5)
+        raw_metric = config.metrics[0] if config.metrics else "cpu"
+        metric = {"cpu_usage": "cpu", "memory_usage": "memory"}.get(raw_metric, raw_metric)
 
-        return {"chart_type": "line", "data": {"timestamps": time_points, "values": values}}
+        series = [
+            (sample["timestamp"], float(sample["value"]))
+            for sample in get_metrics_history(limit=1000)
+            if sample["name"] == metric
+        ]
+
+        if not series:
+            # 无历史样本时回落到最新真实采样点，绝不合成曲线
+            latest = METRICS_HISTORY.get_latest(metric, service="global")
+            if latest is None:
+                live = _collect_realtime_metrics()
+                latest = live.get({"cpu": "cpu_usage", "memory": "memory_usage"}.get(metric, ""))
+            if latest is None:
+                return {
+                    "chart_type": "line",
+                    "data": {"metric": metric, "timestamps": [], "values": []},
+                }
+            series = [(datetime.now().isoformat(), float(latest))]
+
+        return {
+            "chart_type": "line",
+            "data": {
+                "metric": metric,
+                "timestamps": [ts for ts, _ in series],
+                "values": [value for _, value in series],
+            },
+        }
 
     async def _generate_bar_chart_data(self, config: ReportConfig) -> Dict[str, Any]:
-        """生成柱状图数据"""
-        # 模拟数据生成
-        categories = ["CPU", "Memory", "Disk", "Network"]
-        values = [45, 67, 55, 32]
+        """生成柱状图数据（来自真实主机资源采样）"""
+        live = _collect_realtime_metrics()
+        categories = ["CPU", "Memory", "Disk"]
+        values = [
+            float(live.get("cpu_usage", 0.0) or 0.0),
+            float(live.get("memory_usage", 0.0) or 0.0),
+            float(live.get("disk_usage", 0.0) or 0.0),
+        ]
 
         return {"chart_type": "bar", "data": {"categories": categories, "values": values}}
 
-    async def _generate_pie_chart_data(self, config: ReportConfig) -> Dict[str, Any]:
-        """生成饼图数据"""
-        # 模拟数据生成
-        labels = ["Healthy", "Warning", "Critical"]
-        values = [70, 20, 10]
+    _HEALTH_WARNING_THRESHOLD = 80.0
+    _HEALTH_CRITICAL_THRESHOLD = 90.0
 
-        return {"chart_type": "pie", "data": {"labels": labels, "values": values}}
+    async def _generate_pie_chart_data(self, config: ReportConfig) -> Dict[str, Any]:
+        """生成饼图数据（按真实资源使用率计算健康分布）"""
+        live = _collect_realtime_metrics()
+        buckets = {"Healthy": 0, "Warning": 0, "Critical": 0}
+        for key in ("cpu_usage", "memory_usage", "disk_usage"):
+            value = live.get(key)
+            if value is None:
+                continue
+            if value >= self._HEALTH_CRITICAL_THRESHOLD:
+                buckets["Critical"] += 1
+            elif value >= self._HEALTH_WARNING_THRESHOLD:
+                buckets["Warning"] += 1
+            else:
+                buckets["Healthy"] += 1
+
+        return {
+            "chart_type": "pie",
+            "data": {"labels": list(buckets.keys()), "values": list(buckets.values())},
+        }
 
     def get_translation(self, language: str, key: str) -> Optional[str]:
         """获取翻译"""

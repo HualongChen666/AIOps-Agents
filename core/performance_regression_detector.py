@@ -665,18 +665,39 @@ class AnomalyDetector:
         values: List[float], contamination: float = 0.1
     ) -> List[int]:
         """
-        Detect anomalies using isolation forest (simplified version)
+        Detect anomalies using a real ``IsolationForest`` ensemble.
+
+        ``sklearn.ensemble.IsolationForest`` isolates observations by randomly
+        partitioning the feature space; points that are isolated in fewer splits
+        are flagged as anomalies. This is the genuine isolation-forest
+        implementation (not a statistical proxy). When scikit-learn is not
+        installed the method falls back to the deterministic IQR detector so
+        callers still receive a concrete result.
 
         Args:
             values: Data values
-            contamination: Expected contamination rate
+            contamination: Expected contamination rate (proportion of outliers)
 
         Returns:
             List of anomaly indices
         """
-        # Simplified version using statistical methods
-        # In production, use sklearn's IsolationForest
-        return AnomalyDetector.detect_outliers_iqr(values, multiplier=2.0)
+        if len(values) < 4:
+            return []
+
+        try:
+            from sklearn.ensemble import IsolationForest
+        except ImportError:  # pragma: no cover - depends on environment
+            logger.warning("scikit-learn unavailable, falling back to IQR outlier detection")
+            return AnomalyDetector.detect_outliers_iqr(values, multiplier=2.0)
+
+        try:
+            samples = np.asarray(values, dtype=float).reshape(-1, 1)
+            model = IsolationForest(contamination=contamination, random_state=42)
+            labels = model.fit_predict(samples)
+            return [i for i, label in enumerate(labels) if label == -1]
+        except Exception as e:
+            logger.error(f"Isolation forest anomaly detection failed: {e}")
+            return []
 
 
 class HistoricalDataManager:

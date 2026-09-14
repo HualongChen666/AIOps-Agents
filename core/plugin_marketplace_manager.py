@@ -4,6 +4,7 @@ Plugin Marketplace Manager
 Enterprise-grade plugin marketplace and quality assurance
 """
 
+import ast
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -190,6 +191,11 @@ class PluginMarketplaceManager:
             results["security_check"] = False
             results["issues"].append("Potentially unsafe code detected")
 
+        # Performance check (real AST-based static analysis)
+        performance_ok, performance_issues = self._check_performance(plugin_code)
+        results["performance_check"] = performance_ok
+        results["issues"].extend(performance_issues)
+
         # Documentation check
         if '"""' not in plugin_code and "'''" not in plugin_code:
             results["documentation_check"] = False
@@ -207,6 +213,51 @@ class PluginMarketplaceManager:
         results["overall_score"] = passed_checks / 4.0
 
         return results
+
+    @classmethod
+    def _loop_depth(cls, node: ast.AST, depth: int = 0) -> int:
+        """Return the maximum nesting depth of loops reachable from ``node``."""
+        max_depth = depth
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.For, ast.AsyncFor, ast.While)):
+                max_depth = max(max_depth, cls._loop_depth(child, depth + 1))
+            else:
+                max_depth = max(max_depth, cls._loop_depth(child, depth))
+        return max_depth
+
+    @classmethod
+    def _check_performance(cls, plugin_code: str) -> tuple[bool, List[str]]:
+        """Static performance analysis based on the real code structure.
+
+        Uses the AST (not substring matching) to flag the two hazards that most
+        commonly make a plugin slow at runtime:
+
+        * nested loops (``O(n^2)`` behaviour), and
+        * oversized functions (large call/compile footprint).
+
+        Returns ``(ok, issues)`` where ``ok`` is ``False`` when any hazard is
+        found. Unparsable code is handled by the syntax check, so here it is
+        treated as "no additional performance issue".
+        """
+        issues: List[str] = []
+        try:
+            tree = ast.parse(plugin_code)
+        except SyntaxError:
+            return True, issues
+
+        if cls._loop_depth(tree) >= 2:
+            issues.append("Nested loops detected (potential quadratic runtime)")
+
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                end_lineno = getattr(node, "end_lineno", node.lineno) or node.lineno
+                body_lines = end_lineno - node.lineno
+                if body_lines > 200:
+                    issues.append(f"Function '{node.name}' is very large ({body_lines} lines)")
+
+        # De-duplicate while preserving order.
+        unique_issues = list(dict.fromkeys(issues))
+        return (len(unique_issues) == 0), unique_issues
 
     def approve_plugin(self, plugin_id: str, reviewer: str) -> bool:
         """

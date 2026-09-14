@@ -12057,3 +12057,62 @@ terraform/storage.tf
 
 - 本台账解析的「中危」条目（`发现（中）` + `【中】`）：**471** 行 / 去重 ID **349**。
 - 用户口径：总计 **415**，第 9 批后剩余 **287**。本批修复 **10** → 剩余 **277**。
+
+
+---
+
+# PART LII — 中危（medium）逐条修复 · 第 11 批（2026-09-14）
+
+> 目标：按本台账登记的「发现（中）」条目逐条修复到通过。本批修复 **10 条清单条目**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+>
+> 说明（诚实记录）：本批开工前先对 PART I/II（core+api）的「发现（中）」条目**逐条回读源码核验**，
+> 发现此前多个批次已把绝大多数 core/api 中危条目修复（例如 F215/F277/F290/F296/F312/F313/F314/
+> F345/F432 等回读时已不复现）。故本批选取的是**回读源码后仍真实存在**的 10 条，逐条给出证据。
+
+## 本批修复（10 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| F226 | `core/intelligent_alert_analyzer.py` | `predict_alert_trends` 原先创建 Prophet 后**从不 `fit`**（数据准备被注释、直接 `make_future_dataframe`+`predict`）；改为用真实历史构造 `ds/y` DataFrame 并 `model.fit(...)`，再按小时频率外推预测 24h。 |
+| F305 | `core/model_fine_tuner.py` | `export_model` 原先**只拼路径字符串**（注释 "would export actual model"）；改为从 `_training_state` 取真实模型/分词器 `save_pretrained` 落盘，并写 `export_meta.json`；模型不存在时如实返回 None。 |
+| F317 | `core/performance_scheduler.py` | `collect_daily_metrics`/`cleanup_old_metrics` 原为空壳（注释「这里应该…，只是示例」）；改为采集真实主机 CPU/内存/磁盘（psutil）后经 `PerformanceDataCollector` 落 `performance_metrics`，并按保留期真实 `DELETE` 过期记录。 |
+| F331 | `core/performance_regression_detector.py` | `detect_anomalies_isolation_forest` 原为**代理到 IQR**（注释 "Simplified version…In production, use sklearn"）；改为真实 `sklearn.ensemble.IsolationForest` 拟合，sklearn 缺失时才回退 IQR。 |
+| F335 | `core/plugin_marketplace_manager.py` | `_perform_quality_check` 的 `performance_check` 原**恒 True**（从不评估）；改为基于 AST 的真实静态分析（嵌套循环 → 二次复杂度、超大函数），并计入 `issues`/`overall_score`。 |
+| F350 | `core/qdrant_service.py` | `search` 原用**已弃用**的 `client.search`；改用新版 `client.query_points(...).points`，仅当客户端无 `query_points`（旧版）时回退 `search`。 |
+| F372 | `core/security_audit_system.py` | `_check_policies` 原先 `audit_events[-threshold:]` 后再按类型过滤（**尾部被其它类型占满时阈值失真**）；改为按 event_type **真实计数**再判阈值。 |
+| F373 | `core/security_input_validator.py` | 中间件 `dispatch` 的异常分支原为 **fail-open**（`return await call_next`，校验器异常即放行）；改为 **fail-closed** 返回 500「Input validation failed」。 |
+| F435 | `core/ui_experience_support.py` | 报表 `_generate_{line,bar,pie}_chart_data` 原为**合成常量**（`50+(i%10)*5` / `[45,67,55,32]` / `[70,20,10]`）；折线取自真实 `METRICS_HISTORY`，柱状/饼图取自实时主机资源（psutil）与阈值健康分布。 |
+| F439 | `core/runbook_generator.py` | `_build_history_prompt_section` 原为空实现（注释 "get_similar_verify_history doesn't exist, skip"，**历史段永远为空**）；改为用 `rag_engine.search_similar` 检索**真实已验证修复记录**（`payload.verified=True`）构建历史段。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/core/test_medium_ledger_batch11_20260914.py` → **15 passed**
+  （Prophet 拟合被调用、export 落盘真实产物、采集落库 + 保留期删除、IsolationForest 命中离群、
+  插件嵌套循环判负、qdrant 优先 `query_points` 且旧版回退、审计按类型计数触发、中间件异常 fail-closed 500、
+  图表取自真实指标、历史段仅含已验证记录）。
+- **改动前反证**：仅暂存本批 10 个 core 文件后（保留新增测试）在干净 HEAD 实跑同文件 →
+  **11 failed / 4 passed**（11 条逐条指向本批修复；4 条为正向/回退用例，HEAD 亦通过）。
+- **对齐真实契约而更新的既有测试**（均属旧契约断言，非放宽）：
+  - `tests/core/test_uncovered_batch9_a.py`：qdrant 用例断言改为 `query_points`（`test_search_with_filter`
+    /`test_search_without_filter`/`test_search_failure`）。
+  - `tests/core/test_uncovered_batch12_b.py`：`test_middleware_fail_open` → `test_middleware_fails_closed`
+    （断言 500 + `call_next` 未被调用）。
+  - `tests/core/test_uncovered_alert_notify_2.py` / `tests/core/test_uncovered_batch25_b.py`：FakeProphet 补
+    `fit(...)` 与 `make_future_dataframe(..., freq=...)`（对齐真实 Prophet 契约）。
+  - `tests/core/test_uncovered_batch20_a.py::test_list_and_export_jobs`：export 断言由 `model.pytorch`
+    改为「真实导出目录 + `export_meta.json`」；并把等待训练完成的 `sleep(0)`（HEAD 即 flaky：5 次中 3 过）
+    改为 `sleep(0.01)`（5/5 稳定通过）。
+- **无回归（集合比对）**：对 20 个相关套件（`test_uncovered_*`、`test_uncovered_batch*`、
+  `test_uncovered_modules_batch_a`、`test_uncovered_api_batch_{c,e}`、`test_workflow_pages_backend_batch2`
+  等）在「干净 HEAD」与「本批修复后」分别实跑并取失败集差集：**regressions = 0**
+  （HEAD 42 failed → 修复后 38 failed，减少 4 条均为旧契约断言/既有 flaky 被对齐）。
+- 既有基线套件 `tests/test_autoheal_router_real_branches.py` + `tests/api/test_uncovered_api_batch_{b,i}.py`
+  + `tests/api/test_uncovered_routers.py` + `tests/test_security_audit.py`：**4 failed / 162 passed /
+  5 skipped / 19 errors**，与第 10 批记录的基线**逐项一致**（既有失效，与本批无关）。
+- 新增/对齐测试运行前后 `git status data/kpi_config.json` 均**干净**（无版本管理文件被写脏）。
+
+## 进度口径（诚实记录）
+
+- 本台账解析的「中危」条目（`发现（中）` + `【中】`）：**471** 行 / 去重 ID **349**。
+- 用户口径：总计 **415**，第 10 批后剩余 **277**。本批修复 **10** → 剩余 **267**。

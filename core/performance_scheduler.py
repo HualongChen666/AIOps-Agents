@@ -5,6 +5,8 @@ Performance Task Scheduler
 """
 
 import logging
+import os
+from datetime import datetime
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -27,12 +29,38 @@ class PerformanceTaskScheduler:
         self.report_generator = PerformanceReportGenerator()
 
     async def collect_daily_metrics(self):
-        """每日采集性能指标"""
+        """每日采集性能指标（采集真实主机资源指标并落库）
+
+        采集当前主机的 CPU / 内存 / 磁盘使用率（psutil 实测），写入
+        ``performance_metrics`` 表，供后续回归检测与报表消费。
+        """
         logger.info("开始每日性能指标采集")
         try:
-            # 这里应该运行实际的性能测试
-            # 由于测试需要应用运行，这里只是示例
-            logger.info("性能指标采集完成")
+            import psutil
+
+            cpu = psutil.cpu_percent(interval=None)
+            memory = psutil.virtual_memory().percent
+            disk = psutil.disk_usage(os.path.abspath(os.sep)).percent
+
+            async with PerformanceDataCollector() as collector:
+                await collector.collect_metric(
+                    {
+                        "test_id": "system-daily",
+                        "test_name": "daily host resource sample",
+                        "test_type": "system",
+                        "component": "host",
+                        "operation": "resource_sample",
+                        "mean_time_ms": 0.0,
+                        "min_time_ms": 0.0,
+                        "max_time_ms": 0.0,
+                        "total_requests": 1,
+                        "cpu_usage": cpu,
+                        "memory_usage": memory,
+                        "disk_io": disk,
+                        "environment": os.getenv("ENVIRONMENT", "dev"),
+                    }
+                )
+            logger.info(f"性能指标采集完成 | cpu={cpu}% memory={memory}% disk={disk}%")
         except Exception as e:
             logger.error(f"性能指标采集失败: {e}", exc_info=True)
 
@@ -81,15 +109,37 @@ class PerformanceTaskScheduler:
         except Exception as e:
             logger.error(f"月报生成失败: {e}", exc_info=True)
 
-    async def cleanup_old_metrics(self):
-        """清理旧的性能指标数据"""
+    async def cleanup_old_metrics(self, retention_days: int = 30) -> int:
+        """清理超过保留期的性能指标数据
+
+        Args:
+            retention_days: 保留天数，早于该窗口的 ``performance_metrics``
+                记录会被真实删除。
+
+        Returns:
+            删除的记录数
+        """
         logger.info("开始清理旧性能指标数据")
         try:
-            # 清理30天前的数据
-            # 这里应该实现数据库清理逻辑
-            logger.info("旧性能指标数据清理完成")
+            from datetime import timedelta
+
+            from sqlalchemy import delete
+
+            from core.db_engine import AsyncSessionLocal
+            from core.models import PerformanceMetric
+
+            cutoff = datetime.now() - timedelta(days=retention_days)
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(
+                    delete(PerformanceMetric).where(PerformanceMetric.timestamp < cutoff)
+                )
+                await session.commit()
+                deleted = int(result.rowcount or 0)
+            logger.info(f"旧性能指标数据清理完成: 删除 {deleted} 条")
+            return deleted
         except Exception as e:
             logger.error(f"数据清理失败: {e}", exc_info=True)
+            return 0
 
     def setup_jobs(self):
         """设置定时任务"""

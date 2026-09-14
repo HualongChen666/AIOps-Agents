@@ -166,13 +166,25 @@ def search(
                 conditions.append(FieldCondition(key=field, match=MatchValue(value=value)))
             search_filter = QdrantFilter(must=conditions)  # type: ignore
 
-        results = client.search(  # type: ignore
+        results = client.query_points(
+            collection_name=collection,
+            query=query_vector,
+            limit=top_k,
+            query_filter=search_filter,
+        ).points
+
+        return [
+            {"id": result.id, "score": result.score, "payload": result.payload}
+            for result in results
+        ]
+    except AttributeError:
+        # Older qdrant-client releases (pre query_points) only expose ``search``.
+        results = client.search(  # type: ignore[attr-defined]
             collection_name=collection,
             query_vector=query_vector,
             limit=top_k,
             query_filter=search_filter,
         )
-
         return [
             {"id": result.id, "score": result.score, "payload": result.payload}
             for result in results

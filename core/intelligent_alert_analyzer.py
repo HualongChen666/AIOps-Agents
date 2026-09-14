@@ -274,22 +274,25 @@ class IntelligentAlertAnalyzer:
         try:
             logger.info(f"Predicting trend for {metric_name}")
 
-            # 准备数据
-            # df_data = [(ts.strftime("%Y-%m-%d %H:%M:%S"), value) for ts, value in historical_data]
+            # 准备真实训练数据（Prophet 需要 ds/y 两列）
+            df_data = pd.DataFrame(
+                {
+                    "ds": [ts for ts, _ in historical_data],
+                    "y": [float(value) for _, value in historical_data],
+                }
+            )
 
-            # 创建或获取Prophet模型
-            if metric_name not in self.prophet_models:
-                self.prophet_models[metric_name] = Prophet(
+            # 创建或复用 Prophet 模型，并在真实历史上拟合后再预测
+            model = self.prophet_models.get(metric_name)
+            if model is None:
+                model = Prophet(
                     yearly_seasonality=True, weekly_seasonality=True, daily_seasonality=False
                 )
+            model.fit(df_data)
+            self.prophet_models[metric_name] = model
 
-            model = self.prophet_models[metric_name]
-
-            # 训练模型
-            # (简化实现，实际需要更复杂的数据准备)
-
-            # 预测未来趋势
-            future = model.make_future_dataframe(periods=24)  # 预测24小时
+            # 预测未来 24 小时趋势（基于已拟合的历史区间外推）
+            future = model.make_future_dataframe(periods=24, freq="h")
             forecast = model.predict(future)
 
             # 提取预测结果

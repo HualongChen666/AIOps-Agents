@@ -5,6 +5,7 @@ Enterprise-grade model fine-tuning system with advanced training capabilities
 """
 
 import asyncio
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -524,12 +525,29 @@ class ModelFineTuner:
         if progress.status != TrainingStatus.COMPLETED:
             return None
 
-        # In real implementation, would export actual model
-        export_path = self.models_dir / job_id / f"model.{export_format}"
-        export_path.parent.mkdir(parents=True, exist_ok=True)
+        # 真实导出：把已训练模型与分词器通过 save_pretrained 落盘
+        state = self._training_state.get(job_id)
+        model = state.get("model") if state else None
+        if model is None:
+            logger.error(f"Cannot export model for job {job_id}: trained model not available")
+            return None
 
-        logger.info(f"Model exported to: {export_path}")
-        return str(export_path)
+        export_dir = self.models_dir / job_id
+        export_dir.mkdir(parents=True, exist_ok=True)
+
+        saved_path = await asyncio.to_thread(model.save_pretrained, str(export_dir))
+        tokenizer = state.get("tokenizer") if state else None
+        if tokenizer is not None:
+            await asyncio.to_thread(tokenizer.save_pretrained, str(export_dir))
+
+        # 记录导出格式元数据，便于下游按格式消费产物
+        manifest = export_dir / "export_meta.json"
+        manifest.write_text(
+            json.dumps({"job_id": job_id, "format": export_format}), encoding="utf-8"
+        )
+
+        logger.info(f"Model exported to: {saved_path or export_dir} (format={export_format})")
+        return str(saved_path or export_dir)
 
 
 def get_model_fine_tuner(config: Optional[Dict[str, Any]] = None) -> ModelFineTuner:

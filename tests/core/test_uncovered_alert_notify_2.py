@@ -565,8 +565,11 @@ async def test_intelligent_alert_analyzer_trend_prediction(monkeypatch):
         def __init__(self, *args, **kwargs):
             pass
 
-        def make_future_dataframe(self, periods):
-            return pd.DataFrame({"ds": pd.date_range("2026-01-01", periods=periods, freq="h")})
+        def fit(self, df):
+            return self
+
+        def make_future_dataframe(self, periods, freq="D"):
+            return pd.DataFrame({"ds": pd.date_range("2026-01-01", periods=periods, freq=freq)})
 
         def predict(self, future):
             df = future.copy()

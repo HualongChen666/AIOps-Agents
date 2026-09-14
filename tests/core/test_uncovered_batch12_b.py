@@ -393,15 +393,15 @@ def test_middleware_passes_valid(middleware_app):
     call_next.assert_awaited_once()
 
 
-def test_middleware_fail_open(monkeypatch, middleware_app):
+def test_middleware_fails_closed(monkeypatch, middleware_app):
     request = _make_request("GET", "/boom", query_params={"q": "ok"})
     bad_validator = SecurityInputValidator()
     monkeypatch.setattr(bad_validator, "validate_dict", MagicMock(side_effect=RuntimeError("boom")))
     middleware_app.validator = bad_validator
     call_next = AsyncMock(return_value=JSONResponse({"ok": 1}))
     response = asyncio.run(middleware_app.dispatch(request, call_next))
-    assert response.status_code == 200
-    call_next.assert_awaited_once()
+    assert response.status_code == 500
+    call_next.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

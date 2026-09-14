@@ -235,15 +235,18 @@ class SecurityAuditSystem:
             if policy.severity_filter and event.severity != policy.severity_filter:
                 continue
 
-            # Check alert threshold
-            recent_events = [
-                e
-                for e in self.audit_events[-policy.alert_threshold :]
-                if e.event_type == event.event_type
+            # Count the real occurrences of THIS event type. Slicing the last
+            # ``alert_threshold`` events and then filtering by type under-counts
+            # whenever other event types dominate the tail, which distorted the
+            # threshold evaluation.
+            matching_events = [
+                e for e in self.audit_events if e.event_type == event.event_type
             ]
 
-            if len(recent_events) >= policy.alert_threshold:
-                await self._trigger_alert(policy, event, recent_events)
+            if len(matching_events) >= policy.alert_threshold:
+                await self._trigger_alert(
+                    policy, event, matching_events[-policy.alert_threshold :]
+                )
 
     async def _trigger_alert(
         self, policy: AuditPolicy, event: AuditEvent, related_events: List[AuditEvent]

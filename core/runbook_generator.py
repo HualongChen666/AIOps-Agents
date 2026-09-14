@@ -264,23 +264,46 @@ def _validate_alert_params(alert: dict[str, Any]) -> tuple[bool, str, str, str]:
     return True, "", alert_id, platform
 
 
-def _build_history_prompt_section() -> str:
+def _build_history_prompt_section(alert_desc: str = "") -> str:
     """
-    构造历史经验提示段落
+    构造历史验证经验提示段落
+
+    历史经验来自 verifier 写入向量库的**已验证修复记录**（payload 中
+    ``verified=True``），通过 RAG 语义检索得到真实数据；检索无结果或异常
+    时返回空串（不影响主流程）。
+
+    Args:
+        alert_desc: 用于语义检索的告警描述
 
     Returns:
         历史经验提示字符串
     """
     history_prompt_section = ""
-    if VERIFY_CONFIG.get("self_learning_enabled", True):
-        try:
-            # 🔧 Fix: get_similar_verify_history doesn't exist, skip this feature
-            # from core.db_engine import get_similar_verify_history
-            pass
-        except ImportError as hist_err:
-            logger.warning(f"N+2 自学习模块未导入(不影响主流程): {hist_err}")
-        except Exception as hist_err:
-            logger.warning(f"N+2 自学习查询异常(不影响主流程): {hist_err}")
+    if not VERIFY_CONFIG.get("self_learning_enabled", True):
+        return history_prompt_section
+
+    try:
+        query_text = _redact_text(alert_desc) if alert_desc else "verified repair history"
+        results = search_similar(query_text, top_k=5)
+        verified = [
+            res
+            for res in results
+            if isinstance(res.get("payload"), dict) and res["payload"].get("verified")
+        ]
+        if not verified:
+            return history_prompt_section
+
+        lines = []
+        for res in verified:
+            payload = _redact_value(res.get("payload", {}))
+            script_key = payload.get("script_key", "unknown")
+            host = payload.get("host", "unknown")
+            comment = str(payload.get("comment", "")).strip()
+            lines.append(f"- {script_key} @ {host}: {comment}".rstrip(": "))
+        history_prompt_section = "\n【历史验证经验】\n" + "\n".join(lines) + "\n"
+    except Exception as hist_err:
+        logger.warning(f"N+2 自学习查询异常(不影响主流程): {hist_err}")
+
     return history_prompt_section
 
 
@@ -597,7 +620,10 @@ async def generate_repair_runbook(
     # ════════════════════════════════════════════════════════
     # 🌟 N+2 自学自成长:查询历史验证经验(决策 D3+)
     # ════════════════════════════════════════════════════════
-    history_prompt_section = _build_history_prompt_section()
+    _history_alert_desc = " ".join(
+        str(alert.get(field, "")) for field in ("title", "desc", "metric")
+    ).strip()
+    history_prompt_section = _build_history_prompt_section(_history_alert_desc)
 
     # ── 1. 构造 prompt ──
     prompt, metrics_snapshot = _build_runbook_prompt(
