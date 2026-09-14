@@ -267,390 +267,6 @@ async def create_assessment(
 
 
 @router.get(
-    "/assessments/{id}",
-    summary="获取评估详情",
-    responses={
-        (200): {"description": "评估详情"},
-        (401): {"description": "未授权"},
-        (404): {"description": "评估不存在"},
-    },
-)
-async def get_assessment(
-    id: str,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """获取指定评估的详情"""
-    try:
-        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
-        if not record:
-            return create_error_response(error="Assessment not found")
-
-        # Convert to response format
-        result_data = {
-            "id": record.id,
-            "assessment_name": record.assessment_name,
-            "status": record.status,
-            "overall_score": record.overall_score,
-            "level": record.level,
-            "level_name": record.level_name,
-            "dimensions": record.dimensions or [],
-            "recommendations": record.recommendations or [],
-            "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
-            "assessed_by": record.assessed_by,
-            "notes": record.notes,
-        }
-
-        return create_success_response(data=result_data)
-    except Exception as e:
-        logger.error(f"获取评估详情失败: {e}", exc_info=True)
-        return create_error_response(error=f"获取评估详情失败: {str(e)[:200]}")
-
-
-@router.delete(
-    "/assessments/{id}",
-    summary="删除评估",
-    responses={
-        (200): {"description": "评估删除成功"},
-        (401): {"description": "未授权"},
-        (403): {"description": "权限不足"},
-        (404): {"description": "评估不存在"},
-    },
-)
-async def delete_assessment(
-    id: str,
-    request: Request,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """删除指定的评估记录"""
-    try:
-        if current_user.role != "admin":
-            return create_error_response(error="Admin privileges required")
-
-        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
-        if not record:
-            return create_error_response(error="Assessment not found")
-
-        db.delete(record)
-        db.commit()
-
-        logger.info(
-            f"Maturity assessment deleted | assessment_id={id} | user={current_user.username} "
-            f"| ip={get_client_ip(request)}"
-        )
-
-        return create_success_response(message="Assessment deleted successfully")
-    except Exception as e:
-        db.rollback()
-        logger.error(f"删除评估失败: {e}", exc_info=True)
-        return create_error_response(error=f"删除评估失败: {str(e)[:200]}")
-
-
-@router.get(
-    "/assessments/{id}/export",
-    summary="导出评估报告",
-    responses={
-        (200): {"description": "评估报告"},
-        (401): {"description": "未授权"},
-        (404): {"description": "评估不存在"},
-    },
-)
-async def export_assessment(
-    id: str,
-    format: str = "json",
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """导出指定评估的报告"""
-    try:
-        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
-        if not record:
-            return create_error_response(error="Assessment not found")
-
-        if format == "json":
-            result_data = {
-                "id": record.id,
-                "assessment_name": record.assessment_name,
-                "status": record.status,
-                "overall_score": record.overall_score,
-                "level": record.level,
-                "level_name": record.level_name,
-                "dimensions": record.dimensions or [],
-                "recommendations": record.recommendations or [],
-                "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
-                "assessed_by": record.assessed_by,
-                "notes": record.notes,
-            }
-            return create_success_response(data=result_data)
-        elif format == "summary":
-            result_data = {
-                "id": record.id,
-                "assessment_name": record.assessment_name,
-                "overall_score": record.overall_score,
-                "level": record.level,
-                "level_name": record.level_name,
-                "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
-                "dimension_count": len(record.dimensions) if record.dimensions else 0,
-                "recommendation_count": len(record.recommendations) if record.recommendations else 0,
-            }
-            return create_success_response(data=result_data)
-        else:
-            return create_error_response(error=f"Unsupported format: {format}")
-    except Exception as e:
-        logger.error(f"导出评估失败: {e}", exc_info=True)
-        return create_error_response(error=f"导出评估失败: {str(e)[:200]}")
-
-
-@router.put(
-    "/assessments/{id}",
-    summary="更新成熟度评估",
-    responses={
-        (200): {"description": "评估更新成功"},
-        (400): {"description": "无效的请求数据"},
-        (401): {"description": "未授权"},
-        (403): {"description": "权限不足"},
-        (404): {"description": "评估不存在"},
-    },
-)
-async def update_assessment(
-    id: str,
-    assessment_update: MaturityAssessmentUpdate,
-    request: Request,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """更新指定的成熟度评估记录"""
-    try:
-        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
-        if not record:
-            return create_error_response(error="Assessment not found")
-
-        # Update fields if provided
-        if assessment_update.assessment_name is not None:
-            record.assessment_name = assessment_update.assessment_name
-        if assessment_update.status is not None:
-            record.status = assessment_update.status.value
-        if assessment_update.notes is not None:
-            record.notes = assessment_update.notes
-
-        db.commit()
-        db.refresh(record)
-
-        logger.info(
-            f"Maturity assessment updated | assessment_id={id} | user={current_user.username} "
-            f"| ip={get_client_ip(request)}"
-        )
-
-        result_data = {
-            "id": record.id,
-            "assessment_name": record.assessment_name,
-            "status": record.status,
-            "overall_score": record.overall_score,
-            "level": record.level,
-            "level_name": record.level_name,
-            "dimensions": record.dimensions or [],
-            "recommendations": record.recommendations or [],
-            "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
-            "assessed_by": record.assessed_by,
-            "notes": record.notes,
-        }
-
-        return create_success_response(data=result_data)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"更新评估失败: {e}", exc_info=True)
-        return create_error_response(error=f"更新评估失败: {str(e)[:200]}")
-
-
-@router.patch(
-    "/assessments/{id}",
-    summary="部分更新成熟度评估",
-    responses={
-        (200): {"description": "评估更新成功"},
-        (400): {"description": "无效的请求数据"},
-        (401): {"description": "未授权"},
-        (403): {"description": "权限不足"},
-        (404): {"description": "评估不存在"},
-    },
-)
-async def patch_assessment(
-    id: str,
-    assessment_patch: MaturityAssessmentPatch,
-    request: Request,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """部分更新指定的成熟度评估记录"""
-    try:
-        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
-        if not record:
-            return create_error_response(error="Assessment not found")
-
-        # Update fields if provided
-        if assessment_patch.assessment_name is not None:
-            record.assessment_name = assessment_patch.assessment_name
-        if assessment_patch.status is not None:
-            record.status = assessment_patch.status.value
-        if assessment_patch.notes is not None:
-            record.notes = assessment_patch.notes
-
-        db.commit()
-        db.refresh(record)
-
-        logger.info(
-            f"Maturity assessment patched | assessment_id={id} | user={current_user.username} "
-            f"| ip={get_client_ip(request)}"
-        )
-
-        result_data = {
-            "id": record.id,
-            "assessment_name": record.assessment_name,
-            "status": record.status,
-            "overall_score": record.overall_score,
-            "level": record.level,
-            "level_name": record.level_name,
-            "dimensions": record.dimensions or [],
-            "recommendations": record.recommendations or [],
-            "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
-            "assessed_by": record.assessed_by,
-            "notes": record.notes,
-        }
-
-        return create_success_response(data=result_data)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"部分更新评估失败: {e}", exc_info=True)
-        return create_error_response(error=f"部分更新评估失败: {str(e)[:200]}")
-
-
-@router.get(
-    "/assessments/{id}/history",
-    summary="获取评估历史",
-    responses={
-        (200): {"description": "评估历史"},
-        (401): {"description": "未授权"},
-        (404): {"description": "评估不存在"},
-    },
-)
-async def get_assessment_history(
-    id: str,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """获取指定评估的历史记录"""
-    try:
-        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
-        if not record:
-            return create_error_response(error="Assessment not found")
-
-        # Get related assessments by same user with similar name
-        history_records = (
-            db.query(MaturityAssessmentDB)
-            .filter(
-                MaturityAssessmentDB.assessed_by == record.assessed_by,
-                MaturityAssessmentDB.assessed_at <= record.assessed_at,
-            )
-            .order_by(MaturityAssessmentDB.assessed_at.desc())
-            .limit(10)
-            .all()
-        )
-
-        result = []
-        for hist_record in history_records:
-            result.append({
-                "id": hist_record.id,
-                "assessment_name": hist_record.assessment_name,
-                "status": hist_record.status,
-                "overall_score": hist_record.overall_score,
-                "level": hist_record.level,
-                "level_name": hist_record.level_name,
-                "assessed_at": hist_record.assessed_at.isoformat() if hist_record.assessed_at else None,
-                "assessed_by": hist_record.assessed_by,
-            })
-
-        logger.info(f"Assessment history retrieved | assessment_id={id} | count={len(result)}")
-        return create_success_response(data=result)
-    except Exception as e:
-        logger.error(f"获取评估历史失败: {e}", exc_info=True)
-        return create_error_response(error=f"获取评估历史失败: {str(e)[:200]}")
-
-
-@router.post(
-    "/assessments/{id}/compare",
-    summary="对比评估",
-    responses={
-        (200): {"description": "评估对比结果"},
-        (400): {"description": "无效的请求数据"},
-        (401): {"description": "未授权"},
-        (404): {"description": "评估不存在"},
-    },
-)
-async def compare_assessments(
-    id: str,
-    compare_request: AssessmentCompareRequest,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """对比两个成熟度评估"""
-    try:
-        record1 = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
-        record2 = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == compare_request.compare_with_id).first()
-
-        if not record1:
-            return create_error_response(error="Source assessment not found")
-        if not record2:
-            return create_error_response(error="Target assessment not found")
-
-        # Calculate differences
-        score_diff = record2.overall_score - record1.overall_score
-        level_diff = record2.level - record1.level
-
-        # Compare dimensions
-        dimensions1 = record1.dimensions or []
-        dimensions2 = record2.dimensions or []
-        dimension_diffs = []
-        for dim1 in dimensions1:
-            dim2 = next((d for d in dimensions2 if d.get("name") == dim1.get("name")), None)
-            if dim2:
-                dimension_diffs.append({
-                    "name": dim1.get("name"),
-                    "score_before": dim1.get("score", 0),
-                    "score_after": dim2.get("score", 0),
-                    "difference": dim2.get("score", 0) - dim1.get("score", 0),
-                })
-
-        result_data = {
-            "assessment1": {
-                "id": record1.id,
-                "assessment_name": record1.assessment_name,
-                "overall_score": record1.overall_score,
-                "level": record1.level,
-                "level_name": record1.level_name,
-                "assessed_at": record1.assessed_at.isoformat() if record1.assessed_at else None,
-            },
-            "assessment2": {
-                "id": record2.id,
-                "assessment_name": record2.assessment_name,
-                "overall_score": record2.overall_score,
-                "level": record2.level,
-                "level_name": record2.level_name,
-                "assessed_at": record2.assessed_at.isoformat() if record2.assessed_at else None,
-            },
-            "score_difference": score_diff,
-            "level_difference": level_diff,
-            "dimension_differences": dimension_diffs,
-            "improvement": score_diff > 0,
-        }
-
-        logger.info(f"Assessment comparison completed | id1={id} | id2={compare_request.compare_with_id}")
-        return create_success_response(data=result_data)
-    except Exception as e:
-        logger.error(f"对比评估失败: {e}", exc_info=True)
-        return create_error_response(error=f"对比评估失败: {str(e)[:200]}")
-
-
-@router.get(
     "/assessments/trends",
     summary="获取成熟度趋势",
     responses={
@@ -666,7 +282,7 @@ async def get_maturity_trends(
     """获取成熟度评估趋势"""
     try:
         if days < 1 or days > 365:
-            return create_error_response(error="Days must be between 1 and 365")
+            raise HTTPException(status_code=400, detail="Days must be between 1 and 365")
 
         start_date = datetime.now() - timedelta(days=days)
 
@@ -712,72 +328,11 @@ async def get_maturity_trends(
 
         logger.info(f"Maturity trends retrieved | days={days} | count={len(trends)}")
         return create_success_response(data=result_data)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"获取成熟度趋势失败: {e}", exc_info=True)
         return create_error_response(error="获取成熟度趋势失败")
-
-
-@router.post(
-    "/assessments/{id}/approve",
-    summary="审批评估",
-    responses={
-        (200): {"description": "评估审批成功"},
-        (400): {"description": "无效的请求数据"},
-        (401): {"description": "未授权"},
-        (403): {"description": "权限不足"},
-        (404): {"description": "评估不存在"},
-    },
-)
-async def approve_assessment(
-    id: str,
-    approve_request: AssessmentApproveRequest,
-    request: Request,
-    current_user: UserInDB = Depends(get_current_user),
-    db: Session = Depends(get_session),
-) -> Dict[str, Any]:
-    """审批指定的成熟度评估"""
-    try:
-        if current_user.role != "admin":
-            return create_error_response(error="Admin privileges required")
-
-        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
-        if not record:
-            return create_error_response(error="Assessment not found")
-
-        # Update status based on approval
-        if approve_request.approved:
-            record.status = AssessmentStatus.COMPLETED.value
-        else:
-            record.status = AssessmentStatus.FAILED.value
-
-        # Add approval comment to notes
-        if approve_request.comment:
-            existing_notes = record.notes or ""
-            record.notes = f"{existing_notes}\n[Approval by {current_user.username}: {approve_request.comment}]".strip()
-
-        db.commit()
-        db.refresh(record)
-
-        logger.info(
-            f"Maturity assessment approved | assessment_id={id} | approved={approve_request.approved} "
-            f"| user={current_user.username} | ip={get_client_ip(request)}"
-        )
-
-        result_data = {
-            "id": record.id,
-            "assessment_name": record.assessment_name,
-            "status": record.status,
-            "overall_score": record.overall_score,
-            "level": record.level,
-            "level_name": record.level_name,
-            "notes": record.notes,
-        }
-
-        return create_success_response(data=result_data)
-    except Exception as e:
-        db.rollback()
-        logger.error(f"审批评估失败: {e}", exc_info=True)
-        return create_error_response(error=f"审批评估失败: {str(e)[:200]}")
 
 
 @router.get(
@@ -832,6 +387,473 @@ async def get_assessment_stats(
     except Exception as e:
         logger.error(f"获取评估统计失败: {e}", exc_info=True)
         return create_error_response(error="获取评估统计失败")
+
+
+@router.get(
+    "/assessments/{id}",
+    summary="获取评估详情",
+    responses={
+        (200): {"description": "评估详情"},
+        (401): {"description": "未授权"},
+        (404): {"description": "评估不存在"},
+    },
+)
+async def get_assessment(
+    id: str,
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """获取指定评估的详情"""
+    try:
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        # Convert to response format
+        result_data = {
+            "id": record.id,
+            "assessment_name": record.assessment_name,
+            "status": record.status,
+            "overall_score": record.overall_score,
+            "level": record.level,
+            "level_name": record.level_name,
+            "dimensions": record.dimensions or [],
+            "recommendations": record.recommendations or [],
+            "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+            "assessed_by": record.assessed_by,
+            "notes": record.notes,
+        }
+
+        return create_success_response(data=result_data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取评估详情失败: {e}", exc_info=True)
+        return create_error_response(error=f"获取评估详情失败: {str(e)[:200]}")
+
+
+@router.delete(
+    "/assessments/{id}",
+    summary="删除评估",
+    responses={
+        (200): {"description": "评估删除成功"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "评估不存在"},
+    },
+)
+async def delete_assessment(
+    id: str,
+    request: Request,
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """删除指定的评估记录"""
+    try:
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="Admin privileges required")
+
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        db.delete(record)
+        db.commit()
+
+        logger.info(
+            f"Maturity assessment deleted | assessment_id={id} | user={current_user.username} "
+            f"| ip={get_client_ip(request)}"
+        )
+
+        return create_success_response(message="Assessment deleted successfully")
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"删除评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"删除评估失败: {str(e)[:200]}")
+
+
+@router.get(
+    "/assessments/{id}/export",
+    summary="导出评估报告",
+    responses={
+        (200): {"description": "评估报告"},
+        (401): {"description": "未授权"},
+        (404): {"description": "评估不存在"},
+    },
+)
+async def export_assessment(
+    id: str,
+    format: str = "json",
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """导出指定评估的报告"""
+    try:
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        if format == "json":
+            result_data = {
+                "id": record.id,
+                "assessment_name": record.assessment_name,
+                "status": record.status,
+                "overall_score": record.overall_score,
+                "level": record.level,
+                "level_name": record.level_name,
+                "dimensions": record.dimensions or [],
+                "recommendations": record.recommendations or [],
+                "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+                "assessed_by": record.assessed_by,
+                "notes": record.notes,
+            }
+            return create_success_response(data=result_data)
+        elif format == "summary":
+            result_data = {
+                "id": record.id,
+                "assessment_name": record.assessment_name,
+                "overall_score": record.overall_score,
+                "level": record.level,
+                "level_name": record.level_name,
+                "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+                "dimension_count": len(record.dimensions) if record.dimensions else 0,
+                "recommendation_count": len(record.recommendations) if record.recommendations else 0,
+            }
+            return create_success_response(data=result_data)
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported format: {format}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"导出评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"导出评估失败: {str(e)[:200]}")
+
+
+@router.put(
+    "/assessments/{id}",
+    summary="更新成熟度评估",
+    responses={
+        (200): {"description": "评估更新成功"},
+        (400): {"description": "无效的请求数据"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "评估不存在"},
+    },
+)
+async def update_assessment(
+    id: str,
+    assessment_update: MaturityAssessmentUpdate,
+    request: Request,
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """更新指定的成熟度评估记录"""
+    try:
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        # Update fields if provided
+        if assessment_update.assessment_name is not None:
+            record.assessment_name = assessment_update.assessment_name
+        if assessment_update.status is not None:
+            record.status = assessment_update.status.value
+        if assessment_update.notes is not None:
+            record.notes = assessment_update.notes
+
+        db.commit()
+        db.refresh(record)
+
+        logger.info(
+            f"Maturity assessment updated | assessment_id={id} | user={current_user.username} "
+            f"| ip={get_client_ip(request)}"
+        )
+
+        result_data = {
+            "id": record.id,
+            "assessment_name": record.assessment_name,
+            "status": record.status,
+            "overall_score": record.overall_score,
+            "level": record.level,
+            "level_name": record.level_name,
+            "dimensions": record.dimensions or [],
+            "recommendations": record.recommendations or [],
+            "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+            "assessed_by": record.assessed_by,
+            "notes": record.notes,
+        }
+
+        return create_success_response(data=result_data)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"更新评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"更新评估失败: {str(e)[:200]}")
+
+
+@router.patch(
+    "/assessments/{id}",
+    summary="部分更新成熟度评估",
+    responses={
+        (200): {"description": "评估更新成功"},
+        (400): {"description": "无效的请求数据"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "评估不存在"},
+    },
+)
+async def patch_assessment(
+    id: str,
+    assessment_patch: MaturityAssessmentPatch,
+    request: Request,
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """部分更新指定的成熟度评估记录"""
+    try:
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        # Update fields if provided
+        if assessment_patch.assessment_name is not None:
+            record.assessment_name = assessment_patch.assessment_name
+        if assessment_patch.status is not None:
+            record.status = assessment_patch.status.value
+        if assessment_patch.notes is not None:
+            record.notes = assessment_patch.notes
+
+        db.commit()
+        db.refresh(record)
+
+        logger.info(
+            f"Maturity assessment patched | assessment_id={id} | user={current_user.username} "
+            f"| ip={get_client_ip(request)}"
+        )
+
+        result_data = {
+            "id": record.id,
+            "assessment_name": record.assessment_name,
+            "status": record.status,
+            "overall_score": record.overall_score,
+            "level": record.level,
+            "level_name": record.level_name,
+            "dimensions": record.dimensions or [],
+            "recommendations": record.recommendations or [],
+            "assessed_at": record.assessed_at.isoformat() if record.assessed_at else None,
+            "assessed_by": record.assessed_by,
+            "notes": record.notes,
+        }
+
+        return create_success_response(data=result_data)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"部分更新评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"部分更新评估失败: {str(e)[:200]}")
+
+
+@router.get(
+    "/assessments/{id}/history",
+    summary="获取评估历史",
+    responses={
+        (200): {"description": "评估历史"},
+        (401): {"description": "未授权"},
+        (404): {"description": "评估不存在"},
+    },
+)
+async def get_assessment_history(
+    id: str,
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """获取指定评估的历史记录"""
+    try:
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        # Get related assessments by same user with similar name
+        history_records = (
+            db.query(MaturityAssessmentDB)
+            .filter(
+                MaturityAssessmentDB.assessed_by == record.assessed_by,
+                MaturityAssessmentDB.assessed_at <= record.assessed_at,
+            )
+            .order_by(MaturityAssessmentDB.assessed_at.desc())
+            .limit(10)
+            .all()
+        )
+
+        result = []
+        for hist_record in history_records:
+            result.append({
+                "id": hist_record.id,
+                "assessment_name": hist_record.assessment_name,
+                "status": hist_record.status,
+                "overall_score": hist_record.overall_score,
+                "level": hist_record.level,
+                "level_name": hist_record.level_name,
+                "assessed_at": hist_record.assessed_at.isoformat() if hist_record.assessed_at else None,
+                "assessed_by": hist_record.assessed_by,
+            })
+
+        logger.info(f"Assessment history retrieved | assessment_id={id} | count={len(result)}")
+        return create_success_response(data=result)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取评估历史失败: {e}", exc_info=True)
+        return create_error_response(error=f"获取评估历史失败: {str(e)[:200]}")
+
+
+@router.post(
+    "/assessments/{id}/compare",
+    summary="对比评估",
+    responses={
+        (200): {"description": "评估对比结果"},
+        (400): {"description": "无效的请求数据"},
+        (401): {"description": "未授权"},
+        (404): {"description": "评估不存在"},
+    },
+)
+async def compare_assessments(
+    id: str,
+    compare_request: AssessmentCompareRequest,
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """对比两个成熟度评估"""
+    try:
+        record1 = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        record2 = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == compare_request.compare_with_id).first()
+
+        if not record1:
+            raise HTTPException(status_code=404, detail="Source assessment not found")
+        if not record2:
+            raise HTTPException(status_code=404, detail="Target assessment not found")
+
+        # Calculate differences
+        score_diff = record2.overall_score - record1.overall_score
+        level_diff = record2.level - record1.level
+
+        # Compare dimensions
+        dimensions1 = record1.dimensions or []
+        dimensions2 = record2.dimensions or []
+        dimension_diffs = []
+        for dim1 in dimensions1:
+            dim2 = next((d for d in dimensions2 if d.get("name") == dim1.get("name")), None)
+            if dim2:
+                dimension_diffs.append({
+                    "name": dim1.get("name"),
+                    "score_before": dim1.get("score", 0),
+                    "score_after": dim2.get("score", 0),
+                    "difference": dim2.get("score", 0) - dim1.get("score", 0),
+                })
+
+        result_data = {
+            "assessment1": {
+                "id": record1.id,
+                "assessment_name": record1.assessment_name,
+                "overall_score": record1.overall_score,
+                "level": record1.level,
+                "level_name": record1.level_name,
+                "assessed_at": record1.assessed_at.isoformat() if record1.assessed_at else None,
+            },
+            "assessment2": {
+                "id": record2.id,
+                "assessment_name": record2.assessment_name,
+                "overall_score": record2.overall_score,
+                "level": record2.level,
+                "level_name": record2.level_name,
+                "assessed_at": record2.assessed_at.isoformat() if record2.assessed_at else None,
+            },
+            "score_difference": score_diff,
+            "level_difference": level_diff,
+            "dimension_differences": dimension_diffs,
+            "improvement": score_diff > 0,
+        }
+
+        logger.info(f"Assessment comparison completed | id1={id} | id2={compare_request.compare_with_id}")
+        return create_success_response(data=result_data)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"对比评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"对比评估失败: {str(e)[:200]}")
+
+
+@router.post(
+    "/assessments/{id}/approve",
+    summary="审批评估",
+    responses={
+        (200): {"description": "评估审批成功"},
+        (400): {"description": "无效的请求数据"},
+        (401): {"description": "未授权"},
+        (403): {"description": "权限不足"},
+        (404): {"description": "评估不存在"},
+    },
+)
+async def approve_assessment(
+    id: str,
+    approve_request: AssessmentApproveRequest,
+    request: Request,
+    current_user: UserInDB = Depends(get_current_user),
+    db: Session = Depends(get_session),
+) -> Dict[str, Any]:
+    """审批指定的成熟度评估"""
+    try:
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="Admin privileges required")
+
+        record = db.query(MaturityAssessmentDB).filter(MaturityAssessmentDB.id == id).first()
+        if not record:
+            raise HTTPException(status_code=404, detail="Assessment not found")
+
+        # Update status based on approval
+        if approve_request.approved:
+            record.status = AssessmentStatus.COMPLETED.value
+        else:
+            record.status = AssessmentStatus.FAILED.value
+
+        # Add approval comment to notes
+        if approve_request.comment:
+            existing_notes = record.notes or ""
+            record.notes = f"{existing_notes}\n[Approval by {current_user.username}: {approve_request.comment}]".strip()
+
+        db.commit()
+        db.refresh(record)
+
+        logger.info(
+            f"Maturity assessment approved | assessment_id={id} | approved={approve_request.approved} "
+            f"| user={current_user.username} | ip={get_client_ip(request)}"
+        )
+
+        result_data = {
+            "id": record.id,
+            "assessment_name": record.assessment_name,
+            "status": record.status,
+            "overall_score": record.overall_score,
+            "level": record.level,
+            "level_name": record.level_name,
+            "notes": record.notes,
+        }
+
+        return create_success_response(data=result_data)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(f"审批评估失败: {e}", exc_info=True)
+        return create_error_response(error=f"审批评估失败: {str(e)[:200]}")
 
 
 @router.post(
@@ -950,7 +972,7 @@ async def batch_delete_assessments(
     """批量删除成熟度评估"""
     try:
         if current_user.role != "admin":
-            return create_error_response(error="Admin privileges required")
+            raise HTTPException(status_code=403, detail="Admin privileges required")
 
         deleted_assessments = []
         failed_assessments = []
@@ -994,6 +1016,9 @@ async def batch_delete_assessments(
         }
 
         return create_success_response(data=result_data)
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         logger.error(f"批量删除评估失败: {e}", exc_info=True)

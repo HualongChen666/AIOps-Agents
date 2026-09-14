@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import logging
+import secrets
 from typing import Any, Optional, cast
 from datetime import datetime, timedelta
 
@@ -41,13 +42,20 @@ def get_self_healing_engine():
 
 
 def _verify_internal_key(request: Request) -> None:
-    """Verify X-Internal-Key for protected approval endpoints."""
+    """Verify X-Internal-Key for protected approval endpoints.
+
+    Fail-closed: when the internal API key is not configured the protected
+    endpoints are unavailable (503) rather than silently open to everyone.
+    """
     if not INTERNAL_API_KEY:
-        return
+        raise HTTPException(
+            status_code=503,
+            detail="Internal API key is not configured; protected endpoint unavailable",
+        )
     provided_key = request.headers.get("X-Internal-Key")
     if not provided_key:
         raise HTTPException(status_code=403, detail="Missing X-Internal-Key header")
-    if provided_key != INTERNAL_API_KEY:
+    if not secrets.compare_digest(str(provided_key), str(INTERNAL_API_KEY)):
         raise HTTPException(status_code=403, detail="Invalid X-Internal-Key")
 
 
@@ -613,6 +621,7 @@ async def _execute_ai_propose_workflow(alert: dict, alert_id: str, operator_ip: 
     },
 )
 async def ai_propose_repair(payload: AIProposeRequest, request: Request) -> dict:
+    _verify_internal_key(request)
     target_alert, operator_ip = await _validate_ai_propose_request(payload, request)
     alert_id = payload.alert_id
     return await _execute_ai_propose_workflow(target_alert, alert_id, operator_ip)
@@ -803,6 +812,8 @@ async def create_policy(payload: CreatePolicyRequest, request: Request) -> dict:
             "name": policy.name,
             "message": "策略创建成功",
         }
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.error(f"策略参数验证失败: {e}")
         raise HTTPException(status_code=400, detail=str(e))

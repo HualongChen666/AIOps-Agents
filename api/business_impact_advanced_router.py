@@ -568,8 +568,8 @@ async def create_dependency(request: CreateDependencyRequest) -> Dict[str, Any]:
             )
         finally:
             db.close()
-
-        return create_success_response(dependency, "依赖关系创建成功")
+    except HTTPException:
+        raise
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="创建依赖关系失败"
@@ -681,43 +681,43 @@ async def create_report(request: CreateReportRequest) -> Dict[str, Any]:
                     }
                 )
 
-            # 保存到数据库
-            db = get_session()
-            try:
-                report = BusinessImpactReportDB(
-                    id=_generate_id("RPT"),
-                    title=request.title,
-                    service_names=request.service_names,
-                    time_range=request.time_range,
-                    include_recommendations=request.include_recommendations,
-                    summary={
-                        "total_services": len(service_data),
-                        "total_revenue_impact": total_revenue_impact,
-                        "total_affected_users": total_affected_users,
-                        "avg_impact_score": round(avg_impact_score, 2),
-                    },
-                    service_data=service_data,
-                    recommendations=recommendations,
-                )
-                
-                db.add(report)
-                db.commit()
-                
-                # Invalidate cache
-                cache_manager.delete_pattern("business_impact_reports:*")
-                
-                return create_success_response(
-                    {
-                        "id": report.id,
-                        "title": report.title,
-                        "service_names": report.service_names,
-                    },
-                    "报告创建成功"
-                )
-            finally:
-                db.close()
+        # 保存到数据库
+        db = get_session()
+        try:
+            report = BusinessImpactReportDB(
+                id=_generate_id("RPT"),
+                title=request.title,
+                service_names=request.service_names,
+                time_range=request.time_range,
+                include_recommendations=request.include_recommendations,
+                summary={
+                    "total_services": len(service_data),
+                    "total_revenue_impact": total_revenue_impact,
+                    "total_affected_users": total_affected_users,
+                    "avg_impact_score": round(avg_impact_score, 2),
+                },
+                service_data=service_data,
+                recommendations=recommendations,
+            )
 
-        return create_success_response(report, "报告创建成功")
+            db.add(report)
+            db.commit()
+
+            # Invalidate cache
+            cache_manager.delete_pattern("business_impact_reports:*")
+
+            return create_success_response(
+                {
+                    "id": report.id,
+                    "title": report.title,
+                    "service_names": report.service_names,
+                },
+                "报告创建成功"
+            )
+        finally:
+            db.close()
+    except HTTPException:
+        raise
     except Exception as e:
         return create_error_response(
             error=str(e), error_code=ErrorCode.INTERNAL_ERROR, message="创建报告失败"

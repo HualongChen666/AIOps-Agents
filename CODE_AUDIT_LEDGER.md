@@ -11959,3 +11959,52 @@ terraform/storage.tf
 
 - 本台账解析的「中危」条目（`发现（中）` + `【中】`）：**471** 行 / 去重 ID **349**。
 - 用户口径：总计 **415**，本批前剩余 **295**。本批修复 **5** → 剩余 **290**。
+
+
+---
+
+# PART L — 中危（medium）逐条修复 · 第 9 批（2026-09-14）
+
+> 目标：按本台账登记的「发现（中）」条目逐条修复到通过。本批修复 **3 条清单条目**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 另修复 **1 条**在修复 API-129 过程中被暴露的**真实路由遮蔽缺陷**（非清单条目，附带记录）。
+>
+> 说明（诚实记录）：本批为服务器中断后接续完成——代码改动落盘但测试/台账未收尾；
+> 本次补齐：修正 4 处旧「fail-open」断言测试、1 处旧「错误分支返回 200」断言测试，
+> 新增路由遮蔽回归，新增 13 条回归测试，实跑验证后提交。
+
+## 本批修复（3 条清单 + 1 条附带，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| API-153 | `api/autoheal_router.py` | `_verify_internal_key` 由 **fail-open 改 fail-closed**：`INTERNAL_API_KEY` 未配置时受保护端点返回 **503**（原直接 `return` 放行全部审批/动作端点）；改用 `secrets.compare_digest` 常量时间比较；`POST /propose`（`ai_propose_repair`）此前**未校验**内部密钥，现补 `_verify_internal_key(request)`。 |
+| API-129 | `api/maturity_advanced_router.py` | 大量错误分支由「返回 `create_error_response(...)`（dict）→ 实际 HTTP 200 + error body」改为 **raise `HTTPException`**，返回声明状态码（404 "Assessment not found"、403 "Admin privileges required"、400 "Days must be between 1 and 365" / "Unsupported format"）；`except HTTPException: db.rollback(); raise` 保证异常不被宽 `except Exception` 吞成 200。 |
+| API-114 | `api/business_impact_advanced_router.py` | `create_dependency` / `create_report` 在 `try/finally` 之后的**不可达 `return`** 删除，返回语句移入真实成功路径；补 `except HTTPException: raise` 防止声明的 400/500 被吞。 |
+| （附带） | `api/maturity_advanced_router.py` | **路由遮蔽**：动态 `GET /assessments/{id}` 先于静态 `GET /assessments/trends`、`GET /assessments/stats` 注册 → 两静态端点恒被 `get_assessment(id="trends"/"stats")` 吞掉。已将两静态路由上移至 `/{id}` 之前（原在 fail-open/错误返回 200 时被掩盖，本批改为 raise 后暴露）。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/api/test_medium_ledger_batch9_20260914.py` → **13 passed**
+  （覆盖 fail-closed 503/403/正确密钥放行、`/propose` 强制校验、maturity 404/403/400 raise、
+  trends/stats **不被 `/{id}` 遮蔽**（真实 TestClient 命中 200）、business_impact 创建落库返回真实记录）。
+- 目标套件合集：`test_autoheal_router[_coverage|_statistics]` + `test_maturity_advanced_router` +
+  `test_maturity_comprehensive` + `test_maturity_router` + `test_business_impact[_advanced_router]` +
+  `test_medium_ledger_batch8[_8b|_9]` → **274 passed**。
+- 对齐真实契约而更新的既有测试：
+  - `tests/api/test_autoheal_router.py`：`mock_request` 使用配置的内部密钥；`TestOriginalEndpoints`
+    的 4 处 `patch.object(INTERNAL_API_KEY, None)` 改为「与请求头一致的有效密钥」；
+    策略用例断言 `engine.add_policy/remove_policy` 调用（真实引擎契约）。
+  - `tests/api/test_autoheal_router_coverage.py`：`_verify_internal_key` 未配置密钥用例改为断言 **503**；
+    `test_ai_propose_unavailable` 补有效内部密钥头后断言 503（模块不可用）。
+  - `tests/api/test_maturity_comprehensive.py`：`test_get_maturity_trends_invalid_days` 由
+    `in [200,404]` 改为断言 **400 + detail**。
+- 无回归（与干净 HEAD 集合一致，经 `git stash` 复核）：`tests/test_autoheal_router_real_branches.py`
+  + `tests/api/test_uncovered_api_batch_{b,i}.py` + `tests/api/test_uncovered_routers.py`
+  + `tests/test_security_audit.py` 在本批与 HEAD **同为 4 failed / 162 passed / 5 skipped / 19 errors**
+  （失败集合完全相同：`test__find_alert_by_id_and_validate_runbook`、`test_root_cause_router`、
+  security_audit 2 项 + 19 error，均与本批改动无关的既有失效）。
+
+## 进度口径（诚实记录）
+
+- 本台账解析的「中危」条目（`发现（中）` + `【中】`）：**471** 行 / 去重 ID **349**。
+- 用户口径：总计 **415**，第 8 批后剩余 **290**。本批修复 **3** → 剩余 **287**。

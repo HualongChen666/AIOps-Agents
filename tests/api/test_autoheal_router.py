@@ -34,7 +34,9 @@ def mock_request():
     """创建模拟请求对象"""
     request = MagicMock()
     request.client = MagicMock(host="127.0.0.1")
-    request.headers = {"X-Internal-Key": "test-key"}
+    from config import INTERNAL_API_KEY
+
+    request.headers = {"X-Internal-Key": INTERNAL_API_KEY}
     return request
 
 
@@ -73,7 +75,9 @@ class TestPolicyManagement:
 
                 assert result["success"] is True
                 assert result["policy_id"] == "test-policy"
-                assert "test-policy" in mock_engine.policies
+                mock_engine.add_policy.assert_called_once()
+                created = mock_engine.add_policy.call_args.args[0]
+                assert created.id == "test-policy"
 
     @pytest.mark.asyncio
     async def test_create_policy_duplicate(self, mock_request, mock_engine):
@@ -164,7 +168,7 @@ class TestPolicyManagement:
                 result = await autoheal_router.delete_policy("test-policy", mock_request)
 
                 assert result["success"] is True
-                assert "test-policy" not in mock_engine.policies
+                mock_engine.remove_policy.assert_called_once_with("test-policy")
 
     @pytest.mark.asyncio
     async def test_delete_policy_not_found(self, mock_request, mock_engine):
@@ -726,7 +730,7 @@ class TestOriginalEndpoints:
     @pytest.mark.asyncio
     async def test_list_pending_success(self, mock_request):
         """测试获取待审批列表成功"""
-        with patch.object(autoheal_router, "INTERNAL_API_KEY", None):
+        with patch.object(autoheal_router, "INTERNAL_API_KEY", mock_request.headers["X-Internal-Key"]):
             with patch("api.autoheal_router.get_pending_approvals", return_value=[]):
                 result = await autoheal_router.list_pending(mock_request)
 
@@ -736,7 +740,7 @@ class TestOriginalEndpoints:
     @pytest.mark.asyncio
     async def test_approve_success(self, mock_request):
         """测试审批通过成功"""
-        with patch.object(autoheal_router, "INTERNAL_API_KEY", "test-key"):
+        with patch.object(autoheal_router, "INTERNAL_API_KEY", mock_request.headers["X-Internal-Key"]):
             with patch("core.alert_engine.alert_history", [{"id": "A1"}]):
                 with patch("gateway.services_client.approve_and_execute", AsyncMock(return_value={"success": True})):
                     with patch("api.autoheal_router.async_update_approval_status_by_alert", AsyncMock()):
@@ -768,7 +772,7 @@ class TestOriginalEndpoints:
     @pytest.mark.asyncio
     async def test_ai_propose_success(self, mock_request):
         """测试AI方案生成成功"""
-        with patch.object(autoheal_router, "INTERNAL_API_KEY", None):
+        with patch.object(autoheal_router, "INTERNAL_API_KEY", mock_request.headers["X-Internal-Key"]):
             with patch.object(autoheal_router, "is_runbook_available", True):
                 with patch("core.alert_engine.alert_history", [{"id": "A1"}]):
                     with patch("api.autoheal_router._collect_rich_context_for_ai", AsyncMock(return_value=({}, {}))):
@@ -782,7 +786,7 @@ class TestOriginalEndpoints:
     @pytest.mark.asyncio
     async def test_get_statistics_success(self, mock_request):
         """测试获取统计信息成功"""
-        with patch.object(autoheal_router, "INTERNAL_API_KEY", None):
+        with patch.object(autoheal_router, "INTERNAL_API_KEY", mock_request.headers["X-Internal-Key"]):
             with patch("api.autoheal_router.get_pending_approvals", return_value=[]):
                 result = await autoheal_router.get_statistics(mock_request)
 

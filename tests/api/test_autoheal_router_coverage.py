@@ -21,12 +21,14 @@ import api.autoheal_router as autoheal_router
 
 
 def test_verify_internal_key_no_key_configured():
-    """Test _verify_internal_key when INTERNAL_API_KEY is not configured."""
+    """_verify_internal_key fails closed when INTERNAL_API_KEY is not configured."""
     with patch.object(autoheal_router, "INTERNAL_API_KEY", None):
         request = MagicMock()
         request.headers = {}
-        # Should not raise
-        autoheal_router._verify_internal_key(request)
+        with pytest.raises(HTTPException) as exc_info:
+            autoheal_router._verify_internal_key(request)
+        assert exc_info.value.status_code == 503
+        assert "not configured" in exc_info.value.detail
 
 
 def test_verify_internal_key_missing_header():
@@ -801,6 +803,7 @@ def test_ai_propose_unavailable():
         with patch.object(autoheal_router, "_runbook_import_error", "Import error"):
             request = MagicMock()
             request.client = MagicMock(host="127.0.0.1")
+            request.headers = {"X-Internal-Key": autoheal_router.INTERNAL_API_KEY}
             payload = MagicMock(alert_id="A1")
 
             with pytest.raises(HTTPException) as exc_info:

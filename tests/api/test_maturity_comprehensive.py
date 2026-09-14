@@ -498,10 +498,8 @@ class TestMaturityTrends:
     def test_get_maturity_trends_invalid_days(self, client):
         """Test maturity trends with invalid days parameter"""
         response = client.get("/api/v1/maturity/assessments/trends?days=400")
-        assert response.status_code in [200, 404]
-        if response.status_code == 200:
-            data = response.json()
-            assert not data.get("success", True)
+        assert response.status_code == 400
+        assert "Days must be between 1 and 365" in response.json()["detail"]
 
     def test_get_maturity_trends_zero_days(self, client):
         """Test maturity trends with zero days"""
