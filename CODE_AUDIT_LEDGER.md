@@ -12116,3 +12116,50 @@ terraform/storage.tf
 
 - 本台账解析的「中危」条目（`发现（中）` + `【中】`）：**471** 行 / 去重 ID **349**。
 - 用户口径：总计 **415**，第 10 批后剩余 **277**。本批修复 **10** → 剩余 **267**。
+
+
+---
+
+# PART LIII — 前端（frontend/）中危逐条修复 · 第 12 批（2026-09-14）
+
+> 目标：按本台账 PART VI（frontend/）登记的「发现（中/高）」条目逐条修复到通过。本批修复 **13 条 FE 条目**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+>
+> 说明（诚实记录）：本批开工前先对 PART VI 的 FE 条目逐条回读源码核验，选取「回读后仍真实存在、
+> 且可被真实测试证伪/证明」的 13 条逐条给出证据。
+
+## 本批修复（13 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| FE-011（高） | `tailwind.config.js` | 文件存在**两份相互覆盖的 `module.exports`**（L46-65 为游离的重复键），`require` 直接抛 `SyntaxError: Unexpected token ':'`（**配置文件无法加载**）。合并为单一合法 config，补回 `content` 白名单。 |
+| FE-017 | `styles/globals.css` | `:root` 原**未定义** shadcn 变量 → 补 `--background/--foreground/--muted/--muted-foreground/--border/--input/--ring`。 |
+| FE-090 | `tailwind.config.js` | 登记的系统性问题：`components/ui/**` 使用的 `bg-primary`/`bg-secondary`/`bg-background`/`bg-muted`/`text-muted-foreground`/`ring-ring`/`border-primary` 等 token **均未定义**（类名不产生任何样式）。现定义 `primary.DEFAULT`/`secondary`/`accent.DEFAULT`/`success|warning|error.DEFAULT`/`background`/`foreground`/`muted{DEFAULT,foreground}`/`border`/`input`/`ring`（经 CSS 变量或色值解析）。 |
+| FE-018 | `lib/accessibility.ts` | `getShortcutHint` 直接读 `navigator.platform.toLowerCase()`（SSR/无 `navigator` → ReferenceError）；改为 `typeof navigator !== 'undefined' && navigator.platform` 守卫，缺省回退 `Ctrl`。 |
+| FE-028 | `lib/rateLimiter.ts` | `acquireToken(key)` 对**未配置** key：`buckets[key]` 为 `undefined` → 永远 else 分支 `setTimeout` **无限轮询、Promise 永不 resolve**。改为缺桶时以默认限额惰性初始化，单次调用即 resolve。 |
+| FE-031 | `lib/websocket.ts` | `connect()` 新建 socket **未先关闭/置空旧实例**，`disconnect` 只 close 当前 `this.ws` → 可能并存多条连接、pending 重连无法取消。新增 `teardown()`（摘除 handlers + `clearTimeout` + close + 置空），`connect` 先 teardown、`disconnect` 走 teardown，重连定时器受 `reconnectTimer` 管控。 |
+| FE-053 | `components/charts/TrendChart.tsx` | x 轴以 `data.length - 1` 为分母，长度 1 时产生 **NaN 坐标**；并删除**声明却从未使用**的 `showTooltip` prop；对数据/标签步长做除零保护。 |
+| FE-056 | `components/HistoryFilters.tsx` | 「重置」「应用筛选」**均无 `onClick`（死按钮）**；补 `handleReset`（回默认值并即时上报）/`handleApply`（重发当前选择）。 |
+| FE-057 | `components/charts/ResourceTrendChart.tsx` | 同型分母 `values.length - 1`，单点序列产生 NaN；做除零保护。 |
+| FE-059 | `components/charts/HealTimeline.tsx` | 详情区原为**固定占位文案**「…操作的详细信息...」；改为渲染真实字段（修复方式/状态/关联告警/描述/时间）。 |
+| FE-063 | `components/ApprovalFilters.tsx` | 与 FE-056 同型：死按钮补 `onClick`（重置/应用）。 |
+| FE-083 | `components/QuickActions.tsx` | `navigate()` 用 try/catch 包 `router.push`，但 `router.push` 返回 **Promise 不抛同步异常** → catch 对真实导航失败无效、rejection 未处理；改为 `Promise.resolve(...).catch(...)`，同时覆盖同步抛与异步 reject。另 `/history` 标签 `RAG搜索`→`历史案例`（语义相符，图标 🔍→📚）。 |
+| FE-086 | `components/NavBar.tsx` | 激活判定 `pathname.startsWith(href)` → `/approval` 会误匹配 `/approvals…`；改为 `pathname === href \|\| pathname.startsWith(href + '/')`。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`frontend/__tests__/medium-ledger-batch12/`（`components-defects.test.tsx` / `lib-defects.test.ts` / `tailwind-tokens.test.ts`）→ **3 suites / 21 passed**。
+- **改动前反证**：将本批 12 个源码文件 `git checkout` 回干净 HEAD（**保留新增测试**）实跑同目录 →
+  **17 failed / 4 passed**（4 条为「不变行为」正例：NavBar 精确路由激活、websocket toast 断连通知等 HEAD 亦通过）。
+- **回归**：对 10 个相关既有套件（ApprovalFilters / HistoryFilters / NavBar / QuickActions / HealTimeline /
+  TrendChart / ResourceTrendChart / accessibility / rateLimiter / websocket）实跑 → **10 suites / 233 passed / 0 failed**。
+- **类型检查**：`tsc --noEmit` → **exit 0**。
+- **对齐真实契约而更新的既有测试**（旧断言指向被替换的占位文案/标签，非放宽）：
+  - `__tests__/components/business/QuickActions.test.tsx`：`RAG搜索`/`🔍` → `历史案例`/`📚`。
+  - `__tests__/components/charts/HealTimeline.test.tsx`：断言 `自动修复操作的详细信息...` → `getByTestId('heal-event-detail')` 且含真实文案。
+- **配置可加载性实测**：`node -e "require('./tailwind.config.js')"` → 正常加载（HEAD 为 `SyntaxError: Unexpected token ':'`）。
+
+## 进度口径（诚实记录）
+
+- PART VI（frontend/）去重 FE 条目 **562**；其中带「**中」标记 **82**、「**高」标记 **35**。
+- 本批修复 **13** 条（9 条中危 + FE-011 高危 + FE-017 / FE-057 / FE-090 关联）→ 前端中危剩余 **73**（82 − 9）。

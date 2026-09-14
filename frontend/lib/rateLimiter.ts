@@ -10,6 +10,13 @@ interface Bucket {
 
 const buckets: Record<string, Bucket> = {};
 
+// Defaults used when `acquireToken` is called for a key that was never
+// configured through `setRateLimit`. Without this an unconfigured key has no
+// bucket, so the retry loop below would spin forever and the returned promise
+// would never settle.
+const DEFAULT_MAX_REQUESTS = 10;
+const DEFAULT_INTERVAL_MS = 1000;
+
 export function setRateLimit(
   key: string,
   maxRequests: number = 10,
@@ -29,8 +36,15 @@ export function setRateLimit(
 export function acquireToken(key: string): Promise<void> {
   return new Promise((resolve) => {
     const attempt = () => {
-      const bucket = buckets[key];
-      if (bucket && bucket.tokens > 0) {
+      let bucket = buckets[key];
+      if (!bucket) {
+        // Lazily initialise the bucket with the default limit so that a
+        // standalone `acquireToken` (without a prior `setRateLimit`) still
+        // resolves instead of hanging on a bucket that never appears.
+        setRateLimit(key, DEFAULT_MAX_REQUESTS, DEFAULT_INTERVAL_MS);
+        bucket = buckets[key];
+      }
+      if (bucket.tokens > 0) {
         bucket.tokens -= 1;
         resolve();
       } else {

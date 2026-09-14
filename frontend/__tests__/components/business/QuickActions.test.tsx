@@ -27,7 +27,7 @@ describe('QuickActions Component', () => {
       expect(screen.getByText('新建告警规则')).toBeInTheDocument();
       expect(screen.getByText('查看拓扑')).toBeInTheDocument();
       expect(screen.getByText('审批中心')).toBeInTheDocument();
-      expect(screen.getByText('RAG搜索')).toBeInTheDocument();
+      expect(screen.getByText('历史案例')).toBeInTheDocument();
     });
 
     it('should render icons for each action', () => {
@@ -36,7 +36,7 @@ describe('QuickActions Component', () => {
       expect(screen.getByText('🔔')).toBeInTheDocument();
       expect(screen.getByText('🔗')).toBeInTheDocument();
       expect(screen.getByText('✅')).toBeInTheDocument();
-      expect(screen.getByText('🔍')).toBeInTheDocument();
+      expect(screen.getByText('📚')).toBeInTheDocument();
     });
 
     it('should render buttons with correct styling', () => {
@@ -85,7 +85,7 @@ describe('QuickActions Component', () => {
       const user = userEvent.setup();
       render(<QuickActions />);
       
-      const historyButton = screen.getByText('RAG搜索');
+      const historyButton = screen.getByText('历史案例');
       await user.click(historyButton);
       
       expect(mockPush).toHaveBeenCalledWith('/history');
@@ -134,7 +134,7 @@ describe('QuickActions Component', () => {
       expect(screen.getByText('新建告警规则')).toBeVisible();
       expect(screen.getByText('查看拓扑')).toBeVisible();
       expect(screen.getByText('审批中心')).toBeVisible();
-      expect(screen.getByText('RAG搜索')).toBeVisible();
+      expect(screen.getByText('历史案例')).toBeVisible();
     });
   });
 

@@ -10,7 +10,6 @@ interface TrendChartProps {
   height?: number;
   title?: string;
   showGrid?: boolean;
-  showTooltip?: boolean;
 }
 
 export function TrendChart({
@@ -20,7 +19,6 @@ export function TrendChart({
   height = 200,
   title,
   showGrid = true,
-  showTooltip = true,
 }: TrendChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -56,12 +54,15 @@ export function TrendChart({
     }
 
     // Draw line chart
+    // Guard the step so a single-point series (length 1) does not divide by
+    // zero and produce NaN coordinates.
+    const stepX = data.length > 1 ? chartWidth / (data.length - 1) : 0;
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
 
     data.forEach((value, index) => {
-      const x = padding + (chartWidth / (data.length - 1)) * index;
+      const x = padding + stepX * index;
       const y = padding + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
 
       if (index === 0) {
@@ -83,7 +84,7 @@ export function TrendChart({
     // Draw points
     ctx.fillStyle = color;
     data.forEach((value, index) => {
-      const x = padding + (chartWidth / (data.length - 1)) * index;
+      const x = padding + stepX * index;
       const y = padding + chartHeight - ((value - minValue) / (maxValue - minValue)) * chartHeight;
 
       ctx.beginPath();
@@ -93,11 +94,12 @@ export function TrendChart({
 
     // Draw labels
     if (labels) {
+      const labelStep = labels.length > 1 ? chartWidth / (labels.length - 1) : 0;
       ctx.fillStyle = '#6b7280';
       ctx.font = '12px sans-serif';
       ctx.textAlign = 'center';
       labels.forEach((label, index) => {
-        const x = padding + (chartWidth / (labels.length - 1)) * index;
+        const x = padding + labelStep * index;
         ctx.fillText(label, x, canvas.height - 10);
       });
     }

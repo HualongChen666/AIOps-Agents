@@ -10,14 +10,18 @@ export const QuickActions: React.FC = () => {
     { label: '新建告警规则', href: '/alerts', icon: '🔔' },
     { label: '查看拓扑', href: '/topology', icon: '🔗' },
     { label: '审批中心', href: '/approval', icon: '✅' },
-    { label: 'RAG搜索', href: '/history', icon: '🔍' },
+    { label: '历史案例', href: '/history', icon: '📚' },
   ];
 
   // A failed navigation (blocked route, router not ready, …) must not crash the
-  // dashboard — surface it and let the user retry.
+  // dashboard. `router.push` returns a Promise, so the rejection has to be
+  // handled; a synchronous throw (e.g. a router not yet mounted) is still
+  // possible, so both paths are covered.
   const navigate = (href: string) => {
     try {
-      router.push(href);
+      Promise.resolve(router.push(href)).catch((err) => {
+        console.error('Navigation failed:', err);
+      });
     } catch (err) {
       console.error('Navigation failed:', err);
     }

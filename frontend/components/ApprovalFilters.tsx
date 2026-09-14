@@ -13,16 +13,30 @@ interface ApprovalFiltersState {
 }
 
 export const ApprovalFilters: React.FC<ApprovalFiltersProps> = ({ onFilterChange }) => {
-  const [filters, setFilters] = React.useState<ApprovalFiltersState>({
+  const defaultFilters: ApprovalFiltersState = {
     status: 'pending',
     riskLevel: 'all',
     dateRange: '24h',
-  });
+  };
+
+  const [filters, setFilters] = React.useState<ApprovalFiltersState>(defaultFilters);
 
   const handleFilterChange = (key: keyof ApprovalFiltersState, value: string) => {
     const newFilters = { ...filters, [key]: value };
     setFilters(newFilters);
     onFilterChange?.(newFilters);
+  };
+
+  // Reset back to the initial selection and immediately notify the parent.
+  const handleReset = () => {
+    const resetFilters = { ...defaultFilters };
+    setFilters(resetFilters);
+    onFilterChange?.(resetFilters);
+  };
+
+  // Re-emit the current selection (e.g. after the user changed several fields).
+  const handleApply = () => {
+    onFilterChange?.({ ...filters });
   };
 
   return (
@@ -78,10 +92,16 @@ export const ApprovalFilters: React.FC<ApprovalFiltersProps> = ({ onFilterChange
         </div>
 
         <div className="ml-auto flex gap-2">
-          <button className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+          <button
+            onClick={handleReset}
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+          >
             重置
           </button>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
+          <button
+            onClick={handleApply}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+          >
             应用筛选
           </button>
         </div>

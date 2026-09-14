@@ -134,7 +134,12 @@ export const keyboardNavigation = {
    * Generate keyboard shortcut hint
    */
   getShortcutHint: (keys: string[]) => {
-    const platform = navigator.platform.toLowerCase();
+    // `navigator` does not exist during SSR; guard it so server-side rendering
+    // does not throw a ReferenceError.
+    const platform =
+      typeof navigator !== 'undefined' && navigator.platform
+        ? navigator.platform.toLowerCase()
+        : '';
     const modifier = platform.includes('mac') ? '⌘' : 'Ctrl';
     return keys.map(key => `${modifier}+${key}`).join(', ');
   },

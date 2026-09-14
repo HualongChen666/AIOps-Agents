@@ -132,7 +132,7 @@ describe('HealTimeline Component', () => {
       const eventCard = screen.getByText('Auto-fixed CPU issue').closest('div');
       await user.click(eventCard!);
       
-      expect(screen.getByText('自动修复操作的详细信息...')).toBeInTheDocument();
+      expect(screen.getByTestId('heal-event-detail')).toHaveTextContent('自动修复');
     });
 
     it('should deselect event when clicked again', async () => {
@@ -142,12 +142,12 @@ describe('HealTimeline Component', () => {
       const eventCard = screen.getByText('Auto-fixed CPU issue').closest('div');
       await user.click(eventCard!);
       
-      expect(screen.getByText('自动修复操作的详细信息...')).toBeInTheDocument();
+      expect(screen.getByTestId('heal-event-detail')).toHaveTextContent('自动修复');
       
       await user.click(eventCard!);
       
       // Should still show details in this implementation
-      expect(screen.getByText('自动修复操作的详细信息...')).toBeInTheDocument();
+      expect(screen.getByTestId('heal-event-detail')).toHaveTextContent('自动修复');
     });
 
     it('should show selected event details', async () => {
@@ -157,7 +157,7 @@ describe('HealTimeline Component', () => {
       const eventCard = screen.getByText('Auto-fixed CPU issue').closest('div');
       await user.click(eventCard!);
       
-      expect(screen.getByText('自动修复操作的详细信息...')).toBeInTheDocument();
+      expect(screen.getByTestId('heal-event-detail')).toHaveTextContent('自动修复');
     });
 
     it('should hide details when different event selected', async () => {
@@ -167,12 +167,12 @@ describe('HealTimeline Component', () => {
       const firstCard = screen.getByText('Auto-fixed CPU issue').closest('div');
       await user.click(firstCard!);
       
-      expect(screen.getByText('自动修复操作的详细信息...')).toBeInTheDocument();
+      expect(screen.getByTestId('heal-event-detail')).toHaveTextContent('自动修复');
       
       const secondCard = screen.getByText('Manual fix failed').closest('div');
       await user.click(secondCard!);
       
-      expect(screen.getByText('手动修复操作的详细信息...')).toBeInTheDocument();
+      expect(screen.getByTestId('heal-event-detail')).toHaveTextContent('手动修复');
     });
   });
 
@@ -305,12 +305,12 @@ describe('HealTimeline Component', () => {
       const card = screen.getByText('Auto-fixed CPU issue').closest('div');
       await user.click(card!);
       
-      expect(screen.getByText('自动修复操作的详细信息...')).toBeInTheDocument();
+      expect(screen.getByTestId('heal-event-detail')).toHaveTextContent('自动修复');
       
       rerender(<HealTimeline events={[mockEvents[0]]} />);
       
       // Selection should be maintained
-      expect(screen.getByText('自动修复操作的详细信息...')).toBeInTheDocument();
+      expect(screen.getByTestId('heal-event-detail')).toHaveTextContent('自动修复');
     });
   });
 });

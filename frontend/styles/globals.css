@@ -6,6 +6,15 @@
    CSS 变量与全局样式（从静态HTML迁移）
    ══════════════════════════════════════════════════════════════ */
 :root {
+  /* shadcn/ui design tokens (consumed by tailwind.config.js theme.extend.colors) */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #2563eb;
+
   --bg-primary: #f8fafc;
   --bg-secondary: #ffffff;
   --bg-card: #ffffff;

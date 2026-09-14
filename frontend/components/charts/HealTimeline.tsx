@@ -79,9 +79,17 @@ export const HealTimeline = ({ events }: HealTimelineProps) => {
                 </div>
                 
                 {selectedEvent?.id === event.id && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
+                  <div className="mt-3 pt-3 border-t border-gray-200 space-y-1" data-testid="heal-event-detail">
                     <p className="text-sm text-gray-600">
-                      {event.type === 'auto' ? '自动修复' : '手动修复'}操作的详细信息...
+                      修复方式：{event.type === 'auto' ? '自动修复' : '手动修复'}
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      执行状态：{event.status === 'success' ? '成功' : event.status === 'failed' ? '失败' : '进行中'}
+                    </p>
+                    <p className="text-sm text-gray-600">关联告警：{event.alertId}</p>
+                    <p className="text-sm text-gray-600">修复描述：{event.description}</p>
+                    <p className="text-sm text-gray-600">
+                      发生时间：{new Date(event.timestamp).toLocaleString()}
                     </p>
                   </div>
                 )}

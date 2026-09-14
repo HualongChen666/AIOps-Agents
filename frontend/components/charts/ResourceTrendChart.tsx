@@ -53,12 +53,14 @@ export const ResourceTrendChart = ({ data }: ResourceTrendChartProps) => {
 
     // 绘制数据线
     const drawLine = (values: number[], color: string) => {
+      // 单点序列（长度 1）下分母为 0，会产生 NaN 坐标，这里做保护。
+      const stepX = values.length > 1 ? (width - 2 * padding) / (values.length - 1) : 0;
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       ctx.beginPath();
 
       values.forEach((value, index) => {
-        const x = padding + (width - 2 * padding) * (index / (values.length - 1));
+        const x = padding + stepX * index;
         const y = height - padding - (height - 2 * padding) * (value / 100);
         if (index === 0) {
           ctx.moveTo(x, y);

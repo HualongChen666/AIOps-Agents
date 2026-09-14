@@ -15,11 +15,14 @@ const navItems = [
 
 export const NavBar = () => {
   const pathname = usePathname();
+  // Exact match, or a real sub-route. A plain `startsWith` would wrongly mark
+  // `/approval` active for `/approvals…` (and similar prefixes).
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   return (
     <nav className="bg-gray-100 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-700 px-4 py-2 flex items-center justify-between">
       <div className="flex space-x-4">
         {navItems.map((item) => (
-          <Link key={item.href} href={item.href} className={`px-3 py-1 rounded ${pathname.startsWith(item.href) ? 'bg-primary text-white' : 'text-gray-800 dark:text-gray-200 hover:bg-primary/20'}`}>
+          <Link key={item.href} href={item.href} className={`px-3 py-1 rounded ${isActive(item.href) ? 'bg-primary text-white' : 'text-gray-800 dark:text-gray-200 hover:bg-primary/20'}`}>
             {item.label}
           </Link>
         ))}

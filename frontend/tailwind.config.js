@@ -2,10 +2,17 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
+  content: [
+    './app/**/*.{js,ts,jsx,tsx}',
+    './components/**/*.{js,ts,jsx,tsx}',
+    './pages/**/*.{js,ts,jsx,tsx}',
+    './src/**/*.{js,ts,jsx,tsx}',
+  ],
   theme: {
     extend: {
       colors: {
         primary: {
+          DEFAULT: '#2563eb',
           50: '#eff6ff',
           100: '#dbeafe',
           200: '#bfdbfe',
@@ -17,7 +24,8 @@ module.exports = {
           800: '#1e40af',
           900: '#1e3a8a',
         },
-        accent: { 500: '#f59e0b' },
+        secondary: '#3b82f6',
+        accent: { DEFAULT: '#f59e0b', 500: '#f59e0b' },
         neutral: {
           100: '#f5f5f5',
           200: '#e5e5e5',
@@ -29,9 +37,23 @@ module.exports = {
           800: '#262626',
           900: '#171717',
         },
-        success: { 500: '#10b981' },
-        warning: { 500: '#f59e0b' },
-        error: { 500: '#ef4444' },
+        success: { DEFAULT: '#10b981', 500: '#10b981' },
+        warning: { DEFAULT: '#f59e0b', 500: '#f59e0b' },
+        error: { DEFAULT: '#ef4444', 500: '#ef4444' },
+        danger: '#ef4444',
+        // shadcn/ui design tokens (see components/ui/*). Backed by the CSS
+        // variables declared in styles/globals.css so classes such as
+        // bg-background / bg-muted / text-muted-foreground / ring-ring /
+        // border-primary actually resolve instead of being dropped.
+        background: 'var(--background)',
+        foreground: 'var(--foreground)',
+        muted: {
+          DEFAULT: 'var(--muted)',
+          foreground: 'var(--muted-foreground)',
+        },
+        border: 'var(--border)',
+        input: 'var(--input)',
+        ring: 'var(--ring)',
       },
       spacing: {
         4: '1rem',
@@ -39,25 +61,6 @@ module.exports = {
         12: '3rem',
         16: '4rem',
         20: '5rem',
-      },
-    },
-  },
-};
-  darkMode: 'class', // 使用 class 方式切换暗色
-  content: [
-    './app/**/*.{js,ts,jsx,tsx}',
-    './components/**/*.{js,ts,jsx,tsx}',
-    './pages/**/*.{js,ts,jsx,tsx}',
-    './src/**/*.{js,ts,jsx,tsx}',
-  ],
-  theme: {
-    extend: {
-      colors: {
-        primary: '#1f4b99',
-        secondary: '#3b82f6',
-        success: '#22c55e',
-        warning: '#f59e0b',
-        danger: '#ef4444',
       },
     },
   },

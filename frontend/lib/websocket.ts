@@ -4,15 +4,21 @@ class WebSocketClient {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(url: string) {
     this.url = url;
   }
 
   connect() {
+    // Tear down any previous socket first: otherwise a reconnect (or a manual
+    // connect) would leave the old connection open, so a single client could
+    // end up with several live WebSockets.
+    this.teardown();
+
     try {
       this.ws = new WebSocket(this.url);
-      
+
       this.ws.onopen = () => {
         console.log('WebSocket connected');
         this.reconnectAttempts = 0;
@@ -34,12 +40,38 @@ class WebSocketClient {
     }
   }
 
+  /**
+   * Detach the handlers of the current socket and close it, so no stale
+   * `onclose` can trigger a reconnect and no reference is kept alive.
+   */
+  private teardown() {
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.ws.onopen = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.onmessage = null;
+      try {
+        this.ws.close();
+      } catch (error) {
+        console.error('Failed to close WebSocket:', error);
+      }
+      this.ws = null;
+    }
+  }
+
   private reconnect() {
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.reconnectAttempts++;
       const delay = this.reconnectDelay * this.reconnectAttempts;
       console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-      setTimeout(() => this.connect(), delay);
+      this.reconnectTimer = setTimeout(() => {
+        this.reconnectTimer = null;
+        this.connect();
+      }, delay);
     } else {
       console.error('Max reconnection attempts reached');
     }
@@ -76,10 +108,9 @@ class WebSocketClient {
   }
 
   disconnect() {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
+    // Intentional close: drop handlers + pending reconnect before closing so an
+    // explicit disconnect can never be undone by a queued reconnect.
+    this.teardown();
   }
 
   getReadyState(): number {
