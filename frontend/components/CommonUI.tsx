@@ -216,7 +216,9 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   showLabel = false,
   className = '',
 }) => {
-  const percentage = Math.min((value / max) * 100, 100);
+  // Guard a zero/negative `max`: `0/0*100` is NaN and a positive value with
+  // `max` 0 is Infinity — both would emit an invalid `width: NaN%/Infinity%`.
+  const percentage = max > 0 ? Math.min(Math.max((value / max) * 100, 0), 100) : 0;
 
   return (
     <div className={`w-full ${className}`}>
@@ -254,6 +256,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
   className = '',
 }) => {
   const [isVisible, setIsVisible] = React.useState(false);
+  const tooltipId = React.useId();
 
   const positionClasses = {
     top: 'bottom-full mb-2',
@@ -267,10 +270,18 @@ export const Tooltip: React.FC<TooltipProps> = ({
       className={`relative inline-block ${className}`}
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
+      // Keyboard/focus parity with the mouse: a focusable trigger must also
+      // reveal the tooltip so it is usable without a pointing device.
+      onFocus={() => setIsVisible(true)}
+      onBlur={() => setIsVisible(false)}
+      tabIndex={0}
+      aria-describedby={isVisible ? tooltipId : undefined}
     >
       {children}
       {isVisible && (
         <div
+          id={tooltipId}
+          role="tooltip"
           className={`absolute z-50 px-3 py-2 text-sm text-white bg-gray-900 dark:bg-gray-700 rounded shadow-lg whitespace-nowrap ${positionClasses[position]}`}
         >
           {content}

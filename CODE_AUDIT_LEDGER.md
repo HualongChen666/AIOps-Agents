@@ -12163,3 +12163,34 @@ terraform/storage.tf
 
 - PART VI（frontend/）去重 FE 条目 **562**；其中带「**中」标记 **82**、「**高」标记 **35**。
 - 本批修复 **13** 条（9 条中危 + FE-011 高危 + FE-017 / FE-057 / FE-090 关联）→ 前端中危剩余 **73**（82 − 9）。
+
+
+---
+
+# PART LIV — 前端（frontend/）中危逐条修复 · 第 13 批（2026-09-14）
+
+> 目标：继续 PART VI（frontend/）「发现（中）」条目修复。本批修复 **3 条 FE 条目（4 处缺陷）**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+
+## 本批修复（3 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| FE-042 | `components/RootCauseTopology.tsx` | `useEffect` 的清理函数为**空**（注释称"graph.destroy() 会在组件卸载时调用"，但代码从未调用）→ 卸载后画布/监听泄漏。拆分「图生命周期」与「数据绑定」两个 effect：生命周期 effect 建图并在卸载时 `graph.destroy()` 且置空 ref；数据 effect 仅 `graph.data()/render()/fitView()`；点击回调经 `onNodeClickRef` 读取最新 handler，避免因 props 变化重建图。 |
+| FE-054 | `components/TopologyGraph.tsx` | 建图 effect（L45-95）**完全没有清理**→ 泄漏。新增仅负责拆卸的 effect（deps `[]`，卸载时 `graph.destroy()` 并置空 ref）。建图仍留在数据 effect（容器仅在 query 成功后渲染，创建时机不变）。 |
+| FE-040 | `components/CommonUI.tsx` | ① `ProgressBar` 以 `Math.min((value/max)*100,100)` 计算，`max=0` 时 `0/0` → **NaN%**、正值 → `Infinity%`（无效宽度）；改为 `max>0` 才计算并对结果做 `[0,100]` 钳制，否则 0。② `Tooltip` 仅 `onMouseEnter/Leave`（**无法键盘触发**）；补 `tabIndex=0`、`onFocus/onBlur`、`role="tooltip"` 与 `aria-describedby`。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`frontend/__tests__/medium-ledger-batch13/teardown-and-a11y.test.tsx` → **1 suite / 10 passed**
+  （卸载即 `destroy`、数据变化不重建图、稳定监听取最新 `onNodeClick`、`max=0` 输出 `0%` 而非 NaN/Infinity、
+  焦点显示/失焦隐藏、`aria-describedby` 关联）。
+- **改动前反证**：将本批 3 个源码文件 `git checkout` 回干净 HEAD（保留新增测试）实跑同文件 →
+  **7 failed / 3 passed**（3 条为「不变行为」正例：正常百分比、hover 显示等 HEAD 亦通过）。
+- **回归**：连同既有 `CommonUI` / `RootCauseTopology` / `TopologyGraph` 三套件一起实跑 → **4 suites / 89 passed / 0 failed**。
+- **类型检查**：`tsc --noEmit` → **exit 0**。
+
+## 进度口径（诚实记录）
+
+- PART VI（frontend/）带「**中」标记条目 **82**。
+- 累计修复中危 **12**（第 12 批 9 + 本批 3）→ 前端中危剩余 **70**（82 − 12）。

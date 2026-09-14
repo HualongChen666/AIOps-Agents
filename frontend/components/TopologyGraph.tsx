@@ -42,6 +42,19 @@ export const TopologyGraph: React.FC<TopologyGraphProps> = ({ onNodeClick }) => 
     refetchInterval: 60_000,
   });
 
+  // Graph lifetime is tied to the *container*, which only exists once the query
+  // resolves (the loading/error branches early-return). Creation therefore stays
+  // in the data effect below; this effect only owns teardown so unmounting no
+  // longer leaks the canvas/instances.
+  useEffect(() => {
+    return () => {
+      if (graphRef.current) {
+        graphRef.current.destroy();
+        graphRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!containerRef.current) return;
     if (!graphRef.current) {

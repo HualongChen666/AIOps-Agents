@@ -37,13 +37,19 @@ export const RootCauseTopology: React.FC<RootCauseTopologyProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const graphRef = useRef<Graph | null>(null);
+  // Keep the latest click handler reachable from the graph listener without
+  // re-creating the graph whenever the caller passes a new function.
+  const onNodeClickRef = useRef(onNodeClick);
+  useEffect(() => {
+    onNodeClickRef.current = onNodeClick;
+  }, [onNodeClick]);
 
+  // Graph lifetime: created once on mount, destroyed on unmount (no leak).
   useEffect(() => {
     if (!containerRef.current) return;
 
     // 初始化图表
-    if (!graphRef.current) {
-      graphRef.current = new G6.Graph({
+    const graph = new G6.Graph({
         container: containerRef.current,
         width: containerRef.current.offsetWidth,
         height: height,
@@ -90,9 +96,28 @@ export const RootCauseTopology: React.FC<RootCauseTopologyProps> = ({
           default: ['drag-canvas', 'zoom-canvas', 'drag-node'],
         },
       });
-    }
+    graphRef.current = graph;
 
+    // 添加节点点击事件
+    graph.on('node:click', (evt) => {
+      const nodeId = evt.item?.getID();
+      if (nodeId && onNodeClickRef.current) {
+        onNodeClickRef.current(nodeId);
+      }
+    });
+
+    // Tear the canvas, listeners and layout down when this effect is cleaned up
+    // (component unmount or height change) — previously the cleanup was empty.
+    return () => {
+      graph.destroy();
+      graphRef.current = null;
+    };
+  }, [height]);
+
+  // Data binding: re-render whenever the graph inputs change.
+  useEffect(() => {
     const graph = graphRef.current;
+    if (!graph) return;
 
     // 处理节点数据
     const processedNodes = nodes.map((node) => {
@@ -182,20 +207,7 @@ export const RootCauseTopology: React.FC<RootCauseTopologyProps> = ({
 
     graph.render();
     graph.fitView();
-
-    // 添加节点点击事件
-    graph.on('node:click', (evt) => {
-      const nodeId = evt.item?.getID();
-      if (nodeId && onNodeClick) {
-        onNodeClick(nodeId);
-      }
-    });
-
-    // 清理函数
-    return () => {
-      // graph.destroy() 会在组件卸载时调用
-    };
-  }, [nodes, edges, causalPath, onNodeClick, height]);
+  }, [nodes, edges, causalPath]);
 
   // 响应式调整
   useEffect(() => {
