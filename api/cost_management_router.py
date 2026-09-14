@@ -432,7 +432,28 @@ async def create_optimization(
         optimization_dict["status"] = "pending"
         optimization_dict["created_at"] = datetime.now().isoformat()
         
-        logger.info(f"Created optimization {optimization_dict['id']}")
+        persisted = False
+        if SessionLocal and CostOptimizationDB:
+            db = SessionLocal()
+            try:
+                db.add(
+                    CostOptimizationDB(
+                        id=optimization_dict["id"],
+                        service=optimization_dict["service"],
+                        optimization_type=optimization_dict["optimization_type"],
+                        potential_savings=optimization_dict["potential_savings"],
+                        implementation_effort=optimization_dict["implementation_effort"],
+                        priority=optimization_dict["priority"],
+                        status="pending",
+                    )
+                )
+                db.commit()
+                persisted = True
+            finally:
+                db.close()
+        optimization_dict["persisted"] = persisted
+
+        logger.info(f"Created optimization {optimization_dict['id']} (persisted={persisted})")
         return {"status": "success", "optimization": optimization_dict}
     except Exception as e:
         logger.error(f"Error creating optimization: {e}")
@@ -501,23 +522,58 @@ async def get_savings_summary(
 ):
     """Get summary of potential and realized savings from optimizations"""
     try:
-        suggestions = get_optimization_suggestions()
-        total_potential = sum(s.get("potential_savings", 0) for s in suggestions)
-        
+        realized_statuses = ("approved", "implemented")
+        by_priority: Dict[str, float] = {"high": 0.0, "medium": 0.0, "low": 0.0}
+        source = "database"
+        rows = None
+        if SessionLocal and CostOptimizationDB:
+            try:
+                db = SessionLocal()
+                try:
+                    rows = db.query(CostOptimizationDB).all()
+                finally:
+                    db.close()
+            except Exception as db_err:
+                logger.warning(
+                    f"Savings summary: DB unavailable ({db_err}); using live suggestions"
+                )
+                rows = None
+
+        if rows is not None:
+            total_potential = sum(float(r.potential_savings or 0) for r in rows)
+            total_realized = sum(
+                float(r.potential_savings or 0) for r in rows if r.status in realized_statuses
+            )
+            optimization_count = len(rows)
+            for r in rows:
+                key = r.priority if r.priority in by_priority else "medium"
+                by_priority[key] += float(r.potential_savings or 0)
+        else:
+            source = "live_suggestions"
+            suggestions = get_optimization_suggestions()
+            total_potential = sum(float(s.get("potential_savings", 0) or 0) for s in suggestions)
+            # Nothing has been approved/implemented yet, so realized savings are
+            # genuinely zero — they are never extrapolated from the potential figure.
+            total_realized = 0.0
+            optimization_count = len(suggestions)
+            for s in suggestions:
+                key = s.get("priority") if s.get("priority") in by_priority else "medium"
+                by_priority[key] += float(s.get("potential_savings", 0) or 0)
+
         summary = {
             "status": "success",
             "period": period,
+            "source": source,
             "total_potential_savings": total_potential,
-            "total_realized_savings": total_potential * 0.3,  # Assume 30% realized
-            "optimization_count": len(suggestions),
-            "by_priority": {
-                "high": sum(s.get("potential_savings", 0) for s in suggestions if s.get("priority") == "high"),
-                "medium": sum(s.get("potential_savings", 0) for s in suggestions if s.get("priority") == "medium"),
-                "low": sum(s.get("potential_savings", 0) for s in suggestions if s.get("priority") == "low"),
-            }
+            "total_realized_savings": total_realized,
+            "optimization_count": optimization_count,
+            "by_priority": by_priority,
         }
-        
-        logger.info(f"Retrieved savings summary: ${total_potential:.2f} potential")
+
+        logger.info(
+            f"Retrieved savings summary: ${total_potential:.2f} potential, "
+            f"${total_realized:.2f} realized ({source})"
+        )
         return summary
     except Exception as e:
         logger.error(f"Error getting savings summary: {e}")
@@ -605,7 +661,29 @@ async def create_anomaly(
         anomaly_dict["status"] = "open"
         anomaly_dict["created_at"] = datetime.now().isoformat()
         
-        logger.info(f"Created anomaly {anomaly_dict['id']}")
+        persisted = False
+        if SessionLocal and CostAnomalyDB:
+            db = SessionLocal()
+            try:
+                db.add(
+                    CostAnomalyDB(
+                        id=anomaly_dict["id"],
+                        service=anomaly_dict["service"],
+                        anomaly_type=anomaly_dict["anomaly_type"],
+                        detected_at=datetime.now(),
+                        severity=anomaly_dict["severity"],
+                        description=anomaly_dict["description"],
+                        affected_amount=anomaly_dict["affected_amount"],
+                        status="open",
+                    )
+                )
+                db.commit()
+                persisted = True
+            finally:
+                db.close()
+        anomaly_dict["persisted"] = persisted
+
+        logger.info(f"Created anomaly {anomaly_dict['id']} (persisted={persisted})")
         return {"status": "success", "anomaly": anomaly_dict}
     except Exception as e:
         logger.error(f"Error creating anomaly: {e}")
@@ -679,25 +757,44 @@ async def get_anomaly_summary(
 ):
     """Get summary of cost anomalies by severity and status"""
     try:
+        by_severity: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        by_status: Dict[str, int] = {"open": 0, "investigating": 0, "resolved": 0}
+        total_anomalies = 0
+        total_affected_amount = 0.0
+
+        if SessionLocal and CostAnomalyDB:
+            try:
+                db = SessionLocal()
+                try:
+                    rows = db.query(CostAnomalyDB).all()
+                finally:
+                    db.close()
+                total_anomalies = len(rows)
+                for r in rows:
+                    sev = str(r.severity or "").lower()
+                    if sev:
+                        by_severity[sev] = by_severity.get(sev, 0) + 1
+                    st = str(r.status or "").lower()
+                    if st:
+                        by_status[st] = by_status.get(st, 0) + 1
+                    total_affected_amount += float(r.affected_amount or 0)
+            except Exception as db_err:
+                logger.warning(f"Anomaly summary: DB unavailable ({db_err}); reporting empty")
+                total_anomalies = 0
+                total_affected_amount = 0.0
+                by_severity = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+                by_status = {"open": 0, "investigating": 0, "resolved": 0}
+
         summary = {
             "status": "success",
             "period": period,
-            "total_anomalies": 0,
-            "by_severity": {
-                "critical": 0,
-                "high": 0,
-                "medium": 0,
-                "low": 0
-            },
-            "by_status": {
-                "open": 0,
-                "investigating": 0,
-                "resolved": 0
-            },
-            "total_affected_amount": 0.0
+            "total_anomalies": total_anomalies,
+            "by_severity": by_severity,
+            "by_status": by_status,
+            "total_affected_amount": total_affected_amount,
         }
-        
-        logger.info("Retrieved anomaly summary")
+
+        logger.info(f"Retrieved anomaly summary: {total_anomalies} anomalies")
         return summary
     except Exception as e:
         logger.error(f"Error getting anomaly summary: {e}")
@@ -1023,7 +1120,29 @@ async def generate_report(
             "recommendations": []
         }
         
-        logger.info(f"Generated report {report_dict['id']}")
+        persisted = False
+        if SessionLocal and CostReportDB:
+            db = SessionLocal()
+            try:
+                db.add(
+                    CostReportDB(
+                        id=report_dict["id"],
+                        name=report_dict["name"],
+                        report_type=report_dict["report_type"],
+                        period_start=datetime.fromisoformat(report_dict["period_start"]),
+                        period_end=datetime.fromisoformat(report_dict["period_end"]),
+                        total_cost=total_cost,
+                        status="completed",
+                        report_data=report_dict["report_data"],
+                    )
+                )
+                db.commit()
+                persisted = True
+            finally:
+                db.close()
+        report_dict["persisted"] = persisted
+
+        logger.info(f"Generated report {report_dict['id']} (persisted={persisted})")
         return {"status": "success", "report": report_dict}
     except HTTPException:
         raise
@@ -1124,25 +1243,44 @@ async def get_reports_summary(
 ):
     """Get summary of cost reports by type and status"""
     try:
+        by_type: Dict[str, int] = {"summary": 0, "detailed": 0, "forecast": 0, "optimization": 0}
+        by_status: Dict[str, int] = {"completed": 0, "generating": 0, "failed": 0}
+        total_reports = 0
+        total_cost_covered = 0.0
+
+        if SessionLocal and CostReportDB:
+            try:
+                db = SessionLocal()
+                try:
+                    rows = db.query(CostReportDB).all()
+                finally:
+                    db.close()
+                total_reports = len(rows)
+                for r in rows:
+                    rt = str(r.report_type or "").lower()
+                    if rt:
+                        by_type[rt] = by_type.get(rt, 0) + 1
+                    st = str(r.status or "").lower()
+                    if st:
+                        by_status[st] = by_status.get(st, 0) + 1
+                    total_cost_covered += float(r.total_cost or 0)
+            except Exception as db_err:
+                logger.warning(f"Reports summary: DB unavailable ({db_err}); reporting empty")
+                total_reports = 0
+                total_cost_covered = 0.0
+                by_type = {"summary": 0, "detailed": 0, "forecast": 0, "optimization": 0}
+                by_status = {"completed": 0, "generating": 0, "failed": 0}
+
         summary = {
             "status": "success",
             "period": period,
-            "total_reports": 0,
-            "by_type": {
-                "summary": 0,
-                "detailed": 0,
-                "forecast": 0,
-                "optimization": 0
-            },
-            "by_status": {
-                "completed": 0,
-                "generating": 0,
-                "failed": 0
-            },
-            "total_cost_covered": 0.0
+            "total_reports": total_reports,
+            "by_type": by_type,
+            "by_status": by_status,
+            "total_cost_covered": total_cost_covered,
         }
-        
-        logger.info("Retrieved reports summary")
+
+        logger.info(f"Retrieved reports summary: {total_reports} reports")
         return summary
     except Exception as e:
         logger.error(f"Error getting reports summary: {e}")

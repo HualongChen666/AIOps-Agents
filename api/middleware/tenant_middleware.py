@@ -47,6 +47,10 @@ PUBLIC_PREFIXES = {
     "/sw-register.js",
 }
 
+# Roles allowed to impersonate another tenant via the X-Tenant-ID header /
+# ?tenant_id query parameter.
+_TENANT_OVERRIDE_ROLES = {"admin", "superadmin", "service-account", "service_account"}
+
 
 def _is_public(path: str) -> bool:
     """Return True if the request path is public."""
@@ -84,12 +88,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
     async def _resolve_tenant_id(self, request: Request) -> str:
-        # 1. Header override (admin/service-account impersonation)
-        header_tenant = request.headers.get("x-tenant-id") or request.headers.get("X-Tenant-ID")
-        if header_tenant:
-            return header_tenant.strip() or "default"
-
-        # 2. JWT token
+        # The bearer token (when present) is the authoritative source of the
+        # caller's identity, role and tenant.  Decode it once up-front.
+        role = ""
+        token_tenant = None
         auth = request.headers.get("Authorization", "")
         if auth.startswith("Bearer "):
             token = auth[7:].strip()
@@ -97,13 +99,30 @@ class TenantMiddleware(BaseHTTPMiddleware):
                 payload = decode_token(token)
                 tenant = payload.get("tenant_id")
                 if isinstance(tenant, str) and tenant.strip():
-                    return tenant.strip()
+                    token_tenant = tenant.strip()
+                role = str(payload.get("role", "") or "").lower()
             except Exception:
-                pass
+                token_tenant = None
 
-        # 3. Query string
-        tenant = request.query_params.get("tenant_id")
-        if isinstance(tenant, str) and tenant.strip():
-            return tenant.strip()
+        # 1. Tenant override (impersonation) is only honoured for privileged
+        #    callers — an authenticated admin / service account.  Every other
+        #    caller (including anonymous ones) must not be able to pick an
+        #    arbitrary tenant via the header / query string.
+        override = (
+            request.headers.get("x-tenant-id")
+            or request.headers.get("X-Tenant-ID")
+            or request.query_params.get("tenant_id")
+        )
+        if isinstance(override, str) and override.strip():
+            if role in _TENANT_OVERRIDE_ROLES:
+                return override.strip()
+            logger.warning(
+                f"Tenant Middleware: ignoring tenant override '{override.strip()}' "
+                f"from role='{role or 'anonymous'}' (override requires admin/service account)"
+            )
+
+        # 2. Fall back to the token's own tenant.
+        if token_tenant:
+            return token_tenant
 
         return "default"

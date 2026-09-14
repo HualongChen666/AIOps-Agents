@@ -57,6 +57,26 @@ class DisasterRecovery:
         except Exception:
             return ""
 
+    def _resolve_within_backup_dir(self, candidate: str) -> Optional[Path]:
+        """Resolve ``candidate`` and require it to live inside the backup dir.
+
+        Restore operations must only ever read artifacts produced by this
+        manager, so a caller-supplied path that escapes ``self.backup_dir``
+        (path traversal / arbitrary file read) is rejected.
+
+        Returns:
+            The resolved :class:`Path`, or ``None`` when it is outside the
+            configured backup directory or cannot be resolved.
+        """
+        try:
+            resolved = Path(candidate).resolve()
+            root = self.backup_dir.resolve()
+        except (OSError, RuntimeError):
+            return None
+        if resolved == root or resolved.is_relative_to(root):
+            return resolved
+        return None
+
     def backup_database(self) -> Optional[str]:
         """
         Backup the configured database with a real dump.
@@ -230,6 +250,13 @@ class DisasterRecovery:
         """
         try:
             backup_path = Path(backup_file)
+            safe_path = self._resolve_within_backup_dir(backup_file)
+            if safe_path is None:
+                print(
+                    f"Refusing to restore from outside the backup directory: {backup_file}"
+                )
+                return False
+            backup_path = safe_path
             if not backup_path.exists():
                 print(f"Backup file not found: {backup_path}")
                 return False

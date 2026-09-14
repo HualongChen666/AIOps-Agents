@@ -389,14 +389,15 @@ class TestITSMProblemEndpoints:
             data = response.json()
             assert isinstance(data, list)
 
-    def test_get_problems_empty_returns_defaults(self, client):
-        """Test GET /problems returns default problems when empty"""
+    def test_get_problems_empty_is_not_fabricated(self, client, monkeypatch):
+        """GET /problems must not invent a record when the store is empty."""
+        import api.itsm_advanced_router as itsm
+
+        monkeypatch.setattr(itsm, "_problems", {})
         response = client.get("/api/v1/itsm/problems")
         assert response.status_code != 404, response.text
         if response.status_code != 404:
-            data = response.json()
-            assert isinstance(data, list)
-            assert len(data) > 0
+            assert response.json() == []
 
     def test_create_problem_success(self, client):
         """Test POST /problems - successful creation"""
@@ -456,14 +457,15 @@ class TestITSMChangeEndpoints:
             data = response.json()
             assert isinstance(data, list)
 
-    def test_get_changes_empty_returns_defaults(self, client):
-        """Test GET /changes returns default changes when empty"""
+    def test_get_changes_empty_is_not_fabricated(self, client, monkeypatch):
+        """GET /changes must not invent a record when the store is empty."""
+        import api.itsm_advanced_router as itsm
+
+        monkeypatch.setattr(itsm, "_changes", {})
         response = client.get("/api/v1/itsm/changes")
         assert response.status_code != 404, response.text
         if response.status_code != 404:
-            data = response.json()
-            assert isinstance(data, list)
-            assert len(data) > 0
+            assert response.json() == []
 
 
 class TestITSMServiceCatalogEndpoints:

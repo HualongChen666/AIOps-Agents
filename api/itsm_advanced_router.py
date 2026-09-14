@@ -596,27 +596,6 @@ async def get_problems(
         if status_filter:
             problems = [prob for prob in problems if prob.get("status") == status_filter]
 
-        # Add default problems if empty
-        if not problems:
-            default_problems = [
-                {
-                    "problem_id": str(uuid4()),
-                    "title": "Recurring database connection timeouts",
-                    "description": "Database connections are timing out intermittently",
-                    "status": "open",
-                    "priority": "high",
-                    "root_cause": None,
-                    "related_incidents": [],
-                    "workarounds": ["Restart application server"],
-                    "created_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat(),
-                    "resolved_at": None,
-                }
-            ]
-            for problem in default_problems:
-                _problems[problem["problem_id"]] = problem
-            problems = default_problems
-
         return [
             ITSMProblem(**prob)
             for prob in sorted(problems, key=lambda x: x["created_at"], reverse=True)[:limit]
@@ -701,30 +680,6 @@ async def get_changes(
 
         if status_filter:
             changes = [ch for ch in changes if ch.get("status") == status_filter]
-
-        # Add default changes if empty
-        if not changes:
-            default_changes = [
-                {
-                    "change_id": str(uuid4()),
-                    "title": "Upgrade web server software",
-                    "description": "Upgrade Nginx to version 1.25",
-                    "change_type": "normal",
-                    "status": "pending",
-                    "priority": "medium",
-                    "risk_level": "low",
-                    "planned_start": datetime.utcnow().isoformat(),
-                    "planned_end": datetime.utcnow().isoformat(),
-                    "requested_by": "admin",
-                    "approved_by": None,
-                    "created_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat(),
-                    "implemented_at": None,
-                }
-            ]
-            for change in default_changes:
-                _changes[change["change_id"]] = change
-            changes = default_changes
 
         return [
             ITSMChange(**ch)

@@ -339,7 +339,7 @@ def _db_to_execution(exec_db: TestExecutionDB) -> TestExecution:
         passed_tests=exec_db.passed_tests,
         failed_tests=exec_db.failed_tests,
         skipped_tests=exec_db.skipped_tests,
-        coverage=None,
+        coverage=exec_db.coverage,
         triggered_by=exec_db.triggered_by or "system",
         trigger_type=exec_db.trigger_type,
         logs_url=None,

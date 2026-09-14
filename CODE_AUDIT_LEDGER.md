@@ -11924,3 +11924,38 @@ terraform/storage.tf
 ## D) 说明
 
 - 上述为**既有**失效测试（HEAD 即失败，已 git stash 于 HEAD 复核），修复未改动产品行为（仅在必要处补齐真实契约断言/mock 与种子数据）。
+
+
+---
+
+# PART XLIX — 中危（medium）逐条修复 · 第 8 批（2026-09-14）
+
+> 目标：按本台账登记的「发现（中）」条目逐条修复到通过。本批修复 **5 条**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| API-138 | `api/cost_management_router.py` | `total_realized_savings` 不再用 `potential*0.3` 假定，改为按 `status ∈ {approved, implemented}` 的**真实优化记录**汇总；`anomalies/summary`、`reports/summary` 由数据库真实聚合（原为**全 0 硬编码**）；optimization/anomaly/report 的「创建」端点**真正落库**（此前不落库 → `approve` 恒 404）。 |
+| API-083 | `api/backup_router.py` / `core/disaster_recovery.py` | 数据库恢复仅允许读取**配置备份目录内**的文件（新增 `_resolve_within_backup_dir`，拒绝任意路径 / `..` 穿越）。 |
+| API-018 | `api/middleware/tenant_middleware.py` | `X-Tenant-ID` / `?tenant_id` 租户覆盖**仅对已认证 admin / service-account 生效**；其余调用方回退 JWT 自带租户（原为无条件信任该头 → 可越权冒充任意租户）。 |
+| API-154 | `api/test_automation_advanced_router.py` | `_db_to_execution` 的 `coverage` 改为读取真实库字段 `exec_db.coverage`（原**恒为 `None`**）。 |
+| API-125 | `api/itsm_advanced_router.py` | `get_problems` / `get_changes` 空结果**不再伪造**默认记录并写回存储（原会注入 "Recurring database connection timeouts" / "Upgrade web server software" 并污染 store）。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/api/test_medium_ledger_batch8_20260914.py` → **9 passed**；
+  `tests/api/test_medium_ledger_batch8b_20260914.py` → **6 passed**。
+- 既有套件：`tests/api/test_cost_management_router.py` **54 passed**；
+  `tests/api/test_itsm_advanced_router.py` **30 passed**；
+  `test_disaster_router.py` + `test_test_automation_advanced_router.py` + tenant 套件 **236 passed**。
+- 无回归：`tests/api/test_test_automation_router_coverage.py` 等在本批与干净 HEAD 均为
+  **46 failed / 91 passed**（既有失败，集合一致，经 `git stash -u` 复核）。
+- 更新的既有测试：`test_get_{problems,changes}_empty_returns_defaults` →
+  `..._is_not_fabricated`（对齐真实契约，去除对伪造默认值的断言）。
+
+## 进度口径（诚实记录）
+
+- 本台账解析的「中危」条目（`发现（中）` + `【中】`）：**471** 行 / 去重 ID **349**。
+- 用户口径：总计 **415**，本批前剩余 **295**。本批修复 **5** → 剩余 **290**。
