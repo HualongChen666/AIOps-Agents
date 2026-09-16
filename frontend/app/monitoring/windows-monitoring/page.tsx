@@ -1,20 +1,36 @@
 'use client'
 
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
+// Shaped by the backend from the real `collect_all` snapshot plus a live
+// Windows service enumeration (empty on non-Windows hosts).
+interface DiskPartition {
+  drive?: string;
+  label?: string;
+  usage_percent?: number;
+  total_gb?: number;
+  free_gb?: number;
+}
+
+interface WindowsService {
+  name?: string;
+  display_name?: string;
+  status?: string;
+  start_type?: string;
+}
+
 interface WindowsMonitoringData {
   hostname?: string;
   os_version?: string;
-  os_build?: string;
+  kernel_version?: string;
   uptime?: number;
   cpu?: { usage_percent?: number; cores?: number; logical_processors?: number };
   memory?: { usage_percent?: number; total_gb?: number; available_gb?: number };
-  disk?: Array<{ drive: string; label: string; usage_percent: number; total_gb: number; free_gb: number }>;
-  services?: Array<{ name: string; display_name: string; status: string; start_type: string }>;
+  disk_partitions?: DiskPartition[];
+  services?: WindowsService[];
   processes?: number;
   [key: string]: any;
 }
@@ -74,12 +90,12 @@ export default function WindowsMonitoringPage() {
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">系统版本:</span>
-              <span className="font-medium">{windowsData?.os_build || '-'}</span>
+              <span className="font-medium">{windowsData?.kernel_version || '-'}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-500">运行时间:</span>
               <span className="font-medium">
-                {windowsData?.uptime ? formatUptime(windowsData.uptime) : '-'}
+                {typeof windowsData?.uptime === 'number' ? formatUptime(windowsData.uptime) : '-'}
               </span>
             </div>
           </div>
@@ -93,13 +109,13 @@ export default function WindowsMonitoringPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {windowsData?.cpu?.usage_percent?.toFixed(2) || '-'}%
+              {typeof windowsData?.cpu?.usage_percent === 'number' ? `${windowsData.cpu.usage_percent.toFixed(2)}%` : '-'}
             </div>
             <div className="text-sm text-gray-500">
-              核心: {windowsData?.cpu?.cores || '-'}
+              核心: {windowsData?.cpu?.cores ?? '-'}
             </div>
             <div className="text-sm text-gray-500">
-              逻辑处理器: {windowsData?.cpu?.logical_processors || '-'}
+              逻辑处理器: {windowsData?.cpu?.logical_processors ?? '-'}
             </div>
           </CardContent>
         </Card>
@@ -110,13 +126,13 @@ export default function WindowsMonitoringPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {windowsData?.memory?.usage_percent?.toFixed(2) || '-'}%
+              {typeof windowsData?.memory?.usage_percent === 'number' ? `${windowsData.memory.usage_percent.toFixed(2)}%` : '-'}
             </div>
             <div className="text-sm text-gray-500">
-              可用: {windowsData?.memory?.available_gb?.toFixed(2) || '-'} GB
+              可用: {typeof windowsData?.memory?.available_gb === 'number' ? `${windowsData.memory.available_gb.toFixed(2)} GB` : '-'}
             </div>
             <div className="text-sm text-gray-500">
-              总计: {windowsData?.memory?.total_gb?.toFixed(2) || '-'} GB
+              总计: {typeof windowsData?.memory?.total_gb === 'number' ? `${windowsData.memory.total_gb.toFixed(2)} GB` : '-'}
             </div>
           </CardContent>
         </Card>
@@ -126,7 +142,7 @@ export default function WindowsMonitoringPage() {
             <CardTitle className="text-sm">进程数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{windowsData?.processes || '-'}</div>
+            <div className="text-2xl font-bold">{windowsData?.processes ?? '-'}</div>
             <div className="text-sm text-gray-500">运行进程</div>
           </CardContent>
         </Card>
@@ -136,7 +152,7 @@ export default function WindowsMonitoringPage() {
             <CardTitle className="text-sm">服务数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{windowsData?.services?.length || '-'}</div>
+            <div className="text-2xl font-bold">{windowsData?.services?.length ?? '-'}</div>
             <div className="text-sm text-gray-500">系统服务</div>
           </CardContent>
         </Card>
@@ -152,20 +168,26 @@ export default function WindowsMonitoringPage() {
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
                   <th className="px-4 py-2 text-left">驱动器</th>
-                  <th className="px-4 py-2 text-left">标签</th>
+                  <th className="px-4 py-2 text-left">设备</th>
                   <th className="px-4 py-2 text-left">使用率</th>
                   <th className="px-4 py-2 text-left">总容量</th>
                   <th className="px-4 py-2 text-left">可用空间</th>
                 </tr>
               </thead>
               <tbody>
-                {windowsData?.disk?.map((disk, i) => (
+                {windowsData?.disk_partitions?.map((disk, i) => (
                   <tr key={i} className="border-t">
                     <td className="px-4 py-2">{disk.drive}</td>
                     <td className="px-4 py-2">{disk.label}</td>
-                    <td className="px-4 py-2">{disk.usage_percent.toFixed(2)}%</td>
-                    <td className="px-4 py-2">{disk.total_gb.toFixed(2)} GB</td>
-                    <td className="px-4 py-2">{disk.free_gb.toFixed(2)} GB</td>
+                    <td className="px-4 py-2">
+                      {typeof disk.usage_percent === 'number' ? `${disk.usage_percent.toFixed(2)}%` : '-'}
+                    </td>
+                    <td className="px-4 py-2">
+                      {typeof disk.total_gb === 'number' ? `${disk.total_gb.toFixed(2)} GB` : '-'}
+                    </td>
+                    <td className="px-4 py-2">
+                      {typeof disk.free_gb === 'number' ? `${disk.free_gb.toFixed(2)} GB` : '-'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -191,28 +213,36 @@ export default function WindowsMonitoringPage() {
                 </tr>
               </thead>
               <tbody>
-                {windowsData?.services?.map((service, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="px-4 py-2">{service.name}</td>
-                    <td className="px-4 py-2">{service.display_name}</td>
-                    <td className="px-4 py-2">
-                      <span className={`px-2 py-1 rounded text-xs ${
-                        service.status === 'Running' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {service.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">{service.start_type}</td>
-                    <td className="px-4 py-2">
-                      <Button
-                        size="sm"
-                        onClick={() => handleServiceAction(service.name, service.status === 'Running' ? 'stop' : 'start')}
-                      >
-                        {service.status === 'Running' ? '停止' : '启动'}
-                      </Button>
+                {windowsData?.services?.length ? (
+                  windowsData.services.map((service, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-4 py-2">{service.name}</td>
+                      <td className="px-4 py-2">{service.display_name}</td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-1 rounded text-xs ${
+                          service.status === 'running' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {service.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">{service.start_type}</td>
+                      <td className="px-4 py-2">
+                        <Button
+                          size="sm"
+                          onClick={() => service.name && handleServiceAction(service.name, service.status === 'running' ? 'stop' : 'start')}
+                        >
+                          {service.status === 'running' ? '停止' : '启动'}
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr className="border-t">
+                    <td colSpan={5} className="px-4 py-4 text-center text-gray-500">
+                      当前主机无 Windows 服务数据（仅 Windows 主机可枚举）
                     </td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

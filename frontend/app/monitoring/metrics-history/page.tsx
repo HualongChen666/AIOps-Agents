@@ -4,29 +4,43 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
-interface HistoryData {
-  timestamps?: string[];
+// Metric selectors exposed to the user. The backend `/metrics-history`
+// endpoint accepts `metric ∈ {all, cpu, memory, network}` and returns the
+// series nested under `data`.
+type MetricType = 'cpu' | 'memory' | 'network';
+
+interface HistorySeries {
   cpu?: number[];
   memory?: number[];
-  network_in?: number[];
-  network_out?: number[];
-  disk?: number[];
-  [key: string]: any;
+  net_in?: number[];
+  timestamps?: string[];
 }
+
+interface HistoryResponse {
+  metric?: string;
+  time_range?: string;
+  data_points?: number;
+  data?: HistorySeries;
+}
+
+const SERIES_KEY: Record<MetricType, keyof HistorySeries> = {
+  cpu: 'cpu',
+  memory: 'memory',
+  network: 'net_in',
+};
 
 export default function MetricsHistoryPage() {
   const [timeRange, setTimeRange] = useState('24h');
-  const [metricType, setMetricType] = useState('cpu');
+  const [metricType, setMetricType] = useState<MetricType>('cpu');
 
-  const { data: historyData, isLoading, error, refetch } = useQuery<HistoryData>({
+  const { data: historyData, isLoading, error, refetch } = useQuery<HistoryResponse>({
     queryKey: ['monitoring-metrics-history', timeRange, metricType],
     queryFn: async () => {
       const resp = await api.get('/api/v1/monitoring/metrics-history', {
-        params: { time_range: timeRange, metric_type: metricType }
+        params: { time_range: timeRange, metric: metricType },
       });
       return resp.data;
     },
@@ -36,25 +50,27 @@ export default function MetricsHistoryPage() {
   if (isLoading) return <div className="text-center text-gray-500 py-8">加载中...</div>;
   if (error) return <div className="text-center text-red-500 py-8">加载失败: {(error as Error).message}</div>;
 
+  const series = historyData?.data?.[SERIES_KEY[metricType]] as number[] | undefined;
+  const timestamps = historyData?.data?.timestamps;
+
   const renderChart = () => {
-    if (!historyData?.timestamps || !historyData[metricType]) {
+    if (!series || series.length === 0 || !timestamps || timestamps.length === 0) {
       return <p className="text-gray-500">暂无数据</p>;
     }
 
-    const data = historyData[metricType] as number[];
-    const timestamps = historyData.timestamps;
     const width = 800;
     const height = 300;
     const padding = 40;
     const chartWidth = width - padding * 2;
     const chartHeight = height - padding * 2;
+    const step = series.length > 1 ? chartWidth / (series.length - 1) : 0;
 
-    const min = Math.min(...data);
-    const max = Math.max(...data);
+    const min = Math.min(...series);
+    const max = Math.max(...series);
     const range = max - min || 1;
 
-    const points = data.map((v, i) => {
-      const x = padding + (i / (data.length - 1)) * chartWidth;
+    const points = series.map((v, i) => {
+      const x = padding + i * step;
       const y = padding + chartHeight - ((v - min) / range) * chartHeight;
       return `${x},${y}`;
     }).join(' ');
@@ -79,7 +95,7 @@ export default function MetricsHistoryPage() {
     };
   };
 
-  const stats = calculateStats(historyData?.[metricType] as number[]);
+  const stats = calculateStats(series);
 
   return (
     <div className="space-y-6">
@@ -92,12 +108,10 @@ export default function MetricsHistoryPage() {
             <option value="7d">7天</option>
             <option value="30d">30天</option>
           </Select>
-          <Select value={metricType} onChange={(e) => setMetricType(e.target.value)}>
+          <Select value={metricType} onChange={(e) => setMetricType(e.target.value as MetricType)}>
             <option value="cpu">CPU</option>
             <option value="memory">内存</option>
-            <option value="network_in">网络入</option>
-            <option value="network_out">网络出</option>
-            <option value="disk">磁盘</option>
+            <option value="network">网络入</option>
           </Select>
           <Button onClick={() => refetch()}>刷新</Button>
         </div>
@@ -155,10 +169,10 @@ export default function MetricsHistoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {historyData?.timestamps?.map((ts, i) => (
+                {timestamps?.map((ts, i) => (
                   <tr key={i} className="border-t">
-                    <td className="px-4 py-2">{new Date(ts).toLocaleString()}</td>
-                    <td className="px-4 py-2">{((historyData[metricType] as number[])[i])?.toFixed(2) || '-'}</td>
+                    <td className="px-4 py-2">{ts}</td>
+                    <td className="px-4 py-2">{series?.[i]?.toFixed(2) ?? '-'}</td>
                   </tr>
                 ))}
               </tbody>

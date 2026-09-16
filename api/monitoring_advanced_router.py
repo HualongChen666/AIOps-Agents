@@ -23,13 +23,15 @@ All endpoints use real business logic from core modules.
 """
 
 import asyncio
+import json
 import logging
+import os
 import statistics
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,6 +68,151 @@ def _time_range_hours(time_range: str) -> int:
         "7d": 168,
         "30d": 720,
     }.get(time_range, 1)
+
+
+def _network_interfaces() -> List[Dict[str, Any]]:
+    """Enumerate real network interfaces (name / IPv4 / rx / tx bytes).
+
+    Uses ``psutil`` per-NIC counters so the numbers come from the kernel, not
+    from a template. Returns ``[]`` when psutil cannot enumerate interfaces
+    (e.g. sandboxed containers) instead of inventing rows.
+    """
+    try:
+        import psutil
+
+        addrs = psutil.net_if_addrs()
+        per_nic = psutil.net_io_counters(pernic=True)
+    except Exception as exc:  # noqa: BLE001 - interface enumeration is best-effort
+        logger.debug(f"网络接口采集跳过: {exc}")
+        return []
+
+    interfaces: List[Dict[str, Any]] = []
+    for name, addr_list in addrs.items():
+        ip = ""
+        for addr in addr_list:
+            family = getattr(addr, "family", None)
+            if family == getattr(psutil, "AF_INET", None):
+                ip = addr.address or ""
+                break
+            if family == getattr(psutil, "AF_INET6", None) and not ip:
+                ip = (addr.address or "").split("%")[0]
+        counters = per_nic.get(name)
+        interfaces.append(
+            {
+                "name": name,
+                "ip": ip,
+                "rx_bytes": int(counters.bytes_recv) if counters else 0,
+                "tx_bytes": int(counters.bytes_sent) if counters else 0,
+            }
+        )
+    return interfaces
+
+
+def _system_metrics_detail(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the nested real system-detail block from a ``collect_all`` snapshot.
+
+    The snapshot already carries the real CPU / memory / disk / network /
+    system data collected from the host; this reshapes it (without dropping
+    the legacy flat keys callers already rely on) so the monitoring UI can
+    render host, OS, uptime, per-resource usage and interface counters.
+    """
+    system = snapshot.get("system") or {}
+    cpu = snapshot.get("cpu") or {}
+    mem = snapshot.get("memory") or {}
+    raw_disks = snapshot.get("disk") or []
+    if isinstance(raw_disks, dict):
+        raw_disks = [raw_disks]
+    disks = [d for d in raw_disks if isinstance(d, dict)]
+    net = snapshot.get("network") or {}
+
+    total_disk = sum(float(d.get("total_gb") or 0) for d in disks)
+    used_disk = sum(float(d.get("used_gb") or 0) for d in disks)
+    free_disk = sum(float(d.get("free_gb") or 0) for d in disks)
+
+    try:
+        load_avg = list(os.getloadavg())
+    except (AttributeError, OSError):
+        load_avg = []
+
+    uptime_seconds = int(float(system.get("uptime_hours") or 0) * 3600)
+
+    return {
+        "hostname": system.get("hostname"),
+        "os_version": system.get("os_version"),
+        "kernel_version": system.get("os_release"),
+        "architecture": system.get("architecture"),
+        "uptime": uptime_seconds,
+        "cpu": {
+            "usage_percent": cpu.get("usage_percent"),
+            "cores": cpu.get("core_count"),
+            "logical_processors": cpu.get("logical_count"),
+            "frequency_mhz": cpu.get("frequency_mhz"),
+            "load_avg": load_avg,
+        },
+        "memory": {
+            "usage_percent": mem.get("usage_percent"),
+            "total_gb": mem.get("total_gb"),
+            "used_gb": mem.get("used_gb"),
+            "available_gb": mem.get("available_gb"),
+            "free_gb": mem.get("available_gb"),
+        },
+        "disk": {
+            "usage_percent": round(used_disk / total_disk * 100, 2) if total_disk else 0.0,
+            "total_gb": round(total_disk, 2),
+            "used_gb": round(used_disk, 2),
+            "free_gb": round(free_disk, 2),
+        },
+        "disk_partitions": [
+            {
+                "drive": d.get("mountpoint"),
+                "label": d.get("device"),
+                "fstype": d.get("fstype"),
+                "usage_percent": d.get("usage_percent"),
+                "total_gb": d.get("total_gb"),
+                "used_gb": d.get("used_gb"),
+                "free_gb": d.get("free_gb"),
+            }
+            for d in disks
+        ],
+        "network": {
+            "recv_speed_mb": net.get("recv_speed_mb"),
+            "sent_speed_mb": net.get("sent_speed_mb"),
+            "interfaces": _network_interfaces(),
+        },
+    }
+
+
+def _windows_services() -> List[Dict[str, Any]]:
+    """Enumerate real Windows services via psutil.
+
+    Returns ``[]`` on non-Windows platforms (or when the process lacks the
+    privileges to query the service manager) rather than synthesising a list.
+    """
+    try:
+        import psutil
+
+        services = []
+        for svc in psutil.win_service_iter():
+            try:
+                info = svc.as_dict()
+            except Exception as exc:  # noqa: BLE001 - skip unreadable services
+                logger.debug(f"跳过无法读取的服务 {getattr(svc, 'name', '?')}: {exc}")
+                continue
+            name = info.get("name") or getattr(svc, "name", "")
+            if not name:
+                continue
+            services.append(
+                {
+                    "name": name,
+                    "display_name": info.get("display_name") or name,
+                    "status": info.get("status") or "unknown",
+                    "start_type": info.get("start_type") or "unknown",
+                }
+            )
+        return services
+    except Exception as exc:  # noqa: BLE001 - not a Windows host
+        logger.debug(f"Windows 服务枚举不可用: {exc}")
+        return []
 
 
 # 指标名 -> 人类可读单位后缀（用于异常描述）
@@ -396,6 +543,20 @@ class MonitoringAdvancedMonitoringConfig(BaseModel):
     interval_seconds: int = Field(default=60, ge=10, le=3600)
     retention_days: int = Field(default=30, ge=1, le=365)
     alert_thresholds: Optional[Dict[str, float]] = None
+
+
+class ServiceActionRequest(BaseModel):
+    """System service start/stop request model"""
+
+    service_name: str = Field(..., min_length=1, max_length=200)
+    action: str = Field(..., pattern="^(start|stop|restart)$")
+
+
+class ProcessKillRequest(BaseModel):
+    """Process termination request model"""
+
+    pid: int = Field(..., ge=1)
+    force: bool = False
 
 
 # ============================================================
@@ -966,6 +1127,10 @@ async def get_tracing_visualization(
             "nodes": nodes,
             "edges": edges,
             "total_spans": len(spans),
+            "services": sorted({_span_service(s) for s in spans}),
+            "total_duration_ms": round(
+                max((s.duration for s in spans), default=0) / 1e6, 2
+            ),
         }
     except HTTPException:
         raise
@@ -2263,6 +2428,31 @@ async def get_linux_logs_endpoint(
 # ============================================================
 
 
+async def _collect_log_search(keyword: str, newest: int) -> List[Dict[str, Any]]:
+    """Collect real logs matching ``keyword`` from Windows and Linux sources."""
+    # 使用log_collector搜索Windows日志
+    windows_logs = await search_logs(keyword, max(1, newest // 2))
+
+    # 从已配置的Linux主机真实采集并筛选日志
+    from config import LINUX_HOSTS
+
+    hosts = LINUX_HOSTS.get("hosts", []) if isinstance(LINUX_HOSTS, dict) else (LINUX_HOSTS or [])
+
+    linux_logs: List[Dict[str, Any]] = []
+    for host in hosts:
+        try:
+            entries = await get_linux_logs(host, "syslog", max(1, newest // 2))
+        except Exception as exc:  # noqa: BLE001 - one bad host must not fail the search
+            logger.warning(f"Linux日志采集失败 host={host.get('name')}: {exc}")
+            continue
+        for entry in entries:
+            message = str(entry.get("Message") or entry.get("message") or "")
+            if keyword.lower() in message.lower():
+                linux_logs.append(entry)
+
+    return list(windows_logs) + linux_logs
+
+
 @router.get(
     "/log-search",
     summary="搜索日志",
@@ -2290,25 +2480,7 @@ async def search_logs_endpoint(
     logger.info(f"搜索日志 | keyword={keyword} time_range={time_range}")
 
     try:
-        # 使用log_collector搜索Windows日志
-        windows_logs = await search_logs(keyword, newest // 2)
-
-        # 从已配置的Linux主机真实采集并筛选日志
-        from config import LINUX_HOSTS
-
-        linux_logs: List[Dict[str, Any]] = []
-        for host in LINUX_HOSTS or []:
-            try:
-                entries = await get_linux_logs(host, "syslog", max(1, newest // 2))
-            except Exception as exc:  # noqa: BLE001 - one bad host must not fail the search
-                logger.warning(f"Linux日志采集失败 host={host.get('name')}: {exc}")
-                continue
-            for entry in entries:
-                message = str(entry.get("Message") or entry.get("message") or "")
-                if keyword.lower() in message.lower():
-                    linux_logs.append(entry)
-
-        all_logs = windows_logs + linux_logs
+        all_logs = await _collect_log_search(keyword, newest)
 
         return {
             "total": len(all_logs),
@@ -2319,6 +2491,58 @@ async def search_logs_endpoint(
     except Exception as e:
         logger.error(f"日志搜索失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)[:200]}")
+
+
+@router.get(
+    "/log-search/export",
+    summary="导出日志搜索结果",
+    responses={
+        200: {"description": "导出文件"},
+        500: {"description": "导出失败"},
+    },
+)
+async def export_log_search(
+    keyword: str = Query(..., min_length=3, max_length=200),
+    time_range: str = Query(default="1h", pattern="^(5m|1h|24h|7d)$"),
+    newest: int = Query(default=500, ge=1, le=2000),
+):
+    """
+    将日志搜索结果导出为可下载的 JSON 文件
+
+    Args:
+        keyword: 搜索关键词
+        time_range: 时间范围
+        newest: 最大日志数量
+
+    Returns:
+        JSON 文件流
+    """
+    logger.info(f"导出日志搜索结果 | keyword={keyword} time_range={time_range}")
+
+    try:
+        logs = await _collect_log_search(keyword, newest)
+        payload = json.dumps(
+            {
+                "keyword": keyword,
+                "time_range": time_range,
+                "exported_at": datetime.now(timezone.utc).isoformat(),
+                "total": len(logs),
+                "logs": logs,
+            },
+            ensure_ascii=False,
+            default=str,
+            indent=2,
+        )
+    except Exception as e:
+        logger.error(f"导出日志失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)[:200]}")
+
+    filename = f"logs-export-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    return Response(
+        content=payload,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # ============================================================
@@ -3061,16 +3285,23 @@ async def get_windows_monitoring(
     try:
         # 获取实际系统指标
         system_snapshot = await asyncio.to_thread(collect_all)
+        detail = _system_metrics_detail(system_snapshot)
+
+        processes = await asyncio.to_thread(get_top_processes, 10)
+        services = await asyncio.to_thread(_windows_services)
 
         return {
             "time_range": time_range,
             "platform": "windows",
-            "cpu_usage": system_snapshot.get("cpu", {}).get("usage_percent", 0),
-            "memory_usage": system_snapshot.get("memory", {}).get("usage_percent", 0),
-            "disk_usage": system_snapshot.get("disk", {}).get("usage_percent", 0),
-            "network_in": system_snapshot.get("network", {}).get("recv_speed_mb", 0),
-            "network_out": system_snapshot.get("network", {}).get("sent_speed_mb", 0),
-            "active_processes": len(await asyncio.to_thread(get_top_processes, 10)),
+            "cpu_usage": detail["cpu"]["usage_percent"] or 0,
+            "memory_usage": detail["memory"]["usage_percent"] or 0,
+            "disk_usage": detail["disk"]["usage_percent"] or 0,
+            "network_in": detail["network"]["recv_speed_mb"] or 0,
+            "network_out": detail["network"]["sent_speed_mb"] or 0,
+            "active_processes": len(processes),
+            "processes": len(processes),
+            "services": services,
+            **detail,
         }
     except Exception as e:
         logger.error(f"获取Windows监控失败: {e}", exc_info=True)
@@ -3111,6 +3342,64 @@ async def configure_windows_monitoring(
         raise HTTPException(status_code=500, detail=f"配置失败: {str(e)[:200]}")
 
 
+@router.post(
+    "/windows-monitoring/service-action",
+    summary="启停Windows服务",
+    responses={
+        200: {"description": "操作成功"},
+        404: {"description": "服务不存在"},
+        503: {"description": "非Windows主机"},
+    },
+)
+async def windows_service_action(req: ServiceActionRequest) -> Dict[str, Any]:
+    """Start/stop/restart a real Windows service via psutil."""
+    logger.info(f"Windows 服务操作 | service={req.service_name} action={req.action}")
+
+    try:
+        import psutil
+    except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+        requires_backend(
+            "windows-service-manager",
+            capability="service control",
+            reason=f"psutil unavailable: {e}",
+        )
+
+    if not hasattr(psutil, "win_service_get"):
+        requires_backend(
+            "windows-service-manager",
+            capability="service control",
+            reason="Windows service manager is only available on a Windows host",
+        )
+
+    try:
+        service = psutil.win_service_get(req.service_name)
+    except Exception as exc:  # noqa: BLE001 - unknown service name
+        raise HTTPException(status_code=404, detail=f"服务不存在或不可访问: {req.service_name}")
+
+    try:
+        if req.action == "start":
+            service.start()
+        elif req.action == "stop":
+            service.stop()
+        else:
+            service.restart()
+        info = service.as_dict()
+        return {
+            "success": True,
+            "service": {
+                "name": info.get("name") or req.service_name,
+                "display_name": info.get("display_name") or req.service_name,
+                "status": info.get("status") or "unknown",
+                "start_type": info.get("start_type") or "unknown",
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Windows 服务操作失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"服务操作失败: {str(e)[:200]}")
+
+
 # ============================================================
 # Linux Monitoring Endpoint
 # ============================================================
@@ -3143,23 +3432,27 @@ async def get_linux_monitoring(
     try:
         from config import LINUX_HOSTS
 
-        if not LINUX_HOSTS:
+        hosts = LINUX_HOSTS.get("hosts", []) if isinstance(LINUX_HOSTS, dict) else (LINUX_HOSTS or [])
+
+        if not hosts:
             # 返回本地系统指标
             system_snapshot = await asyncio.to_thread(collect_all)
+            detail = _system_metrics_detail(system_snapshot)
             return {
                 "time_range": time_range,
                 "host": host_name,
                 "platform": "linux",
-                "cpu_usage": system_snapshot.get("cpu", {}).get("usage_percent", 0),
-                "memory_usage": system_snapshot.get("memory", {}).get("usage_percent", 0),
-                "disk_usage": system_snapshot.get("disk", {}).get("usage_percent", 0),
-                "network_in": system_snapshot.get("network", {}).get("recv_speed_mb", 0),
-                "network_out": system_snapshot.get("network", {}).get("sent_speed_mb", 0),
+                "cpu_usage": detail["cpu"]["usage_percent"] or 0,
+                "memory_usage": detail["memory"]["usage_percent"] or 0,
+                "disk_usage": detail["disk"]["usage_percent"] or 0,
+                "network_in": detail["network"]["recv_speed_mb"] or 0,
+                "network_out": detail["network"]["sent_speed_mb"] or 0,
+                **detail,
             }
 
         # 查找主机配置
         host_config = None
-        for host in LINUX_HOSTS:
+        for host in hosts:
             if host.get("name") == host_name or host.get("host") == host_name:
                 host_config = host
                 break
@@ -3204,16 +3497,34 @@ async def get_linux_monitoring(
                     continue
             return None
 
+        cpu_usage = _value("cpu_usage", "cpu")
+        memory_usage = _value("memory")
+        disk_usage = _value("disk_usage")
+        hostname = host_config.get("name") or host_config.get("host") or host_name
+
         return {
             "time_range": time_range,
             "host": host_name,
             "platform": "linux",
             "status": result.get("status"),
-            "cpu_usage": _value("cpu_usage", "cpu"),
-            "memory_usage": _value("memory"),
-            "disk_usage": _value("disk_usage"),
+            "hostname": hostname,
+            "os_version": host_config.get("os") or None,
+            "kernel_version": None,
+            "uptime": None,
+            "cpu_usage": cpu_usage,
+            "memory_usage": memory_usage,
+            "disk_usage": disk_usage,
             "network_in": None,
             "network_out": None,
+            "cpu": {
+                "usage_percent": cpu_usage,
+                "cores": None,
+                "logical_processors": None,
+                "load_avg": [],
+            },
+            "memory": {"usage_percent": memory_usage},
+            "disk": {"usage_percent": disk_usage},
+            "network": {"recv_speed_mb": None, "sent_speed_mb": None, "interfaces": []},
         }
     except HTTPException:
         raise
@@ -3329,6 +3640,71 @@ async def configure_process_monitoring(
     except Exception as e:
         logger.error(f"配置进程监控失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"配置失败: {str(e)[:200]}")
+
+
+@router.post(
+    "/process-monitoring/kill",
+    summary="终止指定进程",
+    responses={
+        200: {"description": "终止成功"},
+        400: {"description": "拒绝操作"},
+        403: {"description": "权限不足"},
+        404: {"description": "进程不存在"},
+    },
+)
+async def kill_process(req: ProcessKillRequest) -> Dict[str, Any]:
+    """Terminate a real process by PID with self-kill guard rails."""
+    logger.info(f"终止进程 | pid={req.pid} force={req.force}")
+
+    try:
+        import psutil
+    except Exception as e:  # noqa: BLE001 - surfaced as requires-backend
+        requires_backend(
+            "process-control",
+            capability="process termination",
+            reason=f"psutil unavailable: {e}",
+        )
+
+    if req.pid == os.getpid():
+        raise HTTPException(status_code=400, detail="拒绝终止监控自身进程")
+
+    try:
+        from core.command_guard import get_protected_pids
+
+        if req.pid in get_protected_pids():
+            raise HTTPException(status_code=400, detail=f"拒绝终止受保护进程: {req.pid}")
+    except HTTPException:
+        raise
+    except Exception as exc:  # noqa: BLE001 - guard unavailable, continue
+        logger.debug(f"command_guard 自检不可用,跳过保护校验: {exc}")
+
+    try:
+        proc = psutil.Process(req.pid)
+        name = proc.name()
+        if req.force:
+            proc.kill()
+        else:
+            proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except psutil.TimeoutExpired:
+            if not req.force:
+                proc.kill()
+        return {
+            "success": True,
+            "pid": req.pid,
+            "name": name,
+            "message": f"进程 {name}({req.pid}) 已终止",
+        }
+    except psutil.NoSuchProcess:
+        raise HTTPException(status_code=404, detail=f"进程不存在: {req.pid}")
+    except psutil.AccessDenied:
+        raise HTTPException(status_code=403, detail=f"权限不足,无法终止进程: {req.pid}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"终止进程失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"终止失败: {str(e)[:200]}")
 
 
 # ============================================================

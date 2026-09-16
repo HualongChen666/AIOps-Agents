@@ -1,20 +1,21 @@
 'use client'
 
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
+// The backend reshapes the real `collect_all` snapshot into this nested
+// structure (host/OS/time + CPU/memory/disk/network detail).
 interface LinuxMonitoringData {
   hostname?: string;
   os_version?: string;
   kernel_version?: string;
   uptime?: number;
-  cpu?: { usage_percent?: number; cores?: number; load_avg?: number[] };
-  memory?: { usage_percent?: number; total_gb?: number; used_gb?: number; free_gb?: number };
+  cpu?: { usage_percent?: number; cores?: number; logical_processors?: number; load_avg?: number[] };
+  memory?: { usage_percent?: number; total_gb?: number; used_gb?: number; available_gb?: number };
   disk?: { usage_percent?: number; total_gb?: number; used_gb?: number; free_gb?: number };
-  network?: { interfaces?: Array<{ name: string; ip: string; rx_bytes: number; tx_bytes: number }> };
+  network?: { recv_speed_mb?: number; sent_speed_mb?: number; interfaces?: Array<{ name: string; ip: string; rx_bytes: number; tx_bytes: number }> };
   [key: string]: any;
 }
 
@@ -66,7 +67,7 @@ export default function LinuxMonitoringPage() {
             <div className="flex justify-between">
               <span className="text-gray-500">运行时间:</span>
               <span className="font-medium">
-                {linuxData?.uptime ? formatUptime(linuxData.uptime) : '-'}
+                {typeof linuxData?.uptime === 'number' ? formatUptime(linuxData.uptime) : '-'}
               </span>
             </div>
           </div>
@@ -80,13 +81,13 @@ export default function LinuxMonitoringPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {linuxData?.cpu?.usage_percent?.toFixed(2) || '-'}%
+              {typeof linuxData?.cpu?.usage_percent === 'number' ? `${linuxData.cpu.usage_percent.toFixed(2)}%` : '-'}
             </div>
             <div className="text-sm text-gray-500">
-              核心数: {linuxData?.cpu?.cores || '-'}
+              核心数: {linuxData?.cpu?.cores ?? '-'}
             </div>
             <div className="text-sm text-gray-500">
-              负载: {linuxData?.cpu?.load_avg?.join(', ') || '-'}
+              负载: {linuxData?.cpu?.load_avg?.length ? linuxData.cpu.load_avg.map(v => v.toFixed(2)).join(', ') : '-'}
             </div>
           </CardContent>
         </Card>
@@ -97,13 +98,13 @@ export default function LinuxMonitoringPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {linuxData?.memory?.usage_percent?.toFixed(2) || '-'}%
+              {typeof linuxData?.memory?.usage_percent === 'number' ? `${linuxData.memory.usage_percent.toFixed(2)}%` : '-'}
             </div>
             <div className="text-sm text-gray-500">
-              已用: {linuxData?.memory?.used_gb?.toFixed(2) || '-'} GB
+              已用: {typeof linuxData?.memory?.used_gb === 'number' ? `${linuxData.memory.used_gb.toFixed(2)} GB` : '-'}
             </div>
             <div className="text-sm text-gray-500">
-              总计: {linuxData?.memory?.total_gb?.toFixed(2) || '-'} GB
+              总计: {typeof linuxData?.memory?.total_gb === 'number' ? `${linuxData.memory.total_gb.toFixed(2)} GB` : '-'}
             </div>
           </CardContent>
         </Card>
@@ -114,13 +115,13 @@ export default function LinuxMonitoringPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {linuxData?.disk?.usage_percent?.toFixed(2) || '-'}%
+              {typeof linuxData?.disk?.usage_percent === 'number' ? `${linuxData.disk.usage_percent.toFixed(2)}%` : '-'}
             </div>
             <div className="text-sm text-gray-500">
-              已用: {linuxData?.disk?.used_gb?.toFixed(2) || '-'} GB
+              已用: {typeof linuxData?.disk?.used_gb === 'number' ? `${linuxData.disk.used_gb.toFixed(2)} GB` : '-'}
             </div>
             <div className="text-sm text-gray-500">
-              总计: {linuxData?.disk?.total_gb?.toFixed(2) || '-'} GB
+              总计: {typeof linuxData?.disk?.total_gb === 'number' ? `${linuxData.disk.total_gb.toFixed(2)} GB` : '-'}
             </div>
           </CardContent>
         </Card>
@@ -131,7 +132,7 @@ export default function LinuxMonitoringPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {linuxData?.network?.interfaces?.length || '-'}
+              {linuxData?.network?.interfaces?.length ?? '-'}
             </div>
             <div className="text-sm text-gray-500">活动接口数</div>
           </CardContent>
@@ -157,7 +158,7 @@ export default function LinuxMonitoringPage() {
                 {linuxData?.network?.interfaces?.map((iface, i) => (
                   <tr key={i} className="border-t">
                     <td className="px-4 py-2">{iface.name}</td>
-                    <td className="px-4 py-2">{iface.ip}</td>
+                    <td className="px-4 py-2">{iface.ip || '-'}</td>
                     <td className="px-4 py-2">{(iface.rx_bytes / 1024 / 1024).toFixed(2)} MB</td>
                     <td className="px-4 py-2">{(iface.tx_bytes / 1024 / 1024).toFixed(2)} MB</td>
                   </tr>

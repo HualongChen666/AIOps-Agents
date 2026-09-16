@@ -12233,3 +12233,44 @@ terraform/storage.tf
 
 - PART VI（frontend/）带「**中」标记条目 **82**。
 - 累计修复前端中危 **24**（第 12 批 9 + 第 13 批 3 + 本批 12）→ 前端中危剩余 **58**（82 − 24）。
+
+---
+
+# PART LVI — 前端（frontend/）中危逐条修复 · 第 15 批（2026-09-16）
+
+> 目标：继续 PART VI（frontend/）「发现（中）」条目修复。本批修复 **10 条 FE 条目**
+> （`app/monitoring/` 契约错配 + 缺失子动作端点），全部为**真实行为**修复
+> （无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+
+## 本批修复（10 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| FE-248 | `app/monitoring/linux-monitoring/page.tsx` + `api/monitoring_advanced_router.py` | 后端 `/linux-monitoring` 本地分支**丢弃**已采集的真实快照（仅取 3 个 usage_percent）；且 `LINUX_HOSTS` 实为 `{"enabled","hosts"}` 字典而代码按列表迭代 → 该分支恒 500。改为按 `LINUX_HOSTS["hosts"]` 判定并新增 `_system_metrics_detail()`，把真实 `collect_all` 快照重塑为嵌套 `hostname/os_version/kernel_version/uptime/cpu/memory/disk/network.interfaces`（保留旧扁平键，向后兼容）。 |
+| FE-269 | `app/monitoring/windows-monitoring/page.tsx` + `api/monitoring_advanced_router.py` | 同上：`disk` 为列表却按字典读 → 恒 500。改为复用 `_system_metrics_detail()` 返回嵌套真实数据 + 真实 `services`（`psutil.win_service_iter()`，非 Windows 平台为空）+ `processes`；新增 POST `/windows-monitoring/service-action`，经 `psutil.win_service_get()` 真实启停服务（无服务管理器时显式 `requires_backend` 503）。 |
+| FE-262 | `app/monitoring/process-monitoring/page.tsx` + `api/monitoring_advanced_router.py` | 前端读 `total_count`（后端返回 `total_processes`）→ 总进程数恒 '-'；`user` 列 vs 后端 `username`。改为读真实字段；新增 POST `/process-monitoring/kill`，经 `psutil` 真实终止进程（拒绝自杀 PID/受保护 PID → 400，不存在 → 404，无权限 → 403）。 |
+| FE-252 | `app/monitoring/log-search/page.tsx` + `api/monitoring_advanced_router.py` | 前端传 `query` 而后端要求 `keyword` → 恒 422；读 `total_results`（后端 `total`）→ 结果数恒 0；导出调 `/log-search/export` 不存在恒 404。改为传 `keyword`/读 `total`/按真实日志键（`TimeGenerated/Source/EventID/Message`）渲染；新增 GET `/log-search/export` 返回真实可下载 JSON 附件（抽取 `_collect_log_search()` 复用，修复 `LINUX_HOSTS` 字典迭代缺陷）。 |
+| FE-257 | `app/monitoring/metrics-history/page.tsx` | 前端传 `metric_type` 而后端参数为 `metric`；且后端把序列嵌在 `data` 内，前端读顶层 → 趋势图/统计/明细恒空。改为传 `metric`、读 `data.{cpu|memory|net_in}.timestamps`；对单点序列 `i/(len-1)` 除零产生 NaN 做了保护。 |
+| FE-260 | `app/monitoring/observability-query/page.tsx` | 后端按 `query_type` 返回 `{query_type,query,time_range,data}`，前端读 `total_results/execution_time_ms/results` → 恒 0/'-'/空。改为按真实 `data`（metrics→按序列、logs/traces→按条目）渲染；移除后端不支持的 `events` 选项。 |
+| FE-244 | `app/monitoring/fastapi-telemetry/page.tsx` | 前端读 `app_name/app_version/avg_response_time/active_connections/metrics[]`，后端返回 `fastapi_version/avg_response_time_ms/endpoints[]`。改为渲染真实版本、总请求/错误、平均响应与端点聚合（`path/method/request_count/avg_latency_ms/error_rate`）。 |
+| FE-263 | `app/monitoring/prometheus-metrics/page.tsx` | 后端每条序列为 `{metric:{...labels}, value:[ts,"val"] | values:[[...]]}`，前端读顶层 `name/type/labels/value/timestamp` → 全空。改为由 `metric.__name__`/标签集/`value` 推导名称、标签、值与时间。 |
+| FE-265 | `app/monitoring/telemetry-core/page.tsx` | 前端读 `core_version/total_sources/active_sources/total_data_points/data_rate/sources[]`，后端返回 `{metric_name,time_range,metrics:{cpu,memory,network},data_points}`。改为渲染真实的 CPU/内存/网络当前值·均值·最值·样本数与数据点数；移除无真实数据源的数据源列表与 `source-action` 调用。 |
+| FE-267 | `app/monitoring/tracing-visualization/page.tsx` + `api/monitoring_advanced_router.py` | 前端读 `trace_tree/total_duration_ms/services`，后端只返回 `nodes/edges/total_spans`。后端新增真实 `services`（去重服务名）与 `total_duration_ms`（span 最大 duration/1e6）；前端由 `nodes+edges` 客户端构建真实追踪树渲染。 |
+
+## 验证证据（本环境实测）
+
+- 新增后端回归：`tests/api/test_medium_ledger_batch15_20260916.py` → **9 passed**
+  （linux 嵌套真实 detail + 旧扁平键保留 + 旧 dict-disk 不崩；windows 嵌套 + services + processes；service-action 非 Windows → 503 `requires-backend`；kill 自杀 → 400 / 不存在 → 404；log-search/export 附件；metrics-history 嵌套 `data`；tracing `services`+`total_duration_ms`）。
+- 新增前端回归：`frontend/__tests__/medium-ledger-batch15/monitoring-contracts.test.tsx` → **1 suite / 9 passed**。
+- **改动前反证**：把本批 11 个源文件 `git stash`（**保留新增测试**）在干净 HEAD 实跑 →
+  后端 **7 failed / 2 passed**（2 条为「HEAD 即成立」的正例：metrics-history 后端本已嵌套、未知路由亦返 404）；
+  前端 **8 failed / 1 passed**（1 条为 frontend 契约本就一致的 linux 嵌套读取）。
+- **回归**：`tests/api/test_monitoring_advanced_router.py`（94 例）+ 本批后端套件 → **103 passed / 3 skipped**；前端 `medium-ledger-batch14` + `batch15` → **3 suites / 25 passed**。
+- **类型检查**：`npx tsc --noEmit` → **exit 0 / 0 error**。
+- **运行前实测（修复前）**：`/linux-monitoring`、`/windows-monitoring` 在本环境均 **HTTP 500**
+  （`'str' object has no attribute 'get'` / `'list' object has no attribute 'get'`）——本批已修复为 200。
+
+## 进度口径（诚实记录）
+
+- PART VI（frontend/）带「**中」标记条目 **82**。
+- 累计修复前端中危 **34**（第 12 批 9 + 第 13 批 3 + 第 14 批 12 + 本批 10）→ 前端中危剩余 **48**（82 − 34）。

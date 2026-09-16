@@ -9,20 +9,20 @@ import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
 interface LogEntry {
-  id?: string;
-  timestamp?: string;
-  level?: string;
-  service?: string;
-  message?: string;
-  source?: string;
+  TimeGenerated?: string;
+  Source?: string;
+  Message?: string;
+  EventID?: number | string;
+  Platform?: string;
+  Host?: string;
   [key: string]: any;
 }
 
 interface LogSearchData {
-  total_results?: number;
-  search_time_ms?: number;
+  total?: number;
+  keyword?: string;
+  time_range?: string;
   logs?: LogEntry[];
-  query?: string;
   [key: string]: any;
 }
 
@@ -36,9 +36,9 @@ export default function LogSearchPage() {
   const { data: searchResults, refetch } = useQuery<LogSearchData>({
     queryKey: ['monitoring-log-search', searchQuery, timeRange, selectedLevel, selectedService],
     queryFn: async () => {
-      if (!searchQuery.trim()) return { total_results: 0, logs: [] };
+      if (!searchQuery.trim()) return { total: 0, logs: [] };
       const params: any = { 
-        query: searchQuery,
+        keyword: searchQuery,
         time_range: timeRange 
       };
       if (selectedLevel !== 'all') params.level = selectedLevel;
@@ -59,9 +59,8 @@ export default function LogSearchPage() {
   const handleExport = async () => {
     try {
       const params: any = { 
-        query: searchQuery,
-        time_range: timeRange,
-        export: true
+        keyword: searchQuery,
+        time_range: timeRange
       };
       if (selectedLevel !== 'all') params.level = selectedLevel;
       if (selectedService !== 'all') params.service = selectedService;
@@ -141,16 +140,16 @@ export default function LogSearchPage() {
                 <CardTitle className="text-sm">搜索结果</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{searchResults.total_results || 0}</div>
+                <div className="text-2xl font-bold">{searchResults.total ?? 0}</div>
                 <div className="text-sm text-gray-500">条日志</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">搜索耗时</CardTitle>
+                <CardTitle className="text-sm">关键词</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{searchResults.search_time_ms?.toFixed(2) || '-'} ms</div>
+                <div className="text-2xl font-bold break-all">{searchResults.keyword || '-'}</div>
               </CardContent>
             </Card>
           </div>
@@ -170,31 +169,20 @@ export default function LogSearchPage() {
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>
                       <th className="px-4 py-2 text-left">时间</th>
-                      <th className="px-4 py-2 text-left">级别</th>
-                      <th className="px-4 py-2 text-left">服务</th>
                       <th className="px-4 py-2 text-left">来源</th>
+                      <th className="px-4 py-2 text-left">事件ID</th>
+                      <th className="px-4 py-2 text-left">主机/平台</th>
                       <th className="px-4 py-2 text-left">消息</th>
                     </tr>
                   </thead>
                   <tbody>
                     {searchResults.logs?.map((log, i) => (
                       <tr key={i} className="border-t">
-                        <td className="px-4 py-2">
-                          {log.timestamp ? new Date(log.timestamp).toLocaleString() : '-'}
-                        </td>
-                        <td className="px-4 py-2">
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            log.level === 'error' || log.level === 'critical' ? 'bg-red-100 text-red-800' : 
-                            log.level === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-                            log.level === 'debug' ? 'bg-gray-100 text-gray-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {log.level}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2">{log.service}</td>
-                        <td className="px-4 py-2">{log.source}</td>
-                        <td className="px-4 py-2 max-w-md">{log.message}</td>
+                        <td className="px-4 py-2">{log.TimeGenerated || '-'}</td>
+                        <td className="px-4 py-2">{log.Source || '-'}</td>
+                        <td className="px-4 py-2">{log.EventID ?? '-'}</td>
+                        <td className="px-4 py-2">{log.Host || log.Platform || '-'}</td>
+                        <td className="px-4 py-2 max-w-md break-all">{log.Message || '-'}</td>
                       </tr>
                     ))}
                   </tbody>

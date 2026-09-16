@@ -13,14 +13,14 @@ interface ProcessInfo {
   cpu_percent?: number;
   memory_percent?: number;
   status?: string;
-  user?: string;
+  username?: string;
   command?: string;
   [key: string]: any;
 }
 
 interface ProcessMonitoringData {
   processes?: ProcessInfo[];
-  total_count?: number;
+  total_processes?: number;
   [key: string]: any;
 }
 
@@ -69,7 +69,7 @@ export default function ProcessMonitoringPage() {
             <CardTitle className="text-sm">总进程数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{processData?.total_count || '-'}</div>
+            <div className="text-2xl font-bold">{processData?.total_processes ?? '-'}</div>
           </CardContent>
         </Card>
         <Card>
@@ -138,7 +138,7 @@ export default function ProcessMonitoringPage() {
                       <td className="px-4 py-2">{process.cpu_percent?.toFixed(2)}%</td>
                       <td className="px-4 py-2">{process.memory_percent?.toFixed(2)}%</td>
                       <td className="px-4 py-2">{process.status}</td>
-                      <td className="px-4 py-2">{process.user}</td>
+                      <td className="px-4 py-2">{process.username}</td>
                       <td className="px-4 py-2">
                         <Button
                           size="sm"

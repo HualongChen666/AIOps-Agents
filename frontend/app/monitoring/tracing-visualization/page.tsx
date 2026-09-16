@@ -4,19 +4,22 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
-interface TraceNode {
-  id?: string;
-  service?: string;
-  operation?: string;
-  duration_ms?: number;
-  start_time?: string;
-  status?: string;
-  children?: TraceNode[];
-  [key: string]: any;
+// The backend builds a real service graph from Tempo spans: `nodes` are the
+// distinct services, `edges` carry the parent→child call plus its latency.
+interface TraceGraphNode {
+  id: string;
+  label?: string;
+  type?: string;
+}
+
+interface TraceGraphEdge {
+  source: string;
+  target: string;
+  label?: string;
+  latency_ms?: number;
 }
 
 interface TracingVisualizationData {
@@ -24,15 +27,72 @@ interface TracingVisualizationData {
   total_duration_ms?: number;
   total_spans?: number;
   services?: string[];
-  trace_tree?: TraceNode;
+  nodes?: TraceGraphNode[];
+  edges?: TraceGraphEdge[];
   [key: string]: any;
+}
+
+interface TraceTreeNode {
+  id: string;
+  service: string;
+  operation?: string;
+  duration_ms?: number;
+  children: TraceTreeNode[];
+}
+
+function buildTraceTree(nodes: TraceGraphNode[] | undefined, edges: TraceGraphEdge[] | undefined): TraceTreeNode | null {
+  if (!nodes || nodes.length === 0) return null;
+  const edgeList = edges || [];
+  const childrenBySource: Record<string, TraceGraphEdge[]> = {};
+  const hasParent = new Set<string>();
+  for (const edge of edgeList) {
+    (childrenBySource[edge.source] ||= []).push(edge);
+    hasParent.add(edge.target);
+  }
+
+  const labelOf = (id: string) => nodes.find(n => n.id === id)?.label || id;
+
+  const build = (id: string, visited: Set<string>): TraceTreeNode => {
+    visited.add(id);
+    const children = (childrenBySource[id] || [])
+      .filter(edge => !visited.has(edge.target))
+      .map(edge => ({
+        ...build(edge.target, visited),
+        operation: edge.label,
+        duration_ms: edge.latency_ms,
+      }));
+    return { id, service: labelOf(id), children };
+  };
+
+  const root = nodes.find(n => !hasParent.has(n.id)) || nodes[0];
+  return build(root.id, new Set());
+}
+
+function TraceNodeRow({ node, depth = 0 }: { node: TraceTreeNode; depth?: number }) {
+  return (
+    <div style={{ paddingLeft: `${depth * 20}px` }}>
+      <div className="flex items-center gap-2 py-2 border-l-2 border-gray-300 pl-4">
+        <div className="w-3 h-3 rounded-full bg-blue-500" />
+        <div className="flex-1">
+          <div className="font-medium">{node.service}</div>
+          <div className="text-sm text-gray-500">{node.operation || '-'}</div>
+        </div>
+        <div className="text-sm">
+          {typeof node.duration_ms === 'number' ? `${node.duration_ms.toFixed(2)} ms` : '-'}
+        </div>
+      </div>
+      {node.children.map(child => (
+        <TraceNodeRow key={`${child.id}-${child.operation ?? ''}`} node={child} depth={depth + 1} />
+      ))}
+    </div>
+  );
 }
 
 export default function TracingVisualizationPage() {
   const [traceId, setTraceId] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
-  const { data: vizData, refetch } = useQuery<TracingVisualizationData>({
+  const { data: vizData, refetch } = useQuery<TracingVisualizationData | null>({
     queryKey: ['monitoring-tracing-visualization', traceId],
     queryFn: async () => {
       if (!traceId.trim()) return null;
@@ -51,27 +111,7 @@ export default function TracingVisualizationPage() {
     setIsSearching(false);
   };
 
-  const renderTraceTree = (node: TraceNode, depth: number = 0) => {
-    if (!node) return null;
-    const paddingLeft = depth * 20;
-    return (
-      <div key={node.id} style={{ paddingLeft: `${paddingLeft}px` }}>
-        <div className="flex items-center gap-2 py-2 border-l-2 border-gray-300 pl-4">
-          <div className={`w-3 h-3 rounded-full ${
-            node.status === 'success' ? 'bg-green-500' : 
-            node.status === 'error' ? 'bg-red-500' :
-            'bg-yellow-500'
-          }`} />
-          <div className="flex-1">
-            <div className="font-medium">{node.service}</div>
-            <div className="text-sm text-gray-500">{node.operation}</div>
-          </div>
-          <div className="text-sm">{node.duration_ms?.toFixed(2)} ms</div>
-        </div>
-        {node.children?.map(child => renderTraceTree(child, depth + 1))}
-      </div>
-    );
-  };
+  const traceTree = vizData ? buildTraceTree(vizData.nodes, vizData.edges) : null;
 
   return (
     <div className="space-y-6">
@@ -112,7 +152,7 @@ export default function TracingVisualizationPage() {
                 <CardTitle className="text-sm">Trace ID</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-sm font-mono">{vizData.trace_id}</div>
+                <div className="text-sm font-mono break-all">{vizData.trace_id}</div>
               </CardContent>
             </Card>
             <Card>
@@ -120,7 +160,9 @@ export default function TracingVisualizationPage() {
                 <CardTitle className="text-sm">总时长</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{vizData.total_duration_ms?.toFixed(2)} ms</div>
+                <div className="text-2xl font-bold">
+                  {typeof vizData.total_duration_ms === 'number' ? `${vizData.total_duration_ms.toFixed(2)} ms` : '-'}
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -128,7 +170,7 @@ export default function TracingVisualizationPage() {
                 <CardTitle className="text-sm">总Span数</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{vizData.total_spans}</div>
+                <div className="text-2xl font-bold">{vizData.total_spans ?? '-'}</div>
               </CardContent>
             </Card>
           </div>
@@ -154,7 +196,7 @@ export default function TracingVisualizationPage() {
             </CardHeader>
             <CardContent>
               <div className="max-h-96 overflow-auto">
-                {vizData.trace_tree ? renderTraceTree(vizData.trace_tree) : <p className="text-gray-500">无追踪数据</p>}
+                {traceTree ? <TraceNodeRow node={traceTree} /> : <p className="text-gray-500">无追踪数据</p>}
               </div>
             </CardContent>
           </Card>

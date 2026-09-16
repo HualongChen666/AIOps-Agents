@@ -1,32 +1,29 @@
 'use client'
 
-import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
-interface FastAPIMetric {
-  name?: string;
-  endpoint?: string;
+// Aggregated from the in-process Prometheus registry: one entry per
+// (path, method) that actually received requests.
+interface FastAPIEndpointMetric {
+  path?: string;
   method?: string;
-  status_code?: number;
-  count?: number;
-  avg_duration_ms?: number;
-  p95_duration_ms?: number;
-  p99_duration_ms?: number;
+  request_count?: number;
+  avg_latency_ms?: number | null;
   error_rate?: number;
   [key: string]: any;
 }
 
 interface FastAPITelemetryData {
-  app_name?: string;
-  app_version?: string;
+  fastapi_version?: string;
   total_requests?: number;
   total_errors?: number;
-  avg_response_time?: number;
-  active_connections?: number;
-  metrics?: FastAPIMetric[];
+  avg_response_time_ms?: number | null;
+  endpoint?: string | null;
+  time_range?: string;
+  endpoints?: FastAPIEndpointMetric[];
   [key: string]: any;
 }
 
@@ -57,12 +54,12 @@ export default function FastAPITelemetryPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex justify-between">
-              <span className="text-gray-500">应用名称:</span>
-              <span className="font-medium">{fastapiData?.app_name || '-'}</span>
+              <span className="text-gray-500">FastAPI版本:</span>
+              <span className="font-medium">{fastapiData?.fastapi_version || '-'}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">版本:</span>
-              <span className="font-medium">{fastapiData?.app_version || '-'}</span>
+              <span className="text-gray-500">统计范围:</span>
+              <span className="font-medium">{fastapiData?.time_range || '-'}</span>
             </div>
           </div>
         </CardContent>
@@ -74,7 +71,7 @@ export default function FastAPITelemetryPage() {
             <CardTitle className="text-sm">总请求数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fastapiData?.total_requests?.toLocaleString() || '-'}</div>
+            <div className="text-2xl font-bold">{fastapiData?.total_requests?.toLocaleString() ?? '-'}</div>
           </CardContent>
         </Card>
 
@@ -83,7 +80,7 @@ export default function FastAPITelemetryPage() {
             <CardTitle className="text-sm">总错误数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{fastapiData?.total_errors?.toLocaleString() || '-'}</div>
+            <div className="text-2xl font-bold text-red-600">{fastapiData?.total_errors?.toLocaleString() ?? '-'}</div>
           </CardContent>
         </Card>
 
@@ -92,16 +89,18 @@ export default function FastAPITelemetryPage() {
             <CardTitle className="text-sm">平均响应时间</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fastapiData?.avg_response_time?.toFixed(2) || '-'} ms</div>
+            <div className="text-2xl font-bold">
+              {typeof fastapiData?.avg_response_time_ms === 'number' ? `${fastapiData.avg_response_time_ms.toFixed(2)} ms` : '-'}
+            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">活跃连接</CardTitle>
+            <CardTitle className="text-sm">端点数</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{fastapiData?.active_connections || '-'}</div>
+            <div className="text-2xl font-bold">{fastapiData?.endpoints?.length ?? '-'}</div>
           </CardContent>
         </Card>
       </div>
@@ -117,37 +116,39 @@ export default function FastAPITelemetryPage() {
                 <tr>
                   <th className="px-4 py-2 text-left">端点</th>
                   <th className="px-4 py-2 text-left">方法</th>
-                  <th className="px-4 py-2 text-left">状态码</th>
                   <th className="px-4 py-2 text-left">请求数</th>
                   <th className="px-4 py-2 text-left">平均耗时</th>
-                  <th className="px-4 py-2 text-left">P95耗时</th>
-                  <th className="px-4 py-2 text-left">P99耗时</th>
                   <th className="px-4 py-2 text-left">错误率</th>
                 </tr>
               </thead>
               <tbody>
-                {fastapiData?.metrics?.map((metric, i) => (
-                  <tr key={i} className="border-t">
-                    <td className="px-4 py-2">{metric.endpoint}</td>
-                    <td className="px-4 py-2">
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${
-                        metric.method === 'GET' ? 'bg-blue-100 text-blue-800' :
-                        metric.method === 'POST' ? 'bg-green-100 text-green-800' :
-                        metric.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' :
-                        metric.method === 'DELETE' ? 'bg-red-100 text-red-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {metric.method}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2">{metric.status_code}</td>
-                    <td className="px-4 py-2">{metric.count?.toLocaleString()}</td>
-                    <td className="px-4 py-2">{metric.avg_duration_ms?.toFixed(2)} ms</td>
-                    <td className="px-4 py-2">{metric.p95_duration_ms?.toFixed(2)} ms</td>
-                    <td className="px-4 py-2">{metric.p99_duration_ms?.toFixed(2)} ms</td>
-                    <td className="px-4 py-2">{(metric.error_rate || 0).toFixed(2)}%</td>
+                {fastapiData?.endpoints?.length ? (
+                  fastapiData.endpoints.map((metric, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="px-4 py-2">{metric.path}</td>
+                      <td className="px-4 py-2">
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          metric.method === 'GET' ? 'bg-blue-100 text-blue-800' :
+                          metric.method === 'POST' ? 'bg-green-100 text-green-800' :
+                          metric.method === 'PUT' ? 'bg-yellow-100 text-yellow-800' :
+                          metric.method === 'DELETE' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {metric.method}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2">{metric.request_count?.toLocaleString() ?? '-'}</td>
+                      <td className="px-4 py-2">
+                        {typeof metric.avg_latency_ms === 'number' ? `${metric.avg_latency_ms.toFixed(2)} ms` : '-'}
+                      </td>
+                      <td className="px-4 py-2">{((metric.error_rate ?? 0) * 100).toFixed(2)}%</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr className="border-t">
+                    <td colSpan={5} className="px-4 py-4 text-center text-gray-500">暂无请求记录</td>
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>

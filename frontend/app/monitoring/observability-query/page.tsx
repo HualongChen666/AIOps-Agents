@@ -8,22 +8,15 @@ import { Select } from '@/components/ui/select';
 import api from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 
-interface QueryResult {
-  timestamp?: string;
-  service?: string;
-  metric?: string;
-  value?: number;
-  labels?: Record<string, string>;
-  [key: string]: any;
-}
-
+// The backend answers per `query_type`:
+//   metrics → `data` is { cpu: [...], memory: [...], network: [...] }
+//   logs    → `data` is an array of log entries (Loki)
+//   traces  → `data` is an array of traces (Tempo)
 interface ObservabilityQueryData {
   query?: string;
   query_type?: string;
   time_range?: string;
-  execution_time_ms?: number;
-  total_results?: number;
-  results?: QueryResult[];
+  data?: Record<string, number[]> | unknown[];
   [key: string]: any;
 }
 
@@ -36,7 +29,7 @@ export default function ObservabilityQueryPage() {
   const { data: queryResults, refetch } = useQuery<ObservabilityQueryData>({
     queryKey: ['monitoring-observability-query', query, queryType, timeRange],
     queryFn: async () => {
-      if (!query.trim()) return { results: [] };
+      if (!query.trim()) return { data: [] };
       const resp = await api.get('/api/v1/monitoring/observability-query', {
         params: { query, query_type: queryType, time_range: timeRange }
       });
@@ -51,6 +44,13 @@ export default function ObservabilityQueryPage() {
     await refetch();
     setIsQuerying(false);
   };
+
+  const isMetricSeries = queryResults?.data && !Array.isArray(queryResults.data);
+  const metricSeries = isMetricSeries
+    ? Object.entries(queryResults!.data as Record<string, number[]>)
+    : [];
+  const listResults = Array.isArray(queryResults?.data) ? (queryResults!.data as any[]) : [];
+  const resultCount = isMetricSeries ? metricSeries.length : listResults.length;
 
   return (
     <div className="space-y-6">
@@ -81,7 +81,6 @@ export default function ObservabilityQueryPage() {
                 <option value="metrics">指标查询</option>
                 <option value="logs">日志查询</option>
                 <option value="traces">追踪查询</option>
-                <option value="events">事件查询</option>
               </Select>
               <Select value={timeRange} onChange={(e) => setTimeRange(e.target.value)}>
                 <option value="5m">5分钟</option>
@@ -102,19 +101,19 @@ export default function ObservabilityQueryPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">查询结果</CardTitle>
+                <CardTitle className="text-sm">结果数</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{queryResults.total_results || 0}</div>
-                <div className="text-sm text-gray-500">条记录</div>
+                <div className="text-2xl font-bold">{resultCount}</div>
+                <div className="text-sm text-gray-500">{isMetricSeries ? '个指标序列' : '条记录'}</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">执行时间</CardTitle>
+                <CardTitle className="text-sm">时间范围</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{queryResults.execution_time_ms?.toFixed(2) || '-'} ms</div>
+                <div className="text-2xl font-bold">{queryResults.time_range || '-'}</div>
               </CardContent>
             </Card>
             <Card>
@@ -133,38 +132,49 @@ export default function ObservabilityQueryPage() {
             </CardHeader>
             <CardContent>
               <div className="max-h-96 overflow-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-4 py-2 text-left">时间</th>
-                      <th className="px-4 py-2 text-left">服务</th>
-                      <th className="px-4 py-2 text-left">指标</th>
-                      <th className="px-4 py-2 text-left">值</th>
-                      <th className="px-4 py-2 text-left">标签</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {queryResults.results?.map((result, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="px-4 py-2">
-                          {result.timestamp ? new Date(result.timestamp).toLocaleString() : '-'}
-                        </td>
-                        <td className="px-4 py-2">{result.service}</td>
-                        <td className="px-4 py-2">{result.metric}</td>
-                        <td className="px-4 py-2">{result.value?.toFixed(2)}</td>
-                        <td className="px-4 py-2">
-                          <div className="flex flex-wrap gap-1">
-                            {result.labels && Object.entries(result.labels).map(([key, value], j) => (
-                              <span key={j} className="px-2 py-1 bg-gray-100 rounded text-xs">
-                                {key}={value}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
+                {isMetricSeries ? (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left">指标</th>
+                        <th className="px-4 py-2 text-left">最新值</th>
+                        <th className="px-4 py-2 text-left">样本数</th>
+                        <th className="px-4 py-2 text-left">序列</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {metricSeries.map(([metric, values]) => (
+                        <tr key={metric} className="border-t">
+                          <td className="px-4 py-2">{metric}</td>
+                          <td className="px-4 py-2">
+                            {values.length ? values[values.length - 1].toFixed(2) : '-'}
+                          </td>
+                          <td className="px-4 py-2">{values.length}</td>
+                          <td className="px-4 py-2 break-all text-xs">{values.map(v => v.toFixed(1)).join(', ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 text-left">#</th>
+                        <th className="px-4 py-2 text-left">内容</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {listResults.map((result, i) => (
+                        <tr key={i} className="border-t">
+                          <td className="px-4 py-2">{i + 1}</td>
+                          <td className="px-4 py-2 break-all text-xs font-mono">
+                            {typeof result === 'string' ? result : JSON.stringify(result)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </CardContent>
           </Card>
