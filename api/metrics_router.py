@@ -420,6 +420,7 @@ async def get_history() -> dict[str, Any]:
         - memory: 内存使用率历史数组
         - net_in: 网络入流量历史数组
         - net_out: 网络出流量历史数组
+        - disk: 磁盘使用率历史数组（真实分区均值）
         - _meta: 元信息，包含size（当前数据点数）和maxlen（最大容量）
 
     Raises:
@@ -432,6 +433,10 @@ async def get_history() -> dict[str, Any]:
 
         # 🆕 N3-A:构造扩展容器,接受 list + dict 混合 value
         response: dict[str, Any] = dict(raw_history)
+
+        # 🔧 资源趋势图需要磁盘序列:磁盘使用率由采样循环(alert_engine.push_disk)
+        # 单独写入,to_dict() 未包含,这里显式补上**真实**的磁盘历史(非 0 兜底)。
+        response["disk"] = metrics_history.get_disk_series()
 
         # 🔧 MR6:补充元信息,前端无需调用额外接口判断
         response["_meta"] = {

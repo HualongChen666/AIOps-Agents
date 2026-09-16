@@ -19,8 +19,8 @@ interface AlertStatistics {
   high_alerts: number;
   medium_alerts: number;
   low_alerts: number;
-  avg_resolution_time: number;
-  avg_acknowledgement_time: number;
+  avg_resolution_time: number | null;
+  avg_acknowledgement_time: number | null;
   alerts_by_source: Array<{ source: string; count: number }>;
   alerts_by_service: Array<{ service: string; count: number }>;
   alerts_by_hour: Array<{ hour: number; count: number }>;
@@ -45,6 +45,13 @@ export default function AlertStatisticsPage() {
   useEffect(() => {
     if (statsError) showError('Failed to load alert statistics');
   }, [statsError, showError]);
+
+  // 真实告警数为 0 时占比分母为 0，会产生 NaN 宽度（无效样式），这里归零。
+  const pct = (count: number) => {
+    const total = statsData?.total_alerts || 0;
+    return total > 0 ? (count / total) * 100 : 0;
+  };
+  const maxHourly = Math.max(1, ...(statsData?.alerts_by_hour?.map((h) => h.count) || [0]));
 
   if (statsLoading) {
     return (
@@ -122,7 +129,7 @@ export default function AlertStatisticsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-[var(--accent-yellow)]">{Math.round(statsData.avg_resolution_time / 60)}m</div>
+                <div className="text-3xl font-bold text-[var(--accent-yellow)]">{statsData.avg_resolution_time != null ? `${Math.round(statsData.avg_resolution_time / 60)}m` : '—'}</div>
               </CardContent>
             </Card>
           </div>
@@ -138,7 +145,7 @@ export default function AlertStatisticsPage() {
                     <span className="text-sm">严重</span>
                     <div className="flex items-center gap-2">
                       <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div className="bg-red-500 h-2 rounded-full" style={{ width: `${(statsData.critical_alerts / statsData.total_alerts) * 100}%` }} />
+                        <div className="bg-red-500 h-2 rounded-full" style={{ width: `${pct(statsData.critical_alerts)}%` }} />
                       </div>
                       <span className="text-sm font-medium">{statsData.critical_alerts}</span>
                     </div>
@@ -147,7 +154,7 @@ export default function AlertStatisticsPage() {
                     <span className="text-sm">高</span>
                     <div className="flex items-center gap-2">
                       <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${(statsData.high_alerts / statsData.total_alerts) * 100}%` }} />
+                        <div className="bg-orange-500 h-2 rounded-full" style={{ width: `${pct(statsData.high_alerts)}%` }} />
                       </div>
                       <span className="text-sm font-medium">{statsData.high_alerts}</span>
                     </div>
@@ -156,7 +163,7 @@ export default function AlertStatisticsPage() {
                     <span className="text-sm">中</span>
                     <div className="flex items-center gap-2">
                       <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div className="bg-yellow-500 h-2 rounded-full" style={{ width: `${(statsData.medium_alerts / statsData.total_alerts) * 100}%` }} />
+                        <div className="bg-yellow-500 h-2 rounded-full" style={{ width: `${pct(statsData.medium_alerts)}%` }} />
                       </div>
                       <span className="text-sm font-medium">{statsData.medium_alerts}</span>
                     </div>
@@ -165,7 +172,7 @@ export default function AlertStatisticsPage() {
                     <span className="text-sm">低</span>
                     <div className="flex items-center gap-2">
                       <div className="w-32 bg-gray-200 rounded-full h-2">
-                        <div className="bg-green-500 h-2 rounded-full" style={{ width: `${(statsData.low_alerts / statsData.total_alerts) * 100}%` }} />
+                        <div className="bg-green-500 h-2 rounded-full" style={{ width: `${pct(statsData.low_alerts)}%` }} />
                       </div>
                       <span className="text-sm font-medium">{statsData.low_alerts}</span>
                     </div>
@@ -220,7 +227,7 @@ export default function AlertStatisticsPage() {
                   <div key={idx} className="flex-1 flex flex-col items-center">
                     <div
                       className="w-full bg-[var(--accent-blue)] rounded-t"
-                      style={{ height: `${Math.min((item.count / Math.max(...statsData.alerts_by_hour.map(h => h.count))) * 100, 100)}%` }}
+                      style={{ height: `${Math.min((item.count / maxHourly) * 100, 100)}%` }}
                     />
                     <div className="text-xs mt-1">{item.hour}:00</div>
                   </div>

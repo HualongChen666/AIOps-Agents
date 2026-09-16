@@ -10,6 +10,40 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { RefreshCw, Settings, Database, Activity, AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
+/**
+ * 配置表单本地草稿 hook。
+ *
+ * 解决“每击键一次 PUT”与“输入被查询结果回填覆盖”的反模式：
+ * - number/text 输入：onChange 只改本地草稿（setField），失焦(onBlur)时 flush 提交；
+ * - switch/select 等离散项：改变即 commit 提交合并后的完整配置。
+ */
+function useDraft<T extends object>(
+  remote: T | undefined,
+  commitFn: (value: T) => void,
+) {
+  const [draft, setDraft] = useState<T | null>(null)
+
+  useEffect(() => {
+    if (remote) setDraft(remote)
+  }, [remote])
+
+  const setField = (patch: Partial<T>) =>
+    setDraft((prev) => (prev ? { ...prev, ...patch } : prev))
+
+  const flush = () => {
+    if (draft) commitFn(draft)
+  }
+
+  const commit = (patch: Partial<T>) => {
+    if (!draft) return
+    const next = { ...draft, ...patch }
+    setDraft(next)
+    commitFn(next)
+  }
+
+  return { draft, setField, flush, commit }
+}
+
 interface MonitoringConfig {
   enabled: boolean
   data_retention_days: number
@@ -81,6 +115,8 @@ export default function MonitoringConfigPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('general')
   const [testBackend, setTestBackend] = useState('victoriametrics')
+  // 通知通道以“原始文本”编辑，避免逗号/空格在每次回填时被过滤造成输入抖动。
+  const [channelsText, setChannelsText] = useState('')
 
   // 获取监控配置
   const { data: monitoringConfig, isLoading: monitoringConfigLoading, refetch: refetchMonitoringConfig } = useQuery({
@@ -204,6 +240,26 @@ export default function MonitoringConfigPage() {
     enabled: false
   })
 
+  // 各配置表单的本地草稿（失焦提交，避免每击键写库）
+  const monitoringForm = useDraft<MonitoringConfig>(monitoringConfig, (v) =>
+    updateMonitoringConfigMutation.mutate(v)
+  )
+  const metricsForm = useDraft<MetricsConfig>(metricsConfig, (v) =>
+    updateMetricsConfigMutation.mutate(v)
+  )
+  const loggingForm = useDraft<LoggingConfig>(loggingConfig, (v) =>
+    updateLoggingConfigMutation.mutate(v)
+  )
+  const thresholdsForm = useDraft<AlertThresholdsConfig>(alertThresholds, (v) =>
+    updateAlertThresholdsMutation.mutate(v)
+  )
+
+  useEffect(() => {
+    if (alertThresholds) {
+      setChannelsText((alertThresholds.notification_channels || []).join(', '))
+    }
+  }, [alertThresholds])
+
   const handleRefreshAll = () => {
     refetchMonitoringConfig()
     refetchMetricsConfig()
@@ -211,7 +267,6 @@ export default function MonitoringConfigPage() {
     refetchAlertThresholds()
     refetchStatus()
   }
-
   const handleTestConnection = () => {
     refetchTest()
   }
@@ -284,12 +339,9 @@ export default function MonitoringConfigPage() {
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">启用监控</label>
                   <Switch
-                    checked={monitoringConfig?.enabled || false}
+                    checked={monitoringForm.draft?.enabled || false}
                     onCheckedChange={(checked) =>
-                      updateMonitoringConfigMutation.mutate({
-                        ...monitoringConfig!,
-                        enabled: checked
-                      })
+                      monitoringForm.commit({ enabled: checked })
                     }
                   />
                 </div>
@@ -297,13 +349,11 @@ export default function MonitoringConfigPage() {
                   <label className="block text-sm font-medium mb-1">数据保留天数</label>
                   <Input
                     type="number"
-                    value={monitoringConfig?.data_retention_days || 30}
+                    value={monitoringForm.draft?.data_retention_days ?? 30}
                     onChange={(e) =>
-                      updateMonitoringConfigMutation.mutate({
-                        ...monitoringConfig!,
-                        data_retention_days: parseInt(e.target.value)
-                      })
+                      monitoringForm.setField({ data_retention_days: parseInt(e.target.value) || 0 })
                     }
+                    onBlur={monitoringForm.flush}
                     min={1}
                     max={365}
                   />
@@ -313,13 +363,11 @@ export default function MonitoringConfigPage() {
                   <Input
                     type="number"
                     step="0.1"
-                    value={monitoringConfig?.sampling_rate || 1.0}
+                    value={monitoringForm.draft?.sampling_rate ?? 1.0}
                     onChange={(e) =>
-                      updateMonitoringConfigMutation.mutate({
-                        ...monitoringConfig!,
-                        sampling_rate: parseFloat(e.target.value)
-                      })
+                      monitoringForm.setField({ sampling_rate: parseFloat(e.target.value) || 0 })
                     }
+                    onBlur={monitoringForm.flush}
                     min={0.1}
                     max={1.0}
                   />
@@ -327,24 +375,18 @@ export default function MonitoringConfigPage() {
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">启用实时监控</label>
                   <Switch
-                    checked={monitoringConfig?.enable_realtime || false}
+                    checked={monitoringForm.draft?.enable_realtime || false}
                     onCheckedChange={(checked) =>
-                      updateMonitoringConfigMutation.mutate({
-                        ...monitoringConfig!,
-                        enable_realtime: checked
-                      })
+                      monitoringForm.commit({ enable_realtime: checked })
                     }
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">启用历史数据</label>
                   <Switch
-                    checked={monitoringConfig?.enable_historical || false}
+                    checked={monitoringForm.draft?.enable_historical || false}
                     onCheckedChange={(checked) =>
-                      updateMonitoringConfigMutation.mutate({
-                        ...monitoringConfig!,
-                        enable_historical: checked
-                      })
+                      monitoringForm.commit({ enable_historical: checked })
                     }
                   />
                 </div>
@@ -352,13 +394,11 @@ export default function MonitoringConfigPage() {
                   <label className="block text-sm font-medium mb-1">仪表板刷新间隔（秒）</label>
                   <Input
                     type="number"
-                    value={monitoringConfig?.dashboard_refresh_interval || 30}
+                    value={monitoringForm.draft?.dashboard_refresh_interval ?? 30}
                     onChange={(e) =>
-                      updateMonitoringConfigMutation.mutate({
-                        ...monitoringConfig!,
-                        dashboard_refresh_interval: parseInt(e.target.value)
-                      })
+                      monitoringForm.setField({ dashboard_refresh_interval: parseInt(e.target.value) || 0 })
                     }
+                    onBlur={monitoringForm.flush}
                     min={5}
                     max={300}
                   />
@@ -383,60 +423,45 @@ export default function MonitoringConfigPage() {
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">CPU指标收集</label>
                   <Switch
-                    checked={metricsConfig?.cpu_enabled || false}
+                    checked={metricsForm.draft?.cpu_enabled || false}
                     onCheckedChange={(checked) =>
-                      updateMetricsConfigMutation.mutate({
-                        ...metricsConfig!,
-                        cpu_enabled: checked
-                      })
+                      metricsForm.commit({ cpu_enabled: checked })
                     }
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">内存指标收集</label>
                   <Switch
-                    checked={metricsConfig?.memory_enabled || false}
+                    checked={metricsForm.draft?.memory_enabled || false}
                     onCheckedChange={(checked) =>
-                      updateMetricsConfigMutation.mutate({
-                        ...metricsConfig!,
-                        memory_enabled: checked
-                      })
+                      metricsForm.commit({ memory_enabled: checked })
                     }
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">磁盘指标收集</label>
                   <Switch
-                    checked={metricsConfig?.disk_enabled || false}
+                    checked={metricsForm.draft?.disk_enabled || false}
                     onCheckedChange={(checked) =>
-                      updateMetricsConfigMutation.mutate({
-                        ...metricsConfig!,
-                        disk_enabled: checked
-                      })
+                      metricsForm.commit({ disk_enabled: checked })
                     }
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">网络指标收集</label>
                   <Switch
-                    checked={metricsConfig?.network_enabled || false}
+                    checked={metricsForm.draft?.network_enabled || false}
                     onCheckedChange={(checked) =>
-                      updateMetricsConfigMutation.mutate({
-                        ...metricsConfig!,
-                        network_enabled: checked
-                      })
+                      metricsForm.commit({ network_enabled: checked })
                     }
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">进程指标收集</label>
                   <Switch
-                    checked={metricsConfig?.process_enabled || false}
+                    checked={metricsForm.draft?.process_enabled || false}
                     onCheckedChange={(checked) =>
-                      updateMetricsConfigMutation.mutate({
-                        ...metricsConfig!,
-                        process_enabled: checked
-                      })
+                      metricsForm.commit({ process_enabled: checked })
                     }
                   />
                 </div>
@@ -444,13 +469,11 @@ export default function MonitoringConfigPage() {
                   <label className="block text-sm font-medium mb-1">收集间隔（秒）</label>
                   <Input
                     type="number"
-                    value={metricsConfig?.collection_interval || 60}
+                    value={metricsForm.draft?.collection_interval ?? 60}
                     onChange={(e) =>
-                      updateMetricsConfigMutation.mutate({
-                        ...metricsConfig!,
-                        collection_interval: parseInt(e.target.value)
-                      })
+                      metricsForm.setField({ collection_interval: parseInt(e.target.value) || 0 })
                     }
+                    onBlur={metricsForm.flush}
                     min={10}
                     max={3600}
                   />
@@ -458,12 +481,9 @@ export default function MonitoringConfigPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">存储后端</label>
                   <select
-                    value={metricsConfig?.storage_backend || 'victoriametrics'}
+                    value={metricsForm.draft?.storage_backend || 'victoriametrics'}
                     onChange={(e) =>
-                      updateMetricsConfigMutation.mutate({
-                        ...metricsConfig!,
-                        storage_backend: e.target.value
-                      })
+                      metricsForm.commit({ storage_backend: e.target.value })
                     }
                     className="w-full px-3 py-2 border rounded-md"
                   >
@@ -492,12 +512,9 @@ export default function MonitoringConfigPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">日志级别</label>
                   <select
-                    value={loggingConfig?.level || 'INFO'}
+                    value={loggingForm.draft?.level || 'INFO'}
                     onChange={(e) =>
-                      updateLoggingConfigMutation.mutate({
-                        ...loggingConfig!,
-                        level: e.target.value
-                      })
+                      loggingForm.commit({ level: e.target.value })
                     }
                     className="w-full px-3 py-2 border rounded-md"
                   >
@@ -511,12 +528,9 @@ export default function MonitoringConfigPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">日志格式</label>
                   <select
-                    value={loggingConfig?.format || 'json'}
+                    value={loggingForm.draft?.format || 'json'}
                     onChange={(e) =>
-                      updateLoggingConfigMutation.mutate({
-                        ...loggingConfig!,
-                        format: e.target.value
-                      })
+                      loggingForm.commit({ format: e.target.value })
                     }
                     className="w-full px-3 py-2 border rounded-md"
                   >
@@ -527,24 +541,18 @@ export default function MonitoringConfigPage() {
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">启用文件日志</label>
                   <Switch
-                    checked={loggingConfig?.enable_file_logging || false}
+                    checked={loggingForm.draft?.enable_file_logging || false}
                     onCheckedChange={(checked) =>
-                      updateLoggingConfigMutation.mutate({
-                        ...loggingConfig!,
-                        enable_file_logging: checked
-                      })
+                      loggingForm.commit({ enable_file_logging: checked })
                     }
                   />
                 </div>
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">启用控制台日志</label>
                   <Switch
-                    checked={loggingConfig?.enable_console_logging || false}
+                    checked={loggingForm.draft?.enable_console_logging || false}
                     onCheckedChange={(checked) =>
-                      updateLoggingConfigMutation.mutate({
-                        ...loggingConfig!,
-                        enable_console_logging: checked
-                      })
+                      loggingForm.commit({ enable_console_logging: checked })
                     }
                   />
                 </div>
@@ -552,13 +560,11 @@ export default function MonitoringConfigPage() {
                   <label className="block text-sm font-medium mb-1">日志保留天数</label>
                   <Input
                     type="number"
-                    value={loggingConfig?.log_retention_days || 7}
+                    value={loggingForm.draft?.log_retention_days ?? 7}
                     onChange={(e) =>
-                      updateLoggingConfigMutation.mutate({
-                        ...loggingConfig!,
-                        log_retention_days: parseInt(e.target.value)
-                      })
+                      loggingForm.setField({ log_retention_days: parseInt(e.target.value) || 0 })
                     }
+                    onBlur={loggingForm.flush}
                     min={1}
                     max={365}
                   />
@@ -567,13 +573,11 @@ export default function MonitoringConfigPage() {
                   <label className="block text-sm font-medium mb-1">最大文件大小（MB）</label>
                   <Input
                     type="number"
-                    value={loggingConfig?.max_file_size_mb || 100}
+                    value={loggingForm.draft?.max_file_size_mb ?? 100}
                     onChange={(e) =>
-                      updateLoggingConfigMutation.mutate({
-                        ...loggingConfig!,
-                        max_file_size_mb: parseInt(e.target.value)
-                      })
+                      loggingForm.setField({ max_file_size_mb: parseInt(e.target.value) || 0 })
                     }
+                    onBlur={loggingForm.flush}
                     min={1}
                     max={1000}
                   />
@@ -581,12 +585,9 @@ export default function MonitoringConfigPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">日志存储后端</label>
                   <select
-                    value={loggingConfig?.storage_backend || 'loki'}
+                    value={loggingForm.draft?.storage_backend || 'loki'}
                     onChange={(e) =>
-                      updateLoggingConfigMutation.mutate({
-                        ...loggingConfig!,
-                        storage_backend: e.target.value
-                      })
+                      loggingForm.commit({ storage_backend: e.target.value })
                     }
                     className="w-full px-3 py-2 border rounded-md"
                   >
@@ -615,19 +616,16 @@ export default function MonitoringConfigPage() {
                 <div>
                   <h3 className="text-sm font-medium mb-2">告警阈值</h3>
                   <div className="space-y-3">
-                    {alertThresholds?.thresholds?.map((threshold, index) => (
+                    {thresholdsForm.draft?.thresholds?.map((threshold, index) => (
                       <div key={index} className="p-4 border rounded-lg">
                         <div className="flex items-center justify-between mb-2">
                           <span className="font-medium">{threshold.metric_name}</span>
                           <Switch
                             checked={threshold.enabled}
                             onCheckedChange={(checked) => {
-                              const newThresholds = [...(alertThresholds?.thresholds || [])]
+                              const newThresholds = [...(thresholdsForm.draft?.thresholds || [])]
                               newThresholds[index] = { ...newThresholds[index], enabled: checked }
-                              updateAlertThresholdsMutation.mutate({
-                                ...alertThresholds!,
-                                thresholds: newThresholds
-                              })
+                              thresholdsForm.commit({ thresholds: newThresholds })
                             }}
                           />
                         </div>
@@ -638,16 +636,14 @@ export default function MonitoringConfigPage() {
                               type="number"
                               value={threshold.warning_threshold}
                               onChange={(e) => {
-                                const newThresholds = [...(alertThresholds?.thresholds || [])]
+                                const newThresholds = [...(thresholdsForm.draft?.thresholds || [])]
                                 newThresholds[index] = {
                                   ...newThresholds[index],
-                                  warning_threshold: parseFloat(e.target.value)
+                                  warning_threshold: parseFloat(e.target.value) || 0
                                 }
-                                updateAlertThresholdsMutation.mutate({
-                                  ...alertThresholds!,
-                                  thresholds: newThresholds
-                                })
+                                thresholdsForm.setField({ thresholds: newThresholds })
                               }}
+                              onBlur={thresholdsForm.flush}
                             />
                           </div>
                           <div>
@@ -656,16 +652,14 @@ export default function MonitoringConfigPage() {
                               type="number"
                               value={threshold.critical_threshold}
                               onChange={(e) => {
-                                const newThresholds = [...(alertThresholds?.thresholds || [])]
+                                const newThresholds = [...(thresholdsForm.draft?.thresholds || [])]
                                 newThresholds[index] = {
                                   ...newThresholds[index],
-                                  critical_threshold: parseFloat(e.target.value)
+                                  critical_threshold: parseFloat(e.target.value) || 0
                                 }
-                                updateAlertThresholdsMutation.mutate({
-                                  ...alertThresholds!,
-                                  thresholds: newThresholds
-                                })
+                                thresholdsForm.setField({ thresholds: newThresholds })
                               }}
+                              onBlur={thresholdsForm.flush}
                             />
                           </div>
                         </div>
@@ -676,11 +670,14 @@ export default function MonitoringConfigPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">通知通道</label>
                   <Input
-                    value={alertThresholds?.notification_channels?.join(', ') || ''}
-                    onChange={(e) =>
-                      updateAlertThresholdsMutation.mutate({
-                        ...alertThresholds!,
-                        notification_channels: e.target.value.split(',').map(s => s.trim())
+                    value={channelsText}
+                    onChange={(e) => setChannelsText(e.target.value)}
+                    onBlur={() =>
+                      thresholdsForm.commit({
+                        notification_channels: channelsText
+                          .split(',')
+                          .map((s) => s.trim())
+                          .filter(Boolean),
                       })
                     }
                     placeholder="email, slack, webhook"
@@ -690,13 +687,11 @@ export default function MonitoringConfigPage() {
                   <label className="block text-sm font-medium mb-1">冷却时间（秒）</label>
                   <Input
                     type="number"
-                    value={alertThresholds?.cooldown_seconds || 300}
+                    value={thresholdsForm.draft?.cooldown_seconds ?? 300}
                     onChange={(e) =>
-                      updateAlertThresholdsMutation.mutate({
-                        ...alertThresholds!,
-                        cooldown_seconds: parseInt(e.target.value)
-                      })
+                      thresholdsForm.setField({ cooldown_seconds: parseInt(e.target.value) || 0 })
                     }
+                    onBlur={thresholdsForm.flush}
                     min={0}
                     max={3600}
                   />

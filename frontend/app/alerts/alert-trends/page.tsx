@@ -198,6 +198,11 @@ export default function AlertTrendsPage() {
               <div className="text-center mt-4 text-sm text-gray-500">
                 * 预测数据仅供参考
               </div>
+              {trendsData.prediction.length === 0 && (
+                <div className="text-center text-sm text-gray-500 py-4">
+                  暂无可用于预测的历史告警数据
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -216,13 +221,15 @@ export default function AlertTrendsPage() {
                 <div className="p-4 border rounded-lg">
                   <div className="text-sm text-gray-500 mb-1">平均每日告警</div>
                   <div className="text-2xl font-bold text-[var(--accent-yellow)]">
-                    {Math.round(trendData.reduce((sum, d) => sum + d.total, 0) / trendData.length)}
+                    {trendData.length > 0
+                      ? Math.round(trendData.reduce((sum, d) => sum + d.total, 0) / trendData.length)
+                      : 0}
                   </div>
                 </div>
                 <div className="p-4 border rounded-lg">
                   <div className="text-sm text-gray-500 mb-1">峰值告警</div>
                   <div className="text-2xl font-bold text-[var(--accent-red)]">
-                    {Math.max(...trendData.map(d => d.total))}
+                    {trendData.length > 0 ? Math.max(...trendData.map(d => d.total)) : 0}
                   </div>
                 </div>
               </div>

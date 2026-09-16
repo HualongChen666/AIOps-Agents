@@ -78,7 +78,7 @@ interface AlertDashboard {
   high_alerts: number;
   medium_alerts: number;
   low_alerts: number;
-  avg_resolution_time: number;
+  avg_resolution_time: number | null;
   alerts_by_source: Array<{ source: string; count: number }>;
   alerts_by_severity: Array<{ severity: string; count: number }>;
   trend_data: Array<{ hour: number; count: number }>;
@@ -91,6 +91,7 @@ export default function AlertsAdvancedPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [configDraft, setConfigDraft] = useState<AlertConfig | null>(null);
 
   const debouncedSearch = useDebounce(searchTerm, 300);
   const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(false);
@@ -173,10 +174,31 @@ export default function AlertsAdvancedPage() {
     },
   });
 
+  // 配置表单本地草稿：数字输入改变草稿、失焦(onBlur)提交，避免“每击键一次 PUT”
+  // 以及输入被查询结果回填覆盖；开关/下拉为离散项，即时提交。
+  useEffect(() => {
+    if (alertConfig) {
+      setConfigDraft(alertConfig as AlertConfig);
+    }
+  }, [alertConfig]);
+
+  const commitConfig = (patch: Partial<AlertConfig>) => {
+    const next = { ...(configDraft as AlertConfig), ...patch };
+    setConfigDraft(next);
+    updateConfigMutation.mutate(next);
+  };
+
+  const flushConfig = () => {
+    if (configDraft) {
+      updateConfigMutation.mutate(configDraft);
+    }
+  };
+
   // Toggle rule mutation
   const toggleRuleMutation = useMutation({
     mutationFn: async ({ ruleType, ruleId, enabled }: { ruleType: string; ruleId: string; enabled: boolean }) => {
-      const resp = await api.patch(`/api/v1/alerts/${ruleType}/rules/${ruleId}`, { enabled });
+      // 后端升级/抑制/聚合规则仅定义 PUT（无 PATCH），此前用 PATCH → 恒 405。
+      const resp = await api.put(`/api/v1/alerts/${ruleType}/rules/${ruleId}`, { enabled });
       return resp.data;
     },
     onSuccess: () => {
@@ -355,7 +377,7 @@ export default function AlertsAdvancedPage() {
                     <CardTitle className="text-sm font-medium text-gray-600">平均解决时间</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-3xl font-bold text-blue-600">{Math.floor(dashboardData.avg_resolution_time / 60)}m</div>
+                    <div className="text-3xl font-bold text-blue-600">{dashboardData.avg_resolution_time != null ? `${Math.floor(dashboardData.avg_resolution_time / 60)}m` : '—'}</div>
                   </CardContent>
                 </Card>
               </div>
@@ -411,14 +433,14 @@ export default function AlertsAdvancedPage() {
                 <div className="flex items-center justify-center py-8">
                   <LoadingSpinner />
                 </div>
-              ) : alertConfig ? (
+              ) : configDraft ? (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">默认严重度</label>
                       <Select
-                        value={alertConfig.default_severity}
-                        onChange={(e) => updateConfigMutation.mutate({ default_severity: e.target.value })}
+                        value={configDraft.default_severity}
+                        onChange={(e) => commitConfig({ default_severity: e.target.value })}
                       >
                         <option value="critical">严重</option>
                         <option value="high">高</option>
@@ -430,32 +452,36 @@ export default function AlertsAdvancedPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">自动解决超时(秒)</label>
                       <Input
                         type="number"
-                        value={alertConfig.auto_resolve_timeout}
-                        onChange={(e) => updateConfigMutation.mutate({ auto_resolve_timeout: parseInt(e.target.value) })}
+                        value={configDraft.auto_resolve_timeout}
+                        onChange={(e) => setConfigDraft({ ...configDraft, auto_resolve_timeout: parseInt(e.target.value) || 0 })}
+                        onBlur={flushConfig}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">每个源最大告警数</label>
                       <Input
                         type="number"
-                        value={alertConfig.max_alerts_per_source}
-                        onChange={(e) => updateConfigMutation.mutate({ max_alerts_per_source: parseInt(e.target.value) })}
+                        value={configDraft.max_alerts_per_source}
+                        onChange={(e) => setConfigDraft({ ...configDraft, max_alerts_per_source: parseInt(e.target.value) || 0 })}
+                        onBlur={flushConfig}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">保留天数</label>
                       <Input
                         type="number"
-                        value={alertConfig.retention_days}
-                        onChange={(e) => updateConfigMutation.mutate({ retention_days: parseInt(e.target.value) })}
+                        value={configDraft.retention_days}
+                        onChange={(e) => setConfigDraft({ ...configDraft, retention_days: parseInt(e.target.value) || 0 })}
+                        onBlur={flushConfig}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">通知冷却时间(秒)</label>
                       <Input
                         type="number"
-                        value={alertConfig.notification_cooldown}
-                        onChange={(e) => updateConfigMutation.mutate({ notification_cooldown: parseInt(e.target.value) })}
+                        value={configDraft.notification_cooldown}
+                        onChange={(e) => setConfigDraft({ ...configDraft, notification_cooldown: parseInt(e.target.value) || 0 })}
+                        onBlur={flushConfig}
                       />
                     </div>
                   </div>
@@ -463,40 +489,40 @@ export default function AlertsAdvancedPage() {
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={alertConfig.enable_intelligent_analysis}
-                        onChange={(e) => updateConfigMutation.mutate({ enable_intelligent_analysis: e.target.checked })}
+                        checked={configDraft.enable_intelligent_analysis}
+                        onChange={(e) => commitConfig({ enable_intelligent_analysis: e.target.checked })}
                       />
                       <span className="text-sm">启用智能分析</span>
                     </label>
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={alertConfig.enable_prediction}
-                        onChange={(e) => updateConfigMutation.mutate({ enable_prediction: e.target.checked })}
+                        checked={configDraft.enable_prediction}
+                        onChange={(e) => commitConfig({ enable_prediction: e.target.checked })}
                       />
                       <span className="text-sm">启用预测</span>
                     </label>
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={alertConfig.enable_correlation}
-                        onChange={(e) => updateConfigMutation.mutate({ enable_correlation: e.target.checked })}
+                        checked={configDraft.enable_correlation}
+                        onChange={(e) => commitConfig({ enable_correlation: e.target.checked })}
                       />
                       <span className="text-sm">启用关联分析</span>
                     </label>
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={alertConfig.escalation_enabled}
-                        onChange={(e) => updateConfigMutation.mutate({ escalation_enabled: e.target.checked })}
+                        checked={configDraft.escalation_enabled}
+                        onChange={(e) => commitConfig({ escalation_enabled: e.target.checked })}
                       />
                       <span className="text-sm">启用升级</span>
                     </label>
                     <label className="flex items-center gap-2">
                       <input
                         type="checkbox"
-                        checked={alertConfig.suppression_enabled}
-                        onChange={(e) => updateConfigMutation.mutate({ suppression_enabled: e.target.checked })}
+                        checked={configDraft.suppression_enabled}
+                        onChange={(e) => commitConfig({ suppression_enabled: e.target.checked })}
                       />
                       <span className="text-sm">启用抑制</span>
                     </label>

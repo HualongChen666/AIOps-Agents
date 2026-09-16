@@ -28,11 +28,26 @@ interface HealEvent {
   description: string;
 }
 
+interface HealthComponent {
+  name: string;
+  status: string;
+  response_time_ms?: number;
+  last_check?: string;
+  error_message?: string;
+}
+
 interface SystemHealth {
-  prometheus: { status: string; metrics_count: number };
-  grafana: { status: string; dashboards: number };
-  zabbix: { status: string; triggers: number };
-  cloudwatch: { status: string; alarms: number };
+  overall_status: string;
+  total_components: number;
+  healthy_components: number;
+  degraded_components: number;
+  unhealthy_components: number;
+  components: HealthComponent[];
+  system_metrics?: {
+    cpu_usage?: number;
+    memory_usage?: number;
+    disk_usage?: number;
+  };
 }
 
 export default function DashboardPage() {
@@ -73,9 +88,33 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    if (historyData && historyData.data) {
-      setResourceData(historyData.data);
+    if (!historyData) return;
+    const timestamps: string[] = historyData.timestamps || [];
+    const cpu: number[] = historyData.cpu || [];
+    const memory: number[] = historyData.memory || [];
+    const disk: number[] = historyData.disk || [];
+    const n = timestamps.length;
+    if (n === 0) {
+      setResourceData([]);
+      return;
     }
+    // 磁盘序列由采样循环单独写入，可能比 cpu/内存短：按“尾部对齐”取值，
+    // 缺口用最近可用的真实磁盘值补齐，既不按索引错位也不伪造 0。
+    const diskOffset = Math.max(0, n - disk.length);
+    const diskAt = (i: number) => {
+      if (disk.length === 0) return 0;
+      const idx = i - diskOffset;
+      if (idx < 0) return disk[0];
+      return disk[idx] ?? disk[disk.length - 1];
+    };
+    setResourceData(
+      timestamps.map((ts, i) => ({
+        timestamp: ts,
+        cpu: cpu[i] ?? 0,
+        memory: memory[i] ?? 0,
+        disk: diskAt(i),
+      }))
+    );
   }, [historyData]);
 
   // 🔧 修复: 使用真实 API 获取修复历史
@@ -101,11 +140,11 @@ export default function DashboardPage() {
     }
   }, [repairHistory]);
 
-  // 🔧 新增: 获取系统健康状态
+  // 🔧 新增: 获取真实系统健康状态（组件级真实探测）
   const { data: healthData } = useQuery({
     queryKey: ['system-health'],
     queryFn: async () => {
-      const resp = await api.get('/api/v1/health');
+      const resp = await api.get('/api/v1/monitoring/detailed-health');
       return resp.data;
     },
     refetchInterval: 60000, // 60秒刷新
@@ -187,47 +226,46 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <div className={`w-3 h-3 rounded-full ${getStatusDot(systemHealth.prometheus?.status || 'unknown')}`} />
-                <div className="flex-1">
-                  <div className="text-sm font-medium">Prometheus</div>
-                  <div className={`text-xs ${getStatusColor(systemHealth.prometheus?.status || 'unknown')}`}>
-                    {systemHealth.prometheus?.status || 'Unknown'}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {systemHealth.components?.map((component) => (
+                <div key={component.name} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                  <div className={`w-3 h-3 rounded-full ${getStatusDot(component.status)}`} />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{component.name}</div>
+                    <div className={`text-xs ${getStatusColor(component.status)}`}>
+                      {component.status}
+                    </div>
+                  </div>
+                  {typeof component.response_time_ms === 'number' && (
+                    <div className="text-sm text-gray-500">{component.response_time_ms}ms</div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {systemHealth.system_metrics && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div className="p-3 border rounded-lg">
+                  <div className="text-sm text-gray-500 mb-1">CPU 使用率</div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {systemHealth.system_metrics.cpu_usage ?? 0}%
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">{systemHealth.prometheus?.metrics_count || 0} metrics</div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <div className={`w-3 h-3 rounded-full ${getStatusDot(systemHealth.grafana?.status || 'unknown')}`} />
-                <div className="flex-1">
-                  <div className="text-sm font-medium">Grafana</div>
-                  <div className={`text-xs ${getStatusColor(systemHealth.grafana?.status || 'unknown')}`}>
-                    {systemHealth.grafana?.status || 'Unknown'}
+                <div className="p-3 border rounded-lg">
+                  <div className="text-sm text-gray-500 mb-1">内存使用率</div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {systemHealth.system_metrics.memory_usage ?? 0}%
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">{systemHealth.grafana?.dashboards || 0} dashboards</div>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <div className={`w-3 h-3 rounded-full ${getStatusDot(systemHealth.zabbix?.status || 'unknown')}`} />
-                <div className="flex-1">
-                  <div className="text-sm font-medium">Zabbix</div>
-                  <div className={`text-xs ${getStatusColor(systemHealth.zabbix?.status || 'unknown')}`}>
-                    {systemHealth.zabbix?.status || 'Unknown'}
+                <div className="p-3 border rounded-lg">
+                  <div className="text-sm text-gray-500 mb-1">磁盘使用率</div>
+                  <div className="text-xl font-bold text-gray-900">
+                    {systemHealth.system_metrics.disk_usage ?? 0}%
                   </div>
                 </div>
-                <div className="text-sm text-gray-500">{systemHealth.zabbix?.triggers || 0} triggers</div>
               </div>
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                <div className={`w-3 h-3 rounded-full ${getStatusDot(systemHealth.cloudwatch?.status || 'unknown')}`} />
-                <div className="flex-1">
-                  <div className="text-sm font-medium">CloudWatch</div>
-                  <div className={`text-xs ${getStatusColor(systemHealth.cloudwatch?.status || 'unknown')}`}>
-                    {systemHealth.cloudwatch?.status || 'Unknown'}
-                  </div>
-                </div>
-                <div className="text-sm text-gray-500">{systemHealth.cloudwatch?.alarms || 0} alarms</div>
-              </div>
+            )}
+            <div className="text-xs text-gray-500 mt-3">
+              整体状态: {systemHealth.overall_status}（健康 {systemHealth.healthy_components}/{systemHealth.total_components}）
             </div>
           </CardContent>
         </Card>

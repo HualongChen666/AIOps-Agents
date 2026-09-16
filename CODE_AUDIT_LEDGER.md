@@ -12274,3 +12274,43 @@ terraform/storage.tf
 
 - PART VI（frontend/）带「**中」标记条目 **82**。
 - 累计修复前端中危 **34**（第 12 批 9 + 第 13 批 3 + 第 14 批 12 + 本批 10）→ 前端中危剩余 **48**（82 − 34）。
+
+
+---
+
+# PART LVII — 中危（medium）逐条修复 · 第 16 批（2026-09-16）
+
+> 目标：继续「发现（中）」条目修复。本批修复 **5 条 FE 条目**，全部为**真实行为**修复
+> （无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| FE-215 | `app/dashboard/page.tsx` + `api/metrics_router.py` | ① `historyData.data` 恒 undefined（后端 `/api/v1/metrics/history` 返回 `cpu/memory/net_in/timestamps`，无 `data` 键）→ 资源趋势图恒空。后端 `/history` 增补**真实** `disk` 序列（`metrics_history.get_disk_series()`，由采样循环 `push_disk` 写入的真实分区均值）；前端由真实数组按时间戳构建 `ResourceData[]`（磁盘序列按尾部对齐，缺口用最近真实值补齐，既不按索引错位也不伪造 0）。② 健康卡调用的 `/api/v1/health` **不存在**（恒 404）→ 卡恒不渲染；改用真实 `/api/v1/monitoring/detailed-health`（对 Database/Cache/Message Queue/API Server 逐组件真实探测 + 真实 `system_metrics`）。 |
+| FE-188 | `app/alerts/alert-statistics/page.tsx` + `api/alerts_advanced_router.py` | 后端 `get_statistics` 恒返回 `avg_resolution_time: None` + `avg_acknowledgement_time: None` → 前端 `Math.round(null/60)=0` 恒显示 "0m"（误导）。后端改为由 `alert_acknowledgements.acknowledged_at` 与对应告警 `detected_at` 的**真实时间差**计算平均确认/解决时长（秒；无确认记录时如实返回 `None`）；前端 `null` 显示 "—"，并对 `total_alerts=0` 的严重度占比做除零保护（消除 NaN 宽度）。 |
+| FE-190 | `app/alerts/alert-trends/page.tsx` + `api/alerts_advanced_router.py` | 后端 `get_trends` 恒返回 `prediction: []` → 「告警预测」区恒无柱；且 `weekly_trends=daily[::7]`/`monthly_trends=daily[::30]` 对 7 天窗口每周/每月仅 1 点（语义错误）。后端改为：按真实 ISO 周 / 自然月对真实日计数**求和**；并用真实历史日计数做**普通最小二乘线性外推**生成真实 `prediction`（无历史数据时如实返回空）；前端渲染真实预测、补充空态提示并对摘要平均值做除零保护。 |
+| FE-187 | `app/alerts/alerts-advanced/page.tsx` | ① `toggleRuleMutation` 用 **PATCH**，而后端升级/抑制/聚合规则仅定义 **PUT**（无 PATCH）→ 启用/禁用按钮恒 **405**；改为 **PUT**。② 配置页数字输入 `onChange` 直接 `PUT /configuration`（**每击键一次写库**）且 `value` 由查询驱动 → 输入被回填覆盖；改为本地草稿 + **失焦提交**，开关/下拉离散项即时提交。③ `avg_resolution_time` 为 `null` 时 `Math.floor(null/60)=0` 误导；改为 `null` 显示 "—"。 |
+| FE-259 | `app/monitoring/monitoring-config/page.tsx` | 通用/指标/日志/告警阈值四类配置的数字与文本 `Input` 的 `onChange` 直接 `PUT`（**每击键一次写库**）且 `value` 由查询结果驱动 → 输入被回填覆盖、抖动。改为新增 `useDraft` 草稿 hook：number/text 输入改变草稿、**失焦提交**；开关/下拉离散项即时提交；通知通道以原始文本编辑避免每次回填被过滤造成抖动。 |
+
+## 验证证据（本环境实测）
+
+- 新增后端回归：`tests/api/test_medium_ledger_batch16_20260916.py` → **5 passed**
+  （statistics 真实平均 600/450s、无确认记录 → `None`；trends 7 日桶 + 周/月求和对齐 + 7 点真实预测、无历史 → 空；metrics/history 含真实 `disk`）。
+- 新增前端回归：`frontend/__tests__/medium-ledger-batch16/`（`alerts-dashboard.test.tsx` + `monitoring-config.test.tsx`）→ **2 suites / 12 passed**
+  （dashboard 由真实数组得 2 个数据点 + 真实健康组件渲染 + **从不**调用 `/api/v1/health`；statistics `null`→"—" 且无 "NaN"；trends 渲染真实预测/空态；alerts-advanced 规则切换走 **PUT** 且 **从不用 PATCH**、配置键入不写库/失焦恰好 1 次 PUT；monitoring-config 键入不写库/失焦 1 次 PUT、开关即时 1 次 PUT、键入值不被回填覆盖）。
+- **改动前反证**：将本批 7 个源文件 `git stash push`（**保留新增测试**）在干净 HEAD 实跑 →
+  后端 **3 failed / 2 passed**（2 条为 HEAD 即成立的正例：无确认记录返 `None`、无历史预测为空）；
+  前端 **7 failed / 5 passed**（5 条为 HEAD 即成立的正例）。
+- **回归（后端）**：`tests/api/test_alerts_advanced_router.py` 在本批与干净 HEAD 均为 **30 failed / 25 passed**（既有 401 鉴权失败，集合一致，`git stash` 复核）；
+  `tests/api/test_metrics_router.py` **60 passed / 1 failed**，该失败 `test_collect_system_snapshot_dual_write_success` 在干净 HEAD 同样失败（既有，与本批无关，`git stash` 复核）；`tests/api/test_alert.py` **29 passed**。
+- **回归（前端）**：`__tests__/medium-ledger-batch14` + `batch15` + `batch16` 相关套件通过。
+- **类型检查**：`npx tsc --noEmit` → **exit 0 / 0 error**。
+- **环境说明（诚实披露）**：`__tests__/pages/dashboard.test.tsx` 在本机 **OOM**（V8 heap out of memory），
+  系该仓已知 ~1.4GB 无 swap 限制下的既有 OOM 套件（见 PART LV 记录：dashboard/alerts worker 崩溃），与本批改动无关；本批 dashboard 的真实契约已由新增 `batch16` 套件覆盖。
+
+## 进度口径（诚实记录）
+
+- PART VI（frontend/）带「**中」标记条目 **82**。
+- 累计修复前端中危 **39**（第 12 批 9 + 第 13 批 3 + 第 14 批 12 + 第 15 批 10 + 本批 5）→ 前端中危剩余 **43**（82 − 39）。
+- 本批修复 5 条 → **剩余 43**（前端口径）。

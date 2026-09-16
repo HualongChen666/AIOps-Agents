@@ -1146,6 +1146,77 @@ async def delete_suppression_rule(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+def _aggregate_trends(daily_trends: list, period: str) -> list:
+    """按真实日期把日计数聚合为周/月序列（period ∈ {"week","month"}）。
+
+    此前实现用 ``daily_trends[::7]`` / ``[::30]`` 切片，对 7 天窗口每周/每月
+    仅得到 1 个点，语义错误；这里按 ISO 周 / 自然月对真实日计数**求和**。
+    """
+    buckets: Dict[str, Dict[str, int]] = {}
+    for row in daily_trends:
+        try:
+            day = datetime.strptime(row["date"], "%Y-%m-%d")
+        except (KeyError, ValueError):
+            continue
+        if period == "week":
+            iso = day.isocalendar()
+            key = f"{iso[0]}-W{iso[1]:02d}"
+        else:
+            key = day.strftime("%Y-%m")
+        bucket = buckets.setdefault(
+            key, {"total": 0, "critical": 0, "high": 0, "medium": 0, "low": 0}
+        )
+        for field in ("total", "critical", "high", "medium", "low"):
+            bucket[field] += int(row.get(field, 0) or 0)
+    return [{"date": key, **buckets[key]} for key in sorted(buckets)]
+
+
+def _linear_forecast(daily_trends: list, horizon: int = 7) -> list:
+    """基于真实日计数的普通最小二乘线性外推（无数据返回空，绝不伪造）。
+
+    对 total/critical/high/medium/low 各序列分别拟合 ``y = a + b·x``，再外推
+    ``horizon`` 天；预测值为实数取整并下限截断到 0。
+    """
+    n = len(daily_trends)
+    if n == 0:
+        return []
+    # 无任何真实历史告警时没有可外推的序列，如实返回空（前端显示空态提示）。
+    if sum(int(row.get("total", 0) or 0) for row in daily_trends) <= 0:
+        return []
+
+    xs = list(range(n))
+    x_mean = sum(xs) / n
+    var = sum((x - x_mean) ** 2 for x in xs)
+
+    def _fit(ys: list) -> tuple:
+        y_mean = sum(ys) / n
+        if var == 0:
+            return y_mean, 0.0
+        cov = sum((xs[i] - x_mean) * (ys[i] - y_mean) for i in range(n))
+        slope = cov / var
+        return y_mean - slope * x_mean, slope
+
+    fields = ("total", "critical", "high", "medium", "low")
+    fits = {f: _fit([float(row.get(f, 0) or 0) for row in daily_trends]) for f in fields}
+
+    try:
+        last_date = datetime.strptime(daily_trends[-1]["date"], "%Y-%m-%d")
+    except (KeyError, ValueError):
+        return []
+
+    forecast = []
+    for step in range(1, horizon + 1):
+        x = n - 1 + step
+        row: Dict[str, Any] = {
+            "date": (last_date + timedelta(days=step)).strftime("%Y-%m-%d")
+        }
+        for field in fields:
+            intercept, slope = fits[field]
+            row[field] = max(0, int(round(intercept + slope * x)))
+        forecast.append(row)
+    return forecast
+
+
 @router.get("/trends", summary="获取告警趋势")
 async def get_trends(
     time_range: str = Query(default="7d"),
@@ -1175,10 +1246,10 @@ async def get_trends(
     daily_trends = [{"date": day, **buckets[day]} for day in sorted(buckets)]
 
     return {
-        "daily_trends": daily_trends[-7:],
-        "weekly_trends": daily_trends[::7],
-        "monthly_trends": daily_trends[::30],
-        "prediction": [],
+        "daily_trends": daily_trends,
+        "weekly_trends": _aggregate_trends(daily_trends, "week"),
+        "monthly_trends": _aggregate_trends(daily_trends, "month"),
+        "prediction": _linear_forecast(daily_trends),
     }
 
 
@@ -1201,6 +1272,28 @@ async def get_statistics(
         (a.detected_at.strftime("%Y-%m-%d") if a.detected_at else None) for a in alerts
     )
 
+    # 真实平均确认/解决时长：由 AlertAcknowledgement 的真实 acknowledged_at
+    # 与对应告警的真实 detected_at 之差计算（单位：秒）。无确认记录时如实返回
+    # None，前端显示 “—”，绝不伪造 0。
+    detected_at_by_id = {a.id: a.detected_at for a in alerts if a.detected_at}
+    acks = (
+        db.query(AlertAcknowledgementDB)
+        .filter(AlertAcknowledgementDB.acknowledged_at >= since)
+        .all()
+    )
+
+    def _avg_seconds(records: list) -> Optional[float]:
+        deltas = []
+        for rec in records:
+            detected = detected_at_by_id.get(rec.alert_id)
+            if detected and rec.acknowledged_at and rec.acknowledged_at >= detected:
+                deltas.append((rec.acknowledged_at - detected).total_seconds())
+        if not deltas:
+            return None
+        return round(sum(deltas) / len(deltas), 1)
+
+    resolved_acks = [r for r in acks if r.status == "resolved"]
+
     return {
         "total_alerts": len(alerts),
         "open_alerts": len(alerts)
@@ -1212,8 +1305,8 @@ async def get_statistics(
         "high_alerts": by_level.get("high", 0),
         "medium_alerts": by_level.get("medium", 0),
         "low_alerts": by_level.get("low", 0),
-        "avg_resolution_time": None,
-        "avg_acknowledgement_time": None,
+        "avg_resolution_time": _avg_seconds(resolved_acks),
+        "avg_acknowledgement_time": _avg_seconds(list(acks)),
         "alerts_by_source": [{"source": k, "count": v} for k, v in by_category.items()],
         "alerts_by_service": [{"service": k, "count": v} for k, v in by_host.items()],
         "alerts_by_hour": [{"hour": h, "count": by_hour.get(h, 0)} for h in range(24)],
