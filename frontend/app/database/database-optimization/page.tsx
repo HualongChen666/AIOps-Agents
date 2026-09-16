@@ -106,14 +106,22 @@ export default function DatabaseOptimizationPage() {
   const fetchAllData = async () => {
     try {
       setLoading(true);
-      await Promise.all([
+      // Fetch the source data first, then derive suggestions *from the fetched
+      // values* — deriving inside the same Promise.all would read stale React
+      // state (the setters above have not been applied yet in this tick).
+      const [perf, , queryRows, slowRows, indexRows] = await Promise.all([
         fetchPerformance(),
         fetchOptimizations(),
         fetchQueries(),
         fetchSlowQueries(),
         fetchIndexes(),
-        generateSuggestions(),
       ]);
+      generateSuggestions({
+        performance: perf,
+        queries: queryRows ?? [],
+        slowQueries: slowRows ?? [],
+        indexes: indexRows ?? [],
+      });
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载数据失败');
     } finally {
@@ -125,8 +133,10 @@ export default function DatabaseOptimizationPage() {
     try {
       const res = await api.get('/api/v1/database/performance');
       setPerformance(res.data);
+      return res.data as DatabasePerformance | null;
     } catch (err: any) {
       console.error('Error fetching performance:', err);
+      return null;
     }
   };
 
@@ -143,8 +153,10 @@ export default function DatabaseOptimizationPage() {
     try {
       const res = await api.get('/api/v1/database/queries?limit=20&slow_only=false');
       setQueries(res.data || []);
+      return (res.data || []) as DatabaseQuery[];
     } catch (err: any) {
       console.error('Error fetching queries:', err);
+      return [];
     }
   };
 
@@ -152,8 +164,10 @@ export default function DatabaseOptimizationPage() {
     try {
       const res = await api.get('/api/v1/database/queries?limit=20&slow_only=true');
       setSlowQueries(res.data || []);
+      return (res.data || []) as DatabaseQuery[];
     } catch (err: any) {
       console.error('Error fetching slow queries:', err);
+      return [];
     }
   };
 
@@ -161,29 +175,36 @@ export default function DatabaseOptimizationPage() {
     try {
       const res = await api.get('/api/v1/database/indexes');
       setIndexes(res.data || []);
+      return (res.data || []) as DatabaseIndex[];
     } catch (err: any) {
       console.error('Error fetching indexes:', err);
+      return [];
     }
   };
 
-  const generateSuggestions = async () => {
-    // Generate optimization suggestions based on current data
+  const generateSuggestions = (data: {
+    performance: DatabasePerformance | null;
+    queries: DatabaseQuery[];
+    slowQueries: DatabaseQuery[];
+    indexes: DatabaseIndex[];
+  }) => {
+    const { performance: perf, queries: queryRows, slowQueries: slowRows, indexes: indexRows } = data;
     const suggestions: OptimizationSuggestion[] = [];
 
     // Query optimization suggestions
-    if (slowQueries.length > 0) {
+    if (slowRows.length > 0) {
       suggestions.push({
         type: 'query',
         priority: 'high',
         title: '优化慢查询',
-        description: `发现 ${slowQueries.length} 个慢查询，建议添加索引或重写查询`,
+        description: `发现 ${slowRows.length} 个慢查询，建议添加索引或重写查询`,
         expected_improvement: '查询性能提升 30-50%',
       });
     }
 
     // Index suggestions
-    const tablesWithoutIndexes = new Set(queries.map(q => q.table_name));
-    indexes.forEach(idx => tablesWithoutIndexes.delete(idx.table_name));
+    const tablesWithoutIndexes = new Set(queryRows.map(q => q.table_name));
+    indexRows.forEach(idx => tablesWithoutIndexes.delete(idx.table_name));
 
     if (tablesWithoutIndexes.size > 0) {
       suggestions.push({
@@ -196,7 +217,7 @@ export default function DatabaseOptimizationPage() {
     }
 
     // Cache optimization
-    if (performance && performance.query_latency > 20) {
+    if (perf && perf.query_latency > 20) {
       suggestions.push({
         type: 'cache',
         priority: 'high',
@@ -207,7 +228,7 @@ export default function DatabaseOptimizationPage() {
     }
 
     // Connection optimization
-    if (performance && performance.connection_count > 150) {
+    if (perf && perf.connection_count > 150) {
       suggestions.push({
         type: 'connection',
         priority: 'medium',

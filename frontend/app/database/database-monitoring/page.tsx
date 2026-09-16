@@ -139,48 +139,77 @@ export default function DatabaseMonitoringPage() {
 
   const fetchHealthCheck = async () => {
     try {
-      // Simulate health check based on performance metrics
-      const res = await api.get('/api/v1/database/performance');
-      const data = res.data;
+      // Real database health probe (connection, cache hit ratio, alerting).
+      const res = await api.get('/api/v1/database-monitoring/health');
+      const data = res.data ?? {};
+      const metrics = data.metrics ?? {};
+      const alerts = data.alerts ?? {};
+      const now = new Date().toISOString();
 
-      const checks: HealthCheckResult['checks'] = [
-        {
-          name: 'CPU Usage',
-          status: data.cpu_usage > 80 ? 'fail' : data.cpu_usage > 60 ? 'warning' : 'pass',
-          message: `CPU usage is ${data.cpu_usage.toFixed(1)}%`,
-          timestamp: new Date().toISOString(),
-        },
-        {
-          name: 'Memory Usage',
-          status: data.memory_usage > 85 ? 'fail' : data.memory_usage > 70 ? 'warning' : 'pass',
-          message: `Memory usage is ${data.memory_usage.toFixed(1)}%`,
-          timestamp: new Date().toISOString(),
-        },
-        {
-          name: 'Query Latency',
-          status: data.query_latency > 50 ? 'fail' : data.query_latency > 20 ? 'warning' : 'pass',
-          message: `Query latency is ${data.query_latency.toFixed(1)}ms`,
-          timestamp: new Date().toISOString(),
-        },
-        {
-          name: 'Connection Pool',
-          status: data.connection_count > 200 ? 'fail' : data.connection_count > 150 ? 'warning' : 'pass',
-          message: `Active connections: ${data.connection_count}`,
-          timestamp: new Date().toISOString(),
-        },
-        {
-          name: 'Disk I/O',
-          status: data.disk_io > 200 ? 'fail' : data.disk_io > 150 ? 'warning' : 'pass',
-          message: `Disk I/O is ${data.disk_io.toFixed(1)} MB/s`,
-          timestamp: new Date().toISOString(),
-        },
-      ];
+      const toNumber = (value: any): number | null => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n : null;
+      };
 
-      const overallStatus = checks.some(c => c.status === 'fail')
-        ? 'critical'
-        : checks.some(c => c.status === 'warning')
-          ? 'warning'
-          : 'healthy';
+      const checks: HealthCheckResult['checks'] = [];
+
+      const queryTime = toNumber(metrics.query_time_ms);
+      if (queryTime !== null) {
+        checks.push({
+          name: 'Query Time',
+          status: queryTime > 100 ? 'fail' : queryTime > 50 ? 'warning' : 'pass',
+          message: `Average query time is ${queryTime.toFixed(1)} ms`,
+          timestamp: now,
+        });
+      }
+
+      const connections = toNumber(metrics.connection_count);
+      if (connections !== null) {
+        checks.push({
+          name: 'Connections',
+          status: connections > 200 ? 'fail' : connections > 150 ? 'warning' : 'pass',
+          message: `Active connections: ${connections}`,
+          timestamp: now,
+        });
+      }
+
+      const cacheHit = toNumber(metrics.cache_hit_ratio);
+      if (cacheHit !== null) {
+        // The backend may report a 0-1 ratio or a 0-100 percentage.
+        const ratioPercent = cacheHit <= 1 ? cacheHit * 100 : cacheHit;
+        checks.push({
+          name: 'Cache Hit Ratio',
+          status: ratioPercent < 80 ? 'fail' : ratioPercent < 90 ? 'warning' : 'pass',
+          message: `Cache hit ratio is ${ratioPercent.toFixed(1)}%`,
+          timestamp: now,
+        });
+      }
+
+      const databaseSize = toNumber(metrics.database_size_mb);
+      if (databaseSize !== null) {
+        checks.push({
+          name: 'Database Size',
+          status: 'pass',
+          message: `Database size is ${databaseSize.toFixed(1)} MB`,
+          timestamp: now,
+        });
+      }
+
+      const activeAlerts = toNumber(alerts.active) ?? 0;
+      checks.push({
+        name: 'Active Alerts',
+        status: activeAlerts > 5 ? 'fail' : activeAlerts > 0 ? 'warning' : 'pass',
+        message: `${activeAlerts} active database alert(s)`,
+        timestamp: now,
+      });
+
+      const reported = String(data.status ?? '').toLowerCase();
+      const overallStatus: HealthCheckResult['status'] =
+        checks.some((c) => c.status === 'fail') || /critical|down|unhealthy/.test(reported)
+          ? 'critical'
+          : checks.some((c) => c.status === 'warning') || /warning|degraded/.test(reported)
+            ? 'warning'
+            : 'healthy';
 
       setHealthStatus({
         status: overallStatus,

@@ -12314,3 +12314,36 @@ terraform/storage.tf
 - PART VI（frontend/）带「**中」标记条目 **82**。
 - 累计修复前端中危 **39**（第 12 批 9 + 第 13 批 3 + 第 14 批 12 + 第 15 批 10 + 本批 5）→ 前端中危剩余 **43**（82 − 39）。
 - 本批修复 5 条 → **剩余 43**（前端口径）。
+
+---
+
+# PART LVIII — 中危（medium）逐条修复 · 第 17 批（2026-09-16）
+
+> 目标：继续「发现（中）」条目修复。本批修复 **5 条**（3 条 topology 前端真实图渲染 + 2 条 database 页面真实数据），
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 说明（诚实记录）：开工前对候选条目逐条回读源码核验，剔除**已修复**的陈旧登记项
+> （例：FE-037 `hooks/useEnhancements.ts` 的 stale-deps 缺陷已于 `83b43e2` 修复，`addToast` 依赖
+> 现为 `[removeToast]`、`useInfiniteScroll` 用 `isFetchingRef` 避免重绑 → 本批不再计入）。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| FE-111 | `app/topology/topology-view/page.tsx` | 图形区原为**静态占位 div**「拓扑可视化区域」，页面按虚构模型读 `view.name/zoom/filter`（`Math.round(undefined*100)` → NaN）。改为按真实 `/api/topology/view?layout=` 响应的 `nodes/edges` 用 **AntV G6** 渲染真实拓扑图（`changeData` + 布局切换 `updateLayout`，`tree/force/circular`），并展示真实「N 节点 / M 边」；移除虚构 zoom/filter。 |
+| FE-114 | `app/topology/topology-visualization/page.tsx` | 「拓扑可视化渲染区域」为**静态占位**、无任何图形。改为新增真实 `/api/topology/topology-graph` 拉取真实图，按已持久化的可视化配置（`node_color`/`edge_color`/`show_labels`）用 G6 渲染；保留真实的配置 GET/PUT（`/api/topology/visualization`，后端已存在）。 |
+| FE-117 | `app/topology/causal-graph/page.tsx` | 「因果图可视化区域」为**静态占位**；且前端读 `edge.confidence/delay`、`node.timestamp`（后端返回 `causal_strength`/`type`，无 timestamp）→ 显示 NaN/`Invalid Date`。改为按真实 `/api/topology/causal-graph` 的 `nodes/edges` 用 G6（dagre）渲染，并以真实 `causal_strength` 展示「因果强度」。 |
+| FE-231 | `app/database/database-monitoring/page.tsx` | `fetchHealthCheck` 原注释 `// Simulate health check based on performance metrics` —— 健康检查为**基于 performance 的本地阈值规则**、非数据库真实健康端点。改为调用真实 `/api/v1/database-monitoring/health`，由真实 `metrics`（query_time_ms / connection_count / cache_hit_ratio / database_size_mb）与 `alerts.active` 派生检查项与总体状态。 |
+| FE-233 | `app/database/database-optimization/page.tsx` | `generateSuggestions()` 原与各 `fetchXxx` **并行**置于 `Promise.all` 内，却读取由这些 fetch 的 setState 提供的 `slowQueries/queries/indexes/performance` → React 批处理下读到**旧值/空值**（建议凭空或缺失）。改为各 fetch 返回真实数据，`generateSuggestions({performance,queries,slowQueries,indexes})` 只在 `Promise.all` 完成后用**刚落地的数据**计算建议。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`frontend/__tests__/medium-ledger-batch17/`（`topology-graphs.test.tsx` 3 例 + `database-defects.test.tsx` 2 例）→ **2 suites / 5 passed**（mock `@antv/g6`，断言真实 `changeData` 载荷、`/api/topology/view`、`/api/topology/topology-graph`、`/api/topology/causal-graph`、`/api/v1/database-monitoring/health` 命中；展示「N 节点 / M 边」「因果强度: 80.0%」；database-optimization 由真实 slow query 派生「优化慢查询」；三处占位文案不再存在）。
+- **改动前反证**：将本批 5 个源文件 `git stash push`（**保留新增测试**）在干净 HEAD 实跑同目录 → **5 failed / 0 passed**（逐条指向本批修复）。
+- **回归**：`__tests__/components/business/{TopologyGraph,RootCauseTopology}.test.tsx` → **27 passed**；`medium-ledger-batch14/15/16/17` 合集 → **7 suites / 42 passed / 0 failed**。
+- **类型检查**：`npx tsc --noEmit` → **exit 0 / 0 error**。
+
+## 进度口径（诚实记录）
+
+- PART VI（frontend/）带「**中」标记条目 **82**。
+- 累计修复前端中危 **44**（第 12 批 9 + 第 13 批 3 + 第 14 批 12 + 第 15 批 10 + 第 16 批 5 + 本批 5）→ 前端中危剩余 **38**（82 − 44）。
+- 本批修复 5 条 → **剩余 38**（前端口径）。
