@@ -116,24 +116,8 @@ def _install_temporalio_fakes() -> None:
     pkg.worker.Worker = FakeWorker
 
 
-def _install_missing_submodules() -> None:
-    if "modules.analyze.capacity.cost" not in sys.modules:
-        cost_mod = types.ModuleType("modules.analyze.capacity.cost")
-        cost_mod.CostForecaster = type("CostForecaster", (), {})
-        sys.modules["modules.analyze.capacity.cost"] = cost_mod
-    if "modules.analyze.anomaly.transformer_model" not in sys.modules:
-        trans_mod = types.ModuleType("modules.analyze.anomaly.transformer_model")
-        trans_mod.TransformerAnomalyDetector = type("TransformerAnomalyDetector", (), {})
-        trans_mod.TransformerAnomalyDetectorWrapper = type(
-            "TransformerAnomalyDetectorWrapper", (), {}
-        )
-        trans_mod.create_transformer_model = lambda *a, **k: None
-        sys.modules["modules.analyze.anomaly.transformer_model"] = trans_mod
-
-
 _install_dgl_fakes()
 _install_temporalio_fakes()
-_install_missing_submodules()
 
 from modules.analyze.anomaly.ensemble import EnsembleAnomalyDetector
 from modules.analyze.capacity import forecast as forecast_mod
@@ -1063,8 +1047,9 @@ def test_runbook_generator_llm_branches():
     gen = RunbookGenerator(vector_store=FakeVectorStore(), llm_provider="local")
     gen.initialize()
     prompt = "test"
-    fallback = gen._call_llm(prompt)
-    assert "problem_summary" in json.loads(fallback)
+    # 无可用 LLM 客户端时不得伪造 LLM 输出：如实抛错。
+    with pytest.raises(RuntimeError):
+        gen._call_llm(prompt)
 
     gen.llm_provider = "openai"
     fake_client = SimpleNamespace(

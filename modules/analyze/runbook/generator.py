@@ -313,18 +313,10 @@ class RunbookGenerator:
                 raise
 
         else:
-            # 降级：返回占位响应
-            logger.warning("LLM client not available, using fallback response")
-            return json.dumps(
-                {
-                    "problem_summary": "Fallback - LLM not available",
-                    "root_cause_analysis": "Unable to analyze without LLM",
-                    "immediate_actions": ["Check system logs", "Monitor metrics"],
-                    "long_term_solutions": ["Implement monitoring", "Add alerts"],
-                    "verification_steps": ["Verify metrics return to normal"],
-                    "rollback_plan": ["Revert changes if issues occur"],
-                    "risk_assessment": "Low risk - fallback runbook",
-                }
+            # 无可用 LLM 客户端：不能伪造 LLM 输出。抛出异常，由调用方如实降级
+            # （generate_runbook 的 except 分支返回 success=False + fallback 模板）。
+            raise RuntimeError(
+                f"No LLM client available for provider '{self.llm_provider}'"
             )
 
     def _parse_runbook(self, llm_response: str) -> Dict[str, Any]:

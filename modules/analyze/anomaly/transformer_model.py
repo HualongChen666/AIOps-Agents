@@ -603,7 +603,9 @@ class TransformerAnomalyDetectorWrapper:
             # 前向传播
             anomaly_scores, _ = self.model(metric_tensor, log_tensor, trace_tensor)
 
-            # 转换为 numpy
+            # 转换为 numpy（输出为 raw logits，先过 sigmoid 得到 [0,1] 概率，
+            # 否则阈值 0.5 的语义失真）—— 训练侧用 BCEWithLogitsLoss，故此处需 sigmoid。
+            anomaly_scores = torch.sigmoid(anomaly_scores)
             anomaly_scores = anomaly_scores.squeeze(0).squeeze(-1).cpu().numpy()
 
             # 应用阈值

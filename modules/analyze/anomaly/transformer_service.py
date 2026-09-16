@@ -207,6 +207,7 @@ class TransformerAnomalyService:
         data: List[float],
         timestamp_col: str = "timestamp",
         value_col: str = "value",
+        timestamps: Optional[List[Any]] = None,
     ) -> Dict[str, Any]:
         """
         检测单个时序数据的异常
@@ -219,6 +220,9 @@ class TransformerAnomalyService:
             时间戳列名
         value_col : str
             值列名
+        timestamps : List[Any], optional
+            真实时间戳（与 data 一一对应）。未提供时以**当前时间**为终点按分钟回溯，
+            不再使用硬编码的 "2024-01-01" 伪造时间戳。
 
         Returns
         -------
@@ -232,10 +236,20 @@ class TransformerAnomalyService:
         assert self.model_manager.wrapper is not None
 
         # 转换为 DataFrame
-        timestamps = pd.date_range("2024-01-01", periods=len(data), freq="1min")
+        if timestamps is not None:
+            if len(timestamps) != len(data):
+                raise HTTPException(
+                    status_code=400,
+                    detail="timestamps length must match data length",
+                )
+            ts_index = pd.to_datetime(pd.Series(timestamps))
+        else:
+            from datetime import datetime
+
+            ts_index = pd.date_range(end=datetime.now(), periods=len(data), freq="1min")
         df = pd.DataFrame(
             {
-                timestamp_col: timestamps,
+                timestamp_col: ts_index,
                 value_col: data,
             }
         )
@@ -410,10 +424,23 @@ def shutdown_service():
 # 4️⃣ FastAPI 路由集成
 # ----------------------------------------------------------------------
 def create_router():
-    """创建 FastAPI 路由"""
-    from fastapi import APIRouter
+    """创建 FastAPI 路由（全部端点强制鉴权）"""
+    from fastapi import APIRouter, Depends
 
-    router = APIRouter(prefix="/anomaly/transformer", tags=["anomaly-transformer"])
+    try:
+        from core.auth import get_current_user as _auth_dependency
+    except Exception:  # noqa: BLE001 - 鉴权后端不可用时 fail-closed
+
+        def _auth_dependency():  # type: ignore[misc]
+            raise HTTPException(
+                status_code=503, detail="Authentication backend unavailable"
+            )
+
+    router = APIRouter(
+        prefix="/anomaly/transformer",
+        tags=["anomaly-transformer"],
+        dependencies=[Depends(_auth_dependency)],
+    )
 
     @router.post("/detect")
     async def detect_anomaly(

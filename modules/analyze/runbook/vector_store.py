@@ -155,16 +155,15 @@ class VectorStore:
             向量
         """
         if self.embedding_model is None:
-            # 降级：返回随机向量
-            logger.warning("Embedding model not available, using random vector")
-            return np.random.rand(self.vector_size).astype(np.float32)
+            # 无嵌入模型：返回随机向量会使检索结果无意义。如实失败（调用方 try/except 降级）。
+            raise RuntimeError("Embedding model is not available")
 
         try:
             embedding = self.embedding_model.encode(text, convert_to_numpy=True)
             return embedding.astype(np.float32)
         except Exception as e:
             logger.error("Failed to embed text: %s", e)
-            return np.random.rand(self.vector_size).astype(np.float32)
+            raise RuntimeError(f"Failed to embed text: {e}") from e
 
     def embed_batch(self, texts: List[str]) -> List[np.ndarray]:
         """
@@ -177,15 +176,15 @@ class VectorStore:
             向量列表
         """
         if self.embedding_model is None:
-            logger.warning("Embedding model not available, using random vectors")
-            return [np.random.rand(self.vector_size).astype(np.float32) for _ in texts]
+            # 无嵌入模型：返回随机向量会使检索结果无意义。如实失败。
+            raise RuntimeError("Embedding model is not available")
 
         try:
             embeddings = self.embedding_model.encode(texts, convert_to_numpy=True)
             return [emb.astype(np.float32) for emb in embeddings]
         except Exception as e:
             logger.error("Failed to embed batch: %s", e)
-            return [np.random.rand(self.vector_size).astype(np.float32) for _ in texts]
+            raise RuntimeError(f"Failed to embed batch: {e}") from e
 
     def add_document(
         self, document_id: str, content: str, metadata: Optional[Dict[str, Any]] = None

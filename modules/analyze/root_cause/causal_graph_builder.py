@@ -83,11 +83,11 @@ class CausalGraphBuilder:
         # 数据预处理
         clean_data = self._preprocess_metrics(metrics_data)
 
-        # 因果发现
-        if self.discovery_params:
-            causal_graph = CausalDiscovery.pc_algorithm(clean_data, **self.discovery_params)
+        # 因果发现（按配置的方法分派：pc / ges）
+        if self.discovery_method == "ges":
+            causal_graph = CausalDiscovery.ges_algorithm(clean_data, **self.discovery_params)
         else:
-            causal_graph = CausalDiscovery.pc_algorithm(clean_data)
+            causal_graph = CausalDiscovery.pc_algorithm(clean_data, **self.discovery_params)
 
         self.causal_graph = causal_graph
 

@@ -12467,3 +12467,61 @@ terraform/storage.tf
 
 - 用户口径：总计 **415**；第 19 批后剩余 **213**。
 - 本批修复 **5** → **剩余 208**。
+
+
+---
+
+# PART LXII — 中危（medium）逐条修复 · 第 21 批（2026-09-16）
+
+> 目标：继续「发现（中）」条目修复（modules/ 域）。本批修复 **5 条**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 说明（诚实记录）：本批系**续做上一会话中断**——上一会话已落盘 5 个源文件与 2 个对齐测试但未提交、未写台账；
+> 本次续做：复核每处修复的真实性、修正本批暴露的 1 处**跨测试污染**（他测全局替换 `sys.modules` 伪造 `transformer_model` 模块）、
+> 分层实跑回归、写台账后提交。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| M-007 | `modules/analyze/anomaly/transformer_model.py` | `TransformerAnomalyDetectorWrapper.detect` 原直接把 **raw logits** 与阈值比（`anomaly_scores > threshold`，L610），未过 sigmoid → 阈值 0.5 语义失真。改为对模型输出先做 `torch.sigmoid`（训练侧用 `BCEWithLogitsLoss`，输出即 logits）得到 `[0,1]` 概率再比阈值。 |
+| M-008 | `modules/analyze/anomaly/transformer_service.py` | ① `create_router()` 下 `/detect`、`/detect-batch`、`/model/load`、`/model/unload` 全部 **无鉴权**；改为 **路由级 `dependencies=[Depends(get_current_user)]` 强制鉴权**，鉴权后端不可用时 **fail-closed（503）**。② `detect_single` 用 `pd.date_range("2024-01-01", ...)` **伪造时间戳**；改为：调用方可传入真实 `timestamps`（长度不符 → 400），未传入时以**当前时间**为终点按分钟回溯，不再硬编码 2024-01-01。 |
+| M-014 | `modules/analyze/root_cause/causal_graph_builder.py` | `build_from_metrics` 恒调用 `CausalDiscovery.pc_algorithm`，**完全忽略 `self.discovery_method`**（传 `"ges"` 无效）。改为按配置**真实分派**：`discovery_method == "ges"` → `CausalDiscovery.ges_algorithm(...)`，否则 `pc_algorithm(...)`，并把 `discovery_params` 真正传入。 |
+| M-021 | `modules/analyze/runbook/generator.py` | `_call_llm` 无可用 LLM 客户端时**返回硬编码 JSON 串**（`"Fallback - LLM not available"`）冒充 LLM 输出。改为**如实抛出 `RuntimeError`**，由 `generate_runbook` 既有 `except` 分支返回 `success=False` + `error` + `fallback=True` 模板，不再伪造 LLM 结果。 |
+| M-023 | `modules/analyze/runbook/vector_store.py` | `embed_text`/`embed_batch` 在嵌入模型缺失时**返回随机向量**（检索结果因此无意义）。改为**如实抛出 `RuntimeError`**（调用方 try/except 降级），嵌入失败亦不再以随机向量冒充。 |
+
+## 附带修复（横切，非台账条目）
+
+- **跨测试污染（真实缺陷）**：`tests/modules/test_uncovered_modules_batch_a.py` 模块导入期调用 `_install_missing_submodules()`，
+  把**伪造的 `modules.analyze.anomaly.transformer_model` 模块**（`create_transformer_model = lambda *a, **k: None`）写入全局 `sys.modules`，
+  且**从不还原**；导致同进程内后续任何导入真实 `transformer_model` 的测试拿到假模块（`NoneType` / 缺 `state_dict`）。
+  该函数同时对**并不存在**的 `modules.analyze.capacity.cost` 造桩——经核查 batch_a 内**无任何用例引用**这两个伪造模块（死代码）。
+  已**删除 `_install_missing_submodules`**（定义 + 调用）。实测（`batch_a+batch_c+batch_d` 同进程）：基线 `9dff5b8`（首个中危批次前）
+  **14 failed / 128 passed / 2 errors** → 修复后 **7 failed / 137 passed**（消除 7 例失败 + 2 例收集错误，且残 7 例与基线逐项一致）。
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/modules/test_medium_ledger_batch21_20260916.py` → **6 passed**
+  （恒定 logit=+10 → sigmoid 概率 >0.99 全判异常；logit=-10 → <0.01 全判正常，且分数落在 `[0,1]`；
+  `discovery_method="ges"` 走 ges、`"pc"` 走 pc；无 LLM 客户端 `_call_llm` 抛错且 `generate_runbook` 返回 `success=False/fallback=True/error`；
+  无嵌入模型 `embed_text`/`embed_batch` 抛错；`detect_single` 默认时间戳**非 2024** 且随时间递增、传入真实时间戳被采用、长度不符 → 400；`create_router()` 具路由级依赖非空）。
+- **文件级无回归对照**（同环境逐文件跑「本批改动前 HEAD（stash）」vs「本批修复后」）：
+  `test_analyze` 16 passed；`test_uncovered_modules_batch_a` 3 failed/42 passed（3 例为既有因果失败，前后一致）；
+  `test_uncovered_modules_batch_b` **75→76 passed**（+1 为本批新增 `test_embed_requires_model`）；
+  `test_uncovered_modules_batch_c` 3 failed/52 passed、`_batch_d` 1 failed/43 passed（前后一致）；
+  `test_ai_advanced_router` 104 passed、`test_uncovered_analysis_2` 38、`_analysis_3` 86、`test_uncovered_root_cause` 11、
+  `test_uncovered_ai_engine` 11(+5 skip)、`_ai_engine_2` 13(+13 skip)、`test_medium_ledger_batch11` 15、`test_enhanced_ai_features` 14
+  —— 均**逐文件一致**（无新增失败；唯一差异为 batch_b +1）。
+- 编译检查：5 个源文件 `python -m py_compile` → OK。
+- **既有失败（与本批无关，诚实披露）**：`tests/modules/` 全量仍有 **15 failed / 610 passed**，全部为**基线即存在**者
+  （`transformer_anomaly_trainer*`/`causal_graph_persistence_*`/`test_causal_analysis_service`/`test_root_cause_inference_save_load`/
+  `test_causal_service_error_paths_and_router`/`test_hpa_controller_*`/`test_graph_builder_multi`/`test_call_stack_duration` 等）；
+  经 `git worktree` 于**首个中危批次前基线 `9dff5b8`** 实跑复现，逐项一致，非本批引入。
+- 对齐真实契约而更新的既有测试（旧断言指向被修复的伪造行为，非放宽）：
+  - `tests/modules/test_uncovered_modules_batch_a.py::test_runbook_generator_llm_branches`：无 LLM 客户端时改断言 `_call_llm` **抛 `RuntimeError`**。
+  - `tests/modules/test_uncovered_modules_batch_b.py::TestVectorStore`：`test_embed` 先 `initialize()`（装载 fake 嵌入模型后真实产出向量）；
+    新增 `test_embed_requires_model`；嵌入失败用例改断言**如实抛错**。
+
+## 进度口径（诚实记录）
+
+- 用户口径：总计 **415**；第 20 批后剩余 **208**。
+- 本批修复 **5** → **剩余 203**。

@@ -522,8 +522,18 @@ class TestVectorStore:
 
     def test_embed(self):
         vs = VectorStore()
+        vs.initialize()  # 装载（fake）嵌入模型后真实产出向量
         assert len(vs.embed_text("x")) == vs.vector_size
         assert len(vs.embed_batch(["a", "b"])) == 2
+
+    def test_embed_requires_model(self):
+        # 无嵌入模型时不再返回随机向量，而是如实失败。
+        vs = VectorStore()
+        assert vs.embedding_model is None
+        with pytest.raises(RuntimeError):
+            vs.embed_text("x")
+        with pytest.raises(RuntimeError):
+            vs.embed_batch(["a"])
 
     def test_add_search_delete(self):
         vs = VectorStore()
@@ -576,8 +586,11 @@ class TestVectorStore:
                 raise RuntimeError("x")
 
         vs.embedding_model = BadEncoder()
-        assert isinstance(vs.embed_text("x"), np.ndarray)
-        assert all(isinstance(v, np.ndarray) for v in vs.embed_batch(["a"]))
+        # 嵌入失败时如实抛错，不再以随机向量冒充。
+        with pytest.raises(RuntimeError):
+            vs.embed_text("x")
+        with pytest.raises(RuntimeError):
+            vs.embed_batch(["a"])
 
     def test_init_embedding_failure(self, monkeypatch: pytest.MonkeyPatch):
         class Bad:
