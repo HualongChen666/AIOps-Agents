@@ -12525,3 +12525,49 @@ terraform/storage.tf
 
 - 用户口径：总计 **415**；第 20 批后剩余 **208**。
 - 本批修复 **5** → **剩余 203**。
+
+
+---
+
+# PART LXIII — 中危（medium）逐条修复 · 第 22 批（2026-09-16）
+
+> 目标：继续「发现（中）」条目修复（modules/ 域）。本批修复 **5 条**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 说明（诚实记录）：开工前对候选条目逐条回读源码核验，确认缺陷在 HEAD 仍真实存在后才修复
+> （例：`M-033`/`M-050` 经核验**已于早前批次修复**，已剔除，未重复登记）。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| M-036 | `modules/execute/saga/coordinator.py` | `_load_saga` 原**恒 `return None`**（"简化实现，实际应完整重建"）→ 持久化形同虚设。新增 `SagaStep.from_dict`/`SagaInstance.from_dict` **真实重建状态视图**（状态枚举/时间戳/结果/错误；`action`/`compensation` 为不可序列化对象，如实声明不还原并置 `None`）；`_load_saga` 重建实例并回填内存缓存，`get_saga` 在启用持久化且内存缺失时**回源重建**。 |
+| M-040 | `modules/high_availability/multi_region.py` | ① `_check_region_health` 原**恒 `return True`**（"简化实现"）→ 改为**真实探测区域端点**（`http(s)://` → 真实 HTTP GET 判 2xx；`host[:port]` → 真实 TCP connect）；未配置端点/不可达一律 **False（fail-closed）**，并回写**真实往返 `latency`**。② `DataSyncManager.sync_data` 原 sync/async 两分支均**直接 `results[target]=True`** → 改为真实投递：`sync_handler` 优先，其次按 `target_endpoints` **真实 HTTP POST** 数据；未配置投递方式**如实标记 `skipped` 并返回 False**（不再谎报成功）。 |
+| M-041 | `modules/high_availability/self_healing.py` | `verify_remediation` 原**恒 `return True`**（"实际应检查组件状态"）→ 改为**真实校验**：Linux `systemctl is-active <component>`（退出码 0 即 active）、Windows `sc query` 且输出含 `RUNNING`；经既有受控 `_run_guarded`（command_guard 风控 + `shell=False` + 超时）执行。 |
+| M-046 | `modules/observability/auto_discovery.py` | `_simple_network_scan` 原**仅打日志、无任何扫描**（nmap 不可用时的降级路径形同空转）→ 改为**真实 TCP connect 扫描**：`ipaddress` 解析 CIDR（非法网段如实报错返回），对常见端口集并发探测（`ThreadPoolExecutor`，可配 `timeout`/`max_hosts`/`max_workers`），命中端口**真实登记** `DiscoveredResource`（与 nmap 分支同一 id 规则/端口→类型映射）。 |
+| M-055 | `modules/rum/sdk.py` | 生成的 iOS/Android SDK `flush()` 原**仅清空缓冲**（"实际实现应使用 URLSession / OkHttp"）→ 改为生成**真实发送**代码：iOS 用 `URLSession.shared.dataTask` + `URLRequest`（含 `Content-Type`/`X-API-Key`/`JSONSerialization` 序列化 + 失败回退缓冲）；Android 用 `HttpURLConnection`（后台 `Thread` + POST + 失败回退缓冲）。Web 版 `fetch` 保持真实。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/modules/test_medium_ledger_batch22_20260916.py` → **13 passed**
+  （saga 执行后清空内存→`get_saga` 真实重建状态/步骤；`from_dict` 往返；区域健康对**真实本地监听端**True、对关闭端口/空端点 False 且回写 latency；HTTP 健康端点 True；
+  同步无端点→`skipped`+False、真实 HTTP 端点投递 2 例且服务端**实收** payload、`sync_handler` 分支；`verify_remediation` active→True/inactive→False + 真实命令对不存在组件→False；
+  真实端口绑定后扫描命中 `network-127.0.0.1-<port>`、非法网段不崩且不臆造；生成的 iOS/Android 代码含真实发送 API 且**已移除占位注释**）。
+- **文件级无回归对照**（同环境「本批改动前 HEAD（stash）」vs「本批修复后」逐项一致）：
+  `tests/modules/test_other_modules.py` + `test_execute.py` + `extensions/test_workflow_saga.py` + `test_topology_saga.py` +
+  `extensions/addons/operations/workflow_service/` + `test_rum_data_collector_real_branches.py` + `test_low_coverage_simple.py` + `core/test_telemetry_core.py`
+  → 前后均 **1 failed / 261 passed / 16 skipped / 12 errors**（1 失败与 12 收集错误均为既有：addon 模块导入路径 `No module named 'saga'/'metrics'`，与本批无关）。
+- `tests/modules/` 全量：本批后 **15 failed / 623 passed**（第 21 批后为 15 failed / 610 passed → **无新增失败**，+13 为本批新增用例；残 15 例为基线既有）。
+- 编译检查：5 个源文件 `python -m py_compile` → OK；`black` 对 9 个改动文件（含新测试）**check 通过**（新测试文件已 `black` 格式化）。
+- 对齐真实契约而更新的既有测试（旧断言指向被修复的桩行为，非放宽）：
+  - `tests/modules/test_low_coverage_simple.py::TestSelfHealingEngine::test_verify_remediation` 与
+    `tests/modules/test_low_coverage_modules_comprehensive.py::TestSelfHealingEngine::test_verify_remediation`：
+    改为在 I/O 边界注入 active/inactive，断言 **True / False** 两分支（不再恒 True）。
+  - `tests/modules/test_uncovered_modules_batch_d.py::test_multi_region_health_and_failover`：
+    改为以**真实本地监听端**作可达端点（断言 health 全 True、回写 latency），并断言空端点/不可达端点 **False**。
+  - `tests/modules/test_uncovered_modules_batch_d.py::test_data_sync_manager`：
+    改为断言未配置投递方式 → **`skipped` + False**，再以**真实本地 HTTP 端点**断言投递成功且服务端实收。
+
+## 进度口径（诚实记录）
+
+- 用户口径：总计 **415**；第 21 批后剩余 **203**。
+- 本批修复 **5** → **剩余 198**。

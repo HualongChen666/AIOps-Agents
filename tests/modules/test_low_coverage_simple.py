@@ -175,8 +175,8 @@ class TestSelfHealingEngine:
         with pytest.raises(ValueError):
             engine._sanitize_component("invalid;name")
 
-    def test_verify_remediation(self):
-        """Test remediation verification"""
+    def test_verify_remediation(self, monkeypatch):
+        """Test remediation verification (真实：委托给受控组件状态检查)"""
         engine = SelfHealingEngine()
         event = FailureEvent(
             id="test-1",
@@ -185,8 +185,12 @@ class TestSelfHealingEngine:
             severity="high",
             description="Test",
         )
-        result = engine.verify_remediation(event)
-        assert result is True
+        # 组件 active → 校验通过
+        monkeypatch.setattr(engine, "_run_guarded", lambda command: (True, "active"))
+        assert engine.verify_remediation(event) is True
+        # 组件未 active → 如实判定校验失败（不再恒 True）
+        monkeypatch.setattr(engine, "_run_guarded", lambda command: (False, "inactive"))
+        assert engine.verify_remediation(event) is False
 
     def test_get_statistics(self):
         """Test statistics retrieval"""

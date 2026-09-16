@@ -457,10 +457,16 @@ class SelfHealingEngine:
         bool
             是否修复成功
         """
-        # 简化实现：实际应检查组件状态
-        component = failure_event.component
+        component = self._sanitize_component(failure_event.component)
         logger.info(f"Verifying remediation for: {component}")
-        return True
+
+        if platform.system() == "Windows":
+            success, output = self._run_guarded(["sc", "query", component])
+            return bool(success and "RUNNING" in output.upper())
+
+        # `systemctl is-active` 以退出码 0 表示 active，非 0 表示 inactive/failed/unknown
+        success, _output = self._run_guarded(["systemctl", "is-active", component])
+        return bool(success)
 
     def get_statistics(self) -> Dict[str, Any]:
         """获取统计信息"""

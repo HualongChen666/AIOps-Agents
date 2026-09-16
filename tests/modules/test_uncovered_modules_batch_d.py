@@ -716,12 +716,39 @@ def test_multi_region_routing():
 
 
 def test_multi_region_health_and_failover():
-    manager = create_multi_region_manager()
-    manager.add_region(Region(id="r1", name="R1", location="l1", priority=1, capacity=1.0))
-    manager.add_region(Region(id="r2", name="R2", location="l2", priority=2, capacity=1.0))
+    import socket
 
-    health = manager.perform_health_check()
-    assert all(health.values())
+    manager = create_multi_region_manager()
+
+    # 真实本地监听端口作为可达区域端点
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    port = srv.getsockname()[1]
+    try:
+        reachable = f"127.0.0.1:{port}"
+        manager.add_region(
+            Region(id="r1", name="R1", location="l1", priority=1, capacity=1.0, endpoint=reachable)
+        )
+        manager.add_region(
+            Region(id="r2", name="R2", location="l2", priority=2, capacity=1.0, endpoint=reachable)
+        )
+
+        health = manager.perform_health_check()
+        assert all(health.values())
+        # 真实往返延迟被回写
+        assert manager.regions["r1"].latency is not None
+
+        # 未配置端点的区域无法验证 → 如实判为不健康（不再恒 True）
+        manager.add_region(Region(id="r3", name="R3", location="l3", endpoint=""))
+        assert manager._check_region_health(manager.regions["r3"]) is False
+        # 端点不可达 → 不健康
+        manager.add_region(Region(id="r4", name="R4", location="l4", endpoint="127.0.0.1:1"))
+        assert manager._check_region_health(manager.regions["r4"]) is False
+        manager.remove_region("r3")
+        manager.remove_region("r4")
+    finally:
+        srv.close()
 
     assert manager.trigger_failover("r1") is True
     assert manager.get_active_regions() == [manager.regions["r2"]]
@@ -735,12 +762,55 @@ def test_multi_region_health_and_failover():
 
 
 def test_data_sync_manager():
+    import http.server
+    import json as _json
+    import threading
+
     sync = create_data_sync_manager()
     assert sync.sync_data("missing", {"x": 1}) == {}
-    sync.configure_sync("us-east-1", ["us-west-2", "eu-west-1"], "async")
+
+    # 未配置投递方式 → 如实标记未分发（不再谎报成功）
+    sync.configure_sync("us-east-1", ["us-west-2"], "async")
     results = sync.sync_data("us-east-1", {"x": 1})
-    assert all(results.values())
-    assert sync.get_sync_status()
+    assert results == {"us-west-2": False}
+    assert "skipped" in sync.get_sync_status()["us-east-1->us-west-2"]
+
+    # 真实 HTTP 端点投递
+    received = []
+
+    class _Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):  # noqa: N802
+            length = int(self.headers.get("Content-Length", 0))
+            received.append(_json.loads(self.rfile.read(length) or b"{}"))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):  # noqa: D401
+            return
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        sync.configure_sync(
+            "us-east-1",
+            ["us-west-2", "eu-west-1"],
+            "async",
+            target_endpoints={
+                "us-west-2": f"http://127.0.0.1:{port}/sync",
+                "eu-west-1": f"http://127.0.0.1:{port}/sync",
+            },
+        )
+        results = sync.sync_data("us-east-1", {"x": 1})
+        assert all(results.values())
+        assert len(received) == 2
+        assert received[0]["data"] == {"x": 1}
+        assert sync.get_sync_status()["us-east-1->us-west-2"] == "success"
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def test_region_to_dict():

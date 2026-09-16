@@ -536,9 +536,27 @@ class AIOpsRUM {{
             ]
         ]
 
-        // 发送到服务器
-        // 实际实现应使用 URLSession
+        // 真实发送到服务器（URLSession）
+        guard let url = URL(string: "\\(config.apiEndpoint)/v1/rum") else {{ return }}
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(config.apiKey, forHTTPHeaderField: "X-API-Key")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+
+        let pending = events
         events.removeAll()
+
+        URLSession.shared.dataTask(with: request) {{ _, response, error in
+            if let error = error {{
+                // 发送失败：回退缓冲，避免数据丢失
+                events.append(contentsOf: pending)
+                print("RUM flush failed: \\(error)")
+            }} else if let http = response as? HTTPURLResponse, http.statusCode >= 400 {{
+                events.append(contentsOf: pending)
+                print("RUM flush failed with status: \\(http.statusCode)")
+            }}
+        }}.resume()
     }}
 }}
 
@@ -642,9 +660,29 @@ class AIOpsRUM private constructor(context: Context) {{
             }})
         }}
 
-        // 发送到服务器
-        // 实际实现应使用 OkHttp 或 Retrofit
+        // 真实发送到服务器（HttpURLConnection，后台线程）
+        val pending = events.toList()
         events.clear()
+
+        Thread {{
+            try {{
+                val url = java.net.URL("${{config.apiEndpoint}}/v1/rum")
+                val conn = url.openConnection() as java.net.HttpURLConnection
+                conn.requestMethod = "POST"
+                conn.setRequestProperty("Content-Type", "application/json")
+                conn.setRequestProperty("X-API-Key", config.apiKey)
+                conn.doOutput = true
+                conn.outputStream.use {{ it.write(payload.toString().toByteArray()) }}
+                val status = conn.responseCode
+                conn.disconnect()
+                if (status >= 400) {{
+                    events.addAll(pending)
+                }}
+            }} catch (e: Exception) {{
+                // 发送失败：回退缓冲，避免数据丢失
+                events.addAll(pending)
+            }}
+        }}.start()
     }}
 
     private fun initPerformanceMonitoring() {{

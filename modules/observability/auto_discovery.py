@@ -13,15 +13,21 @@ auto_discovery.py
 - 自动识别关键业务流程
 """
 
+import ipaddress
 import logging
+import socket
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from core.observability_query import DEFAULT_MAX_LLM_ITEMS
 
 logger = logging.getLogger(__name__)
+
+# 网络扫描探测的常见端口（与 nmap 分支保持一致）
+NETWORK_SCAN_PORTS: Tuple[int, ...] = (22, 80, 443, 3306, 5432, 6379, 5672, 9092)
 
 
 # ----------------------------------------------------------------------
@@ -334,11 +340,63 @@ class AutoDiscoveryEngine:
         except Exception as e:
             logger.error(f"Network discovery failed: {e}")
 
-    def _simple_network_scan(self, subnet: str):
-        """简单的网络扫描（降级方案）"""
+    def _simple_network_scan(
+        self,
+        subnet: str,
+        timeout: float = 0.5,
+        max_hosts: int = 256,
+        max_workers: int = 64,
+    ) -> None:
+        """无 nmap 时的降级扫描：对子网主机做**真实 TCP connect 探测**常见端口。
 
-        logger.info(f"Performing simple network scan for {subnet}")
-        # 简化实现，实际应使用更完整的扫描逻辑
+        参数:
+            subnet: CIDR 网段（如 ``192.168.1.0/24``、``10.0.0.0/24``）
+            timeout: 单端口连接超时（秒）
+            max_hosts: 最多探测主机数（防止超大网段拖垮进程）
+            max_workers: 并发探测线程数
+        """
+        try:
+            network = ipaddress.ip_network(subnet, strict=False)
+        except ValueError as e:
+            logger.error(f"Invalid subnet for simple network scan: {subnet} ({e})")
+            return
+
+        hosts = []
+        for host in network.hosts():
+            hosts.append(str(host))
+            if len(hosts) >= max_hosts:
+                break
+
+        def _probe(host: str) -> Tuple[str, List[int]]:
+            open_ports: List[int] = []
+            for port in NETWORK_SCAN_PORTS:
+                try:
+                    with socket.create_connection((host, port), timeout=timeout):
+                        open_ports.append(port)
+                except OSError:
+                    continue
+            return host, open_ports
+
+        discovered = 0
+        if hosts:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                for host, ports in executor.map(_probe, hosts):
+                    for port in ports:
+                        resource_id = f"network-{host}-{port}"
+                        self.discovered_resources[resource_id] = DiscoveredResource(
+                            id=resource_id,
+                            name=f"{host}:{port}",
+                            type=self._infer_resource_type(port),
+                            host=host,
+                            port=port,
+                            tags=["network", "discovered", "simple-scan"],
+                        )
+                        discovered += 1
+
+        logger.info(
+            f"Simple network scan of {subnet} probed {len(hosts)} hosts, "
+            f"discovered {discovered} open ports"
+        )
 
     def _infer_resource_type(self, port: int) -> ResourceType:
         """根据端口推断资源类型"""

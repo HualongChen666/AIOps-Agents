@@ -14,12 +14,51 @@ multi_region.py
 - 故障转移机制
 """
 
+import json
 import logging
+import socket
+import time
+import urllib.request
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+
+def _probe_endpoint(endpoint: str, timeout: float = 3.0) -> bool:
+    """真实探测一个区域端点。
+
+    - ``http(s)://...`` → 发起真实 HTTP GET，2xx 视为健康；
+    - ``host[:port]`` → 真实 TCP ``connect``，可连通视为健康。
+
+    探测异常一律视为不健康（fail-closed），绝不臆造成功。
+    """
+    endpoint = (endpoint or "").strip()
+    if not endpoint:
+        return False
+
+    if endpoint.startswith(("http://", "https://")):
+        try:
+            req = urllib.request.Request(endpoint, method="GET")
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+                return 200 <= int(getattr(resp, "status", resp.getcode())) < 300
+        except Exception as e:  # noqa: BLE001
+            logger.warning("HTTP health probe failed for %s: %s", endpoint, e)
+            return False
+
+    parsed = urlparse(f"//{endpoint}")
+    host = parsed.hostname
+    if not host:
+        return False
+    port = parsed.port or 80
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except OSError as e:
+        logger.warning("TCP health probe failed for %s: %s", endpoint, e)
+        return False
 
 
 # ----------------------------------------------------------------------
@@ -241,10 +280,20 @@ class MultiRegionManager:
         return health_status
 
     def _check_region_health(self, region: Region) -> bool:
-        """检查单个区域健康"""
-        # 简化实现
-        # 实际应发送健康检查请求到区域端点
-        return True
+        """检查单个区域健康（真实探测区域端点）。
+
+        未配置 ``endpoint`` 时无法验证 → 返回 ``False``（诚实失败，不再恒 ``True``）；
+        探测成功同时回写真实往返 ``latency``（毫秒）。
+        """
+        endpoint = (region.endpoint or "").strip()
+        if not endpoint:
+            logger.warning("Region %s has no endpoint configured; health unverifiable", region.id)
+            return False
+
+        start = time.monotonic()
+        healthy = _probe_endpoint(endpoint)
+        region.latency = (time.monotonic() - start) * 1000.0
+        return healthy
 
     def trigger_failover(self, failed_region_id: str) -> bool:
         """
@@ -309,6 +358,8 @@ class DataSyncManager:
         source_region: str,
         target_regions: List[str],
         sync_mode: str = "async",
+        target_endpoints: Optional[Dict[str, str]] = None,
+        sync_handler: Optional[Callable[[str, Any], bool]] = None,
     ):
         """
         配置数据同步
@@ -321,12 +372,38 @@ class DataSyncManager:
             目标区域列表
         sync_mode : str
             同步模式：'sync', 'async'
+        target_endpoints : Dict[str, str], optional
+            目标区域 → 同步端点（http(s) URL）；用于真实投递数据
+        sync_handler : Callable[[str, Any], bool], optional
+            自定义同步处理器（接收 target_region 与 data，返回是否成功）。
+            提供时优先于 ``target_endpoints``。
         """
         self.sync_config[source_region] = {
             "target_regions": target_regions,
             "sync_mode": sync_mode,
+            "target_endpoints": dict(target_endpoints or {}),
+            "sync_handler": sync_handler,
         }
         logger.info(f"Configured sync from {source_region} to {target_regions}")
+
+    @staticmethod
+    def _post_sync(endpoint: str, source_region: str, data: Any, timeout: float = 5.0) -> None:
+        """真实向目标区域端点投递同步数据（非 2xx 抛错）。"""
+        body = json.dumps(
+            {"source_region": source_region, "data": data},
+            ensure_ascii=False,
+            default=str,
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            endpoint,
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+            status = int(getattr(resp, "status", resp.getcode()))
+            if not 200 <= status < 300:
+                raise RuntimeError(f"sync endpoint returned HTTP {status}")
 
     def sync_data(
         self,
@@ -354,25 +431,34 @@ class DataSyncManager:
 
         config = self.sync_config[source_region]
         target_regions = config["target_regions"]
-        sync_mode = config["sync_mode"]
+        handler = config.get("sync_handler")
+        endpoints = config.get("target_endpoints", {})
 
         results = {}
 
         for target_region in target_regions:
+            key = f"{source_region}->{target_region}"
+            endpoint = endpoints.get(target_region)
             try:
-                # 简化实现：实际应调用数据同步接口
-                if sync_mode == "sync":
-                    # 同步同步
-                    results[target_region] = True
+                if handler is not None:
+                    ok = bool(handler(target_region, data))
+                elif endpoint:
+                    self._post_sync(endpoint, source_region, data)
+                    ok = True
                 else:
-                    # 异步同步
-                    results[target_region] = True
+                    # 未配置投递方式：如实标记为未执行，绝不谎报成功。
+                    ok = False
+                    self.sync_status[key] = "skipped: no endpoint/handler"
+                    logger.warning("No sync endpoint/handler for %s; not dispatched", target_region)
+                    results[target_region] = False
+                    continue
 
-                self.sync_status[f"{source_region}->{target_region}"] = "success"
+                results[target_region] = ok
+                self.sync_status[key] = "success" if ok else "failed: handler returned False"
             except Exception as e:
                 logger.error(f"Sync to {target_region} failed: {e}")
                 results[target_region] = False
-                self.sync_status[f"{source_region}->{target_region}"] = f"failed: {e}"
+                self.sync_status[key] = f"failed: {e}"
 
         return results
 

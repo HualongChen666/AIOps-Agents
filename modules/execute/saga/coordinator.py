@@ -83,6 +83,24 @@ class SagaStep:
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SagaStep":
+        """从持久化字典重建步骤状态。
+
+        注意：``action``/``compensation``/``compensate_if`` 为不可序列化的可执行对象，
+        无法从持久化数据还原，重建后为 ``None``；本方法重建的是**状态视图**
+        （名称/状态/结果/错误/时间戳），供状态查询与展示使用。
+        """
+        step = cls(name=data["name"], action=None, compensation=None, compensate_if=None)
+        step.state = StepState(data["state"])
+        step.result = data.get("result")
+        step.error = data.get("error")
+        started_at = data.get("started_at")
+        completed_at = data.get("completed_at")
+        step.started_at = datetime.fromisoformat(started_at) if started_at else None
+        step.completed_at = datetime.fromisoformat(completed_at) if completed_at else None
+        return step
+
 
 class SagaInstance:
     """
@@ -121,6 +139,22 @@ class SagaInstance:
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "error": str(self.error) if self.error else None,
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SagaInstance":
+        """从持久化字典完整重建 Saga 实例（状态视图）。"""
+        saga = cls(
+            saga_id=data["saga_id"],
+            name=data["name"],
+            steps=[SagaStep.from_dict(step) for step in data.get("steps", [])],
+        )
+        saga.state = SagaState(data["state"])
+        saga.created_at = datetime.fromisoformat(data["created_at"])
+        started_at = data.get("started_at")
+        completed_at = data.get("completed_at")
+        saga.started_at = datetime.fromisoformat(started_at) if started_at else None
+        saga.completed_at = datetime.fromisoformat(completed_at) if completed_at else None
+        return saga
 
 
 class SagaCoordinator:
@@ -311,8 +345,14 @@ class SagaCoordinator:
                 # 继续补偿其他步骤
 
     def get_saga(self, saga_id: str) -> Optional[SagaInstance]:
-        """获取Saga实例"""
-        return self._sagas.get(saga_id)
+        """获取Saga实例
+
+        内存中不存在且启用持久化时，从持久化存储**真实重建**后返回（并回填内存缓存）。
+        """
+        saga = self._sagas.get(saga_id)
+        if saga is None and self.enable_persistence:
+            saga = self._load_saga(saga_id)
+        return saga
 
     def get_all_sagas(self) -> List[SagaInstance]:
         """获取所有Saga实例"""
@@ -332,12 +372,18 @@ class SagaCoordinator:
         self._persistence_store[saga.saga_id] = saga.to_dict()
 
     def _load_saga(self, saga_id: str) -> Optional[SagaInstance]:
-        """从持久化加载Saga"""
+        """从持久化加载Saga（真实重建实例状态并回填内存缓存）。"""
         data = self._persistence_store.get(saga_id)
         if not data:
             return None
-        # 简化实现，实际应完整重建
-        return None
+        try:
+            saga = SagaInstance.from_dict(data)
+        except (KeyError, ValueError, TypeError) as e:
+            logger.error("Failed to rebuild saga %s from persistence: %s", saga_id, e)
+            return None
+        self._sagas[saga_id] = saga
+        logger.info("Loaded saga from persistence: %s", saga_id)
+        return saga
 
     def get_stats(self) -> Dict[str, Any]:
         """获取统计信息"""
