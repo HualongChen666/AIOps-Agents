@@ -68,9 +68,12 @@ class CertificateValidator:
                     validation_result["message"] = expiration_result["message"]
                     validation_result["validation_errors"].append(expiration_result["message"])
 
-            # Check signature (self-verify)
+            # Cryptographic signature check. A self-signed certificate is
+            # verified against its own public key; a CA-signed certificate whose
+            # issuer is unavailable is reported as unverified (never as "valid").
             signature_result = self._check_signature(cert)
-            if not signature_result["valid"]:
+            validation_result["signature_status"] = signature_result["status"]
+            if signature_result["valid"] is False:
                 validation_result["valid"] = False
                 validation_result["status"] = "invalid_signature"
                 validation_result["message"] = signature_result["message"]
@@ -125,39 +128,79 @@ class CertificateValidator:
             "message": "Certificate is within validity period",
         }
 
-    def _check_signature(self, cert: x509.Certificate) -> Dict:
-        """Check if certificate signature is valid."""
+    @staticmethod
+    def _verify_signature(cert: x509.Certificate, issuer_cert: x509.Certificate) -> None:
+        """Verify ``cert``'s signature with ``issuer_cert``'s public key.
+
+        Uses the signature algorithm parameters recorded in the certificate, so
+        RSA-PKCS#1v1.5, RSA-PSS, ECDSA and Ed25519 certificates are all handled
+        correctly.  Raises :class:`~cryptography.exceptions.InvalidSignature`
+        (or another exception) when the signature does not verify.
+        """
+        public_key = issuer_cert.public_key()
+        params = cert.signature_algorithm_parameters
+        if params is None:
+            # Ed25519/Ed448 have no padding or hash parameters.
+            public_key.verify(cert.signature, cert.tbs_certificate_bytes)
+        else:
+            public_key.verify(
+                cert.signature,
+                cert.tbs_certificate_bytes,
+                params,
+                cert.signature_hash_algorithm,
+            )
+
+    def _check_signature(
+        self,
+        cert: x509.Certificate,
+        issuer_cert: Optional[x509.Certificate] = None,
+    ) -> Dict:
+        """Verify the certificate's cryptographic signature.
+
+        A self-signed certificate is verified against its own public key with the
+        algorithm recorded in the certificate.  A CA-signed certificate can only
+        be verified with the issuer's certificate; when the issuer is not
+        supplied the signature is reported as ``unverified`` (``valid`` is
+        ``None``) instead of pretending it is valid.
+        """
+        from cryptography.exceptions import InvalidSignature
+
+        if issuer_cert is None and cert.issuer == cert.subject:
+            issuer_cert = cert
+        if issuer_cert is None:
+            return {
+                "valid": None,
+                "status": "unverified",
+                "message": (
+                    "Issuer certificate not available; signature verification "
+                    "requires trust-chain verification"
+                ),
+            }
+
         try:
-            # For self-signed certificates, verify signature with own public key
-            if cert.issuer == cert.subject:
-                # Skip signature verification for self-signed certs in basic validation
-                # Full verification is done in trust chain verification
-                return {
-                    "valid": True,
-                    "status": "valid",
-                    "message": "Self-signed certificate (signature verified in trust chain)",
-                }
-            else:
-                # For CA-signed certificates, we need the issuer's public key
-                # This will be checked in trust chain verification
-                return {
-                    "valid": True,
-                    "status": "valid",
-                    "message": "Signature format is valid (chain verification required)",
-                }
+            self._verify_signature(cert, issuer_cert)
+            return {
+                "valid": True,
+                "status": "valid",
+                "message": "Signature verified against issuer public key",
+            }
+        except InvalidSignature:
+            return {
+                "valid": False,
+                "status": "invalid_signature",
+                "message": "Certificate signature does not match the issuer public key",
+            }
         except Exception as e:
             return {
                 "valid": False,
                 "status": "invalid_signature",
-                "message": f"Invalid signature: {str(e)}",
+                "message": f"Signature verification error: {str(e)}",
             }
 
     def _check_basic_constraints(self, cert: x509.Certificate) -> Dict:
         """Check basic constraints extension."""
         try:
-            constraints = cert.extensions.get_extension_for_oid(
-                ExtensionOID.BASIC_CONSTRAINTS
-            )
+            constraints = cert.extensions.get_extension_for_oid(ExtensionOID.BASIC_CONSTRAINTS)
             if constraints.critical:
                 return {
                     "valid": True,
@@ -182,9 +225,7 @@ class CertificateValidator:
     def _check_key_usage(self, cert: x509.Certificate) -> Dict:
         """Check key usage extension."""
         try:
-            key_usage = cert.extensions.get_extension_for_oid(
-                ExtensionOID.KEY_USAGE
-            )
+            cert.extensions.get_extension_for_oid(ExtensionOID.KEY_USAGE)
             return {
                 "valid": True,
                 "message": "Key usage extension present and valid",
@@ -258,25 +299,9 @@ class CertificateValidator:
 
                 # Verify signature
                 try:
-                    from cryptography.hazmat.primitives.asymmetric import padding
-                    public_key = issuer_cert.public_key()
-                    try:
-                        public_key.verify(
-                            current_cert.signature,
-                            current_cert.tbs_certificate_bytes,
-                            padding.PKCS1v15(),
-                            current_cert.signature_hash_algorithm,
-                        )
-                    except:
-                        public_key.verify(
-                            current_cert.signature,
-                            current_cert.tbs_certificate_bytes,
-                            current_cert.signature_hash_algorithm,
-                        )
+                    self._verify_signature(current_cert, issuer_cert)
                 except Exception as e:
-                    validation_errors.append(
-                        f"Invalid signature at chain position {i}: {str(e)}"
-                    )
+                    validation_errors.append(f"Invalid signature at chain position {i}: {str(e)}")
 
                 # Check expiration
                 if not self._check_expiration(current_cert)["valid"]:
@@ -291,21 +316,7 @@ class CertificateValidator:
 
             # Verify root CA signature
             try:
-                from cryptography.hazmat.primitives.asymmetric import padding
-                public_key = root_ca.public_key()
-                try:
-                    public_key.verify(
-                        root_ca.signature,
-                        root_ca.tbs_certificate_bytes,
-                        padding.PKCS1v15(),
-                        root_ca.signature_hash_algorithm,
-                    )
-                except:
-                    public_key.verify(
-                        root_ca.signature,
-                        root_ca.tbs_certificate_bytes,
-                        root_ca.signature_hash_algorithm,
-                    )
+                self._verify_signature(root_ca, root_ca)
             except Exception as e:
                 validation_errors.append(f"Root CA signature is invalid: {str(e)}")
 
@@ -445,7 +456,7 @@ class CertificateValidator:
                 }
 
             # Load CRL
-            crl = x509.load_pem_x509_crl(crl_pem.encode('utf-8'), self.backend)
+            crl = x509.load_pem_x509_crl(crl_pem.encode("utf-8"), self.backend)
 
             # Check if certificate serial number is in CRL
             serial_number = cert.serial_number
@@ -457,7 +468,11 @@ class CertificateValidator:
                     "status": "revoked",
                     "message": f"Certificate is revoked (serial: {serial_number})",
                     "revocation_date": revoked_cert.revocation_date.isoformat(),
-                    "revocation_reason": str(revoked_cert.revocation_reason) if revoked_cert.revocation_reason else None,
+                    "revocation_reason": (
+                        str(revoked_cert.revocation_reason)
+                        if revoked_cert.revocation_reason
+                        else None
+                    ),
                 }
 
             return {
@@ -502,10 +517,10 @@ class CertificateValidator:
             # Create revoked certificates list
             revoked_certs = []
             for serial, revocation_date, reason in revoked_serials:
-                revoked_cert = x509.RevokedCertificateBuilder().serial_number(
-                    serial
-                ).revocation_date(
-                    revocation_date
+                revoked_cert = (
+                    x509.RevokedCertificateBuilder()
+                    .serial_number(serial)
+                    .revocation_date(revocation_date)
                 )
 
                 if reason:
@@ -539,9 +554,7 @@ class CertificateValidator:
 
             # Add authority key identifier
             builder = builder.add_extension(
-                x509.AuthorityKeyIdentifier.from_issuer_public_key(
-                    ca_private_key.public_key()
-                ),
+                x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_private_key.public_key()),
                 critical=False,
             )
 
@@ -552,7 +565,7 @@ class CertificateValidator:
                 crl = builder.sign(ca_private_key, hashes.SHA256(), self.backend)
 
             # Serialize to PEM
-            crl_pem = crl.public_bytes(serialization.Encoding.PEM).decode('utf-8')
+            crl_pem = crl.public_bytes(serialization.Encoding.PEM).decode("utf-8")
 
             logger.info(f"Generated CRL with {len(revoked_certs)} revoked certificates")
             return crl_pem

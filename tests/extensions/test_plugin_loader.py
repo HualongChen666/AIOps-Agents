@@ -139,7 +139,8 @@ class TestLoadOne:
         module, ok, err = _load_one(test_file, "bad_module")
         assert ok is False
         assert "SyntaxError" in err
-        assert "bad_module" in sys.modules
+        # A failed load must not leave a half-initialised module in sys.modules.
+        assert "bad_module" not in sys.modules
 
     def test_load_one_import_error(self, tmp_path):
         """Test loading a file with import error."""

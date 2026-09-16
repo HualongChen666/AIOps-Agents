@@ -12571,3 +12571,45 @@ terraform/storage.tf
 
 - 用户口径：总计 **415**；第 21 批后剩余 **203**。
 - 本批修复 **5** → **剩余 198**。
+
+
+---
+
+# PART LXIV — 中危（medium）逐条修复 · 第 23 批（2026-09-16）
+
+> 目标：续接第 22 批（modules/ 域）断点，本批转向 **extensions/ 域**的「发现（中）」条目。本批修复 **5 条**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 说明（诚实记录）：开工前对候选条目逐条回读 HEAD 源码核验，确认缺陷在 HEAD 仍真实存在后才修复
+> （例：`M-033`/`M-050`/`F002`/`F003`/`F122`/`F152`/`F158`/`F163`/`F213`/`F277`/`SRV-084`/`SRV-092`/`API-056`
+> 等经核验**已于早前批次/域整改修复**，已剔除，未重复登记；`EXT-078`/`EXT-210`/`EXT-090` 亦已修复，剔除）。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| EXT-002 | `extensions/plugin_loader.py` | `_load_one` 在 `exec_module` 前把 module 放入 `sys.modules`，失败时**不移除** → 半初始化模块残留，后续 `import`/下一轮 pass 会拿到破模块。改为失败时**从 `sys.modules` 逐出**（仅当仍是自身），使「重试/如实报错」成立；`get_addon` 返回注解 `ModuleType` **未导入**（F821）改为 `types.ModuleType`。 |
+| EXT-015 | `extensions/addons/ai_plus/access_control_service/access_control_manager.py` | `_map_action` 对**未知 action 恒降级为 `ActionType.READ`**（fail-open，READ 策略可放行未定义动作）→ 改为未知动作返回 `None`；`check_access` 中 `None` 即 **fail-closed**（跳过 ABAC、落默认拒绝）。同时删除未使用导入 `Policy`。 |
+| EXT-033 | `extensions/addons/ai_plus/automated_testing_service/test_runner.py` | `_parse_text_results` 以**子串** `"PASSED"/"FAILED"/"SKIPPED"/"ERROR" in line` 计数 → 汇总行（`1 failed, 1 passed in 0.12s`）与失败堆栈（含 `PASSED` 字样）被重复计入、`test_case_id` 取整行首词。改为按 **pytest `-v` 真实结果行**（`nodeid::test` + 结果关键字）正则匹配并归一化状态；汇总/堆栈不再计数。删除未使用导入 `tempfile`/`datetime`/`Path`。 |
+| EXT-042 | `extensions/addons/ai_plus/certificate_management_service/certificate_validator.py` | `_check_signature` 对自签与 CA 签**一律 `valid=True`**（注释「Skip signature verification」）→ 签名校验实际未执行。改为**真实密码学校验**：自签用自身公钥、CA 签在提供签发者证书时用签发者公钥，按证书记录的 `signature_algorithm_parameters`（RSA-PKCS1v15/RSA-PSS/ECDSA/Ed25519 通用）验证；**签发者不可得时如实报 `unverified`（`valid=None`）**，绝不谎报有效。`validate_certificate` 只在 `valid is False` 时判负并登记 `signature_status`；`verify_trust_chain` 复用新私有助手 `_verify_signature`，**消除两处裸 `except:`**（E722）与 PKCS1v15 硬编码回退。删除未使用局部变量 `key_usage`。 |
+| EXT-069 | `extensions/addons/ai_plus/dependency_management_service/dependency_scanner.py` | `_parse_pipdeptree_output` 的 `children` **恒 `[]`**（注释「Would parse nested dependencies here」）→ 依赖树只剩根节点。改为**真实解析** pipdeptree 的树形输出：按每层 4 字符缩进glyph 计算层级，逐行解析 `name==version` 或 `[required: …, installed: …]`，用父栈**真实挂载嵌套子依赖**并尊重 `depth` 上限。删除未使用导入 `os`/`urljoin`/`urlopen`。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/extensions/test_medium_ledger_batch23_20260916.py` → **15 passed**
+  （失败加载后 `sys.modules` 无残留且可重试成功、成功加载保留；`_map_action` 已知动作→枚举/未知→`None`，未知 action 端到端 **拒绝**、已知 action 由 ABAC 放行；
+  文本解析只计真实结果行、纯汇总行计 0；自签签名 **真实校验通过**、CA 签无签发者→`unverified`、提供签发者→通过、签发者不匹配→`invalid_signature`；
+  依赖树嵌套子节点与 version 真实解析、`depth` 上限生效、空输出如实返回 unknown）。
+- **既有套件更新（对齐真实契约，非放宽）**：`tests/extensions/test_plugin_loader.py::test_load_one_syntax_error`
+  由旧断言 `"bad_module" in sys.modules`（编码了「半初始化残留」的错误行为）改为 **`not in sys.modules`**。
+- `tests/extensions/test_plugin_loader.py` → **42 passed**；`tests/extensions/test_medium_ledger_batch23_20260916.py` + 前者同进程 → **57 passed**。
+- **目录级无回归对照**（`git stash -u` 于干净 HEAD 与修复后逐项比对，`tests/extensions/` 全目录）：
+  修复前后 **均为 44 failed / 2451 passed / 391 skipped / 28 errors**，失败/错误**集合逐条一致（comm 差集为空）**；
+  该 72 项既有失败/错误均为**基线既有**（`test_boost_misc`/`test_low_infra_helpers` 的 addon 相对导入路径、`test_addons.py` 未注册 `timeout` marker 等），**与本批无关**。
+- 端到端抽查：以真实自签名证书（含 BasicConstraints/KeyUsage 扩展）调 `validate_certificate` → `valid=True, signature_status=valid, status=valid`。
+- 静态检查：5 个源文件 `python -m py_compile` → OK；`black --check` 7 个改动文件 → **unchanged**；
+  `flake8`（`.flake8`：max-line-length 100，ignore E203/W503/E402/E501）对 5 源文件 + 新测试 → **0 问题**（本批顺带清除了所改文件的 F401/F841/E722/F821 既有告警）。
+
+## 进度口径（诚实记录）
+
+- 用户口径：总计 **415**；第 22 批后剩余 **198**。
+- 本批修复 **5** → **剩余 193**。

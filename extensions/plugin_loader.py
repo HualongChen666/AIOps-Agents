@@ -56,6 +56,12 @@ def _load_one(py_path: Path, name: str) -> Tuple[types.ModuleType, bool, str]:
         spec.loader.exec_module(module)
         return module, True, ""
     except Exception as exc:
+        # A failed exec leaves a half-initialised module behind.  Keeping it in
+        # sys.modules would let a later ``import`` (or a subsequent loading
+        # pass) obtain a broken module instead of retrying/erroring honestly,
+        # so evict it before reporting the failure.
+        if sys.modules.get(name) is module:
+            del sys.modules[name]
         logger.debug(f"Failed to load addon {name}: {exc}")
         return module, False, f"{type(exc).__name__}: {exc}"
 
@@ -106,6 +112,6 @@ def list_addons() -> List[str]:
     return sorted(str(p.relative_to(ROOT)) for p in ROOT.rglob("*.py") if p.is_file())
 
 
-def get_addon(name: str) -> ModuleType | None:
+def get_addon(name: str) -> types.ModuleType | None:
     """Fetch an already-loaded addon module by its generated name."""
     return sys.modules.get(name)

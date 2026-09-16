@@ -2,15 +2,12 @@
 """Dependency scanner for Python projects."""
 
 import logging
-import os
 import re
 import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set
-from urllib.parse import urljoin
-from urllib.request import urlopen
 
 try:
     import tomllib  # Python 3.11+ standard library TOML parser
@@ -362,9 +359,7 @@ class DependencyScanner:
                         dependencies.append(dep)
 
             # Try to extract extras_require
-            extras_require_match = re.search(
-                r"extras_require\s*=\s*\{(.*?)\}", content, re.DOTALL
-            )
+            extras_require_match = re.search(r"extras_require\s*=\s*\{(.*?)\}", content, re.DOTALL)
             if extras_require_match:
                 extras_str = extras_require_match.group(1)
                 # Extract all requirement strings
@@ -470,7 +465,12 @@ class DependencyScanner:
             return {"name": package_name, "version": "unknown", "children": []}
 
     def _parse_pipdeptree_output(self, output: str, depth: int) -> Dict:
-        """Parse pipdeptree output.
+        """Parse ``pipdeptree -p <package>`` output into a nested tree.
+
+        pipdeptree prints the requested package followed by its dependencies, one
+        per line, indented with tree glyphs (``├──``/``└──``/``│``).  Each glyph
+        group represents one level of nesting, so the level is used to attach
+        every dependency to its parent, up to ``depth`` levels below the root.
 
         Args:
             output: pipdeptree stdout
@@ -479,20 +479,46 @@ class DependencyScanner:
         Returns:
             Parsed tree structure
         """
-        # Simplified parsing
-        lines = output.strip().split("\n")
+        lines = [line for line in output.splitlines() if line.strip()]
         if not lines:
             return {"name": "unknown", "version": "unknown", "children": []}
 
-        first_line = lines[0]
-        match = re.match(r"(\w+)==([\d.]+)", first_line)
-        if match:
-            name, version = match.groups()
+        root_match = re.match(r"^\s*([\w.\-]+)==([^\s\[]+)", lines[0])
+        if root_match:
+            root_name, root_version = root_match.groups()
         else:
-            name, version = "unknown", "unknown"
+            root_name, root_version = "unknown", "unknown"
 
-        return {
-            "name": name,
-            "version": version,
-            "children": [],  # Would parse nested dependencies here
-        }
+        root: Dict = {"name": root_name, "version": root_version, "children": []}
+        # stack[i] is the most recently seen node at nesting level i (root = 0).
+        stack: List[Dict] = [root]
+
+        for line in lines[1:]:
+            stripped = line.lstrip("│├└─ ")
+            if not stripped:
+                continue
+            prefix = line[: len(line) - len(stripped)]
+            # Each nesting level is rendered as a 4-character glyph group
+            # ("├── ", "│   ", "    ", ...); direct children sit at level 1.
+            node_depth = len(prefix) // 4
+            if node_depth > depth:
+                # Deeper than requested — do not traverse further.
+                continue
+
+            content = stripped.strip()
+            node_match = re.match(r"([\w.\-]+)==([^\s\[]+)", content)
+            if node_match:
+                name, version = node_match.group(1), node_match.group(2)
+            else:
+                node_match = re.match(r"([\w.\-]+)\s*\[required:.*?installed:\s*([^,\]]+)", content)
+                if not node_match:
+                    continue
+                name, version = node_match.group(1), node_match.group(2).strip()
+
+            node: Dict = {"name": name, "version": version, "children": []}
+            while len(stack) > node_depth:
+                stack.pop()
+            stack[-1]["children"].append(node)
+            stack.append(node)
+
+        return root

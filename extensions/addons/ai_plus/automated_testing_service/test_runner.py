@@ -4,13 +4,11 @@
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
-import tempfile
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
@@ -181,11 +179,13 @@ class TestRunner:
 
         # Add coverage if requested
         if collect_coverage:
-            cmd.extend([
-                "--cov=.",
-                f"--cov-report=json:{os.path.join(self.config.COVERAGE_DIR, 'coverage.json')}",
-                "--cov-report=html",
-            ])
+            cmd.extend(
+                [
+                    "--cov=.",
+                    f"--cov-report=json:{os.path.join(self.config.COVERAGE_DIR, 'coverage.json')}",
+                    "--cov-report=html",
+                ]
+            )
 
         return cmd
 
@@ -276,55 +276,44 @@ class TestRunner:
     def _parse_text_results(self, output: str, report: TestReport, suite_id: str) -> None:
         """Parse text-based pytest output.
 
+        Only genuine pytest result lines — an ``nodeid::test`` token followed by
+        an outcome keyword, as emitted by ``pytest -v`` (e.g.
+        ``tests/test_x.py::test_y PASSED [ 12%]``) — are counted.  Matching bare
+        substrings would also count the trailing summary line and any traceback
+        or captured output that happens to contain the word.
+
         Args:
             output: Pytest stdout output
             report: Report to populate
             suite_id: Test suite ID
         """
-        lines = output.split("\n")
+        # outcome keyword -> (counter attribute, normalised TestResult.status)
+        outcome_map = {
+            "PASSED": ("passed", "passed"),
+            "FAILED": ("failed", "failed"),
+            "ERROR": ("errors", "error"),
+            "SKIPPED": ("skipped", "skipped"),
+            "XFAIL": ("skipped", "skipped"),
+            "XPASS": ("passed", "passed"),
+        }
+        result_re = re.compile(
+            r"^(?P<nodeid>\S+::\S+)\s+(?P<outcome>PASSED|FAILED|ERROR|SKIPPED|XFAIL|XPASS)\b"
+        )
 
-        for line in lines:
-            # Parse test results from output
-            if "PASSED" in line:
-                report.passed += 1
-                report.total_tests += 1
-                test_name = line.split()[0] if line.split() else ""
-                result = TestResult(
+        for line in output.splitlines():
+            match = result_re.match(line)
+            if not match:
+                continue
+            counter, status = outcome_map[match.group("outcome")]
+            setattr(report, counter, getattr(report, counter) + 1)
+            report.total_tests += 1
+            report.results.append(
+                TestResult(
                     suite_id=suite_id,
-                    test_case_id=test_name,
-                    status="passed",
+                    test_case_id=match.group("nodeid"),
+                    status=status,
                 )
-                report.results.append(result)
-            elif "FAILED" in line:
-                report.failed += 1
-                report.total_tests += 1
-                test_name = line.split()[0] if line.split() else ""
-                result = TestResult(
-                    suite_id=suite_id,
-                    test_case_id=test_name,
-                    status="failed",
-                )
-                report.results.append(result)
-            elif "SKIPPED" in line:
-                report.skipped += 1
-                report.total_tests += 1
-                test_name = line.split()[0] if line.split() else ""
-                result = TestResult(
-                    suite_id=suite_id,
-                    test_case_id=test_name,
-                    status="skipped",
-                )
-                report.results.append(result)
-            elif "ERROR" in line:
-                report.errors += 1
-                report.total_tests += 1
-                test_name = line.split()[0] if line.split() else ""
-                result = TestResult(
-                    suite_id=suite_id,
-                    test_case_id=test_name,
-                    status="error",
-                )
-                report.results.append(result)
+            )
 
     def _collect_coverage(self, test_path: str, suite_id: str) -> TestCoverage:
         """Collect coverage information from coverage.json.

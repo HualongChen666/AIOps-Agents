@@ -14,7 +14,6 @@ from core.abac import (
     ABACEngine,
     ActionType,
     Environment,
-    Policy,
     Resource,
     ResourceType,
     Subject,
@@ -614,9 +613,7 @@ class RBACManager:
 
         return all_permissions
 
-    def check_permission(
-        self, subject_id: str, resource_type: str, action: str
-    ) -> bool:
+    def check_permission(self, subject_id: str, resource_type: str, action: str) -> bool:
         """
         Check if a subject has permission for an action on a resource type.
 
@@ -746,6 +743,10 @@ class AccessControlManager:
                 # Map resource type string to enum
                 resource_type_enum = self._map_resource_type(resource_type)
                 action_enum = self._map_action(action)
+                if action_enum is None:
+                    # Unknown action: fail closed — skip ABAC and fall through
+                    # to the default deny below.
+                    raise ValueError(f"unknown action '{action}'")
 
                 subject = Subject(
                     id=subject_id,
@@ -764,7 +765,9 @@ class AccessControlManager:
 
                 environment = Environment(attributes=environment_attributes)
 
-                abac_allowed = self.abac_engine.evaluate(subject, resource, action_enum, environment)
+                abac_allowed = self.abac_engine.evaluate(
+                    subject, resource, action_enum, environment
+                )
 
                 if abac_allowed:
                     logger.info(
@@ -783,9 +786,7 @@ class AccessControlManager:
                 logger.error(f"ABAC evaluation failed: {e}")
 
         # Default deny
-        logger.info(
-            f"Access denied: subject={subject_id}, resource={resource_id}, action={action}"
-        )
+        logger.info(f"Access denied: subject={subject_id}, resource={resource_id}, action={action}")
         return {
             "allowed": False,
             "decision_type": "combined",
@@ -802,15 +803,23 @@ class AccessControlManager:
         except ValueError:
             return ResourceType.SERVICE
 
-    def _map_action(self, action: str) -> ActionType:
-        """Map string action to enum."""
+    def _map_action(self, action: str) -> Optional[ActionType]:
+        """Map a string action to :class:`ActionType`.
+
+        Returns ``None`` for an unrecognised action so that callers can **fail
+        closed** instead of silently downgrading an unknown action to ``READ``
+        (which would let a read-only policy grant an undefined action).
+        """
         try:
             return ActionType(action.lower())
         except ValueError:
-            return ActionType.READ
+            logger.warning(f"Unknown action '{action}' cannot be mapped to ActionType")
+            return None
 
     # RBAC delegation methods
-    def create_permission(self, name: str, description: str, resource_type: str, actions: List[str]):
+    def create_permission(
+        self, name: str, description: str, resource_type: str, actions: List[str]
+    ):
         return self.rbac_manager.create_permission(name, description, resource_type, actions)
 
     def update_permission(self, permission_id: str, **kwargs):
@@ -822,10 +831,14 @@ class AccessControlManager:
     def get_permission(self, permission_id: str):
         return self.rbac_manager.get_permission(permission_id)
 
-    def list_permissions(self, limit: int = 100, offset: int = 0, resource_type: Optional[str] = None):
+    def list_permissions(
+        self, limit: int = 100, offset: int = 0, resource_type: Optional[str] = None
+    ):
         return self.rbac_manager.list_permissions(limit, offset, resource_type)
 
-    def create_role(self, name: str, description: str, permission_ids: List[str], inherited_role_ids: List[str]):
+    def create_role(
+        self, name: str, description: str, permission_ids: List[str], inherited_role_ids: List[str]
+    ):
         return self.rbac_manager.create_role(name, description, permission_ids, inherited_role_ids)
 
     def update_role(self, role_id: str, **kwargs):
@@ -863,8 +876,14 @@ class AccessControlManager:
     ):
         if self.abac_engine:
             return self.abac_engine.create_policy(
-                name, description, effect, subject_conditions, resource_conditions,
-                environment_conditions, actions, priority
+                name,
+                description,
+                effect,
+                subject_conditions,
+                resource_conditions,
+                environment_conditions,
+                actions,
+                priority,
             )
         return None
 
