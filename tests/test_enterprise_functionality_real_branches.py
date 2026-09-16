@@ -144,7 +144,8 @@ def test_iso27001_compliance_levels():
     result = _run(
         standard_mgr.run_compliance_check(ComplianceStandard.ISO27001)
     )  # noqa: F841  # Variable for test verification
-    assert result.passed is True
+    # 加密级别仅为 standard（未达 HIGH）→ ISO27001 Annex A.10 未通过
+    assert result.passed is False
     assert len(result.findings) == 2
     assert any("high" in f for f in result.findings)
     assert any("access control" in f.lower() for f in result.findings)

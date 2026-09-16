@@ -281,15 +281,99 @@ class InfrastructureStorageRepository:
             "status": storage.status,
         }
 
+    # 探测超时（秒）：过短会误判慢节点，过长会拖慢健康检查。
+    _PROBE_TIMEOUT_SECONDS = 2.0
+
+    @classmethod
+    def _probe_endpoint(cls, storage_type: str, endpoint: Optional[str]) -> tuple:
+        """对存储端点执行一次真实连通性探测。
+
+        - endpoint 为 http/https URL → 发起真实 HTTP(S) 请求（GET）。
+        - endpoint 为 host:port（或裸 host）→ 发起 TCP 连接探测。
+        - endpoint 缺失/不可解析 → 判定不可达（不伪造成功）。
+
+        Returns:
+            (reachable: bool, detail: str)
+        """
+        target = (endpoint or "").strip()
+        if not target:
+            return False, "no endpoint configured"
+
+        if target.startswith(("http://", "https://")):
+            import urllib.error
+            import urllib.request
+
+            try:
+                request = urllib.request.Request(target, method="GET")
+                with urllib.request.urlopen(  # noqa: S310 - 显式探测外部存储端点
+                    request, timeout=cls._PROBE_TIMEOUT_SECONDS
+                ) as response:
+                    return True, f"http {response.status}"
+            except urllib.error.HTTPError as exc:
+                # 返回了 HTTP 状态码即说明端点可达（哪怕是 4xx/5xx）。
+                return True, f"http {exc.code}"
+            except Exception as exc:  # noqa: BLE001 - 网络/超时/DNS 等
+                return False, f"http probe failed: {exc}"
+
+        # host[:port] TCP 探测
+        host, _, port_str = target.rpartition(":")
+        if not host:  # 无端口，只有 host
+            host = target
+            port = cls._default_port(storage_type)
+        else:
+            try:
+                port = int(port_str)
+            except ValueError:
+                host = target
+                port = cls._default_port(storage_type)
+
+        if not port:
+            return False, "no port resolvable for endpoint"
+
+        import socket
+
+        try:
+            with socket.create_connection((host, port), timeout=cls._PROBE_TIMEOUT_SECONDS):
+                return True, f"tcp {host}:{port}"
+        except OSError as exc:
+            return False, f"tcp probe failed: {exc}"
+
+    @staticmethod
+    def _default_port(storage_type: str) -> Optional[int]:
+        """按存储类型给出默认端口，用于 host 未显式带端口时的探测。"""
+        return {
+            "s3": 443,
+            "minio": 9000,
+            "oss": 80,
+            "hdfs": 8020,
+            "nfs": 2049,
+            "kafka": 9092,
+            "redis": 6379,
+            "postgresql": 5432,
+            "mysql": 3306,
+        }.get((storage_type or "").lower())
+
     def health_check(self, storage_id: str) -> Dict[str, Any]:
-        """Perform health check on storage"""
+        """Perform health check on storage.
+
+        真实探测存储端点连通性并据此更新 ``health_status``（不再直接回读历史状态），
+        使不可达存储被如实标记为 ``unhealthy``。
+        """
         storage = self.get_storage_by_id(storage_id)
         if not storage:
             return {"status": "error", "message": "Storage not found"}
-        # In production, this would perform actual connectivity checks
+
+        reachable, detail = self._probe_endpoint(storage.storage_type, storage.endpoint)
+        health_status = "healthy" if reachable else "unhealthy"
+        storage.health_status = health_status
+        storage.last_health_check = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.db.commit()
+
         return {
-            "status": storage.health_status,
-            "last_check": storage.last_health_check.isoformat() if storage.last_health_check else None,
+            "status": health_status,
+            "reachable": reachable,
+            "detail": detail,
+            "last_check": storage.last_health_check.isoformat(),
             "storage_type": storage.storage_type,
             "endpoint": storage.endpoint,
         }

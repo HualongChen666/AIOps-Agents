@@ -380,17 +380,40 @@ def test_auth_role_assignment(auth):
 
 
 def test_auth_require_permission(auth):
+    # 无已认证用户 → 拒绝（fail-closed）
     @auth.require_permission(eai.Permission.READ)
     def sync_fn():
         return "sync"
 
-    assert sync_fn() == "sync"
+    with pytest.raises(PermissionError):
+        sync_fn()
+
+    # 具备所需权限的用户 → 放行
+    user = eai.User(
+        user_id="perm1",
+        username="perm1",
+        email="perm1@x.com",
+        permissions={eai.Permission.READ},
+    )
+
+    @auth.require_permission(eai.Permission.READ)
+    def sync_fn2(user=None):
+        return "sync"
+
+    assert sync_fn2(user=user) == "sync"
 
     @auth.require_permission(eai.Permission.READ)
     async def async_fn():
         return "async"
 
-    assert asyncio.run(async_fn()) == "async"
+    with pytest.raises(PermissionError):
+        asyncio.run(async_fn())
+
+    @auth.require_permission(eai.Permission.READ)
+    async def async_fn2(user=None):
+        return "async"
+
+    assert asyncio.run(async_fn2(user=user)) == "async"
 
 
 def test_auth_statistics_and_factory(monkeypatch):

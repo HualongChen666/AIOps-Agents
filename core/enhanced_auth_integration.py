@@ -527,26 +527,81 @@ class EnhancedAuthIntegration:
 
         return True
 
+    def _resolve_user_from_call(self, args: tuple, kwargs: Dict[str, Any]) -> Optional[User]:
+        """从被装饰调用的参数中解析出当前用户。
+
+        解析顺序：显式 ``User`` 参数 → 带 Authorization 头的 request 对象
+        （Bearer token 经 ``verify_token`` 解析）→ 显式 ``token``/``access_token`` 字符串。
+        无法解析时返回 None（调用方据此拒绝，fail-closed）。
+        """
+        values = list(kwargs.values()) + list(args)
+
+        for value in values:
+            if isinstance(value, User):
+                return value
+
+        for value in values:
+            headers = getattr(value, "headers", None)
+            if headers is None:
+                continue
+            try:
+                auth = headers.get("authorization") or headers.get("Authorization")
+            except Exception:  # noqa: BLE001 - 非映射型 headers
+                auth = None
+            if auth and str(auth).lower().startswith("bearer "):
+                token = str(auth).split(" ", 1)[1].strip()
+                user = self.verify_token(token)
+                if user is not None:
+                    return user
+
+        for key in ("token", "access_token"):
+            candidate = kwargs.get(key)
+            if isinstance(candidate, str) and candidate:
+                user = self.verify_token(candidate)
+                if user is not None:
+                    return user
+
+        return None
+
     def require_permission(self, permission: Permission, resource: str = "*"):
         """
-        Decorator to require permission for function access
+        Decorator to require permission for function access.
+
+        真实鉴权：从调用参数中解析当前用户（显式 User / Bearer token / request 头），
+        再经 ``check_permission`` 校验；用户缺失或权限不足一律抛出 ``PermissionError``
+        （fail-closed），不再无条件放行。
 
         Args:
             permission: Required permission
             resource: Resource to access
         """
 
+        def _enforce(args: tuple, kwargs: Dict[str, Any]) -> None:
+            user = self._resolve_user_from_call(args, kwargs)
+            if user is None:
+                logger.warning(
+                    f"Permission denied (no authenticated user): {permission.value} on {resource}"
+                )
+                raise PermissionError(
+                    f"Authentication required for {permission.value} on {resource}"
+                )
+            if not self.check_permission(user, permission, resource):
+                logger.warning(
+                    f"Permission denied for user {user.user_id}: {permission.value} on {resource}"
+                )
+                raise PermissionError(
+                    f"Permission denied: {permission.value} on {resource}"
+                )
+
         def decorator(func):
             @wraps(func)
             async def async_wrapper(*args, **kwargs):
-                # In real implementation, would extract user from request context
-                # For now, just call the function
+                _enforce(args, kwargs)
                 return await func(*args, **kwargs)
 
             @wraps(func)
             def sync_wrapper(*args, **kwargs):
-                # In real implementation, would extract user from request context
-                # For now, just call the function
+                _enforce(args, kwargs)
                 return func(*args, **kwargs)
 
             if asyncio.iscoroutinefunction(func):

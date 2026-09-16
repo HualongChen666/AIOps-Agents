@@ -288,17 +288,62 @@ class PluginMarketplace:
         """
         return hashlib.sha256(data).hexdigest()
 
+    def _load_pem_private_key(self):
+        """尝试把配置中的 ``private_key`` 解析为 PEM 非对称私钥；不可用时返回 None。"""
+        if not self.private_key or "-----BEGIN" not in self.private_key:
+            return None
+        try:
+            from cryptography.hazmat.primitives.serialization import load_pem_private_key
+        except ImportError:  # pragma: no cover - 依赖缺失
+            logger.warning("cryptography unavailable; PEM plugin signing disabled")
+            return None
+        try:
+            return load_pem_private_key(self.private_key.encode(), password=None)
+        except Exception as exc:  # noqa: BLE001 - 非法 PEM
+            logger.error(f"Failed to load PEM private key for plugin signing: {exc}")
+            return None
+
+    @staticmethod
+    def _asymmetric_sign(key: Any, message: bytes) -> tuple:
+        """使用真实非对称私钥对消息签名，返回 (hex 签名, 算法名, 公钥 PEM)。"""
+        from cryptography.hazmat.primitives import hashes, serialization
+        from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, padding
+
+        if isinstance(key, ed25519.Ed25519PrivateKey):
+            raw = key.sign(message)
+            algorithm = "Ed25519"
+        elif isinstance(key, ed448.Ed448PrivateKey):
+            raw = key.sign(message)
+            algorithm = "Ed448"
+        elif isinstance(key, ec.EllipticCurvePrivateKey):
+            raw = key.sign(message, ec.ECDSA(hashes.SHA256()))
+            algorithm = "ECDSA-SHA256"
+        else:
+            raw = key.sign(
+                message,
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH
+                ),
+                hashes.SHA256(),
+            )
+            algorithm = "RSASSA-PSS-SHA256"
+
+        public_pem = key.public_key().public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+        return raw.hex(), algorithm, public_pem.decode()
+
     def _sign_plugin(self, plugin_id: str, version: str, data: bytes) -> PluginSignature:
         """
-        Sign plugin with digital signature
+        Sign plugin with a real digital signature.
 
-        Args:
-            plugin_id: Plugin ID
-            version: Plugin version
-            data: Plugin data
+        - 配置了 PEM 非对称私钥（RSA/EC/Ed25519/Ed448）时，使用该私钥真实签名，
+          并保存可由任何持有者独立验证的公钥 PEM（``verified=False``，待验证）。
+        - 仅配置对称密钥时，使用 HMAC-SHA256（并如实标注算法），不再以对称密钥
+          冒充公钥签名。
 
-        Returns:
-            PluginSignature object
+        签名对象为 ``"{plugin_id}:{version}:{checksum}"``。
         """
         if not self.private_key:
             raise ValueError(
@@ -306,19 +351,71 @@ class PluginMarketplace:
                 "or provide private_key in config"
             )
 
-        # Create signature using HMAC
-        message = f"{plugin_id}:{version}:{self._calculate_checksum(data)}".encode()
-        signature = hmac.new(self.private_key.encode(), message, hashlib.sha256).hexdigest()
+        checksum = self._calculate_checksum(data)
+        message = f"{plugin_id}:{version}:{checksum}".encode()
+
+        key = self._load_pem_private_key()
+        if key is not None:
+            signature, algorithm, public_key = self._asymmetric_sign(key, message)
+        else:
+            signature = hmac.new(self.private_key.encode(), message, hashlib.sha256).hexdigest()
+            algorithm = "HMAC-SHA256"
+            # 对称签名没有可公开验证的公钥材料，不伪造 public_key。
+            public_key = ""
 
         return PluginSignature(
             plugin_id=plugin_id,
             version=version,
             signature=signature,
-            algorithm=self.signature_algorithm,
-            public_key=self.public_key,
+            algorithm=algorithm,
+            public_key=public_key,
             signed_at=datetime.now(),
-            verified=True,
+            verified=False,
         )
+
+    @staticmethod
+    def _verify_asymmetric(
+        public_key_pem: str, message: bytes, signature_hex: str
+    ) -> bool:
+        """用公钥 PEM 验证非对称签名；任何失败均返回 False（不伪装成功）。"""
+        if not public_key_pem:
+            logger.error("No public key available for asymmetric verification")
+            return False
+        try:
+            from cryptography.exceptions import InvalidSignature
+            from cryptography.hazmat.primitives import hashes, serialization
+            from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, padding
+        except ImportError:  # pragma: no cover - 依赖缺失
+            logger.error("cryptography unavailable for asymmetric verification")
+            return False
+
+        try:
+            public_key = serialization.load_pem_public_key(public_key_pem.encode())
+            signature = bytes.fromhex(signature_hex)
+        except Exception as exc:  # noqa: BLE001 - 非法公钥/签名编码
+            logger.error(f"Failed to load public key/signature: {exc}")
+            return False
+
+        try:
+            if isinstance(public_key, (ed25519.Ed25519PublicKey, ed448.Ed448PublicKey)):
+                public_key.verify(signature, message)
+            elif isinstance(public_key, ec.EllipticCurvePublicKey):
+                public_key.verify(signature, message, ec.ECDSA(hashes.SHA256()))
+            else:
+                public_key.verify(
+                    signature,
+                    message,
+                    padding.PSS(
+                        mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH
+                    ),
+                    hashes.SHA256(),
+                )
+            return True
+        except InvalidSignature:
+            return False
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Signature verification error: {exc}")
+            return False
 
     def _assess_security_level(self, data: bytes, metadata: Dict[str, Any]) -> SecurityLevel:
         """
@@ -368,10 +465,6 @@ class PluginMarketplace:
             logger.error(f"Plugin has no signature: {plugin_id}")
             return False
 
-        if not self.private_key:
-            logger.error("Private key not configured for signature verification")
-            return False
-
         # Recalculate checksum
         checksum = self._calculate_checksum(package_data)
 
@@ -380,13 +473,27 @@ class PluginMarketplace:
             logger.error(f"Checksum mismatch for plugin: {plugin_id}")
             return False
 
-        # Verify signature
         message = f"{plugin_id}:{plugin.version}:{checksum}".encode()
-        expected_signature = hmac.new(
-            self.private_key.encode(), message, hashlib.sha256
-        ).hexdigest()
+        algorithm = (plugin.signature.algorithm or "").upper()
 
-        if expected_signature != plugin.signature.signature:
+        if plugin.signature.public_key or algorithm.startswith(
+            ("ED25519", "ED448", "ECDSA", "RSASSA", "RSA")
+        ):
+            # 非对称签名：用签名内附带的公钥独立验证（无需私钥）
+            verified = self._verify_asymmetric(
+                plugin.signature.public_key, message, plugin.signature.signature
+            )
+        else:
+            # 对称 HMAC 签名：需配置同一密钥，常量时间比较
+            if not self.private_key:
+                logger.error("Private key not configured for HMAC signature verification")
+                return False
+            expected_signature = hmac.new(
+                self.private_key.encode(), message, hashlib.sha256
+            ).hexdigest()
+            verified = hmac.compare_digest(expected_signature, plugin.signature.signature)
+
+        if not verified:
             logger.error(f"Signature verification failed for plugin: {plugin_id}")
             return False
 

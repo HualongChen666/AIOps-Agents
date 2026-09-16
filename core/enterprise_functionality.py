@@ -419,18 +419,27 @@ class EnterpriseFunctionalityManager:
         return passed, findings
 
     async def _check_iso27001_compliance(self) -> Tuple[bool, List[str]]:
-        """Check ISO27001 compliance"""
-        findings = []
+        """Check ISO27001 compliance.
+
+        真实判定：加密未启用或加密级别未达 HIGH（Annex A.10 密码控制）时，
+        合规结论为未通过（``passed=False``），而非无条件通过。访问控制审查
+        作为非阻断性建议保留在 findings 中。
+        """
+        findings: List[str] = []
         passed = True
 
-        # Check access control
+        # Annex A.9 — 访问控制（非阻断性审查建议）
         findings.append("ISO27001: Access control review recommended")
 
-        # Check encryption
-        if self.encryption_level != EncryptionLevel.HIGH:
+        # Annex A.10 — 密码控制：必须启用加密且级别达到 HIGH
+        if not self.encryption_enabled:
+            findings.append("ISO27001: Encryption not enabled")
+            passed = False
+        elif self.encryption_level != EncryptionLevel.HIGH:
             findings.append(
                 f"ISO27001: Encryption level {self.encryption_level.value} below recommended high"
             )
+            passed = False
 
         return passed, findings
 
@@ -785,3 +794,5 @@ class EnterpriseFunctionalityManager:
 
 # Global instance
 ENTERPRISE_FUNCTIONALITY_MANAGER = EnterpriseFunctionalityManager()
+# 向后兼容别名：部分模块/测试以小写名导入该全局实例。
+enterprise_functionality_manager = ENTERPRISE_FUNCTIONALITY_MANAGER

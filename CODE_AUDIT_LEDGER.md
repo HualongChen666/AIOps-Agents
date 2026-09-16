@@ -12347,3 +12347,45 @@ terraform/storage.tf
 - PART VI（frontend/）带「**中」标记条目 **82**。
 - 累计修复前端中危 **44**（第 12 批 9 + 第 13 批 3 + 第 14 批 12 + 第 15 批 10 + 第 16 批 5 + 本批 5）→ 前端中危剩余 **38**（82 − 44）。
 - 本批修复 5 条 → **剩余 38**（前端口径）。
+
+
+---
+
+# PART LIX — 中危（medium）逐条修复 · 第 18 批（2026-09-16）
+
+> 目标：继续「发现（中）」条目修复（core/ 域）。本批修复 **5 条**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 说明（诚实记录）：开工前对候选条目逐条回读源码核验，确认 5 条缺陷在 HEAD 仍真实存在后才修复。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| F096 | `core/causal/algorithms.py` | `PCAlgorithm.discover` 原 Phase 2/3 为**空壳**（注释 "(Simplified implementation)"，从不定向），`_test_independence` **仅用边际 `np.corrcoef`**（忽略条件集）→ 骨架错误、无方向。改为：Phase 1 按条件集大小递增做**真实偏相关条件独立性检验**（`_test_independence` 用条件集回归残差相关 + Fisher-z，p 值经 `erfc`）并登记 sepset；Phase 2 定向**无屏蔽 v-structure**；Phase 3 应用 **Meek R1–R4** + 拓扑序补定向（保持无环）；边强度/置信度按真实偏相关计算。 |
+| F158 | `core/enhanced_auth_integration.py` | `require_permission` 原注释 "would extract user from request context / For now, just call the function"——**空鉴权、无条件放行**（fail-open）。改为 `_resolve_user_from_call` 真实解析当前用户（显式 `User` 实参 → 带 `Authorization: Bearer` 头的 request → 显式 `token/access_token`），再经 `check_permission` 校验；用户缺失或权限不足一律 `PermissionError`（**fail-closed**），同步/异步 wrapper 同路径。 |
+| F164 | `core/enterprise_functionality.py` | `_check_iso27001_compliance` 原**恒 `passed=True`**（加密未启用/级别不足时只追加 finding 却不改结论）。改为 **Annex A.10 密码控制**真实判定：加密未启用 → `passed=False`（"Encryption not enabled"）；级别未达 HIGH → `passed=False`（"below recommended high"）；访问控制审查作为非阻断建议保留。 |
+| F216 | `core/infrastructure_repository.py` | `health_check` 原注释 "In production, this would perform actual connectivity checks"，**直接回读历史 `health_status`**（从不探测）。改为 `_probe_endpoint` 对 `storage.endpoint` 做**真实探测**：http/https → 真实 GET；host:port → TCP `create_connection`（按存储类型补默认端口）；据此写回 `health_status`（healthy/unhealthy）与 `last_health_check` 并提交，返回 `reachable/detail`。 |
+| F338 | `core/plugin_marketplace.py` | ① `_sign_plugin` 原**恒定 `verified=True`**（签名即置真）；改为 `verified=False`（待显式验证）。② 原**用 symmetric HMAC 冒充"公钥签名"**（`public_key=self.public_key`）；改为：配置 PEM 私钥（RSA/EC/Ed25519/Ed448）时进行**真实非对称签名**并附真实公钥 PEM（`verified` 待验证），仅对称密钥时如实标注 `HMAC-SHA256` 且 `public_key=""`。③ `verify_plugin` 原**必须持有私钥**才能验签（无法独立验证）；改为非对称签名**仅用公钥独立验证**（`_verify_asymmetric`），HMAC 用 `hmac.compare_digest` 常量时间比较。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/core/test_medium_ledger_batch18_20260916.py` → **15 passed**
+  （链式数据 A→C→B 条件独立删边 + v-structure 定向；`require_permission` 无用户/权限不足 raise、
+  有权限放行、异步 wrapper；ISO27001 standard→False / high→True / 未启用→False；
+  存储 `health_check` 对关闭端口→unreachable/unhealthy、对真实监听端→reachable/healthy、缺失 id→error；
+  插件对称/非对称签名 `verified=False` 起步、独立公钥验签通过、篡改拒绝且不置 verified、未验证阻止审批）。
+- 目标套件回归：本批 5 文件相关既有套件合计 **292 passed**（含 `test_causal_graph*`、
+  `test_infrastructure_repository`、`test_plugin_marketplace`/`test_plugin_router`、
+  `test_enterprise_functionality_real_branches`、`test_uncovered_batch{5_a,23_c}`、`test_uncovered_enhanced`）。
+- **无回归（stash 反证）**：`tests/core/test_authentication{,_remaining,_real_branches}.py` 的
+  **6 failed**（SSO provider / compliance manager）在本批修复后与**干净 HEAD**（本批 5 文件 stash 后）**逐项一致**，
+  均为既有失效，与本批改动无关。
+- 对齐真实契约而更新的既有测试（旧断言指向被修复的 buggy 行为，非放宽）：
+  - `tests/core/test_uncovered_batch23_c.py`：插件注册后 `signature.verified is False` + 显式 `verify_plugin` 通过后才 `True`。
+  - `tests/core/test_uncovered_batch5_a.py::test_auth_require_permission`：无用户 → `PermissionError`（fail-closed），带权限用户 → 放行（同步+异步各 2 例）。
+  - `tests/test_enterprise_functionality_real_branches.py::test_iso27001_compliance_levels`：standard 级别 → `passed is False`。
+
+## 进度口径（诚实记录）
+
+- 用户口径：总计 **415**；第 17 批后剩余 **223**（= 267 − 44，其中前端中危剩余 38）。
+- 本批修复 **5** → **剩余 218**。

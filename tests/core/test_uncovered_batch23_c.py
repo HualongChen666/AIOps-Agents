@@ -409,6 +409,9 @@ def test_plugin_registration_and_security_levels(marketplace):
     )
     assert p1.security_level == pm.SecurityLevel.HIGH
     assert p1.signature is not None
+    # 签名仅在显式 verify_plugin 通过后才标记 verified（不再签名即置真）
+    assert p1.signature.verified is False
+    assert marketplace.verify_plugin(p1.id, _package()) is True
     assert p1.signature.verified is True
 
     p2 = marketplace.register_plugin(
