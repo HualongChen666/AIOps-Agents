@@ -4,6 +4,7 @@
 提供安全的密钥加密存储和轮换功能
 """
 
+import hashlib
 import logging
 import os
 import secrets
@@ -43,11 +44,18 @@ class KeyEncryptionService:
         return secrets.token_urlsafe(32)
     
     def _ensure_key_length(self):
-        """确保密钥长度为32字节（AES-256）"""
-        if len(self.master_key) < 32:
-            self.master_key = self.master_key.ljust(32, '0')[:32]
-        elif len(self.master_key) > 32:
-            self.master_key = self.master_key[:32]
+        """把主密钥材料确定性地派生为 32 字节 AES-256 密钥。
+
+        此前用 ``ljust('0')``/截断把任意长度主密钥改写成 32 字符：不同输入
+        （如 `"a"` 与 `"a" + 31 个 '0'`）会映射到同一密钥，弱化熵且完全不可逆地
+        丢失信息。现改为对主密钥材料做 SHA-256 派生，任意长度输入都得到 32 字节
+        （256 bit）密钥，且原始主密钥保持不被改写。
+        """
+        if isinstance(self.master_key, bytes):
+            raw = self.master_key
+        else:
+            raw = str(self.master_key).encode("utf-8")
+        self._key_bytes = hashlib.sha256(raw).digest()  # 恒定 32 字节
     
     def encrypt(self, plaintext: str) -> Tuple[str, str]:
         """
@@ -64,7 +72,7 @@ class KeyEncryptionService:
         
         # Create cipher
         cipher = Cipher(
-            algorithms.AES(self.master_key.encode()),
+            algorithms.AES(self._key_bytes),
             modes.CFB(iv),
             backend=default_backend()
         )
@@ -92,7 +100,7 @@ class KeyEncryptionService:
         
         # Create cipher
         cipher = Cipher(
-            algorithms.AES(self.master_key.encode()),
+            algorithms.AES(self._key_bytes),
             modes.CFB(iv),
             backend=default_backend()
         )

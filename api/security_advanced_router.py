@@ -42,6 +42,43 @@ def _get_repository(db: Session) -> SecurityRepository:
     return SecurityRepository(db)
 
 
+def _get_aes_key_bytes() -> bytes:
+    """返回用于封存密钥材料的 32 字节 AES 密钥。
+
+    由已配置的密钥材料经 SHA-256 派生，因此任意长度输入都被接受，且**不再**
+    使用源码内的弱默认常量。未配置时：生产环境 fail-closed（500），开发环境
+    使用进程内稳定的随机密钥（并显式告警）。
+    """
+    import hashlib
+    import os
+
+    raw = (
+        os.getenv("ENCRYPTION_KEY")
+        or os.getenv("ENCRYPTION_MASTER_KEY")
+        or os.getenv("JWT_SECRET_KEY")
+        or os.getenv("INTERNAL_API_KEY")
+    )
+    if not raw:
+        if os.getenv("ENVIRONMENT", "development").lower() == "production":
+            raise HTTPException(
+                status_code=500,
+                detail=(
+                    "ENCRYPTION_KEY (or ENCRYPTION_MASTER_KEY/JWT_SECRET_KEY) "
+                    "must be set in production"
+                ),
+            )
+        raw = _DEV_KEY_MATERIAL
+        logger.warning(
+            "No ENCRYPTION_KEY configured; using an ephemeral development key for "
+            "sealed key material (values are not decryptable after restart)."
+        )
+    return hashlib.sha256(raw.encode("utf-8")).digest()
+
+
+# 开发环境进程内稳定的随机密钥材料（绝非常量）。
+_DEV_KEY_MATERIAL = secrets.token_urlsafe(48)
+
+
 # 1. Key Management
 class KeyCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
@@ -91,19 +128,18 @@ async def create_key(
     db: Session = Depends(get_db),
 ) -> Dict[str, Any]:
     repo = _get_repository(db)
-    # Generate encrypted key value (in production, use proper encryption)
-    import secrets
     import os
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
     from cryptography.hazmat.backends import default_backend
-    
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+
     # Generate a random key
     key_value = secrets.token_urlsafe(32)
-    
-    # Encrypt the key (simplified - in production use proper key management)
-    encryption_key = os.getenv("ENCRYPTION_KEY", "default-encryption-key-32-bytes-long!!")
+
+    # Encrypt the key with a properly derived AES-256 key (no weak default constant).
+    encryption_key = _get_aes_key_bytes()
     iv = os.urandom(16)
-    cipher = Cipher(algorithms.AES(encryption_key[:32].encode()), modes.CFB(iv), backend=default_backend())
+    cipher = Cipher(algorithms.AES(encryption_key), modes.CFB(iv), backend=default_backend())
     encryptor = cipher.encryptor()
     encrypted_key = encryptor.update(key_value.encode()) + encryptor.finalize()
     

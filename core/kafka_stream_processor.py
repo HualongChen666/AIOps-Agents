@@ -6,6 +6,7 @@
 
 import json
 import logging
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -57,6 +58,64 @@ class KafkaStreamProcessor:
         self.cached_messages: List[KafkaMessage] = []
         self.producer: Any = None
         self.consumer: Any = None
+        # 按 group_id 缓存的消费者（真实消费路径使用）
+        self._consumers: Dict[str, Any] = {}
+        # Kafka broker 地址（逗号分隔），未配置时保持离线缓存模式
+        self.bootstrap_servers: List[str] = [
+            s.strip()
+            for s in os.getenv("KAFKA_BOOTSTRAP_SERVERS", "").split(",")
+            if s.strip()
+        ]
+        self._producer_failed = False
+
+    def _ensure_producer(self) -> Any:
+        """按需创建真实 KafkaProducer（不可用时返回 None，调用方回退到本地缓存）。"""
+        if self.producer is not None or self._producer_failed:
+            return self.producer
+        if not KAFKA_AVAILABLE or not self.bootstrap_servers:
+            return None
+        try:
+            self.producer = KafkaProducer(bootstrap_servers=self.bootstrap_servers)
+            _logger.info(f"KafkaProducer connected to {self.bootstrap_servers}")
+        except Exception as e:  # noqa: BLE001 - broker 不可达等
+            _logger.warning(
+                f"KafkaProducer connection failed ({e}); falling back to local cache"
+            )
+            self.producer = None
+            self._producer_failed = True
+        return self.producer
+
+    def _ensure_consumer(self, group_id: str) -> Any:
+        """按需创建真实 KafkaConsumer（按 group_id 缓存）。
+
+        若外部已显式注入 ``self.consumer``（非本处理器自动创建），则复用该实例，
+        保证调用方注入自定义消费者（含测试替身）的既有契约不被破坏。
+        """
+        if group_id in self._consumers:
+            return self._consumers[group_id]
+        if self.consumer is not None and all(
+            c is not self.consumer for c in self._consumers.values()
+        ):
+            # 外部注入的消费者：登记并按组复用，避免为其再建真实连接。
+            self._consumers[group_id] = self.consumer
+            return self.consumer
+        if not KAFKA_AVAILABLE or not self.bootstrap_servers:
+            return None
+        try:
+            consumer = KafkaConsumer(
+                bootstrap_servers=self.bootstrap_servers, group_id=group_id
+            )
+            self._consumers[group_id] = consumer
+            self.consumer = consumer
+            _logger.info(
+                f"KafkaConsumer connected to {self.bootstrap_servers} (group={group_id})"
+            )
+            return consumer
+        except Exception as e:  # noqa: BLE001
+            _logger.warning(
+                f"KafkaConsumer connection failed ({e}); falling back to local cache"
+            )
+            return None
 
     def send_message(
         self, topic: str, key: str, value: Dict[str, Any], headers: Optional[Dict[str, str]] = None
@@ -69,9 +128,11 @@ class KafkaStreamProcessor:
             headers=headers or {},
         )
 
-        if KAFKA_AVAILABLE and self.producer:
+        producer = self._ensure_producer()
+        if producer is not None:
             try:
-                self.producer.send(topic, key=key.encode(), value=json.dumps(value).encode())
+                producer.send(topic, key=key.encode(), value=json.dumps(value).encode())
+                producer.flush()
                 self._send_success(message)
                 return True
             except Exception as e:
@@ -102,11 +163,12 @@ class KafkaStreamProcessor:
         """消费Kafka消息（优先真实 KafkaConsumer，否则从缓存读取）。"""
         _logger.info(f"Consuming messages from topic {topic} with group {group_id}")
 
-        if KAFKA_AVAILABLE and self.consumer:
+        consumer = self._ensure_consumer(group_id)
+        if consumer is not None:
             try:
-                self.consumer.subscribe([topic])
+                consumer.subscribe([topic])
                 for _ in range(100):
-                    raw = self.consumer.poll(timeout_ms=100)
+                    raw = consumer.poll(timeout_ms=100)
                     for t, records in raw.items():
                         for record in records:
                             try:

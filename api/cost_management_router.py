@@ -17,15 +17,17 @@ try:
     from core.authentication import get_current_active_user
 except ImportError:
     async def get_current_active_user():
-        return None
+        # fail-closed: 鉴权后端不可用时拒绝，而不是放行
+        raise HTTPException(status_code=503, detail="Authentication backend unavailable")
 
 try:
     from core.rbac import role_required
 except ImportError:
     def role_required(role):
-        def decorator(func):
-            return func
-        return decorator
+        def _dependency():
+            # fail-closed: 角色校验后端不可用时拒绝，而不是放行
+            raise HTTPException(status_code=503, detail="Authorization backend unavailable")
+        return _dependency
 
 try:
     from core.database import SessionLocal
@@ -1189,17 +1191,13 @@ async def get_report(
             finally:
                 db.close()
         else:
-            logger.info(f"Retrieved report {report_id}")
-            return {
-                "status": "success",
-                "report": {
-                    "id": report_id,
-                    "name": "Sample Report",
-                    "report_type": "summary",
-                    "total_cost": 1000.0,
-                    "status": "completed"
-                }
-            }
+            # 数据库不可用：如实返回 503，不再伪造 "Sample Report"。
+            logger.error(
+                f"Cost report storage unavailable; cannot retrieve report {report_id}"
+            )
+            raise HTTPException(
+                status_code=503, detail="Cost report storage is unavailable"
+            )
     except HTTPException:
         raise
     except Exception as e:
@@ -1222,8 +1220,32 @@ async def delete_report(
 ):
     """Delete a cost report"""
     try:
-        logger.info(f"Deleted report {report_id}")
-        return {"status": "success", "message": f"Report {report_id} deleted successfully"}
+        if SessionLocal and CostReportDB:
+            db = SessionLocal()
+            try:
+                report = (
+                    db.query(CostReportDB).filter(CostReportDB.id == report_id).first()
+                )
+                if not report:
+                    raise HTTPException(status_code=404, detail="Report not found")
+                db.delete(report)
+                db.commit()
+                logger.info(f"Deleted report {report_id}")
+                return {
+                    "status": "success",
+                    "message": f"Report {report_id} deleted successfully",
+                }
+            finally:
+                db.close()
+        # 无持久化后端时不能声称删除成功。
+        logger.error(
+            f"Cost report storage unavailable; cannot delete report {report_id}"
+        )
+        raise HTTPException(
+            status_code=503, detail="Cost report storage is unavailable"
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error deleting report {report_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

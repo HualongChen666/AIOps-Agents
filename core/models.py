@@ -5083,6 +5083,30 @@ class MeshTimeoutPolicy(Base):
         return f"<MeshTimeoutPolicy(id='{self.id}', name='{self.name}')>"
 
 
+class MeshGateway(Base):
+    """Service Mesh Gateway Configuration Table"""
+
+    __tablename__ = "mesh_gateways"
+
+    id = Column(String(100), primary_key=True)
+    name = Column(String(200), nullable=False, index=True)
+    gateway_type = Column(String(50), nullable=False, index=True)  # ingress, egress
+    selector = Column(JSON, nullable=False)
+    servers = Column(JSON, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    config_metadata = Column(JSON, nullable=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    __table_args__ = (
+        Index("idx_mesh_gateways_gateway_type", "gateway_type"),
+        Index("idx_mesh_gateways_enabled", "enabled"),
+    )
+
+    def __repr__(self):
+        return f"<MeshGateway(id='{self.id}', name='{self.name}', gateway_type='{self.gateway_type}')>"
+
+
 class SecurityPolicy(Base):
     """Service Mesh Security Policy Table"""
 

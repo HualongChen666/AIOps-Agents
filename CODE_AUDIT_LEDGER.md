@@ -12389,3 +12389,40 @@ terraform/storage.tf
 
 - 用户口径：总计 **415**；第 17 批后剩余 **223**（= 267 − 44，其中前端中危剩余 38）。
 - 本批修复 **5** → **剩余 218**。
+
+
+---
+
+# PART LX — 中危（medium）逐条修复 · 第 19 批（2026-09-16）
+
+> 目标：继续「发现（中）」条目修复（api/ + core/ 域）。本批修复 **5 条**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 说明（诚实记录）：本批上一会话中断时已落盘代码与回归测试但未提交、未写台账；本次续做：
+> 修正本批引入的 1 处回归（`_ensure_consumer` 未复用外部注入消费者）、实跑复核、写台账后提交。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| API-151 | `api/security_advanced_router.py` | `create_key` 原用源码内**弱默认常量** `os.getenv("ENCRYPTION_KEY", "default-encryption-key-32-bytes-long!!")` 截断 32 字符作 AES 密钥；改为新增 `_get_aes_key_bytes()`：由已配置密钥材料（ENCRYPTION_KEY→ENCRYPTION_MASTER_KEY→JWT_SECRET_KEY→INTERNAL_API_KEY）经 **SHA-256 派生恒定 32 字节**；**生产环境未配置 fail-closed（500）**；开发环境使用进程内随机 `_DEV_KEY_MATERIAL`（绝非常量）并显式告警。 |
+| API-138 | `api/cost_management_router.py` | ① `get_report` 在无 DB 时**伪造 "Sample Report"**；改为如实 `503`（不再编造）。② `delete_report` 原**直接声称删除成功**（不落库）；改为真实查库→不存在 404→`db.delete/commit`；无持久化后端则 503。③ `get_current_active_user`/`role_required` 的 ImportError 回退原为 **fail-open**（放行）；改为 **fail-closed 503**（鉴权/鉴权后端不可用即拒绝）。 |
+| F438 | `core/service_mesh_repository.py` + `core/models.py` | Gateway 配置原为**内存字典/占位**（`get_gateway_config` 恒返回 `{"name":"sample-gateway"}`、`list_...` 恒 `[]`、无 update/delete，**从不落库**）；新增 `MeshGateway` 真实表（`mesh_gateways` + 索引）并实现 create/get/list（按类型过滤）/update/delete **全真实 CRUD**（`_gateway_to_dict` 序列化）。 |
+| F255 | `core/kafka_stream_processor.py` | `send_message`/`consume_messages` 原先仅在 `self.producer`/`self.consumer` **已被外部赋值**时才走真实 Kafka（否则永远走本地缓存）；新增 `_ensure_producer`/`_ensure_consumer` **按需从 `KAFKA_BOOTSTRAP_SERVERS` 真实建连**（producer 发送后 `flush`；consumer 按 group_id 缓存），不可达时如实告警并回退本地缓存；并保留外部注入消费者的既有契约（本次回归修正）。 |
+| F256 | `core/key_management.py` | `_ensure_key_length` 原先用 `ljust('0')`/截断把主密钥**改写成 32 字符**（熵弱化、不同输入可碰撞、信息不可逆丢失）；改为对主密钥材料做 **SHA-256 派生**（任意长度→恒定 32 字节 AES-256 密钥），且**不改写**原始主密钥；`encrypt`/`decrypt` 使用派生字节。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/api/test_medium_ledger_batch19_20260916.py`（8 例）+ `tests/core/test_medium_ledger_batch19_20260916.py`（6 例）→ **14 passed**
+  （AES 密钥 32 字节且随配置材料变化、不等于旧常量派生值、生产未配置→500、开发回退 32 字节、无 DB get/delete report→503 且无 "Sample Report"、鉴权回退 fail-closed；
+  gateway 全 CRUD 往返 + 模型注册、kafka 无 bootstrap 保持离线/有 producer 真实发送、主密钥派生区分长度/加解密往返）。
+- **回归（stash 反证）**：目标 5 文件相关合集（`test_service_mesh_repository` + `test_key_management` + `test_uncovered_batch19_a` + `test_cost_management_router` + `test_security_advanced_router`）
+  在**干净 HEAD** 与**本批修复后**均为 **2 failed / 155 passed / 36 errors**，失败/错误集合**逐项一致**
+  （2 条 key_management 失败与 36 条 security_advanced 的 sqlite `no such table` 均系既有测试隔离缺陷，与本批无关）。
+- 本批修复过程中发现并**消除**的 1 处回归：`tests/core/test_uncovered_batch19_a.py::test_kafka_real_consumer_consume`
+  （`_ensure_consumer` 未复用外部注入的 `self.consumer`）→ 修复后该套件 **45 passed**（`test_uncovered_batch19_a` + 本批两套件）。
+- 编译检查：6 个源文件 `python -m py_compile` → OK。
+
+## 进度口径（诚实记录）
+
+- 用户口径：总计 **415**；第 18 批后剩余 **218**。
+- 本批修复 **5** → **剩余 213**。

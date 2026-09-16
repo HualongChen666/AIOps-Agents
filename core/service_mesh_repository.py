@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from core.models import (
     MeshCircuitBreaker,
     MeshConfiguration,
+    MeshGateway,
     MeshRetryPolicy,
     MeshTimeoutPolicy,
     ObservabilityConfig,
@@ -752,6 +753,20 @@ class ServiceMeshRepository:
 
     # ==================== Gateway Operations ====================
 
+    @staticmethod
+    def _gateway_to_dict(gateway: MeshGateway) -> Dict[str, Any]:
+        return {
+            "id": gateway.id,
+            "name": gateway.name,
+            "gateway_type": gateway.gateway_type,
+            "selector": gateway.selector or {},
+            "servers": gateway.servers or [],
+            "enabled": gateway.enabled,
+            "config_metadata": gateway.config_metadata or {},
+            "created_at": gateway.created_at.isoformat() if gateway.created_at else None,
+            "updated_at": gateway.updated_at.isoformat() if gateway.updated_at else None,
+        }
+
     def create_gateway_config(
         self,
         name: str,
@@ -760,33 +775,76 @@ class ServiceMeshRepository:
         servers: List[Dict[str, Any]],
         config_metadata: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Create gateway configuration"""
-        gateway_id = str(uuid4())
-        gateway = {
-            "id": gateway_id,
-            "name": name,
-            "gateway_type": gateway_type,
-            "selector": selector,
-            "servers": servers,
-            "enabled": True,
-            "config_metadata": config_metadata or {},
-            "created_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-            "updated_at": datetime.now(timezone.utc).replace(tzinfo=None).isoformat(),
-        }
-
-        logger.info(f"Created gateway config: {name} with ID: {gateway_id}")
-        return gateway
+        """Create gateway configuration (persisted)."""
+        gateway = MeshGateway(
+            id=str(uuid4()),
+            name=name,
+            gateway_type=gateway_type,
+            selector=selector,
+            servers=servers,
+            enabled=True,
+            config_metadata=config_metadata or {},
+        )
+        self.db.add(gateway)
+        self.db.commit()
+        self.db.refresh(gateway)
+        logger.info(f"Created gateway config: {name} with ID: {gateway.id}")
+        return self._gateway_to_dict(gateway)
 
     def get_gateway_config(self, gateway_id: str) -> Optional[Dict[str, Any]]:
-        """Get gateway configuration by ID"""
-        # This would query from a gateway table in a real implementation
-        logger.info(f"Retrieved gateway config: {gateway_id}")
-        return {"id": gateway_id, "name": "sample-gateway"}
+        """Get gateway configuration by ID."""
+        gateway = (
+            self.db.query(MeshGateway).filter(MeshGateway.id == gateway_id).first()
+        )
+        return self._gateway_to_dict(gateway) if gateway else None
 
     def list_gateway_configs(self, gateway_type: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List gateway configurations"""
-        logger.info(f"Listed gateway configs with type filter: {gateway_type}")
-        return []
+        """List gateway configurations."""
+        query = self.db.query(MeshGateway)
+        if gateway_type:
+            query = query.filter(MeshGateway.gateway_type == gateway_type)
+        return [self._gateway_to_dict(g) for g in query.all()]
+
+    def update_gateway_config(
+        self,
+        gateway_id: str,
+        name: Optional[str] = None,
+        enabled: Optional[bool] = None,
+        servers: Optional[List[Dict[str, Any]]] = None,
+        selector: Optional[Dict[str, Any]] = None,
+        config_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Update gateway configuration."""
+        gateway = (
+            self.db.query(MeshGateway).filter(MeshGateway.id == gateway_id).first()
+        )
+        if not gateway:
+            return None
+        if name is not None:
+            gateway.name = name
+        if enabled is not None:
+            gateway.enabled = enabled
+        if servers is not None:
+            gateway.servers = servers
+        if selector is not None:
+            gateway.selector = selector
+        if config_metadata is not None:
+            gateway.config_metadata = config_metadata
+        gateway.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        self.db.commit()
+        self.db.refresh(gateway)
+        return self._gateway_to_dict(gateway)
+
+    def delete_gateway_config(self, gateway_id: str) -> bool:
+        """Delete a gateway configuration."""
+        gateway = (
+            self.db.query(MeshGateway).filter(MeshGateway.id == gateway_id).first()
+        )
+        if not gateway:
+            return False
+        self.db.delete(gateway)
+        self.db.commit()
+        return True
 
     # ==================== Health Check Operations ====================
 
