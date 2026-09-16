@@ -434,7 +434,7 @@ export default function DatadogAlertsPage() {
       <Dialog open={showConfig} onOpenChange={setShowConfig}>
         <DialogContent>
           <DialogHeader>
-            <title>Datadog配置</title>
+            <DialogTitle>Datadog配置</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>

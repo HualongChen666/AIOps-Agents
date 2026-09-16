@@ -132,7 +132,7 @@ export default function AIFeedbackPage() {
               <CardTitle>平均评分</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{stats.avg_rating.toFixed(1)}</div>
+              <div className="text-3xl font-bold">{Number(stats.avg_rating ?? 0).toFixed(1)}</div>
             </CardContent>
           </Card>
         </div>

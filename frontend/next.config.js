@@ -25,6 +25,21 @@ const nextConfig = {
         source: '/api/:path*',
         destination: 'http://127.0.0.1:8000/api/:path*',
       },
+      // Backend-served API documentation. These live outside the `/api` prefix,
+      // so without these rewrites the "Swagger UI / ReDoc / OpenAPI" links on the
+      // API-documentation page (and the spec fetch it performs) 404 through Next.
+      {
+        source: '/openapi.json',
+        destination: 'http://127.0.0.1:8000/openapi.json',
+      },
+      {
+        source: '/docs',
+        destination: 'http://127.0.0.1:8000/docs',
+      },
+      {
+        source: '/redoc',
+        destination: 'http://127.0.0.1:8000/redoc',
+      },
     ];
   },
   // Production source maps for debugging

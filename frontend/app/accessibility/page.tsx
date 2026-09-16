@@ -42,9 +42,11 @@ export default function AccessibilityPage() {
     if (!keyboardShortcuts) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const keys = new Set(pressedKeys);
-      keys.add(e.key.toLowerCase());
-      setPressedKeys(keys);
+      setPressedKeys((prev) => {
+        const keys = new Set(prev);
+        keys.add(e.key.toLowerCase());
+        return keys;
+      });
 
       // 快捷键组合
       if (e.ctrlKey || e.metaKey) {
@@ -66,9 +68,11 @@ export default function AccessibilityPage() {
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      const keys = new Set(pressedKeys);
-      keys.delete(e.key.toLowerCase());
-      setPressedKeys(keys);
+      setPressedKeys((prev) => {
+        const keys = new Set(prev);
+        keys.delete(e.key.toLowerCase());
+        return keys;
+      });
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -78,7 +82,7 @@ export default function AccessibilityPage() {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [keyboardShortcuts, pressedKeys]);
+  }, [keyboardShortcuts]);
 
   const increaseFontSize = useCallback(() => {
     setFontSize(prev => Math.min(prev + 2, 24));

@@ -56,7 +56,7 @@ export default function AIFeaturesPage() {
   const queryClient = useQueryClient();
 
   // 🔧 获取AI能力状态
-  const { data: aiStatusData, isLoading: statusLoading, refetch: refetchStatus } = useQuery<{ available: boolean; capabilities: string[] }>({
+  const { data: aiStatusData, isLoading: statusLoading, error: statusError, refetch: refetchStatus } = useQuery<{ available: boolean; capabilities: string[] }>({
     queryKey: ['ai-status'],
     queryFn: async () => {
       const resp = await api.get('/api/v1/ai-advanced/status');
@@ -107,12 +107,16 @@ export default function AIFeaturesPage() {
   const showError = toast.error;
 
   // 🔧 P1 Integration: Handle errors with toast
+  // NOTE: propagate the *query* error (statusError) into the enhanced loading
+  // state. Previously this effect depended on `pageError` and wrote the very
+  // same value back (`setPageError(pageError)`) — a redundant self-update that
+  // risks a re-render loop and never surfaced the real query failure.
   useEffect(() => {
-    if (pageError) {
+    if (statusError) {
       showError('Failed to load AI status');
-      setPageError(pageError as Error);
+      setPageError(statusError as Error);
     }
-  }, [pageError, showError, setPageError]);
+  }, [statusError, showError, setPageError]);
 
   const aiStatus = aiStatusData || { available: false, capabilities: [] };
 

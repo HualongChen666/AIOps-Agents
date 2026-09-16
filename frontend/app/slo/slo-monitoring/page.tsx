@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,23 +24,25 @@ export default function SLOMonitoringPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchMonitors = useCallback(async () => {
+    try {
+      const res = await api.get('/api/v1/slo/');
+      setMonitors(res.data.slos || []);
+      setError(null);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || '加载监控数据失败');
+    } finally {
+      // Only the very first load shows the full-page spinner; polling and the
+      // manual refresh update the list in place instead of blanking it.
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchMonitors();
     const interval = setInterval(fetchMonitors, 30000);
     return () => clearInterval(interval);
-  }, []);
-
-  const fetchMonitors = async () => {
-    try {
-      setLoading(true);
-      const res = await api.get('/api/v1/slo/');
-      setMonitors(res.data.slos || []);
-    } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || '加载监控数据失败');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [fetchMonitors]);
 
   const getStatusColor = (status: string) => {
     switch (status) {

@@ -92,6 +92,14 @@ export default function CostOptimizerPage() {
     );
   }
 
+  // Derived, null-safe aggregates. `by_model` (and each entry's counters) may be
+  // absent/empty, so guard the reduce and the division instead of rendering
+  // `NaN`/`Infinity` or throwing on `.toFixed`.
+  const byModel = costData?.by_model ?? [];
+  const totalRequests = byModel.reduce((sum, m) => sum + (m.requests || 0), 0);
+  const totalCost = Number(costData?.total_cost ?? 0);
+  const avgCostPerRequest = totalRequests > 0 ? totalCost / totalRequests : 0;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -117,7 +125,7 @@ export default function CostOptimizerPage() {
             <CardTitle>总成本</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${costData?.total_cost.toFixed(2) || '0.00'}</div>
+            <div className="text-3xl font-bold">${totalCost.toFixed(2)}</div>
             <div className="text-sm text-gray-600 mt-1">周期: {selectedPeriod}</div>
           </CardContent>
         </Card>
@@ -127,7 +135,7 @@ export default function CostOptimizerPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              {costData?.by_model.reduce((sum, m) => sum + m.requests, 0).toLocaleString() || '0'}
+              {totalRequests.toLocaleString()}
             </div>
             <div className="text-sm text-gray-600 mt-1">所有模型</div>
           </CardContent>
@@ -138,7 +146,7 @@ export default function CostOptimizerPage() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">
-              ${costData ? (costData.total_cost / costData.by_model.reduce((sum, m) => sum + m.requests, 0)).toFixed(4) : '0.0000'}
+              ${avgCostPerRequest.toFixed(4)}
             </div>
             <div className="text-sm text-gray-600 mt-1">每请求</div>
           </CardContent>
@@ -152,18 +160,18 @@ export default function CostOptimizerPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {costData?.by_model.map((item) => (
+            {byModel.map((item) => (
               <div key={item.model} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold">{item.model}</h3>
                   <Badge variant="outline">${item.cost.toFixed(2)}</Badge>
                 </div>
                 <div className="text-sm text-gray-600">请求数: {item.requests.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">平均成本: ${(item.cost / item.requests).toFixed(4)}/请求</div>
+                <div className="text-sm text-gray-600">平均成本: ${(item.requests > 0 ? item.cost / item.requests : 0).toFixed(4)}/请求</div>
                 <div className="mt-2 bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-blue-500 h-2 rounded-full"
-                    style={{ width: `${(item.cost / costData.total_cost) * 100}%` }}
+                    style={{ width: `${totalCost > 0 ? (item.cost / totalCost) * 100 : 0}%` }}
                   />
                 </div>
               </div>
@@ -179,14 +187,14 @@ export default function CostOptimizerPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {costData?.by_service.map((item) => (
+            {costData?.by_service?.map((item) => (
               <div key={item.service} className="border rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold">{item.service}</h3>
                   <Badge variant="outline">${item.cost.toFixed(2)}</Badge>
                 </div>
                 <div className="text-sm text-gray-600">请求数: {item.requests.toLocaleString()}</div>
-                <div className="text-sm text-gray-600">平均成本: ${(item.cost / item.requests).toFixed(4)}/请求</div>
+                <div className="text-sm text-gray-600">平均成本: ${(item.requests > 0 ? item.cost / item.requests : 0).toFixed(4)}/请求</div>
               </div>
             ))}
           </div>

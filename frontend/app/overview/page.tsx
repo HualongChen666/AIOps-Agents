@@ -14,10 +14,22 @@ export default function OverviewPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState<any>(null);
 
+  // Real health probe: `fetch` resolves for 4xx/5xx too, so a missing `res.ok`
+  // check would report success even when the backend is down.
+  const probeBackend = async () => {
+    const res = await fetch('/api/v1/health/ping');
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    return res.json();
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
-      await fetch('/api/v1/health/ping');
+      const result = await probeBackend();
+      setData(result);
+      setError(null);
       success('Dashboard refreshed successfully');
     } catch (err) {
       showError('Failed to refresh dashboard');
@@ -28,10 +40,9 @@ export default function OverviewPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch('/api/v1/health/ping')
-      .then((res) => res.json())
-      .then((data) => {
-        setData(data);
+    probeBackend()
+      .then((result) => {
+        setData(result);
         setLoading(false);
       })
       .catch((err) => {
@@ -60,9 +71,19 @@ export default function OverviewPage() {
     <div className="space-y-6">
       <section>
         <div className="flex justify-between items-center mb-4">
-          <h1 className="text-2xl font-bold text-[var(--dds-slate-90)]">
-            AIOps 实时仪表盘
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-[var(--dds-slate-90)]">
+              AIOps 实时仪表盘
+            </h1>
+            {data?.status && (
+              <span
+                data-testid="backend-status"
+                className={`text-xs px-2 py-1 rounded ${data.status === 'alive' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}
+              >
+                后端: {data.status}
+              </span>
+            )}
+          </div>
           <button
             onClick={handleRefresh}
             disabled={refreshing}

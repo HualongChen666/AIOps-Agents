@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { EnhancedModal } from '@/components/ui/EnhancedModal';
-import { BookOpen, RefreshCw, ExternalLink, Code, Zap, Shield, Database, Cloud } from 'lucide-react';
-import { useLoadingState, useToast } from '@/hooks/useEnhancements';
+import { BookOpen, ExternalLink, Code, Zap, Shield, Database } from 'lucide-react';
+import { useLoadingState } from '@/hooks/useEnhancements';
 import { LoadingSpinner, EmptyState, ErrorBoundary } from '@/components/CommonUI';
 
 interface ApiEndpoint {
@@ -15,36 +14,72 @@ interface ApiEndpoint {
   tags: string[];
 }
 
+interface OpenApiSpec {
+  openapi?: string;
+  info?: { version?: string; title?: string };
+  paths?: Record<string, Record<string, { summary?: string; description?: string; tags?: string[] }>>;
+  components?: { securitySchemes?: Record<string, { type?: string; scheme?: string }> };
+}
+
+const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete'];
+
 export default function ApiDocumentationPage() {
   const [activeTab, setActiveTab] = useState<'swagger' | 'endpoints' | 'guides' | 'examples'>('swagger');
-  const [showSwaggerModal, setShowSwaggerModal] = useState(false);
+  const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
+  const [specVersion, setSpecVersion] = useState('');
+  const [specFormat, setSpecFormat] = useState('');
+  const [authScheme, setAuthScheme] = useState('');
 
   // 🔧 P1 Integration: Use enhanced loading state
-  const { isLoading: pageLoading, error: pageError, setError: setPageError } = useLoadingState(false);
+  const { isLoading: pageLoading, error: pageError, setError: setPageError, setLoading } = useLoadingState(true);
 
-  // 🔧 P1 Integration: Use toast notifications
-  const toast = useToast();
-  const showSuccess = toast.success;
-  const showError = toast.error;
-
-  // 🔧 P1 Integration: Handle errors with toast
+  // Load the real OpenAPI document the backend serves and derive the endpoint
+  // list / version / auth scheme from it (previously these were hard-coded and a
+  // `showSwaggerModal` flag was declared but never used).
   useEffect(() => {
-    if (pageError) {
-      showError('Failed to load API documentation');
-      setPageError(pageError as Error);
-    }
-  }, [pageError, showError, setPageError]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/openapi.json');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const spec = (await res.json()) as OpenApiSpec;
+        if (cancelled) return;
 
-  const apiEndpoints: ApiEndpoint[] = [
-    { path: '/api/v1/alerts', method: 'GET', description: '获取告警列表', tags: ['告警管理'] },
-    { path: '/api/v1/alerts', method: 'POST', description: '创建告警', tags: ['告警管理'] },
-    { path: '/api/v1/metrics', method: 'GET', description: '获取系统指标', tags: ['监控'] },
-    { path: '/api/v1/ai-advanced/predict/time-series', method: 'POST', description: '时序预测', tags: ['AI'] },
-    { path: '/api/v1/root-cause/analyze', method: 'POST', description: '根因分析', tags: ['AI'] },
-    { path: '/api/plugin-system/plugins', method: 'GET', description: '获取插件列表', tags: ['插件'] },
-    { path: '/api/test-coverage/status', method: 'GET', description: '获取测试覆盖率', tags: ['测试'] },
-    { path: '/api/documentation/documents', method: 'GET', description: '获取文档列表', tags: ['文档'] },
-  ];
+        const list: ApiEndpoint[] = [];
+        for (const [path, methods] of Object.entries(spec.paths || {})) {
+          for (const [method, op] of Object.entries(methods || {})) {
+            if (!HTTP_METHODS.includes(method.toLowerCase())) continue;
+            list.push({
+              path,
+              method: method.toUpperCase(),
+              description: op?.summary || op?.description || '',
+              tags: Array.isArray(op?.tags) ? op.tags : [],
+            });
+          }
+        }
+        list.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method));
+
+        const schemes = Object.values(spec.components?.securitySchemes || {});
+        setEndpoints(list);
+        setSpecVersion(spec.info?.version || '');
+        setSpecFormat(spec.openapi ? `OpenAPI ${spec.openapi}` : '');
+        setAuthScheme(
+          schemes
+            .map((s) => [s.type, s.scheme].filter(Boolean).join(' ').trim())
+            .filter(Boolean)
+            .join(', ')
+        );
+        setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        setPageError(err instanceof Error ? err : new Error('无法加载 OpenAPI 规范'));
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setPageError, setLoading]);
 
   const handleOpenSwagger = () => {
     window.open('/docs', '_blank');
@@ -112,7 +147,7 @@ export default function ApiDocumentationPage() {
             <CardTitle className="text-sm">API端点</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-blue-600">50+</p>
+            <p className="text-3xl font-bold text-blue-600">{endpoints.length}</p>
             <p className="text-sm text-gray-500 mt-1">可用API端点</p>
           </CardContent>
         </Card>
@@ -121,7 +156,7 @@ export default function ApiDocumentationPage() {
             <CardTitle className="text-sm">API版本</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-green-600">v1.0</p>
+            <p className="text-3xl font-bold text-green-600">{specVersion || '-'}</p>
             <p className="text-sm text-gray-500 mt-1">当前API版本</p>
           </CardContent>
         </Card>
@@ -130,8 +165,8 @@ export default function ApiDocumentationPage() {
             <CardTitle className="text-sm">认证方式</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-purple-600">JWT</p>
-            <p className="text-sm text-gray-500 mt-1">Bearer Token</p>
+            <p className="text-3xl font-bold text-purple-600">{authScheme || '-'}</p>
+            <p className="text-sm text-gray-500 mt-1">OpenAPI securityScheme</p>
           </CardContent>
         </Card>
         <Card>
@@ -139,8 +174,8 @@ export default function ApiDocumentationPage() {
             <CardTitle className="text-sm">文档格式</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-orange-600">OpenAPI</p>
-            <p className="text-sm text-gray-500 mt-1">3.0规范</p>
+            <p className="text-3xl font-bold text-orange-600">{specFormat || '-'}</p>
+            <p className="text-sm text-gray-500 mt-1">后端 OpenAPI 规范</p>
           </CardContent>
         </Card>
       </div>
@@ -241,7 +276,7 @@ export default function ApiDocumentationPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {apiEndpoints.map((endpoint, index) => (
+              {endpoints.map((endpoint, index) => (
                 <div key={index} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
@@ -267,6 +302,9 @@ export default function ApiDocumentationPage() {
                   <p className="text-sm text-gray-600">{endpoint.description}</p>
                 </div>
               ))}
+              {endpoints.length === 0 && (
+                <EmptyState title="暂无端点" description="未能从 OpenAPI 规范解析到任何端点。" />
+              )}
             </div>
           </CardContent>
         </Card>

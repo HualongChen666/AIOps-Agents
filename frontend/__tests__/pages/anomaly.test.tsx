@@ -225,16 +225,14 @@ describe('AnomalyPage', () => {
     it('should display chart area', () => {
       render(<AnomalyPage />);
 
-      expect(screen.getByText('时序图表区域')).toBeInTheDocument();
+      expect(screen.getByTestId('anomaly-chart')).toBeInTheDocument();
     });
 
     it('should display chart legend badges', () => {
       render(<AnomalyPage />);
 
-      expect(screen.getAllByText('实际值').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('预测值').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('置信区间').length).toBeGreaterThan(0);
-      expect(screen.getAllByText('异常点').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('异常数').length).toBeGreaterThan(0);
+      expect(screen.getAllByText('命中阈值').length).toBeGreaterThan(0);
     });
   });
 

@@ -21,6 +21,7 @@ interface KPIConfig {
 
 export default function KPIConfigPage() {
   const [configs, setConfigs] = useState<KPIConfig[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, Partial<KPIConfig>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +34,7 @@ export default function KPIConfigPage() {
       setLoading(true);
       const res = await api.get('/api/v1/slo/kpi-config');
       setConfigs(res.data.configs || []);
+      setError(null);
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '加载配置失败');
     } finally {
@@ -40,10 +42,41 @@ export default function KPIConfigPage() {
     }
   };
 
-  const handleUpdate = async (id: string, config: Partial<KPIConfig>) => {
+  const setDraft = (id: string, patch: Partial<KPIConfig>) => {
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
+  };
+
+  // Value shown in the inputs: the local (possibly unsaved) draft wins over the
+  // server copy so typing is never clobbered by a refetch.
+  const valueOf = <K extends keyof KPIConfig>(config: KPIConfig, key: K): KPIConfig[K] => {
+    const draft = drafts[config.id];
+    return (draft && key in draft ? draft[key] : config[key]) as KPIConfig[K];
+  };
+
+  // Persist a pending edit. Called on blur (not on every keystroke) so a single
+  // edit produces a single PUT; the local list is updated in place afterwards
+  // instead of refetching and stealing focus.
+  const commit = async (id: string) => {
+    const patch = drafts[id];
+    if (!patch) return;
     try {
-      await api.put(`/api/v1/slo/kpi-config/${id}`, config);
-      fetchConfigs();
+      await api.put(`/api/v1/slo/kpi-config/${id}`, patch);
+      setConfigs((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+      setDrafts((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || '更新配置失败');
+    }
+  };
+
+  const toggleAlert = async (config: KPIConfig) => {
+    const patch = { alert_enabled: !config.alert_enabled };
+    try {
+      await api.put(`/api/v1/slo/kpi-config/${config.id}`, patch);
+      setConfigs((prev) => prev.map((c) => (c.id === config.id ? { ...c, ...patch } : c)));
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || '更新配置失败');
     }
@@ -80,15 +113,17 @@ export default function KPIConfigPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">数据源</label>
                   <Input
-                    value={config.data_source}
-                    onChange={(e) => handleUpdate(config.id, { data_source: e.target.value })}
+                    value={valueOf(config, 'data_source')}
+                    onChange={(e) => setDraft(config.id, { data_source: e.target.value })}
+                    onBlur={() => commit(config.id)}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">查询</label>
                   <Input
-                    value={config.query}
-                    onChange={(e) => handleUpdate(config.id, { query: e.target.value })}
+                    value={valueOf(config, 'query')}
+                    onChange={(e) => setDraft(config.id, { query: e.target.value })}
+                    onBlur={() => commit(config.id)}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -105,13 +140,14 @@ export default function KPIConfigPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">告警阈值</label>
                   <Input
                     type="number"
-                    value={config.alert_threshold}
-                    onChange={(e) => handleUpdate(config.id, { alert_threshold: parseFloat(e.target.value) || 0 })}
+                    value={valueOf(config, 'alert_threshold')}
+                    onChange={(e) => setDraft(config.id, { alert_threshold: parseFloat(e.target.value) || 0 })}
+                    onBlur={() => commit(config.id)}
                   />
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => handleUpdate(config.id, { alert_enabled: !config.alert_enabled })}
+                  onClick={() => toggleAlert(config)}
                 >
                   {config.alert_enabled ? '禁用告警' : '启用告警'}
                 </Button>

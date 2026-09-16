@@ -12194,3 +12194,42 @@ terraform/storage.tf
 
 - PART VI（frontend/）带「**中」标记条目 **82**。
 - 累计修复中危 **12**（第 12 批 9 + 本批 3）→ 前端中危剩余 **70**（82 − 12）。
+
+---
+
+# PART LV — 前端（frontend/）中危逐条修复 · 第 14 批（2026-09-16）
+
+> 目标：继续 PART VI（frontend/）「发现（中）」条目修复。本批修复 **12 条 FE 条目**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+
+## 本批修复（12 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| FE-106 | `app/overview/page.tsx` | `handleRefresh` 原先 `await fetch('/api/v1/health/ping')` 后**无条件** `success(...)`（fetch 对 4xx/5xx 不抛异常 → 后端宕机仍提示成功）；改为统一 `probeBackend()` 先判 `res.ok`，失败抛错并 `showError`。另把此前**声明却从不渲染**的 `data` 状态真正渲染为「后端状态」徽标。 |
+| FE-130 | `app/slo/slo-monitoring/page.tsx` | 轮询 `fetchMonitors` 原先**每次**把 `loading` 置 `true` → 30s 一次整页被「加载中...」替换（闪烁）；改为仅在首次加载后置 `loading=false`，轮询/手动刷新就地更新列表。`fetchMonitors` 提升为 `useCallback`。 |
+| FE-131 | `app/slo/kpi-config/page.tsx` | `Input` 的 `onChange` 原先直接 `PUT /api/slo/kpi-config/{id}` 且成功后 `fetchConfigs()` 重拉 → **每输入一个字符一次 PUT** 且打断输入；改为本地草稿（`drafts`）+ **失焦（onBlur）提交**，成功后就地更新本地列表，不再整页重拉。开关按钮 `toggleAlert` 独立提交。 |
+| FE-141 | `app/accessibility/page.tsx` | 键盘监听 effect 依赖含 `pressedKeys`，且 handler 用**闭包旧值** `new Set(pressedKeys)` → 每按一键即解绑/重绑监听；改为函数式 `setPressedKeys(prev => …)` 并把依赖收敛为 `[keyboardShortcuts]`。 |
+| FE-144 | `app/ai/ai-feedback/page.tsx` | `stats.avg_rating.toFixed(1)` 无空值保护（后端缺字段即崩）；改为 `Number(stats.avg_rating ?? 0).toFixed(1)`。 |
+| FE-146 | `app/ai/cost-optimizer/page.tsx` | `costData?.total_cost.toFixed(2)`（`total_cost` 缺省即崩）与 `total_cost / by_model.reduce(...)`（空数组除零 → NaN/Infinity）；改为派生 `byModel/totalRequests/totalCost/avgCostPerRequest`，空值归零、除零保护；线性/服务行同样做除零保护。 |
+| FE-173 | `app/ai-features/page.tsx` | 错误 effect 依赖 `pageError` 又 `setPageError(pageError)` —— **把自身状态写回自身**（重复/循环 setState 风险，且从未把真实查询失败写入）；改为从 `useQuery` 解构真实 `statusError` 并写入，依赖改为 `[statusError, showError, setPageError]`。 |
+| FE-193 | `app/alerts/datadog/page.tsx` | 配置对话框 `DialogHeader` 内误用原生 **`<title>`**（缺无障碍标题、`<title>` 置 body 属非法 DOM）；改为 `<DialogTitle>`。 |
+| FE-204 | `app/anomaly/page.tsx` | ① `_anomalyData` 声明却**从不渲染**、图表区为静态占位「时序图表区域」；改为由统计接口按指标渲染**真实柱状图**（含 metric 名、`data-testid`）。② 模型配置面板 4 个 Select **非受控**、「应用配置」「保存配置」**无 onClick**；改为受控 + `应用配置`（模型/置信度生效，置信度阈值真实过滤记录列表）+ `保存配置`（`localStorage` 持久化并回显）。③ `record.deviation.toFixed` 空值保护。 |
+| FE-208 | `app/api-documentation/page.tsx` + `next.config.js` | ① `apiEndpoints` 为硬编码 8 条、KPI 卡「50+/v1.0/JWT/OpenAPI 3.0」全为硬编码文案；改为**抓取后端真实 `/openapi.json`** 解析 paths→端点清单、`info.version`、`openapi` 版本与 `securitySchemes` 认证方式。② 删除**声明却从未使用**的 `showSwaggerModal` 死状态（及连带未用导入）。③ `next.config.js` 新增 `/openapi.json`、`/docs`、`/redoc` 反代（原先这三者不在 `/api` 前缀 → 经 Next 全部 404，Swagger/ReDoc/OpenAPI 按钮与规范抓取均失效）。 |
+| FE-012 | `test-coverage-modules.js` | ① `result.duration?.toFixed(2) + 's'.padEnd(10)` 运算符优先级错误（`padEnd` 只作用于字面量 `'s'`，`duration` 缺失时输出 `undefined`）；抽出 `formatDuration()` 先拼整 token 再 `padEnd`。② 模块 `components-layout` 指向**不存在**的 `__tests__/components/layout` → jest「No tests found」令整脚本失败；新增 `activeModules()` 跳过无测试目录的模块。③ 运行体以 `require.main === module` 守卫，导出 `formatDuration/activeModules/moduleDir` 供测试。 |
+| FE-095 | `scripts/run-coverage-batched.js` | 本地写死 `thresholds = { lines:43, statements:43, functions:48, branches:50 }` 与 `jest.config.js`（96/95/95/89）**不一致** → 用已废弃低阈值误判 PASS；改为 `resolveThresholds()` 运行时**从 `jest.config.js` 读取**（单一真源），并抽出 `extractThresholds()` 便于测试；运行体 `require.main` 守卫。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`frontend/__tests__/medium-ledger-batch14/`（`pages-defects.test.tsx` 13 例 / `scripts-defects.test.ts` 3 例）→ **2 suites / 16 passed**。
+  - 覆盖：overview `res.ok` 失败→错误态、成功→真实后端状态徽标；slo 刷新不出现「加载中...」；kpi 键入**不**发 PUT、失焦**恰好 1 次** PUT；accessibility 按键前后 `window` 监听仅 2 条（不重绑）；ai-feedback 缺 `avg_rating` 渲染 `0.0`；cost-optimizer 空数据渲染 `$0.00/$0.0000`（无 NaN/Infinity）；anomaly 真实柱状图 + 置信度阈值过滤（90% 记录默认隐藏、应用 90% 后出现）+ 保存配置落 `localStorage`；api-documentation 由 spec 派生版本/格式/认证/端点；`formatDuration` 补位、`activeModules` 跳过缺失目录、`extractThresholds` 取值。
+- **改动前反证**：将本批 10 个页面/配置源文件 `git stash`（**保留新增测试**）在干净 HEAD 实跑 `pages-defects.test.tsx` → **11 failed / 0 passed**（逐条指向本批修复）。`scripts/run-coverage-batched.js` 于 HEAD 为 `thresholds = { lines: 43, … }`（证据：`grep -n 'thresholds = {'` → L100），`test-coverage-modules.js` 于 HEAD 为 `result.duration?.toFixed(2) + 's'.padEnd(10)`（证据：`git show HEAD:frontend/test-coverage-modules.js` → L134）。
+- **回归**：既有 `__tests__/pages/anomaly.test.tsx` **34 passed**（对齐真实契约更新 2 处旧断言：图表区由占位文案「时序图表区域」改为 `data-testid="anomaly-chart"`；图例「实际值/预测值/置信区间/异常点」→「异常数/命中阈值」）；`__tests__/pages/overview.test.tsx` + `__tests__/lib/nav.test.ts` + `__tests__/routing/**` 组合实跑 **pass**。
+- **类型检查**：`npx tsc --noEmit` → **exit 0 / 0 error**。
+- **脚本实跑**：`node --check` 两脚本通过；`node -e` 实测 `formatDuration(12.345)==='12.35s    '`、`activeModules()` 排除 `components-layout`、`resolveThresholds()==={lines:96,statements:95,functions:95,branches:89}`。
+- **环境说明（诚实披露）**：`npx jest __tests__/pages`（整目录）在本机 **OOM**（V8 heap out of memory，2 个无关套件 `dashboard/alerts` worker 崩溃）——与本批改动无关，系该仓已知 ~1.4GB 无 swap 限制（见 `scripts/run-coverage-batched.js` 头注）。相关套件已按文件单独实跑通过。
+
+## 进度口径（诚实记录）
+
+- PART VI（frontend/）带「**中」标记条目 **82**。
+- 累计修复前端中危 **24**（第 12 批 9 + 第 13 批 3 + 本批 12）→ 前端中危剩余 **58**（82 − 24）。
