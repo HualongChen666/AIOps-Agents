@@ -12426,3 +12426,44 @@ terraform/storage.tf
 
 - 用户口径：总计 **415**；第 18 批后剩余 **218**。
 - 本批修复 **5** → **剩余 213**。
+
+
+---
+
+# PART LXI — 中危（medium）逐条修复 · 第 20 批（2026-09-16）
+
+> 目标：继续「发现（中）」条目修复（services/ 域）。本批修复 **5 条**，
+> 全部为**真实行为**修复（无 mock / stub / 骨架 / 占位符 / 硬编码 / 伪实现 / 死代码）。
+> 说明（诚实记录）：开工前对候选条目逐条回读源码核验，确认缺陷在 HEAD 仍真实存在后修复。
+
+## 本批修复（5 条，均实测通过）
+
+| 台账条目 | 文件 | 修复内容（真实行为） |
+| --- | --- | --- |
+| SRV-027 | `services/alert_service/notifier.py` | 未配置 webhook 时原 `success=True, detail="no webhook configured"`（**未发送任何通知却记成功**）；改为 `channel="none"`、`success=False`、`detail="no webhook configured"`，并按真实通道打点（`NOTIFICATIONS_SENT.labels(channel=...)`）。 |
+| SRV-042 | `services/audit_service/encryption.py` | 类名/docstring 称 "AES-256-GCM"，实际为 **Fernet（AES-128-CBC+HMAC）**，且 `nonce`/`tag` 是**随机填充**而非真实密码学参数（算法陈述与实现不符）。改为 **真实 AES-256-GCM**（`AESGCM`，主密钥 SHA-256 派生 32B，随机 96-bit nonce）；密文自包含 `nonce||ct||tag` 可独立解密，返回**真实** nonce/tag；`blob.algorithm` 如实标注 "AES-256-GCM"。 |
+| SRV-055 | `services/audit_service/retention.py`(+`repository.py`,`persistence.py`) | `cleanup`/`archive` 原先**仅统计计数**（`deleted`/`archived` 为纯计数，数据从未被处理）。改为：抽象仓储新增 `update_event`/`delete_event`（内存 + SQLAlchemy 均实现），`cleanup` **真实删除**超 TTL 事件、`archive` **真实标记** `ARCHIVED` 并落库；计数为真实处理条数。 |
+| SRV-079 | `services/repair_service/executor.py` | `execute` 原用 `asyncio.gather` **并行**执行全部步骤，忽略 runbook 步骤先后依赖（停止→修复→启动）。改为**按声明顺序串行**执行（单步异常不中断后续），保证顺序/依赖被真实遵守。 |
+| SRV-069 | `services/plugin_service/service.py` | `run_plugin` 错误路径 `execution.duration_ms = (time.time() - time.time()) * 1000` **恒为 0**。改为使用真实 `start_time` 计算耗时，并在失败响应中返回真实 `duration_ms`。 |
+
+## 验证证据（本环境实测）
+
+- 新增回归：`tests/services/test_medium_ledger_batch20_20260916.py` → **8 passed**
+  （无 webhook 如实上报未发送、低于阈值正常忽略；AES-256-GCM 真实 12B nonce/16B tag、随机性、往返、**篡改被拒**；
+  归档真实落库 + 再次归档跳过 + 清理真实删除；执行器**顺序** `s1→s2→s3` 且**无并发重叠**（max=1）；插件失败路径 `duration_ms≥10ms`）。
+- **改动前反证**：仅将本批 7 个源文件（+2 个对齐测试）`git stash` 于干净 HEAD 实跑新增测试 →
+  **5 failed / 3 passed**（5 条逐条指向本批修复；3 条为 HEAD 即成立的正例）。
+- **回归（stash 反证，`tests/services` 全目录）**：本批修复后 **18 failed / 651 passed / 42 skipped / 4 errors**，
+  与干净 HEAD **18 failed / 622 passed / 42 skipped / 5 errors** 的**失败集合逐项一致**（18 条既有失败与 4 条既有错误均无关本批）；
+  passed +29 = 本批新增 8 例 + 既有 `test_plugin_service_coverage.py` 21 例（见下）。
+- **附带修复（横切，非台账条目）**：`pytest.ini` `--strict-markers` 下 `pytest.mark.services` **未注册** →
+  `tests/services/test_plugin_service_coverage.py` 恒 **collection ERROR**（21 例无法收集，HEAD 即存在）。已注册 `services` 标记，
+  该套件 **21 passed**。
+- 对齐真实契约而更新的既有测试（旧断言指向被修复的计数式行为/填充式 tag，非放宽）：
+  - `tests/services/test_uncovered_services_batch_b.py::test_retention_manager`：改为「先归档（断言真实 `ARCHIVED` 落库、再归档跳过）后清理（断言真实删除、TTL 内保留）」。
+  - `tests/services/test_audit_service_alerting_coverage.py::MockAuditRepository`：补 `update_event`/`delete_event`（新增抽象方法）。
+
+## 进度口径（诚实记录）
+
+- 用户口径：总计 **415**；第 19 批后剩余 **213**。
+- 本批修复 **5** → **剩余 208**。

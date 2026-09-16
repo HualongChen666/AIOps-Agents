@@ -57,10 +57,14 @@ class RunbookExecutor:
                     return_code=-1,
                 )
 
-            results = await asyncio.gather(
-                *[self._execute_step(step, merged_params) for step in runbook.steps],
-                return_exceptions=True,
-            )
+            # 按声明顺序**串行**执行步骤：runbook 步骤存在先后依赖（如 停止→修复→启动），
+            # 并行 gather 会打乱顺序。串行执行保证依赖与顺序被真实遵守。
+            results: list[Any] = []
+            for step in runbook.steps:
+                try:
+                    results.append(await self._execute_step(step, merged_params))
+                except Exception as exc:  # noqa: BLE001 - 单步异常不应中断后续步骤
+                    results.append(exc)
 
             success = all(isinstance(r, dict) and r.get("success", False) for r in results)
             outputs = [str(r.get("stdout", "")) if isinstance(r, dict) else str(r) for r in results]

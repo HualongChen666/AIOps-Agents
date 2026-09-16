@@ -422,12 +422,21 @@ async def test_retention_manager():
     repo._events[e_new.event_id] = e_new
     repo._events[e_archived.event_id] = e_archived
 
-    cleanup = await rm.cleanup("tenant-1", now=now)
-    # cleanup counts all events older than ttl, including the archived one
-    assert cleanup["deleted"] == 2
+    # 真实归档：把超过 archive_after_days 且未归档的事件标记为 ARCHIVED 并落库。
     archive = await rm.archive("tenant-1", now=now)
-    # archive skips already-archived events
+    # 仅 "old" 需归档（"archived" 已归档被跳过，"new" 太新）。
     assert archive["archived"] == 1
+    assert (await repo.get_event("old")).status == AuditEventStatus.ARCHIVED
+    assert (await repo.get_event("archived")).status == AuditEventStatus.ARCHIVED
+    assert (await repo.get_event("new")).status == AuditEventStatus.RECORDED
+
+    # 真实清理：删除超过 ttl_days 的事件（"old" 与 "archived" 均已过期）。
+    cleanup = await rm.cleanup("tenant-1", now=now)
+    assert cleanup["deleted"] == 2
+    assert await repo.get_event("old") is None
+    assert await repo.get_event("archived") is None
+    # "new" 在 TTL 内，保留。
+    assert await repo.get_event("new") is not None
 
 
 # ---------------------------------------------------------------------------

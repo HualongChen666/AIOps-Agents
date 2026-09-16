@@ -198,7 +198,9 @@ class PluginService:
             execution.success = False
             execution.error_message = str(e)
             execution.completed_at = datetime.utcnow()
-            execution.duration_ms = (time.time() - time.time()) * 1000
+            # 真实耗时（此前为 (time.time()-time.time())*1000 恒为 0）。
+            duration_ms = (time.time() - start_time) * 1000
+            execution.duration_ms = duration_ms
             
             self.execution_repo.create(execution)
             
@@ -208,6 +210,7 @@ class PluginService:
                 result=None,
                 execution_id=execution_id,
                 success=False,
+                duration_ms=duration_ms,
                 error_message=str(e),
             )
 

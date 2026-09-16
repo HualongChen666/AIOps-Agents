@@ -49,6 +49,12 @@ class MockAuditRepository(AuditRepository):
     ) -> List[AuditEvent]:
         return []
 
+    async def update_event(self, event: AuditEvent) -> str:
+        return event.event_id
+
+    async def delete_event(self, event_id: str) -> bool:
+        return False
+
     async def save_log(self, log: Dict[str, Any]) -> str:
         return "log_id"
 

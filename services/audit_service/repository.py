@@ -37,6 +37,12 @@ class AuditRepository(ABC):
     ) -> List[AuditEvent]: ...
 
     @abstractmethod
+    async def update_event(self, event: AuditEvent) -> str: ...
+
+    @abstractmethod
+    async def delete_event(self, event_id: str) -> bool: ...
+
+    @abstractmethod
     async def save_log(self, log: OperationLog) -> str: ...
 
     @abstractmethod
@@ -96,6 +102,18 @@ class InMemoryAuditRepository(AuditRepository):
         events = [e for e in self._events.values() if tenant_id is None or e.tenant_id == tenant_id]
         events.sort(key=lambda e: e.timestamp, reverse=True)
         return events[:limit]
+
+    async def update_event(self, event: AuditEvent) -> str:
+        """Persist an event's current state without resetting status/timestamp."""
+        self._events[event.event_id] = event
+        logger.debug(f"Updated audit event {event.event_id}")
+        return event.event_id
+
+    async def delete_event(self, event_id: str) -> bool:
+        removed = self._events.pop(event_id, None) is not None
+        if removed:
+            logger.debug(f"Deleted audit event {event_id}")
+        return removed
 
     async def save_log(self, log: OperationLog) -> str:
         self._logs.setdefault(log.event_id, []).append(log)

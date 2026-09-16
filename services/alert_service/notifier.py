@@ -63,6 +63,7 @@ class NotificationService:
 
         success = False
         detail = ""
+        channel = "webhook"
         if self.webhook_url:
             try:
                 resp = await self.client.post(
@@ -76,17 +77,19 @@ class NotificationService:
                 logger.error(f"Webhook notification failed: {exc}")
                 detail = str(exc)[:200]
         else:
-            success = True
+            # 未配置 webhook：没有发送任何通知，不能记为成功（否则掩盖漏发）。
+            channel = "none"
+            success = False
             detail = "no webhook configured"
 
         result = {
-            "channel": "webhook",
+            "channel": channel,
             "success": success,
             "alert_id": alert.id,
             "detail": detail,
         }
         self.history.append(result)
-        NOTIFICATIONS_SENT.labels(channel="webhook", status="ok" if success else "error").inc()
+        NOTIFICATIONS_SENT.labels(channel=channel, status="ok" if success else "error").inc()
         return result
 
     async def consume_loop(self, shutdown: asyncio.Event) -> None:

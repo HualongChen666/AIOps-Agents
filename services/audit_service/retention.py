@@ -39,8 +39,13 @@ class RetentionManager:
         ttl_days = policy.ttl_days if policy else 365
         cutoff = now - timedelta(days=ttl_days)
         events = await self.repo.list_events(tenant_id=tenant_id, limit=100000)
-        deleted = [e.event_id for e in events if e.timestamp < cutoff]
-        return {"deleted": len(deleted), "archived": 0, "tenant_id": tenant_id}
+        expired = [e.event_id for e in events if e.timestamp < cutoff]
+        deleted = 0
+        for event_id in expired:
+            # 真实删除超出 TTL 的事件（此前仅统计计数，数据从未被处理）。
+            if await self.repo.delete_event(event_id):
+                deleted += 1
+        return {"deleted": deleted, "archived": 0, "tenant_id": tenant_id}
 
     async def archive(self, tenant_id: str, now: datetime | None = None) -> Dict[str, Any]:
         now = now or datetime.utcnow()
@@ -48,9 +53,11 @@ class RetentionManager:
         archive_after_days = policy.archive_after_days if policy else 90
         cutoff = now - timedelta(days=archive_after_days)
         events = await self.repo.list_events(tenant_id=tenant_id, limit=100000)
-        archived = [
-            e.event_id
-            for e in events
-            if e.timestamp < cutoff and e.status != AuditEventStatus.ARCHIVED
-        ]
-        return {"archived": len(archived), "tenant_id": tenant_id}
+        archived = 0
+        for event in events:
+            if event.timestamp < cutoff and event.status != AuditEventStatus.ARCHIVED:
+                # 真实把过期事件标记为已归档并落库（此前仅统计计数）。
+                event.status = AuditEventStatus.ARCHIVED
+                await self.repo.update_event(event)
+                archived += 1
+        return {"archived": archived, "tenant_id": tenant_id}

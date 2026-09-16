@@ -143,6 +143,36 @@ class SQLAlchemyAuditRepository(AuditRepository):
             await session.commit()
         return event.event_id
 
+    async def update_event(self, event: AuditEvent) -> str:
+        data = {
+            "action": event.action,
+            "resource": event.resource,
+            "user_id": event.user_id,
+            "tenant_id": event.tenant_id,
+            "severity": _enum_value(event.severity),
+            "status": _enum_value(event.status),
+            "timestamp": event.timestamp,
+            "event_metadata": event.metadata or {},
+        }
+        async with self._session_factory() as session:
+            row = await session.get(AuditEventRow, event.event_id)
+            if row is None:
+                session.add(AuditEventRow(event_id=event.event_id, **data))
+            else:
+                for key, value in data.items():
+                    setattr(row, key, value)
+            await session.commit()
+        return event.event_id
+
+    async def delete_event(self, event_id: str) -> bool:
+        async with self._session_factory() as session:
+            row = await session.get(AuditEventRow, event_id)
+            if row is None:
+                return False
+            await session.delete(row)
+            await session.commit()
+        return True
+
     async def get_event(self, event_id: str) -> Optional[AuditEvent]:
         async with self._session_factory() as session:
             row = await session.get(AuditEventRow, event_id)
