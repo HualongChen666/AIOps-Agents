@@ -7,6 +7,7 @@ resource attributes, and environmental context
 
 import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -115,6 +116,11 @@ class ABACEngine:
         self._policies: Dict[str, Policy] = {}
         self._is_initialized = False
         self._is_sqlalchemy = hasattr(postgres_storage, 'execute')  # Check if it's a SQLAlchemy session
+
+        # Load security configuration from environment
+        self._regex_timeout = float(os.getenv('ABAC_REGEX_TIMEOUT_SECONDS', '2'))
+        self._max_pattern_length = int(os.getenv('ABAC_REGEX_MAX_PATTERN_LENGTH', '1000'))
+        self._max_regex_complexity = int(os.getenv('ABAC_REGEX_MAX_COMPLEXITY', '100'))
 
         logger.info("ABAC Engine initialized")
 
@@ -340,6 +346,40 @@ class ABACEngine:
 
         return True
 
+    def _calculate_regex_complexity(self, pattern: str) -> int:
+        """
+        Calculate regex pattern complexity score
+
+        Higher score indicates more complex (potentially dangerous) patterns.
+
+        Args:
+            pattern: Regex pattern string
+
+        Returns:
+            Complexity score
+        """
+        complexity = 0
+
+        # Count nested quantifiers
+        complexity += pattern.count('*') * 2
+        complexity += pattern.count('+') * 2
+        complexity += pattern.count('?') * 1
+
+        # Count character classes
+        complexity += pattern.count('[') * 3
+        complexity += pattern.count('(') * 2
+
+        # Count alternations
+        complexity += pattern.count('|') * 5
+
+        # Count lookaheads/lookbehinds
+        complexity += pattern.count('?=') * 10
+        complexity += pattern.count('?!') * 10
+        complexity += pattern.count('?<=') * 10
+        complexity += pattern.count('?<!') * 10
+
+        return complexity
+
     def _matches_conditions(self, attributes: Dict[str, Any], conditions: Dict[str, Any]) -> bool:
         """
         Check if attributes match conditions
@@ -382,9 +422,59 @@ class ABACEngine:
                     if not (value <= condition["lte"]):
                         return False
                 elif "regex" in condition:
-                    import re
+                    # Use regex library for timeout support
+                    try:
+                        import regex
+                    except ImportError:
+                        logger.warning(
+                            "regex library not available, falling back to re without timeout protection. "
+                            "Install with: poetry add regex"
+                        )
+                        import re
+                        regex = re
 
-                    if not re.match(condition["regex"], str(value)):
+                    pattern = condition["regex"]
+
+                    # Validate pattern length
+                    if len(pattern) > self._max_pattern_length:
+                        logger.warning(
+                            f"Regex pattern exceeds max length {self._max_pattern_length}: {pattern[:50]}..."
+                        )
+                        return False
+
+                    # Validate pattern complexity
+                    complexity = self._calculate_regex_complexity(pattern)
+                    if complexity > self._max_regex_complexity:
+                        logger.warning(
+                            f"Regex pattern complexity {complexity} exceeds max {self._max_regex_complexity}: {pattern[:50]}..."
+                        )
+                        return False
+
+                    # Validate pattern syntax
+                    try:
+                        regex.compile(pattern)
+                    except regex.error as e:
+                        logger.warning(
+                            f"Invalid regex pattern: {pattern[:50]}... Error: {e}"
+                        )
+                        return False
+
+                    # Execute match with timeout protection
+                    try:
+                        # Convert timeout to milliseconds (regex library expects ms)
+                        timeout_ms = int(self._regex_timeout * 1000)
+                        result = regex.match(pattern, str(value), timeout=timeout_ms)
+                        if not result:
+                            return False
+                    except regex.TimeoutError:
+                        logger.warning(
+                            f"Regex matching timeout for pattern: {pattern[:50]}..."
+                        )
+                        return False
+                    except regex.error as e:
+                        logger.warning(
+                            f"Regex match error: {pattern[:50]}... Error: {e}"
+                        )
                         return False
             else:
                 # Simple equality check
